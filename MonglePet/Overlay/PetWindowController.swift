@@ -7,18 +7,41 @@ final class PetWindowController: NSWindowController {
 
     private(set) var isAwake = false
     private var hasPositionedPanel = false
+    private let framePlayer: FramePlayer
+    private let petOverlayView: PetOverlayView
 
     init() {
+        guard
+            let placeholderImage = NSImage(named: "PlaceholderPet"),
+            let petOverlayView = PetOverlayView(
+                atlasID: BuiltInPet.atlasID,
+                image: placeholderImage
+            )
+        else {
+            fatalError("The built-in MonglePet atlas is missing or invalid.")
+        }
+
+        let petDefinition = BuiltInPet.mongleDefinition(
+            atlasPixelSize: petOverlayView.atlasPixelSize
+        )
+        guard let defaultMotion = petDefinition.defaultMotion else {
+            fatalError("The built-in MonglePet definition has no playable motion.")
+        }
+
+        self.petOverlayView = petOverlayView
+        framePlayer = FramePlayer { [weak petOverlayView] frame in
+            petOverlayView?.display(frame)
+        }
+
         let contentRect = NSRect(origin: .zero, size: Self.defaultContentSize)
         let panel = PetWindow(contentRect: contentRect)
-        let hostingView = PetOverlayHostingView(rootView: PetOverlayView())
-        hostingView.wantsLayer = true
-        hostingView.layer?.backgroundColor = NSColor.clear.cgColor
-        panel.contentView = hostingView
+        panel.contentView = petOverlayView
         panel.setContentSize(Self.defaultContentSize)
 
         super.init(window: panel)
         shouldCascadeWindows = false
+        framePlayer.play(defaultMotion)
+        framePlayer.pause()
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(screenParametersDidChange),
@@ -36,6 +59,10 @@ final class PetWindowController: NSWindowController {
         window as? PetWindow
     }
 
+    var isAnimationPlaying: Bool {
+        framePlayer.isPlaying
+    }
+
     func wake(on screen: NSScreen? = NSScreen.main) {
         guard let panel, let targetScreen = screen ?? NSScreen.screens.first else {
             return
@@ -51,9 +78,11 @@ final class PetWindowController: NSWindowController {
 
         panel.orderFrontRegardless()
         isAwake = true
+        framePlayer.resume()
     }
 
     func sleep() {
+        framePlayer.pause()
         panel?.orderOut(nil)
         isAwake = false
     }

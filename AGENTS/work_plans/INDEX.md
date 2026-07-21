@@ -18,4 +18,5 @@
 
 | 상태 | 작업명 | 파일 | 완료일 |
 | --- | --- | --- | --- |
+| completed | Phase 2A 모션 모델과 내장 펫 재생 | `tasks/2026-07-21-phase-2a-motion-runtime.md` | 2026-07-21 |
 | completed | Phase 1 앱 셸과 펫 오버레이 | `tasks/2026-07-21-phase-1-overlay-shell.md` | 2026-07-21 |

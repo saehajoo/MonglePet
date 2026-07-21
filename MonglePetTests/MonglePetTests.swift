@@ -105,8 +105,9 @@ final class MonglePetTests: XCTestCase {
         controller.wake()
         XCTAssertTrue(panel.isVisible)
         XCTAssertFalse(panel.isKeyWindow)
+        XCTAssertTrue(controller.isAnimationPlaying)
 
-        panel.orderOut(nil)
+        controller.sleep()
     }
 
     @MainActor
@@ -119,14 +120,16 @@ final class MonglePetTests: XCTestCase {
 
         controller.sleep()
         XCTAssertFalse(controller.isAwake)
+        XCTAssertFalse(controller.isAnimationPlaying)
         XCTAssertFalse(panel.isVisible)
 
         controller.wake()
         XCTAssertTrue(controller.isAwake)
+        XCTAssertTrue(controller.isAnimationPlaying)
         XCTAssertTrue(panel.isVisible)
         XCTAssertEqual(panel.frame.origin, originalOrigin)
 
-        panel.orderOut(nil)
+        controller.sleep()
     }
 
     @MainActor
