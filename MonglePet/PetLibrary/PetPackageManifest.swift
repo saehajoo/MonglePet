@@ -1,6 +1,6 @@
 import Foundation
 
-nonisolated struct PetPackageManifest: Decodable, Equatable, Sendable {
+nonisolated struct PetPackageManifest: Codable, Equatable, Sendable {
     let formatVersion: Int
     let id: String
     let displayName: String
@@ -13,21 +13,21 @@ nonisolated struct PetPackageManifest: Decodable, Equatable, Sendable {
     let atlases: [Atlas]
     let motions: [Motion]
 
-    nonisolated struct Atlas: Decodable, Equatable, Sendable {
+    nonisolated struct Atlas: Codable, Equatable, Sendable {
         let id: String
         let path: String
         let pixelWidth: Int
         let pixelHeight: Int
     }
 
-    nonisolated struct Motion: Decodable, Equatable, Sendable {
+    nonisolated struct Motion: Codable, Equatable, Sendable {
         let id: String
         let atlas: String
         let loop: Bool
         let frames: [Frame]
     }
 
-    nonisolated struct Frame: Decodable, Equatable, Sendable {
+    nonisolated struct Frame: Codable, Equatable, Sendable {
         let x: Int
         let y: Int
         let width: Int

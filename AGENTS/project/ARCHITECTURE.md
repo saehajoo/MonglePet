@@ -65,6 +65,8 @@ MonglePetApp
 ### PetLibrary
 
 - 외부 파일 가져오기, 검증, 설치와 제거를 담당한다.
+- Codex, GIF/APNG와 PNG 시퀀스 adapter는 호환 입력을 스키마 버전 1 `.monglepet` 디렉터리로 변환하고 기존 로더로 다시 검증한다.
+- 호환 adapter가 만든 PNG atlas와 manifest도 일반 패키지와 동일한 설치 경계를 사용하며 런타임에 별도 형식을 노출하지 않는다.
 - 패키지는 임시 위치에서 전체 검증한 뒤 앱 라이브러리에 원자적으로 설치한다.
 - 사용자 선택 파일의 security-scoped 접근은 검사와 추출 동안만 유지하고 bookmark를 저장하지 않는다.
 - ZIP 엔트리를 사전 검증한 뒤 개별 추출하며 심볼릭 링크와 경로 충돌을 허용하지 않는다.

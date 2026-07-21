@@ -147,6 +147,16 @@ GIF, APNG 또는 PNG 시퀀스는 다음 기본 manifest를 생성해 내부 패
 - 첫 유효 프레임을 미리보기로 사용
 - 제작자와 라이선스는 `Unknown`으로 표시하고 사용자가 확인하도록 안내
 
+구현 규칙:
+
+- GIF와 APNG는 ImageIO가 디코딩한 각 프레임을 공통 canvas에 합성하고 프레임별 지연 시간을 정수 밀리초로 보존한다.
+- GIF disposal 및 APNG blend/disposal 정보가 frame info에 있으면 다음 프레임의 canvas 상태에 반영한다.
+- 지연 시간이 없거나 16ms 미만 또는 60초 초과이면 100ms를 사용한다.
+- PNG 시퀀스는 파일명 정렬을 추정하지 않고 파일 선택 UI가 확정해 전달한 순서를 그대로 사용한다.
+- 크기가 다른 입력 프레임은 가장 큰 프레임 셀 안에서 가운데 정렬하고 최대 8열의 투명 PNG atlas로 만든다.
+- 변환 중에는 원본의 security-scoped 접근만 유지하고 bookmark를 저장하지 않는다.
+- 임시 출력은 기존 `PetPackageLoader`로 전체 재검증한 뒤에만 성공 결과로 반환한다.
+
 원본 저작권은 사용자 책임이라는 안내만으로 무단 배포를 허용하지 않는다. 내보내기나 공유 기능을 추가할 때는 라이선스 필드를 다시 확인한다.
 
 ## 8. Codex 호환 WebP 가져오기
@@ -206,10 +216,10 @@ Codex 호환은 importer 기능이며 MonglePet의 내부 스키마나 런타임
 
 ## 9. 구현 전 확인 항목
 
-- macOS 14의 ImageIO/UTType 기반 WebP 디코딩을 실제 테스트 fixture로 검증한다.
-- lossless와 lossy WebP, 알파 유무, 손상 파일과 과대 이미지 실패 사례를 준비한다.
-- ZIPFoundation 0.9.20을 정확한 버전으로 고정하고 엔트리 사전 검증 후 개별 추출한다.
-- APNG 프레임 시간과 GIF disposal 처리 규칙을 별도 adapter 테스트로 확정한다.
+- [x] macOS 14 이상의 ImageIO/UTType 기반 정적 WebP 디코딩을 실제 로컬 Codex fixture로 검증한다.
+- [x] 알파 유무, 손상 파일과 과대 이미지 실패 경계를 패키지 로더 및 adapter 테스트로 검증한다.
+- [x] ZIPFoundation 0.9.20을 정확한 버전으로 고정하고 엔트리 사전 검증 후 개별 추출한다.
+- [x] APNG 프레임 시간과 GIF canvas 합성 규칙을 별도 adapter 테스트로 확정한다.
 - Codex v2 방향 포즈를 런타임 기능으로 노출할지는 MVP 이후 별도 제품 결정으로 관리한다.
 
 ---
