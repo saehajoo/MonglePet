@@ -23,11 +23,13 @@ final class MonglePetAppDelegate: NSObject, NSApplicationDelegate {
     private var coordinator: AppCoordinator?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        let isOpeningSettingsForUITest = ProcessInfo.processInfo.arguments.contains(
+        let arguments = ProcessInfo.processInfo.arguments
+        let isOpeningSettingsForUITest = arguments.contains(
             "--ui-testing-open-settings"
         )
+        let isUITesting = isOpeningSettingsForUITest || arguments.contains("--ui-testing")
 
-        if isOpeningSettingsForUITest {
+        if isUITesting {
             NSApplication.shared.setActivationPolicy(.regular)
         }
 

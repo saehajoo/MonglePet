@@ -55,4 +55,44 @@ final class MonglePetTests: XCTestCase {
 
         firstWindow.close()
     }
+
+    @MainActor
+    func testPetWindowUsesNonActivatingOverlayConfiguration() throws {
+        let controller = PetWindowController()
+        let panel = try XCTUnwrap(controller.panel)
+
+        XCTAssertTrue(panel.styleMask.contains(.nonactivatingPanel))
+        XCTAssertFalse(panel.isOpaque)
+        XCTAssertEqual(panel.backgroundColor, .clear)
+        XCTAssertFalse(panel.hasShadow)
+        XCTAssertFalse(panel.canBecomeKey)
+        XCTAssertFalse(panel.canBecomeMain)
+        XCTAssertEqual(panel.level, .floating)
+        XCTAssertTrue(panel.collectionBehavior.contains(.canJoinAllSpaces))
+        XCTAssertTrue(panel.collectionBehavior.contains(.fullScreenAuxiliary))
+        XCTAssertEqual(panel.contentLayoutRect.size, PetWindowController.defaultContentSize)
+    }
+
+    @MainActor
+    func testPetWindowDefaultOriginUsesBottomRightInset() {
+        let visibleFrame = NSRect(x: 100, y: 50, width: 1_200, height: 800)
+
+        let origin = PetWindowController.defaultOrigin(in: visibleFrame)
+
+        XCTAssertEqual(origin, NSPoint(x: 1_076, y: 82))
+    }
+
+    @MainActor
+    func testPetWindowShowsBundledPlaceholderWithoutBecomingKey() throws {
+        XCTAssertNotNil(NSImage(named: "PlaceholderPet"))
+
+        let controller = PetWindowController()
+        let panel = try XCTUnwrap(controller.panel)
+
+        controller.show()
+        XCTAssertTrue(panel.isVisible)
+        XCTAssertFalse(panel.isKeyWindow)
+
+        panel.orderOut(nil)
+    }
 }

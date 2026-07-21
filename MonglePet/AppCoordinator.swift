@@ -3,6 +3,7 @@ import AppKit
 @MainActor
 final class AppCoordinator {
     private let settingsWindowController = SettingsWindowController()
+    private let petWindowController = PetWindowController()
     private var menuBarController: MenuBarController?
 
     func start(openSettingsOnLaunch: Bool = false) {
@@ -20,6 +21,7 @@ final class AppCoordinator {
         )
         menuBarController.start()
         self.menuBarController = menuBarController
+        petWindowController.show()
 
         if openSettingsOnLaunch {
             settingsWindowController.show()

@@ -20,4 +20,15 @@ final class MonglePetUITests: XCTestCase {
 
         XCTAssertTrue(app.windows["MonglePet 설정"].waitForExistence(timeout: 5))
     }
+
+    @MainActor
+    func testPetOverlayAppears() throws {
+        let app = XCUIApplication()
+        app.launchArguments.append("--ui-testing")
+        app.launch()
+
+        XCTAssertTrue(
+            app.images["monglepet.overlay.pet"].waitForExistence(timeout: 5)
+        )
+    }
 }
