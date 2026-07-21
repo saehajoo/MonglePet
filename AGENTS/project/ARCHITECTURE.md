@@ -1,0 +1,156 @@
+# MonglePet 아키텍처
+
+## 목표
+
+MonglePet은 상시 실행되는 macOS 앱이므로 제품 규칙, 시스템 감지, 애니메이션 재생, 창 표시와 저장을 분리한다. 핵심 도메인 로직은 운영체제 API 없이 테스트할 수 있어야 한다.
+
+## 기본 구조
+
+```text
+MonglePetApp
+├── AppCoordinator
+├── Domain
+│   ├── PetDefinition / Motion
+│   ├── BehaviorMode / BehaviorSequence
+│   ├── ActivitySnapshot
+│   └── BehaviorResolver
+├── Activity
+│   ├── FrontmostApplicationMonitor
+│   ├── IdleTimeMonitor
+│   └── SystemSessionMonitor
+├── PetLibrary
+│   ├── PackageImporter
+│   ├── PackageValidator
+│   └── PetLibraryStore
+├── Runtime
+│   ├── PetRuntime
+│   ├── MotionScheduler
+│   └── FramePlayer
+├── Overlay
+│   ├── PetWindowController
+│   ├── PetWindow
+│   └── PetView
+├── Settings
+│   ├── AppSettingsStore
+│   └── SwiftUI Views
+└── MenuBar
+    └── MenuBarController
+```
+
+실제 소스 디렉터리는 기능 구현이 시작될 때 이 책임 구분을 기준으로 만들며, 내용이 거의 없는 디렉터리를 미리 대량으로 생성하지 않는다.
+
+## 계층 책임
+
+### AppCoordinator
+
+- 앱 시작과 종료 순서를 관리한다.
+- 메뉴 막대, 설정 창, 펫 런타임과 시스템 감지기의 생명주기를 연결한다.
+- 제품 규칙을 직접 구현하지 않는다.
+- 기본 SwiftUI `WindowGroup`에 앱 생명주기를 의존하지 않는다.
+- 앱 시작 시 `NSStatusItem`과 펫 오버레이를 구성하고 설정창은 사용자 요청이 있을 때만 연다.
+
+### Domain
+
+- AppKit, SwiftUI, 파일 시스템과 시스템 이벤트 API를 참조하지 않는 순수 Swift 코드다.
+- 펫, 모션, 행동 목록, 자동 규칙과 활동 스냅샷을 정의한다.
+- `BehaviorResolver`는 현재 모드, 설정과 `ActivitySnapshot`으로 실행할 행동 목록을 결정한다.
+- 상세 규칙은 `../specifications/BEHAVIOR_MODEL.md`를 따른다.
+
+### Activity
+
+- 전면 앱, 유휴 시간, 화면 잠금과 절전 상태를 감지한다.
+- 시스템 정보를 `ActivitySnapshot`으로 변환할 뿐 행동을 직접 선택하지 않는다.
+- 실제 키 입력이나 화면 내용을 수집하지 않는다.
+
+### PetLibrary
+
+- 외부 파일 가져오기, 검증, 설치와 제거를 담당한다.
+- 패키지는 임시 위치에서 전체 검증한 뒤 앱 라이브러리에 원자적으로 설치한다.
+- 상세 형식과 보안 제한은 `../specifications/PET_PACKAGE.md`를 따른다.
+
+### Runtime
+
+- `MotionScheduler`는 선택된 행동 목록을 시간에 따라 진행한다.
+- `FramePlayer`는 모션 프레임만 렌더링하며 자동·수동 모드 같은 제품 규칙을 알지 못한다.
+- 같은 행동이 유지될 때 불필요하게 재시작하지 않는다.
+
+### Overlay
+
+- 투명하고 테두리가 없는 non-activating `NSPanel`을 사용한다.
+- 창 활성화 없이 펫을 표시하고 다른 앱의 키 윈도우 상태를 빼앗지 않는다.
+- 일반 앱 위에 표시하되 화면 보호기와 화면 잠금보다 높은 창 레벨은 사용하지 않는다.
+- `.canJoinAllSpaces`와 `.fullScreenAuxiliary`에 해당하는 동작을 지원한다.
+- 위치, 크기, 창 레벨, Space 동작과 클릭 통과를 관리한다.
+- SwiftUI 설정 화면과 펫 렌더링 창의 책임을 분리한다.
+- 화면 구성 변경 시 패널 전체가 모든 디스플레이 밖으로 벗어나지 않도록 위치를 보정한다.
+
+### Settings
+
+- 설정 UI와 저장소 사이를 연결한다.
+- 저장 모델을 UI 상태에 직접 결합하지 않는다.
+
+### MenuBar
+
+- AppKit `NSStatusItem`을 사용해 깨우기, 재우기, 설정 열기와 앱 종료를 제공한다.
+- 펫 창이 숨겨지거나 클릭 통과 상태여도 복구 경로를 유지한다.
+- Dock 아이콘을 표시하지 않는 agent-style 앱 구성을 사용한다.
+
+## 1단계 경계
+
+1단계에서는 오버레이 아키텍처만 검증한다.
+
+- 교체 가능한 투명 PNG 한 장을 표시한다.
+- 깨우기, 재우기와 드래그 상태는 실행 중 메모리에서 관리한다.
+- 정식 프레임 스케줄러, WebP 아틀라스, 펫 패키지 로더는 2단계에서 추가한다.
+- 클릭 통과와 사용자 설정 영구 저장은 설정 UI 단계에서 추가한다.
+
+## 핵심 모델 분리
+
+- `PetDefinition`: 설치된 캐릭터와 사용 가능한 모션 데이터
+- `PetInstance`: 화면 위치, 크기, 현재 모드와 사용자 행동 규칙
+- `PetPresentation`: 화면 표시, 사용자에 의한 숨김, 시스템에 의한 일시 중지
+- `BehaviorMode`: 자동 또는 수동 행동 결정 방식
+- `BehaviorSequence`: 시간에 따라 재생할 모션 목록
+- `ActivitySnapshot`: 자동 행동 판단에 필요한 최소 시스템 상태
+
+MVP에서는 여러 펫 정의를 설치할 수 있지만 화면에는 한 개의 `PetInstance`만 표시한다.
+
+## 의존성 규칙
+
+```text
+SwiftUI / AppKit / File System / macOS APIs
+                    ↓
+         Adapter와 저장소 구현
+                    ↓
+             Domain 모델
+```
+
+- Domain에서 상위 프레임워크 방향으로 의존하지 않는다.
+- 시스템 감지기는 런타임이나 UI를 직접 변경하지 않는다.
+- UI는 파일 시스템에 직접 쓰지 않고 저장소 인터페이스를 사용한다.
+- 설정 스키마와 펫 패키지 스키마에는 각각 독립적인 버전 번호를 둔다.
+- 시간 기반 로직에는 주입 가능한 monotonic clock을 사용한다.
+
+## 저장 구조
+
+SwiftData나 Core Data를 사용하지 않고 JSON 설정과 파일 기반 펫 라이브러리로 시작한다.
+
+```text
+~/Library/Application Support/MonglePet/
+├── Library/
+│   └── <installation-uuid>/
+│       ├── pet.json
+│       ├── preview.png
+│       └── assets/
+└── settings.json
+```
+
+- 설정 저장은 임시 파일 작성 후 교체하는 원자적 방식을 사용한다.
+- `settings.json`에는 명시적인 `schemaVersion`을 둔다.
+- 손상된 설정은 격리하고 안전한 기본값으로 복구한다.
+- 패키지 원본이 아니라 검증 후 앱 라이브러리로 복사한 파일을 재생한다.
+
+---
+
+문서 상태: draft
+마지막 갱신: 2026-07-21

@@ -1,0 +1,216 @@
+# MonglePet 펫 패키지 규격 초안
+
+## 1. 목적
+
+`.monglepet`은 MonglePet에 설치할 캐릭터, 모션, 미리보기와 저작권 정보를 한 묶음으로 전달하는 데이터 전용 패키지다. 패키지는 실행 코드를 포함할 수 없다.
+
+초기 개발 중에는 같은 구조의 디렉터리를 사용하고, 배포 시에는 ZIP 컨테이너에 `.monglepet` 확장자를 사용한다.
+
+## 2. 권장 구조
+
+```text
+mongle.monglepet/
+├── pet.json
+├── preview.png
+└── assets/
+    └── spritesheet.webp
+```
+
+여러 atlas 또는 독립 애니메이션 파일이 필요하면 `assets` 아래에 추가할 수 있다. 모든 경로는 패키지 루트 기준 상대 경로다.
+
+### 이미지 형식
+
+- MonglePet atlas의 기본 지원 형식은 투명 PNG와 정적 WebP다.
+- WebP는 알파 채널이 있는 한 장의 atlas 이미지로 사용하며 각 모션 프레임은 manifest 좌표로 자른다.
+- animated WebP 단일 파일을 시간축 애니메이션으로 직접 재생하는 방식은 MVP에서 지원하지 않는다.
+- 디코더가 여러 WebP 프레임을 반환하면 첫 프레임만 조용히 사용하지 않고 지원하지 않는 형식으로 거부한다.
+- 파일 확장자, 실제 디코딩 형식, 픽셀 크기와 알파 정보를 함께 검증한다.
+
+## 3. Manifest 예시
+
+```json
+{
+  "formatVersion": 1,
+  "id": "com.monglepet.mongle",
+  "displayName": "몽글이",
+  "version": "1.0.0",
+  "author": "MonglePet",
+  "license": "All Rights Reserved",
+  "description": "기본 몽글펫 캐릭터",
+  "previewPath": "preview.png",
+  "defaultMotion": "idle",
+  "atlases": [
+    {
+      "id": "main",
+      "path": "assets/spritesheet.webp",
+      "pixelWidth": 1536,
+      "pixelHeight": 2288
+    }
+  ],
+  "motions": [
+    {
+      "id": "idle",
+      "atlas": "main",
+      "loop": true,
+      "frames": [
+        { "x": 0, "y": 0, "width": 192, "height": 208, "durationMs": 280 },
+        { "x": 192, "y": 0, "width": 192, "height": 208, "durationMs": 110 }
+      ]
+    }
+  ]
+}
+```
+
+좌표 원점은 이미지의 왼쪽 위다. 모든 시간은 정수 밀리초로 저장한다.
+
+## 4. 필드 규칙
+
+### 패키지
+
+- `formatVersion`: 스키마 버전. MVP에서는 `1`만 지원한다.
+- `id`: 제작자가 부여한 안정적인 펫 정의 ID다.
+- `displayName`: 사용자에게 표시할 이름이다.
+- `version`: 패키지 버전이다.
+- `author`, `license`: 등록 확인 화면에 표시한다.
+- `previewPath`: 정적 PNG 미리보기다.
+- `defaultMotion`: 존재하는 모션 ID여야 하며, 없으면 `idle`을 사용한다.
+
+### 모션
+
+- `id`: 패키지 안에서 고유해야 한다.
+- `atlas`: 사용할 atlas ID다.
+- `loop`: 모션 자체의 반복 여부다.
+- `frames`: 한 개 이상의 프레임과 표시 시간이다.
+- 프레임 사각형은 이미지 범위를 벗어날 수 없다.
+- `durationMs`는 16~60,000 범위로 제한하고 그 밖의 값은 거부한다.
+
+권장 표준 모션 ID는 `idle`, `focus`, `rest`, `sleep`, `wake`, `petting`, `greeting`이다. 알 수 없는 ID도 사용자 정의 모션으로 보존한다.
+
+## 5. 설치와 저장
+
+패키지 ID와 실제 설치 ID를 분리한다.
+
+- 패키지 ID: 제작자가 제공한 캐릭터 식별자
+- 설치 ID: MonglePet이 생성하는 UUID
+
+동일한 패키지 ID가 이미 설치된 경우 사용자가 업데이트 또는 별도 사본 설치를 선택한다.
+
+설치 위치 예시:
+
+```text
+~/Library/Application Support/MonglePet/
+├── Library/
+│   └── <installation-uuid>/
+│       ├── pet.json
+│       ├── preview.png
+│       └── assets/
+└── settings.json
+```
+
+원본 파일을 직접 재생하지 않고 검증 후 앱 라이브러리로 복사한다. 따라서 원본 이동, 보안 범위 bookmark 만료, 외장 디스크 분리와 무관하게 동작한다.
+
+## 6. 검증 및 보안
+
+설치 전 다음 조건을 확인한다.
+
+- ZIP 경로 탈출과 절대 경로 금지
+- 심볼릭 링크 금지
+- 실행 파일과 스크립트 금지
+- 허용 확장자와 실제 이미지 디코딩 결과 일치
+- animated WebP를 정적 atlas로 잘못 받아들이지 않도록 이미지 프레임 수 확인
+- 압축 파일 크기, 압축 해제 크기, 이미지 크기, 프레임 수 상한
+- 중복 ID, 중복 파일, 누락 파일 금지
+- atlas 범위를 벗어나는 프레임 금지
+- 지나치게 짧거나 긴 프레임 시간 금지
+- 임시 디렉터리에서 전체 검증 후 원자적으로 설치
+
+초기 상한 권장값:
+
+- 패키지 압축 크기: 20 MiB
+- 압축 해제 크기: 100 MiB
+- 최대 압축률과 전체 디코딩 픽셀 예산을 별도로 제한
+- 단일 이미지 한 변: 8192 px
+- 전체 프레임 수: 1,000
+- 모션 수: 100
+
+성능 측정 후 상한을 조정한다.
+
+## 7. 간편 가져오기
+
+GIF, APNG 또는 PNG 시퀀스는 다음 기본 manifest를 생성해 내부 패키지로 변환한다.
+
+- 자동 생성 설치 ID
+- 파일명 기반 표시 이름
+- `idle` 모션 하나
+- 첫 유효 프레임을 미리보기로 사용
+- 제작자와 라이선스는 `Unknown`으로 표시하고 사용자가 확인하도록 안내
+
+원본 저작권은 사용자 책임이라는 안내만으로 무단 배포를 허용하지 않는다. 내보내기나 공유 기능을 추가할 때는 라이선스 필드를 다시 확인한다.
+
+## 8. Codex 호환 WebP 가져오기
+
+Codex 펫의 `spritesheet.webp`는 animated WebP가 아니라 투명한 정적 WebP atlas다. 별도 adapter가 고정 셀과 행을 읽어 MonglePet manifest로 변환한다.
+
+### 판별 규칙
+
+| 형식 | manifest 조건 | atlas 크기 | 셀 구조 |
+|---|---|---:|---|
+| Codex legacy v1 | `spriteVersionNumber`가 없거나 `1` | 1536×1872 | 192×208, 8열×9행 |
+| Codex v2 | `spriteVersionNumber: 2` | 1536×2288 | 192×208, 8열×11행 |
+
+- `pet.json`의 `spritesheetPath`는 패키지 루트 기준 안전한 상대 경로여야 한다.
+- version과 실제 이미지 크기가 일치하지 않으면 자동 추정으로 덮어쓰지 않고 가져오기를 거부한다.
+- manifest 없이 `spritesheet.webp`만 선택한 경우 이미지 크기로 v1 또는 v2 후보를 제시하고 사용자 확인 후 가져온다.
+- 셀 경계 밖 픽셀, 불투명한 미사용 셀과 손상된 알파는 검증 오류로 처리한다.
+
+### 표준 행 매핑
+
+v1과 v2의 첫 9개 행은 같은 의미와 기본 시간을 사용한다.
+
+| 행 | MonglePet 모션 ID | 사용 열 | 기본 프레임 시간 |
+|---:|---|---:|---|
+| 0 | `idle` | 0–5 | 280, 110, 110, 140, 140, 320ms |
+| 1 | `running-right` | 0–7 | 각 120ms, 마지막 220ms |
+| 2 | `running-left` | 0–7 | 각 120ms, 마지막 220ms |
+| 3 | `waving` | 0–3 | 각 140ms, 마지막 280ms |
+| 4 | `jumping` | 0–4 | 각 140ms, 마지막 280ms |
+| 5 | `failed` | 0–7 | 각 140ms, 마지막 240ms |
+| 6 | `waiting` | 0–5 | 각 150ms, 마지막 260ms |
+| 7 | `running` | 0–5 | 각 120ms, 마지막 220ms |
+| 8 | `review` | 0–5 | 각 150ms, 마지막 280ms |
+
+각 행의 마지막 사용 열 이후 셀은 완전히 투명해야 한다.
+
+Codex v2의 추가 방향 셀은 다음 순서를 사용한다.
+
+```text
+row 9:  000, 022.5, 045, 067.5, 090, 112.5, 135, 157.5
+row 10: 180, 202.5, 225, 247.5, 270, 292.5, 315, 337.5
+```
+
+`000`은 위쪽을 바라보는 방향이고 `090`, `180`, `270`은 각각 화면 기준 오른쪽, 아래, 왼쪽이다. MonglePet MVP가 방향 포즈를 직접 사용하지 않더라도 `look-000`부터 `look-337.5`까지의 사용자 정의 단일 프레임 모션으로 보존하며 삭제하지 않는다.
+
+### 변환 원칙
+
+- 원본 WebP는 변경하지 않고 검증 후 라이브러리로 복사한다.
+- 알려진 표준 행은 위 표의 모션 ID와 시간으로 등록한다.
+- v2 방향 포즈와 MonglePet에 없는 의미도 사용자 정의 모션으로 보존한다.
+- `petting`, `sleep`처럼 Codex 고정 행에 없는 모션은 자동 생성하지 않는다.
+- 사용자가 파일 선택으로 명시한 패키지만 가져온다.
+- Codex manifest의 `id`, 표시 이름과 설명은 가져오되 MonglePet 설치 ID는 별도 UUID로 생성한다.
+- 타사 캐릭터 자산은 사용자가 로컬에서 가져올 수 있지만 MonglePet 기본 번들이나 배포 패키지에 재포함하지 않는다.
+
+Codex 호환은 importer 기능이며 MonglePet의 내부 스키마나 런타임을 Codex 고정 행 수에 종속시키지 않는다.
+
+## 9. 구현 전 확인 항목
+
+- macOS 14의 ImageIO/UTType 기반 WebP 디코딩을 실제 테스트 fixture로 검증한다.
+- lossless와 lossy WebP, 알파 유무, 손상 파일과 과대 이미지 실패 사례를 준비한다.
+- ZIP 기반 `.monglepet` 압축 해제 구현과 의존성 사용 여부를 결정한다.
+- APNG 프레임 시간과 GIF disposal 처리 규칙을 별도 adapter 테스트로 확정한다.
+- Codex v2 방향 포즈를 런타임 기능으로 노출할지는 MVP 이후 별도 제품 결정으로 관리한다.
+
+---
+
+문서 상태: 초안
+스키마 버전: 1
