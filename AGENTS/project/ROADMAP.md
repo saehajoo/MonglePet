@@ -2,7 +2,7 @@
 
 ## 현재 상태
 
-- 현재 단계: **2B 완료 — 다음 단계는 2C 외부 패키지 설치**
+- 현재 단계: **2C 완료 — 다음 단계는 2D 호환 가져오기**
 - macOS 앱, XCTest 타깃과 XCUITest 타깃 생성 완료
 - macOS 14, Swift 6, Bundle Identifier `kr.mapleroom.MonglePet` 설정 완료
 - AppKit 앱 생명주기, 메뉴 막대 항목, 재사용 가능한 설정창과 Dock 비노출 구성 완료
@@ -12,7 +12,8 @@
 - 펫·모션·프레임 Domain 모델, 반복·비반복 재생 시간축과 Core Animation atlas 렌더러 구현 완료
 - 재우기에서 프레임 시계를 멈추고 깨우기에서 모션을 재개하는 생명주기 연동 완료
 - 디렉터리형 `.monglepet` manifest, 경로, PNG·정적 WebP, atlas와 모션 전체 검증 로더 구현 완료
-- Debug 빌드와 단위 테스트 38개 통과, 전체 화면·Space·다중 모니터와 모션 재생을 포함한 실제 앱 수동 QA 완료
+- ZIP 엔트리 사전 검사, security-scoped 접근과 원자적 Application Support 라이브러리 설치 구현 완료
+- Debug 빌드와 단위 테스트 48개 통과, 전체 화면·Space·다중 모니터와 모션 재생을 포함한 실제 앱 수동 QA 완료
 - 정적 펫 표시 상태 기준 CPU 0.0%, 메모리 약 26MB 측정
 - 임시 내장 모션 표시 상태 CPU 0.0%, 메모리 약 24MB 측정
 - 프로젝트 지침과 상세 문서를 `AGENTS.md` 및 `AGENTS/` 구조로 정리

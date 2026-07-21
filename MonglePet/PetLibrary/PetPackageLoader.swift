@@ -49,7 +49,6 @@ nonisolated struct PetPackageLoader {
     private func validatePackageRoot(_ rootURL: URL) throws {
         var isDirectory: ObjCBool = false
         guard
-            rootURL.pathExtension.lowercased() == "monglepet",
             fileManager.fileExists(atPath: rootURL.path, isDirectory: &isDirectory),
             isDirectory.boolValue
         else {

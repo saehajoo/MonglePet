@@ -111,7 +111,7 @@ extension PetPackageLoadingError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidPackageRoot:
-            "`.monglepet` 디렉터리가 아닙니다."
+            "읽을 수 있는 펫 패키지 디렉터리가 아닙니다."
         case .missingManifest:
             "패키지 루트에 pet.json이 없습니다."
         case .unreadableManifest:

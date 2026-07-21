@@ -129,7 +129,8 @@ mongle.monglepet/
 - 패키지 압축 크기: 20 MiB
 - 압축 해제 크기: 100 MiB
 - 전체 디코딩 픽셀 예산: 64 MiPixels
-- 최대 압축률은 ZIP 설치 단계에서 별도로 제한
+- ZIP 엔트리 수: 2,000
+- 엔트리별 및 전체 압축률: 100:1
 - 단일 이미지 한 변: 8192 px
 - 전체 프레임 수: 1,000
 - 모션 수: 100
@@ -207,7 +208,7 @@ Codex 호환은 importer 기능이며 MonglePet의 내부 스키마나 런타임
 
 - macOS 14의 ImageIO/UTType 기반 WebP 디코딩을 실제 테스트 fixture로 검증한다.
 - lossless와 lossy WebP, 알파 유무, 손상 파일과 과대 이미지 실패 사례를 준비한다.
-- ZIP 기반 `.monglepet` 압축 해제 구현과 의존성 사용 여부를 결정한다.
+- ZIPFoundation 0.9.20을 정확한 버전으로 고정하고 엔트리 사전 검증 후 개별 추출한다.
 - APNG 프레임 시간과 GIF disposal 처리 규칙을 별도 adapter 테스트로 확정한다.
 - Codex v2 방향 포즈를 런타임 기능으로 노출할지는 MVP 이후 별도 제품 결정으로 관리한다.
 

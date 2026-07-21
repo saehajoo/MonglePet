@@ -66,6 +66,9 @@ MonglePetApp
 
 - 외부 파일 가져오기, 검증, 설치와 제거를 담당한다.
 - 패키지는 임시 위치에서 전체 검증한 뒤 앱 라이브러리에 원자적으로 설치한다.
+- 사용자 선택 파일의 security-scoped 접근은 검사와 추출 동안만 유지하고 bookmark를 저장하지 않는다.
+- ZIP 엔트리를 사전 검증한 뒤 개별 추출하며 심볼릭 링크와 경로 충돌을 허용하지 않는다.
+- 라이브러리와 같은 볼륨의 staging에서 다시 검증한 뒤 UUID 최종 경로로 rename 또는 replace한다.
 - 상세 형식과 보안 제한은 `../specifications/PET_PACKAGE.md`를 따른다.
 
 ### Runtime

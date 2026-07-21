@@ -6,6 +6,11 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		7A2C00040000000000000001 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = 7A2C00020000000000000001 /* ZIPFoundation */; };
+		7A2C00050000000000000001 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = 7A2C00030000000000000001 /* ZIPFoundation */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		639659E9300F4B9400FFAC12 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -52,6 +57,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				7A2C00040000000000000001 /* ZIPFoundation in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -59,6 +65,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				7A2C00050000000000000001 /* ZIPFoundation in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -112,6 +119,7 @@
 			);
 			name = MonglePet;
 			packageProductDependencies = (
+				7A2C00020000000000000001 /* ZIPFoundation */,
 			);
 			productName = MonglePet;
 			productReference = 639659DB300F4B9200FFAC12 /* MonglePet.app */;
@@ -135,6 +143,7 @@
 			);
 			name = MonglePetTests;
 			packageProductDependencies = (
+				7A2C00030000000000000001 /* ZIPFoundation */,
 			);
 			productName = MonglePetTests;
 			productReference = 639659E8300F4B9400FFAC12 /* MonglePetTests.xctest */;
@@ -195,6 +204,9 @@
 			);
 			mainGroup = 639659D2300F4B9200FFAC12;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				7A2C00010000000000000001 /* XCRemoteSwiftPackageReference "ZIPFoundation" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 639659DC300F4B9200FFAC12 /* Products */;
 			projectDirPath = "";
@@ -565,6 +577,30 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		7A2C00010000000000000001 /* XCRemoteSwiftPackageReference "ZIPFoundation" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/weichsel/ZIPFoundation.git";
+			requirement = {
+				kind = exactVersion;
+				version = 0.9.20;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		7A2C00020000000000000001 /* ZIPFoundation */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7A2C00010000000000000001 /* XCRemoteSwiftPackageReference "ZIPFoundation" */;
+			productName = ZIPFoundation;
+		};
+		7A2C00030000000000000001 /* ZIPFoundation */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7A2C00010000000000000001 /* XCRemoteSwiftPackageReference "ZIPFoundation" */;
+			productName = ZIPFoundation;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 639659D3300F4B9200FFAC12 /* Project object */;
 }
