@@ -2,10 +2,11 @@
 
 ## 현재 상태
 
-- 현재 단계: **0단계 기준선 구성 완료, 1단계 착수 전**
+- 현재 단계: **1단계 진행 중 — 1A 앱 셸 완료, 1B 펫 오버레이 착수 전**
 - macOS 앱, XCTest 타깃과 XCUITest 타깃 생성 완료
 - macOS 14, Swift 6, Bundle Identifier `kr.mapleroom.MonglePet` 설정 완료
-- Debug 빌드, 기본 단위 테스트와 UI 실행 테스트 통과
+- AppKit 앱 생명주기, 메뉴 막대 항목, 재사용 가능한 설정창과 Dock 비노출 구성 완료
+- Debug 빌드, 앱 셸 단위 테스트와 설정창 UI 스모크 테스트 통과
 - 프로젝트 지침과 상세 문서를 `AGENTS.md` 및 `AGENTS/` 구조로 정리
 - 공개 저장소 준비 시 `README.md`와 라이선스 정책을 별도로 확정해야 함
 

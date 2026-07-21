@@ -5,13 +5,38 @@
 //  Created by netsprint on 7/21/26.
 //
 
-import SwiftUI
+import AppKit
 
 @main
-struct MonglePetApp: App {
-    var body: some Scene {
-        WindowGroup {
-            ContentView()
+enum MonglePetApp {
+    @MainActor
+    static func main() {
+        let application = NSApplication.shared
+        let delegate = MonglePetAppDelegate()
+        application.delegate = delegate
+        application.run()
+    }
+}
+
+@MainActor
+final class MonglePetAppDelegate: NSObject, NSApplicationDelegate {
+    private var coordinator: AppCoordinator?
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        let isOpeningSettingsForUITest = ProcessInfo.processInfo.arguments.contains(
+            "--ui-testing-open-settings"
+        )
+
+        if isOpeningSettingsForUITest {
+            NSApplication.shared.setActivationPolicy(.regular)
         }
+
+        let coordinator = AppCoordinator()
+        coordinator.start(openSettingsOnLaunch: isOpeningSettingsForUITest)
+        self.coordinator = coordinator
+    }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        false
     }
 }
