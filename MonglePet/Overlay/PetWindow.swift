@@ -25,6 +25,8 @@ final class PetWindow: NSPanel {
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         hidesOnDeactivate = false
         becomesKeyOnlyIfNeeded = true
+        isMovable = true
+        isMovableByWindowBackground = true
         animationBehavior = .none
         isExcludedFromWindowsMenu = true
         title = "MonglePet 펫"

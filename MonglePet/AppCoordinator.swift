@@ -11,7 +11,12 @@ final class AppCoordinator {
             return
         }
 
+        petWindowController.wake()
         let menuBarController = MenuBarController(
+            isPetAwake: petWindowController.isAwake,
+            onTogglePetAwakeState: { [weak self] in
+                self?.togglePetAwakeState()
+            },
             onOpenSettings: { [weak self] in
                 self?.settingsWindowController.show()
             },
@@ -21,10 +26,19 @@ final class AppCoordinator {
         )
         menuBarController.start()
         self.menuBarController = menuBarController
-        petWindowController.show()
 
         if openSettingsOnLaunch {
             settingsWindowController.show()
         }
+    }
+
+    private func togglePetAwakeState() {
+        if petWindowController.isAwake {
+            petWindowController.sleep()
+        } else {
+            petWindowController.wake()
+        }
+
+        menuBarController?.setPetAwake(petWindowController.isAwake)
     }
 }

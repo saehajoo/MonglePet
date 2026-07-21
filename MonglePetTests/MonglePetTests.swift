@@ -18,10 +18,13 @@ final class MonglePetTests: XCTestCase {
     }
 
     @MainActor
-    func testMenuBarContainsSettingsAndQuitActions() throws {
+    func testMenuBarContainsPetStateSettingsAndQuitActions() throws {
+        var didTogglePetAwakeState = false
         var didOpenSettings = false
         var didQuit = false
         let controller = MenuBarController(
+            isPetAwake: true,
+            onTogglePetAwakeState: { didTogglePetAwakeState = true },
             onOpenSettings: { didOpenSettings = true },
             onQuit: { didQuit = true }
         )
@@ -29,13 +32,21 @@ final class MonglePetTests: XCTestCase {
         defer { controller.stop() }
 
         let menu = try XCTUnwrap(controller.statusItem.menu)
-        XCTAssertEqual(menu.items.map(\.title), ["설정…", "", "MonglePet 종료"])
+        XCTAssertEqual(
+            menu.items.map(\.title),
+            ["몽글이 재우기", "", "설정…", "", "MonglePet 종료"]
+        )
 
         menu.performActionForItem(at: 0)
         menu.performActionForItem(at: 2)
+        menu.performActionForItem(at: 4)
 
+        XCTAssertTrue(didTogglePetAwakeState)
         XCTAssertTrue(didOpenSettings)
         XCTAssertTrue(didQuit)
+
+        controller.setPetAwake(false)
+        XCTAssertEqual(menu.items[0].title, "몽글이 깨우기")
     }
 
     @MainActor
@@ -70,6 +81,8 @@ final class MonglePetTests: XCTestCase {
         XCTAssertEqual(panel.level, .floating)
         XCTAssertTrue(panel.collectionBehavior.contains(.canJoinAllSpaces))
         XCTAssertTrue(panel.collectionBehavior.contains(.fullScreenAuxiliary))
+        XCTAssertTrue(panel.isMovable)
+        XCTAssertTrue(panel.isMovableByWindowBackground)
         XCTAssertEqual(panel.contentLayoutRect.size, PetWindowController.defaultContentSize)
     }
 
@@ -89,10 +102,70 @@ final class MonglePetTests: XCTestCase {
         let controller = PetWindowController()
         let panel = try XCTUnwrap(controller.panel)
 
-        controller.show()
+        controller.wake()
         XCTAssertTrue(panel.isVisible)
         XCTAssertFalse(panel.isKeyWindow)
 
         panel.orderOut(nil)
+    }
+
+    @MainActor
+    func testPetWindowSleepAndWakeRestoreLastPosition() throws {
+        let controller = PetWindowController()
+        let panel = try XCTUnwrap(controller.panel)
+
+        controller.wake()
+        let originalOrigin = panel.frame.origin
+
+        controller.sleep()
+        XCTAssertFalse(controller.isAwake)
+        XCTAssertFalse(panel.isVisible)
+
+        controller.wake()
+        XCTAssertTrue(controller.isAwake)
+        XCTAssertTrue(panel.isVisible)
+        XCTAssertEqual(panel.frame.origin, originalOrigin)
+
+        panel.orderOut(nil)
+    }
+
+    @MainActor
+    func testCorrectedOriginKeepsVisibleWindowPosition() {
+        let visibleFrame = NSRect(x: 0, y: 0, width: 1_000, height: 800)
+        let windowFrame = NSRect(x: 600, y: 300, width: 192, height: 208)
+
+        let origin = PetWindowController.correctedOrigin(
+            for: windowFrame,
+            within: [visibleFrame]
+        )
+
+        XCTAssertEqual(origin, windowFrame.origin)
+    }
+
+    @MainActor
+    func testCorrectedOriginClampsWindowInsideNearestVisibleFrame() {
+        let primaryFrame = NSRect(x: 0, y: 0, width: 1_000, height: 800)
+        let secondaryFrame = NSRect(x: 1_000, y: 100, width: 800, height: 600)
+        let windowFrame = NSRect(x: 1_750, y: 650, width: 192, height: 208)
+
+        let origin = PetWindowController.correctedOrigin(
+            for: windowFrame,
+            within: [primaryFrame, secondaryFrame]
+        )
+
+        XCTAssertEqual(origin, NSPoint(x: 1_608, y: 492))
+    }
+
+    @MainActor
+    func testCorrectedOriginMovesDisconnectedWindowToPrimaryFrame() {
+        let primaryFrame = NSRect(x: 0, y: 0, width: 1_000, height: 800)
+        let disconnectedWindowFrame = NSRect(x: 2_000, y: 1_000, width: 192, height: 208)
+
+        let origin = PetWindowController.correctedOrigin(
+            for: disconnectedWindowFrame,
+            within: [primaryFrame]
+        )
+
+        XCTAssertEqual(origin, NSPoint(x: 808, y: 592))
     }
 }
