@@ -85,6 +85,10 @@ final class PetLibrarySession: ObservableObject {
         -> InstalledPetPackage
     private let editablePackageProvider: (InstalledPetPackage) -> Bool
     private let userPetCreator: (UserPetCreationRequest) throws -> InstalledPetPackage
+    private let editableCopyCreator: (
+        InstalledPetPackage,
+        String
+    ) throws -> InstalledPetPackage
     private let animationAdder: (
         UserPetAnimationRequest,
         InstalledPetPackage
@@ -114,6 +118,7 @@ final class PetLibrarySession: ObservableObject {
             packageInstaller: PetPackageInstaller(libraryStore: store).install,
             editablePackageProvider: editor.isEditable,
             userPetCreator: editor.createPet,
+            editableCopyCreator: editor.createEditableCopy,
             animationAdder: editor.addAnimation,
             detailsUpdater: editor.updateDetails,
             animationUpdater: editor.updateAnimation,
@@ -136,6 +141,12 @@ final class PetLibrarySession: ObservableObject {
             -> InstalledPetPackage = { _ in
                 throw PetLibraryError.fileOperationFailed
             },
+        editableCopyCreator: @escaping (
+            InstalledPetPackage,
+            String
+        ) throws -> InstalledPetPackage = { _, _ in
+            throw PetLibraryError.fileOperationFailed
+        },
         animationAdder: @escaping (
             UserPetAnimationRequest,
             InstalledPetPackage
@@ -181,6 +192,7 @@ final class PetLibrarySession: ObservableObject {
         self.packageInstaller = packageInstaller
         self.editablePackageProvider = editablePackageProvider
         self.userPetCreator = userPetCreator
+        self.editableCopyCreator = editableCopyCreator
         self.animationAdder = animationAdder
         self.detailsUpdater = detailsUpdater
         self.animationUpdater = animationUpdater
@@ -317,6 +329,20 @@ final class PetLibrarySession: ObservableObject {
     func createUserPet(_ request: UserPetCreationRequest) -> Bool {
         performUserPetChange {
             try userPetCreator(request)
+        }
+    }
+
+    @discardableResult
+    func createEditableCopyOfSelectedPet(displayName: String) -> Bool {
+        guard let installedPackage = selectedItem.installedPackage else {
+            return false
+        }
+        guard !selectedItem.isEditable else {
+            errorMessage = UserPetEditingError.petIsAlreadyEditable.localizedDescription
+            return false
+        }
+        return performUserPetChange {
+            try editableCopyCreator(installedPackage, displayName)
         }
     }
 

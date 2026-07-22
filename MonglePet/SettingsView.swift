@@ -40,6 +40,7 @@ private struct GeneralSettingsView: View {
     @State private var isConfirmingRemoval = false
     @State private var isConfirmingAnimationRemoval = false
     @State private var isEditingPetDetails = false
+    @State private var isCreatingEditableCopy = false
     @State private var userPetEditorMode: UserPetEditorMode?
     @State private var editingAnimation: PetMotion?
     @State private var previewMotionID: String?
@@ -169,6 +170,14 @@ private struct GeneralSettingsView: View {
                         }
                         .disabled(petLibrarySession.isImporting)
                         .accessibilityIdentifier("monglepet.settings.addPetAnimation")
+                    } else if !petLibrarySession.selectedItem.isBuiltIn {
+                        Button("편집 가능한 사본 만들기…") {
+                            isCreatingEditableCopy = true
+                        }
+                        .disabled(petLibrarySession.isImporting)
+                        .accessibilityIdentifier(
+                            "monglepet.settings.createEditablePetCopy"
+                        )
                     }
                 }
 
@@ -192,7 +201,7 @@ private struct GeneralSettingsView: View {
                         ? "내장 몽글이는 삭제할 수 없으며 언제든 다시 선택할 수 있습니다."
                         : petLibrarySession.selectedItem.isEditable
                             ? "PNG 한 장은 정지 애니메이션, 여러 장은 지정한 순서대로 재생됩니다."
-                            : "가져온 패키지는 원본 보호를 위해 현재 버전에서 직접 편집하지 않습니다."
+                            : "가져온 패키지는 직접 바꾸지 않습니다. 새 ID의 편집 가능한 사본을 만들어 수정할 수 있습니다."
                 )
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -308,6 +317,12 @@ private struct GeneralSettingsView: View {
         }
         .sheet(isPresented: $isEditingPetDetails) {
             UserPetDetailsEditorView(
+                item: petLibrarySession.selectedItem,
+                petLibrarySession: petLibrarySession
+            )
+        }
+        .sheet(isPresented: $isCreatingEditableCopy) {
+            ReadOnlyPetCopyEditorView(
                 item: petLibrarySession.selectedItem,
                 petLibrarySession: petLibrarySession
             )
@@ -705,6 +720,78 @@ private struct UserPetAnimationEditorView: View {
             )
         }
         if succeeded {
+            dismiss()
+        }
+    }
+}
+
+private struct ReadOnlyPetCopyEditorView: View {
+    @Environment(\.dismiss) private var dismiss
+    let item: PetLibraryItem
+    @ObservedObject var petLibrarySession: PetLibrarySession
+
+    @State private var displayName: String
+
+    init(item: PetLibraryItem, petLibrarySession: PetLibrarySession) {
+        self.item = item
+        self.petLibrarySession = petLibrarySession
+        _displayName = State(initialValue: "\(item.metadata.displayName) 사본")
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("편집 가능한 사본 만들기")
+                .font(.title2.weight(.semibold))
+
+            Text("가져온 원본은 읽기 전용으로 그대로 보존됩니다. 사본은 독립된 사용자 펫으로 설치되어 정보와 애니메이션을 수정할 수 있습니다.")
+                .foregroundStyle(.secondary)
+
+            Form {
+                TextField("사본 이름", text: $displayName)
+                    .accessibilityIdentifier("monglepet.editableCopy.name")
+
+                LabeledContent("원본 펫", value: item.metadata.displayName)
+                LabeledContent("제작자", value: item.metadata.author)
+                LabeledContent("버전", value: item.metadata.version)
+                LabeledContent("라이선스", value: item.metadata.license)
+                LabeledContent("원본 패키지 ID", value: item.metadata.id)
+                    .textSelection(.enabled)
+            }
+            .formStyle(.grouped)
+
+            Text("애니메이션과 미리보기 자산만 사본 패키지에 복사합니다. 현재 행동 루틴과 자동 규칙은 앱 설정에 그대로 유지됩니다.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            if let errorMessage = petLibrarySession.errorMessage {
+                Label(errorMessage, systemImage: "xmark.circle.fill")
+                    .font(.callout)
+                    .foregroundStyle(.orange)
+            }
+
+            HStack {
+                Spacer()
+                Button("취소", role: .cancel) {
+                    dismiss()
+                }
+                Button("사본 만들기") {
+                    createCopy()
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(!canCreate || petLibrarySession.isImporting)
+                .accessibilityIdentifier("monglepet.editableCopy.create")
+            }
+        }
+        .padding(20)
+        .frame(minWidth: 540, minHeight: 420)
+    }
+
+    private var canCreate: Bool {
+        !displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private func createCopy() {
+        if petLibrarySession.createEditableCopyOfSelectedPet(displayName: displayName) {
             dismiss()
         }
     }

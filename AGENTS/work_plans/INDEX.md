@@ -8,7 +8,6 @@
 
 | 상태 | 작업명 | 파일 | 마지막 갱신 |
 | --- | --- | --- | --- |
-| in_progress | Phase 6 펫 스튜디오와 메타데이터 편집 | `tasks/2026-07-22-phase-6-pet-studio.md` | 2026-07-22 |
 
 ## 계획됨
 
@@ -27,6 +26,7 @@
 
 | 상태 | 작업명 | 파일 | 완료일 |
 | --- | --- | --- | --- |
+| completed | Phase 6 펫 스튜디오와 메타데이터 편집 | `tasks/2026-07-22-phase-6-pet-studio.md` | 2026-07-22 |
 | completed | 사용자 자유 행동 기본값 전환 | `tasks/2026-07-22-custom-behavior-defaults.md` | 2026-07-22 |
 | completed | Phase 5E 펫 라이브러리와 실행 중 펫 교체 | `tasks/2026-07-22-phase-5e-pet-library-runtime.md` | 2026-07-22 |
 | completed | Phase 5D 행동 루틴과 자동 규칙 편집기 | `tasks/2026-07-22-phase-5d-behavior-editors.md` | 2026-07-22 |

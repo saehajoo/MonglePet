@@ -71,6 +71,7 @@ nonisolated enum UserPetEditingError: Error, Equatable, Sendable {
     case cannotDeleteDefaultAnimation
     case cannotDeleteLastAnimation
     case importedPackageIsReadOnly
+    case petIsAlreadyEditable
     case cannotWritePackage
 }
 
@@ -99,6 +100,8 @@ extension UserPetEditingError: LocalizedError {
             "마지막 남은 펫 애니메이션은 삭제할 수 없습니다."
         case .importedPackageIsReadOnly:
             "MonglePet에서 만든 펫만 직접 수정할 수 있습니다."
+        case .petIsAlreadyEditable:
+            "이미 편집 가능한 펫입니다."
         case .cannotWritePackage:
             "사용자 펫 패키지를 저장하지 못했습니다."
         }
@@ -192,6 +195,51 @@ nonisolated struct UserPetPackageEditor {
                 previewImage: atlas.previewImage,
                 to: packageURL
             )
+            try writeMarker(packageID: packageID, to: packageURL)
+            let validated = try loader.loadPackage(at: packageURL)
+            return try store.install(
+                packageAt: packageURL,
+                validatedPackage: validated,
+                mode: .rejectDuplicate
+            )
+        }
+    }
+
+    func createEditableCopy(
+        of installedPackage: InstalledPetPackage,
+        displayName: String
+    ) throws -> InstalledPetPackage {
+        guard !isEditable(installedPackage) else {
+            throw UserPetEditingError.petIsAlreadyEditable
+        }
+        let displayName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !displayName.isEmpty else {
+            throw UserPetEditingError.invalidPetName
+        }
+        let packageID = "kr.mapleroom.monglepet.user.\(UUID().uuidString.lowercased())"
+
+        return try withTemporaryPackage { packageURL in
+            do {
+                try fileManager.copyItem(at: installedPackage.rootURL, to: packageURL)
+            } catch {
+                throw UserPetEditingError.cannotWritePackage
+            }
+
+            let currentManifest = try readManifest(from: packageURL)
+            let copiedManifest = PetPackageManifest(
+                formatVersion: currentManifest.formatVersion,
+                id: packageID,
+                displayName: displayName,
+                version: currentManifest.version,
+                author: currentManifest.author,
+                license: currentManifest.license,
+                description: currentManifest.description,
+                previewPath: currentManifest.previewPath,
+                defaultMotion: currentManifest.defaultMotion,
+                atlases: currentManifest.atlases,
+                motions: currentManifest.motions
+            )
+            try writeManifest(copiedManifest, to: packageURL)
             try writeMarker(packageID: packageID, to: packageURL)
             let validated = try loader.loadPackage(at: packageURL)
             return try store.install(

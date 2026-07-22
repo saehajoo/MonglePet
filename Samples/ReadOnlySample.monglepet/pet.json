@@ -1,0 +1,35 @@
+{
+  "atlases" : [
+    {
+      "id" : "main",
+      "path" : "assets/spritesheet.png",
+      "pixelHeight" : 1254,
+      "pixelWidth" : 1254
+    }
+  ],
+  "author" : "MonglePet",
+  "defaultMotion" : "idle",
+  "description" : "편집 가능한 사본 만들기를 검증하기 위한 읽기 전용 샘플입니다.",
+  "displayName" : "읽기 전용 샘플",
+  "formatVersion" : 1,
+  "id" : "kr.mapleroom.monglepet.sample.readonly",
+  "license" : "Test Only",
+  "motions" : [
+    {
+      "atlas" : "main",
+      "frames" : [
+        {
+          "durationMs" : 1000,
+          "height" : 1254,
+          "width" : 1254,
+          "x" : 0,
+          "y" : 0
+        }
+      ],
+      "id" : "idle",
+      "loop" : true
+    }
+  ],
+  "previewPath" : "preview.png",
+  "version" : "1.0.0"
+}

@@ -38,6 +38,9 @@ final class MonglePetUITests: XCTestCase {
         XCTAssertTrue(
             app.descendants(matching: .any)["monglepet.settings.petAnimations"].exists
         )
+        XCTAssertFalse(
+            app.buttons["monglepet.settings.createEditablePetCopy"].exists
+        )
     }
 
     @MainActor

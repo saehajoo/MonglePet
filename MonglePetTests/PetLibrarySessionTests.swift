@@ -172,6 +172,60 @@ final class PetLibrarySessionTests: XCTestCase {
         XCTAssertEqual(selections, [.installed(firstID)])
     }
 
+    func testCreatingEditableCopyReloadsSelectsAndNotifiesRuntime() {
+        let original = makeInstalled(id: firstID, name: "가져온 펫")
+        let copy = makeInstalled(id: secondID, name: "편집용 펫")
+        var packages = [original]
+        let session = PetLibrarySession(
+            builtInDefinition: builtInDefinition,
+            installedPackagesProvider: { packages },
+            installationRemover: { _ in },
+            editablePackageProvider: { $0.installationID == self.secondID },
+            editableCopyCreator: { receivedPackage, displayName in
+                XCTAssertEqual(receivedPackage, original)
+                XCTAssertEqual(displayName, "편집용 펫")
+                packages.append(copy)
+                return copy
+            }
+        )
+        _ = session.reload(preferredInstallationID: firstID)
+        var selections: [PetLibrarySelection] = []
+        session.onSelectionChange = { selections.append($0.selection) }
+
+        XCTAssertTrue(
+            session.createEditableCopyOfSelectedPet(displayName: "편집용 펫")
+        )
+        XCTAssertEqual(session.selection, .installed(secondID))
+        XCTAssertTrue(session.selectedItem.isEditable)
+        XCTAssertEqual(session.items.map(\.selection), [
+            .builtIn,
+            .installed(firstID),
+            .installed(secondID)
+        ])
+        XCTAssertEqual(selections, [.installed(secondID)])
+        XCTAssertNil(session.errorMessage)
+    }
+
+    func testCreatingEditableCopyFromEditablePetIsRejected() {
+        let installed = makeInstalled(id: firstID, name: "사용자 펫")
+        let session = PetLibrarySession(
+            builtInDefinition: builtInDefinition,
+            installedPackagesProvider: { [installed] },
+            installationRemover: { _ in },
+            editablePackageProvider: { _ in true }
+        )
+        _ = session.reload(preferredInstallationID: firstID)
+
+        XCTAssertFalse(
+            session.createEditableCopyOfSelectedPet(displayName: "사본")
+        )
+        XCTAssertEqual(
+            session.errorMessage,
+            UserPetEditingError.petIsAlreadyEditable.localizedDescription
+        )
+        XCTAssertEqual(session.selection, .installed(firstID))
+    }
+
     func testUpdatingSelectedPetDetailsReloadsSameInstallationAndNotifiesRuntime() {
         let original = makeInstalled(id: firstID, name: "처음 이름")
         let updated = makeInstalled(id: firstID, name: "새 이름")

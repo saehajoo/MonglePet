@@ -300,6 +300,109 @@ final class UserPetPackageEditorTests: XCTestCase {
         XCTAssertEqual(store.installedPackages().first?.package.definition.motions.count, 2)
     }
 
+    func testCreatesIndependentEditableCopyWithoutChangingReadOnlyOriginal() throws {
+        let environment = try makeEnvironment()
+        let originalInstallationID = UUID(
+            uuidString: "55555555-5555-5555-5555-555555555555"
+        )!
+        let copyInstallationID = UUID(
+            uuidString: "66666666-6666-6666-6666-666666666666"
+        )!
+        var installationIDs = [originalInstallationID, copyInstallationID]
+        let store = PetLibraryStore(
+            libraryRootURL: environment.libraryURL,
+            installationIDGenerator: { installationIDs.removeFirst() }
+        )
+        let editor = UserPetPackageEditor(store: store)
+        let frameURL = environment.rootURL.appendingPathComponent("frame.png")
+        try writePNG(to: frameURL, width: 4, height: 4)
+        let original = try editor.createPet(
+            UserPetCreationRequest(
+                displayName: "가져온 펫",
+                animationName: "기본",
+                frameDurationMilliseconds: 175,
+                loops: false,
+                sourceURLs: [frameURL],
+                version: "2.3.0",
+                author: "원작자",
+                license: "CC-BY-4.0",
+                description: "원본 설명"
+            )
+        )
+        let originalMarkerURL = original.rootURL.appendingPathComponent(
+            UserPetPackageEditor.markerFileName
+        )
+        try FileManager.default.removeItem(at: originalMarkerURL)
+        let originalManifestURL = original.rootURL.appendingPathComponent("pet.json")
+        let originalManifest = try Data(contentsOf: originalManifestURL)
+
+        XCTAssertFalse(editor.isEditable(original))
+
+        let copy = try editor.createEditableCopy(
+            of: original,
+            displayName: "  편집용 펫  "
+        )
+
+        XCTAssertEqual(copy.installationID, copyInstallationID)
+        XCTAssertNotEqual(copy.installationID, original.installationID)
+        XCTAssertNotEqual(copy.package.metadata.id, original.package.metadata.id)
+        XCTAssertEqual(copy.package.metadata.displayName, "편집용 펫")
+        XCTAssertEqual(copy.package.metadata.version, original.package.metadata.version)
+        XCTAssertEqual(copy.package.metadata.author, original.package.metadata.author)
+        XCTAssertEqual(copy.package.metadata.license, original.package.metadata.license)
+        XCTAssertEqual(copy.package.metadata.description, original.package.metadata.description)
+        XCTAssertEqual(
+            copy.package.definition.defaultMotionID,
+            original.package.definition.defaultMotionID
+        )
+        XCTAssertEqual(copy.package.definition.motions, original.package.definition.motions)
+        XCTAssertTrue(editor.isEditable(copy))
+        XCTAssertFalse(editor.isEditable(original))
+        XCTAssertEqual(try Data(contentsOf: originalManifestURL), originalManifest)
+        XCTAssertEqual(Set(store.installedPackages().map(\.installationID)), [
+            originalInstallationID,
+            copyInstallationID
+        ])
+
+        let editedCopy = try editor.updateDetails(
+            UserPetDetailsRequest(
+                displayName: "수정된 사본",
+                version: copy.package.metadata.version,
+                author: copy.package.metadata.author,
+                license: copy.package.metadata.license,
+                description: copy.package.metadata.description,
+                defaultMotionID: copy.package.definition.defaultMotionID
+            ),
+            for: copy
+        )
+        XCTAssertEqual(editedCopy.package.metadata.displayName, "수정된 사본")
+        XCTAssertEqual(try Data(contentsOf: originalManifestURL), originalManifest)
+    }
+
+    func testRejectsEditableCopyCreationFromAlreadyEditablePet() throws {
+        let environment = try makeEnvironment()
+        let store = PetLibraryStore(libraryRootURL: environment.libraryURL)
+        let editor = UserPetPackageEditor(store: store)
+        let frameURL = environment.rootURL.appendingPathComponent("frame.png")
+        try writePNG(to: frameURL, width: 3, height: 3)
+        let created = try editor.createPet(
+            UserPetCreationRequest(
+                displayName: "사용자 펫",
+                animationName: "기본",
+                frameDurationMilliseconds: 120,
+                loops: true,
+                sourceURLs: [frameURL]
+            )
+        )
+
+        XCTAssertThrowsError(
+            try editor.createEditableCopy(of: created, displayName: "사본")
+        ) { error in
+            XCTAssertEqual(error as? UserPetEditingError, .petIsAlreadyEditable)
+        }
+        XCTAssertEqual(store.installedPackages().count, 1)
+    }
+
     private func makeEnvironment() throws -> UserPetEditorFixture {
         let rootURL = FileManager.default.temporaryDirectory.appendingPathComponent(
             "MonglePet-UserPetTests-\(UUID().uuidString)",
