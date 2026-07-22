@@ -242,7 +242,13 @@ final class UserPetPackageEditorTests: XCTestCase {
             UserPetAnimationDetailsRequest(
                 animationID: "기본",
                 animationName: "대기",
-                loops: false
+                loops: false,
+                frames: [
+                    UserPetAnimationFrameRequest(
+                        source: .existing(index: 0),
+                        durationMilliseconds: 120
+                    )
+                ]
             ),
             for: withSecondAnimation
         )
@@ -256,9 +262,240 @@ final class UserPetPackageEditorTests: XCTestCase {
 
         XCTAssertEqual(removed.installationID, installationID)
         XCTAssertEqual(removed.package.definition.motions.map(\.id), ["대기"])
-        XCTAssertEqual(removed.package.atlases.map(\.id), ["main"])
+        XCTAssertEqual(removed.package.atlases.count, 1)
+        XCTAssertEqual(
+            removed.package.atlases.first?.id,
+            removed.package.definition.motions.first?.frames.first?.atlasID
+        )
         XCTAssertFalse(FileManager.default.fileExists(atPath: secondAtlasURL.path))
         XCTAssertTrue(editor.isEditable(removed))
+    }
+
+    func testRebuildsAnimationWithReorderedExistingAndNewFrames() throws {
+        let environment = try makeEnvironment()
+        let installationID = UUID(
+            uuidString: "77777777-7777-7777-7777-777777777777"
+        )!
+        let store = PetLibraryStore(
+            libraryRootURL: environment.libraryURL,
+            installationIDGenerator: { installationID }
+        )
+        let editor = UserPetPackageEditor(store: store)
+        let firstFrameURL = environment.rootURL.appendingPathComponent("first.png")
+        let secondFrameURL = environment.rootURL.appendingPathComponent("second.png")
+        let addedFrameURL = environment.rootURL.appendingPathComponent("added.png")
+        try writePNG(to: firstFrameURL, width: 4, height: 4)
+        try writePNG(to: secondFrameURL, width: 3, height: 5)
+        try writePNG(to: addedFrameURL, width: 6, height: 2)
+        let created = try editor.createPet(
+            UserPetCreationRequest(
+                displayName: "사용자 펫",
+                animationName: "기본",
+                frameDurationMilliseconds: 120,
+                loops: true,
+                sourceURLs: [firstFrameURL, secondFrameURL]
+            )
+        )
+        let originalAtlasURL = try XCTUnwrap(created.package.atlases.first?.fileURL)
+
+        let updated = try editor.updateAnimation(
+            UserPetAnimationDetailsRequest(
+                animationID: "기본",
+                animationName: "새 기본",
+                loops: false,
+                frames: [
+                    UserPetAnimationFrameRequest(
+                        source: .existing(index: 1),
+                        durationMilliseconds: 275
+                    ),
+                    UserPetAnimationFrameRequest(
+                        source: .png(addedFrameURL),
+                        durationMilliseconds: 430
+                    )
+                ]
+            ),
+            for: created
+        )
+
+        XCTAssertEqual(updated.installationID, installationID)
+        XCTAssertEqual(updated.package.definition.defaultMotionID, "새 기본")
+        let motion = try XCTUnwrap(updated.package.definition.motion(id: "새 기본"))
+        XCTAssertFalse(motion.loops)
+        XCTAssertEqual(motion.frames.map(\.duration), [
+            .milliseconds(275),
+            .milliseconds(430)
+        ])
+        XCTAssertEqual(motion.frames.map(\.sourceRect), [
+            PixelRect(x: 0, y: 0, width: 6, height: 5),
+            PixelRect(x: 6, y: 0, width: 6, height: 5)
+        ])
+        XCTAssertEqual(Set(motion.frames.map(\.atlasID)).count, 1)
+        XCTAssertEqual(updated.package.atlases.count, 1)
+        XCTAssertNotEqual(updated.package.atlases[0].fileURL, originalAtlasURL)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: originalAtlasURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(
+            atPath: updated.package.atlases[0].fileURL.path
+        ))
+        XCTAssertEqual(store.installedPackages().count, 1)
+    }
+
+    func testRejectsEmptyAndInvalidDurationAnimationEditsAtomically() throws {
+        let environment = try makeEnvironment()
+        let store = PetLibraryStore(libraryRootURL: environment.libraryURL)
+        let editor = UserPetPackageEditor(store: store)
+        let frameURL = environment.rootURL.appendingPathComponent("frame.png")
+        try writePNG(to: frameURL, width: 3, height: 3)
+        let created = try editor.createPet(
+            UserPetCreationRequest(
+                displayName: "사용자 펫",
+                animationName: "기본",
+                frameDurationMilliseconds: 120,
+                loops: true,
+                sourceURLs: [frameURL]
+            )
+        )
+        let manifestURL = created.rootURL.appendingPathComponent("pet.json")
+        let originalManifest = try Data(contentsOf: manifestURL)
+
+        XCTAssertThrowsError(
+            try editor.updateAnimation(
+                UserPetAnimationDetailsRequest(
+                    animationID: "기본",
+                    animationName: "기본",
+                    loops: true,
+                    frames: []
+                ),
+                for: created
+            )
+        ) { error in
+            XCTAssertEqual(error as? UserPetEditingError, .emptyAnimation)
+        }
+
+        XCTAssertThrowsError(
+            try editor.updateAnimation(
+                UserPetAnimationDetailsRequest(
+                    animationID: "기본",
+                    animationName: "기본",
+                    loops: true,
+                    frames: [
+                        UserPetAnimationFrameRequest(
+                            source: .existing(index: 0),
+                            durationMilliseconds: 15
+                        )
+                    ]
+                ),
+                for: created
+            )
+        ) { error in
+            XCTAssertEqual(error as? UserPetEditingError, .invalidFrameDuration)
+        }
+
+        XCTAssertEqual(try Data(contentsOf: manifestURL), originalManifest)
+        XCTAssertEqual(
+            store.installedPackages().first?.installationID,
+            created.installationID
+        )
+        XCTAssertEqual(
+            store.installedPackages().first?.package.definition,
+            created.package.definition
+        )
+    }
+
+    func testRebuildUsesTopLeftFrameCoordinatesAcrossAtlasRows() throws {
+        let environment = try makeEnvironment()
+        let store = PetLibraryStore(libraryRootURL: environment.libraryURL)
+        let editor = UserPetPackageEditor(store: store)
+        var frameURLs: [URL] = []
+        for index in 0..<9 {
+            let frameURL = environment.rootURL.appendingPathComponent("frame-\(index).png")
+            try writePNG(
+                to: frameURL,
+                width: 2,
+                height: 2,
+                red: index == 8 ? 0.1 : 0.9,
+                green: index == 8 ? 0.9 : 0.1,
+                blue: 0.1
+            )
+            frameURLs.append(frameURL)
+        }
+        let created = try editor.createPet(
+            UserPetCreationRequest(
+                displayName: "사용자 펫",
+                animationName: "기본",
+                frameDurationMilliseconds: 120,
+                loops: true,
+                sourceURLs: frameURLs
+            )
+        )
+
+        let updated = try editor.updateAnimation(
+            UserPetAnimationDetailsRequest(
+                animationID: "기본",
+                animationName: "기본",
+                loops: true,
+                frames: [
+                    UserPetAnimationFrameRequest(
+                        source: .existing(index: 8),
+                        durationMilliseconds: 200
+                    )
+                ]
+            ),
+            for: created
+        )
+        let atlasURL = try XCTUnwrap(updated.package.atlases.first?.fileURL)
+        let source = try XCTUnwrap(CGImageSourceCreateWithURL(atlasURL as CFURL, nil))
+        let atlasImage = try XCTUnwrap(CGImageSourceCreateImageAtIndex(source, 0, nil))
+        let pixel = try centerPixel(of: atlasImage)
+
+        XCTAssertGreaterThan(pixel.green, pixel.red)
+    }
+
+    func testCreatesUserPetUsingTransparentCanvasPlacement() throws {
+        let environment = try makeEnvironment()
+        let store = PetLibraryStore(libraryRootURL: environment.libraryURL)
+        let editor = UserPetPackageEditor(store: store)
+        let frameURL = environment.rootURL.appendingPathComponent("small.png")
+        try writePNG(to: frameURL, width: 2, height: 2)
+
+        let created = try editor.createPet(
+            UserPetCreationRequest(
+                displayName: "배치 펫",
+                animationName: "기본",
+                loops: true,
+                frames: [
+                    UserPetSourceFrameRequest(
+                        sourceURL: frameURL,
+                        durationMilliseconds: 180,
+                        placement: FrameCanvasPlacement(
+                            canvasWidth: 10,
+                            canvasHeight: 10,
+                            scale: 3,
+                            x: 2,
+                            y: 1
+                        )
+                    )
+                ]
+            )
+        )
+
+        let motion = try XCTUnwrap(created.package.definition.defaultMotion)
+        XCTAssertEqual(motion.frames.first?.sourceRect, PixelRect(
+            x: 0,
+            y: 0,
+            width: 10,
+            height: 10
+        ))
+        XCTAssertEqual(motion.frames.first?.duration, .milliseconds(180))
+        let atlasURL = try XCTUnwrap(created.package.atlases.first?.fileURL)
+        let source = try XCTUnwrap(CGImageSourceCreateWithURL(atlasURL as CFURL, nil))
+        let image = try XCTUnwrap(CGImageSourceCreateImageAtIndex(source, 0, nil))
+        let content = try FrameCanvasComposer().transparentContent(in: image)
+        XCTAssertEqual(content.sourceBounds, PixelRect(
+            x: 2,
+            y: 1,
+            width: 6,
+            height: 6
+        ))
     }
 
     func testProtectsDefaultAndLastAnimationsFromDeletion() throws {
@@ -416,7 +653,14 @@ final class UserPetPackageEditorTests: XCTestCase {
         )
     }
 
-    private func writePNG(to fileURL: URL, width: Int, height: Int) throws {
+    private func writePNG(
+        to fileURL: URL,
+        width: Int,
+        height: Int,
+        red: CGFloat = 0.2,
+        green: CGFloat = 0.5,
+        blue: CGFloat = 0.9
+    ) throws {
         let context = try XCTUnwrap(
             CGContext(
                 data: nil,
@@ -429,7 +673,7 @@ final class UserPetPackageEditorTests: XCTestCase {
             )
         )
         context.clear(CGRect(x: 0, y: 0, width: width, height: height))
-        context.setFillColor(CGColor(red: 0.2, green: 0.5, blue: 0.9, alpha: 0.8))
+        context.setFillColor(CGColor(red: red, green: green, blue: blue, alpha: 0.8))
         context.fill(CGRect(x: 0, y: 0, width: width, height: height))
         let image = try XCTUnwrap(context.makeImage())
         let destination = try XCTUnwrap(
@@ -442,6 +686,24 @@ final class UserPetPackageEditorTests: XCTestCase {
         )
         CGImageDestinationAddImage(destination, image, nil)
         XCTAssertTrue(CGImageDestinationFinalize(destination))
+    }
+
+    private func centerPixel(of image: CGImage) throws -> (red: UInt8, green: UInt8) {
+        var bytes = [UInt8](repeating: 0, count: 4)
+        let context = try XCTUnwrap(
+            CGContext(
+                data: &bytes,
+                width: 1,
+                height: 1,
+                bitsPerComponent: 8,
+                bytesPerRow: 4,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            )
+        )
+        context.interpolationQuality = .none
+        context.draw(image, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+        return (bytes[0], bytes[1])
     }
 }
 

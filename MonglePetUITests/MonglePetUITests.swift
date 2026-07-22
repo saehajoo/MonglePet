@@ -72,5 +72,11 @@ final class MonglePetUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["monglepet.userPet.version"].exists)
         XCTAssertTrue(app.descendants(matching: .any)["monglepet.userPet.license"].exists)
         XCTAssertTrue(app.descendants(matching: .any)["monglepet.userPet.description"].exists)
+
+        let choosePNGsButton = app.buttons["monglepet.userPet.choosePNGs"]
+        XCTAssertTrue(choosePNGsButton.waitForExistence(timeout: 5))
+        XCTAssertEqual(choosePNGsButton.label, "PNG 선택…")
+        XCTAssertTrue(choosePNGsButton.isHittable)
+        XCTAssertTrue(app.buttons["monglepet.userPet.save"].exists)
     }
 }

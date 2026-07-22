@@ -6,13 +6,12 @@ import UniformTypeIdentifiers
 nonisolated struct UserPetCreationRequest: Equatable, Sendable {
     let displayName: String
     let animationName: String
-    let frameDurationMilliseconds: Int
     let loops: Bool
-    let sourceURLs: [URL]
     let version: String
     let author: String
     let license: String
     let description: String?
+    let frames: [UserPetSourceFrameRequest]
 
     init(
         displayName: String,
@@ -27,21 +26,86 @@ nonisolated struct UserPetCreationRequest: Equatable, Sendable {
     ) {
         self.displayName = displayName
         self.animationName = animationName
-        self.frameDurationMilliseconds = frameDurationMilliseconds
         self.loops = loops
-        self.sourceURLs = sourceURLs
         self.version = version
         self.author = author
         self.license = license
         self.description = description
+        frames = sourceURLs.map {
+            UserPetSourceFrameRequest(
+                sourceURL: $0,
+                durationMilliseconds: frameDurationMilliseconds
+            )
+        }
+    }
+
+    init(
+        displayName: String,
+        animationName: String,
+        loops: Bool,
+        frames: [UserPetSourceFrameRequest],
+        version: String = "1.0.0",
+        author: String = "MonglePet 사용자",
+        license: String = "Private Use",
+        description: String? = "MonglePet에서 사용자가 만든 펫입니다."
+    ) {
+        self.displayName = displayName
+        self.animationName = animationName
+        self.loops = loops
+        self.version = version
+        self.author = author
+        self.license = license
+        self.description = description
+        self.frames = frames
     }
 }
 
 nonisolated struct UserPetAnimationRequest: Equatable, Sendable {
     let animationName: String
-    let frameDurationMilliseconds: Int
     let loops: Bool
-    let sourceURLs: [URL]
+    let frames: [UserPetSourceFrameRequest]
+
+    init(
+        animationName: String,
+        frameDurationMilliseconds: Int,
+        loops: Bool,
+        sourceURLs: [URL]
+    ) {
+        self.animationName = animationName
+        self.loops = loops
+        frames = sourceURLs.map {
+            UserPetSourceFrameRequest(
+                sourceURL: $0,
+                durationMilliseconds: frameDurationMilliseconds
+            )
+        }
+    }
+
+    init(
+        animationName: String,
+        loops: Bool,
+        frames: [UserPetSourceFrameRequest]
+    ) {
+        self.animationName = animationName
+        self.loops = loops
+        self.frames = frames
+    }
+}
+
+nonisolated struct UserPetSourceFrameRequest: Equatable, Sendable {
+    let sourceURL: URL
+    let durationMilliseconds: Int
+    let placement: FrameCanvasPlacement?
+
+    init(
+        sourceURL: URL,
+        durationMilliseconds: Int,
+        placement: FrameCanvasPlacement? = nil
+    ) {
+        self.sourceURL = sourceURL
+        self.durationMilliseconds = durationMilliseconds
+        self.placement = placement
+    }
 }
 
 nonisolated struct UserPetDetailsRequest: Equatable, Sendable {
@@ -57,6 +121,28 @@ nonisolated struct UserPetAnimationDetailsRequest: Equatable, Sendable {
     let animationID: String
     let animationName: String
     let loops: Bool
+    let frames: [UserPetAnimationFrameRequest]
+}
+
+nonisolated struct UserPetAnimationFrameRequest: Equatable, Sendable {
+    let source: UserPetAnimationFrameSource
+    let durationMilliseconds: Int
+    let placement: FrameCanvasPlacement?
+
+    init(
+        source: UserPetAnimationFrameSource,
+        durationMilliseconds: Int,
+        placement: FrameCanvasPlacement? = nil
+    ) {
+        self.source = source
+        self.durationMilliseconds = durationMilliseconds
+        self.placement = placement
+    }
+}
+
+nonisolated enum UserPetAnimationFrameSource: Equatable, Sendable {
+    case existing(index: Int)
+    case png(URL)
 }
 
 nonisolated enum UserPetEditingError: Error, Equatable, Sendable {
@@ -68,6 +154,11 @@ nonisolated enum UserPetEditingError: Error, Equatable, Sendable {
     case invalidDefaultAnimation(String)
     case animationNotFound(String)
     case duplicateAnimationName(String)
+    case emptyAnimation
+    case invalidFrameDuration
+    case invalidExistingFrame(Int)
+    case invalidFramePlacement
+    case cannotReadAnimationAtlas
     case cannotDeleteDefaultAnimation
     case cannotDeleteLastAnimation
     case importedPackageIsReadOnly
@@ -94,6 +185,16 @@ extension UserPetEditingError: LocalizedError {
             "펫 애니메이션을 찾을 수 없습니다: \(name)"
         case let .duplicateAnimationName(name):
             "같은 이름의 펫 애니메이션이 이미 있습니다: \(name)"
+        case .emptyAnimation:
+            "펫 애니메이션에는 프레임이 하나 이상 필요합니다."
+        case .invalidFrameDuration:
+            "프레임 간격은 16~60000ms 사이여야 합니다."
+        case let .invalidExistingFrame(index):
+            "기존 프레임을 찾을 수 없습니다: \(index + 1)번"
+        case .invalidFramePlacement:
+            "프레임 배율 또는 위치 설정이 올바르지 않습니다."
+        case .cannotReadAnimationAtlas:
+            "기존 펫 애니메이션 이미지를 읽을 수 없습니다."
         case .cannotDeleteDefaultAnimation:
             "기본 애니메이션은 삭제할 수 없습니다. 먼저 다른 애니메이션을 기본으로 지정해 주세요."
         case .cannotDeleteLastAnimation:
@@ -155,10 +256,7 @@ nonisolated struct UserPetPackageEditor {
             description: request.description
         )
         let animationName = try validatedAnimationName(request.animationName)
-        let atlas = try animationAdapter.buildPNGSequenceAtlas(
-            request.sourceURLs,
-            frameDurationMilliseconds: request.frameDurationMilliseconds
-        )
+        let atlas = try buildAtlas(from: request.frames)
         let packageID = "kr.mapleroom.monglepet.user.\(UUID().uuidString.lowercased())"
         let manifest = PetPackageManifest(
             formatVersion: 1,
@@ -263,10 +361,7 @@ nonisolated struct UserPetPackageEditor {
         }) else {
             throw UserPetEditingError.duplicateAnimationName(animationName)
         }
-        let atlas = try animationAdapter.buildPNGSequenceAtlas(
-            request.sourceURLs,
-            frameDurationMilliseconds: request.frameDurationMilliseconds
-        )
+        let atlas = try buildAtlas(from: request.frames)
 
         return try withTemporaryPackage { packageURL in
             do {
@@ -390,18 +485,48 @@ nonisolated struct UserPetPackageEditor {
             throw UserPetEditingError.duplicateAnimationName(animationName)
         }
 
+        let currentManifest = try readManifest(from: installedPackage.rootURL)
+        guard let currentMotion = currentManifest.motions.first(where: {
+            $0.id == request.animationID
+        }) else {
+            throw UserPetEditingError.animationNotFound(request.animationID)
+        }
+        let rebuiltAtlas = try rebuildAtlas(
+            request.frames,
+            currentMotion: currentMotion,
+            manifest: currentManifest,
+            packageURL: installedPackage.rootURL
+        )
+        let resourceID = UUID().uuidString.lowercased()
+        let replacementAtlasID = "user-\(resourceID)"
+        let replacementAtlasPath = "assets/user-\(resourceID).png"
+
         return try editingPackage(installedPackage) { currentManifest in
+            let oldAtlasIsShared = currentManifest.motions.contains {
+                $0.id != request.animationID && $0.atlas == currentMotion.atlas
+            }
             let motions = currentManifest.motions.map { motion in
                 guard motion.id == request.animationID else {
                     return motion
                 }
                 return PetPackageManifest.Motion(
                     id: animationName,
-                    atlas: motion.atlas,
+                    atlas: replacementAtlasID,
                     loop: request.loops,
-                    frames: motion.frames
+                    frames: rebuiltAtlas.frames
                 )
             }
+            let replacementAtlas = PetPackageManifest.Atlas(
+                id: replacementAtlasID,
+                path: replacementAtlasPath,
+                pixelWidth: rebuiltAtlas.pixelSize.width,
+                pixelHeight: rebuiltAtlas.pixelSize.height
+            )
+            let atlases = oldAtlasIsShared
+                ? currentManifest.atlases + [replacementAtlas]
+                : currentManifest.atlases.map { atlas in
+                    atlas.id == currentMotion.atlas ? replacementAtlas : atlas
+                }
             return PetPackageManifest(
                 formatVersion: currentManifest.formatVersion,
                 id: currentManifest.id,
@@ -415,9 +540,32 @@ nonisolated struct UserPetPackageEditor {
                     == request.animationID
                     ? animationName
                     : currentManifest.defaultMotion,
-                atlases: currentManifest.atlases,
+                atlases: atlases,
                 motions: motions
             )
+        } beforeValidation: { packageURL, originalManifest, updatedManifest in
+            try writePNG(
+                rebuiltAtlas.atlasImage,
+                to: packageURL.appendingPathComponent(
+                    replacementAtlasPath,
+                    isDirectory: false
+                )
+            )
+            let removedAtlases = originalManifest.atlases.filter { original in
+                !updatedManifest.atlases.contains { $0.id == original.id }
+            }
+            for atlas in removedAtlases {
+                do {
+                    try fileManager.removeItem(
+                        at: packageURL.appendingPathComponent(
+                            atlas.path,
+                            isDirectory: false
+                        )
+                    )
+                } catch {
+                    throw UserPetEditingError.cannotWritePackage
+                }
+            }
         }
     }
 
@@ -484,6 +632,106 @@ nonisolated struct UserPetPackageEditor {
             throw UserPetEditingError.invalidAnimationName
         }
         return name
+    }
+
+    private func rebuildAtlas(
+        _ frameRequests: [UserPetAnimationFrameRequest],
+        currentMotion: PetPackageManifest.Motion,
+        manifest: PetPackageManifest,
+        packageURL: URL
+    ) throws -> PNGSequenceAtlas {
+        guard !frameRequests.isEmpty else {
+            throw UserPetEditingError.emptyAnimation
+        }
+        guard frameRequests.allSatisfy({
+            16...60_000 ~= $0.durationMilliseconds
+        }) else {
+            throw UserPetEditingError.invalidFrameDuration
+        }
+        guard let sourceAtlas = manifest.atlases.first(where: {
+            $0.id == currentMotion.atlas
+        }) else {
+            throw UserPetEditingError.cannotReadAnimationAtlas
+        }
+        let sourceAtlasImage = try loadImage(
+            at: packageURL.appendingPathComponent(sourceAtlas.path, isDirectory: false)
+        )
+
+        let frames = try frameRequests.map { request in
+            let image: CGImage
+            switch request.source {
+            case let .existing(index):
+                guard currentMotion.frames.indices.contains(index) else {
+                    throw UserPetEditingError.invalidExistingFrame(index)
+                }
+                let frame = currentMotion.frames[index]
+                guard let croppedImage = sourceAtlasImage.cropping(
+                    to: CGRect(
+                        x: frame.x,
+                        y: frame.y,
+                        width: frame.width,
+                        height: frame.height
+                    )
+                ) else {
+                    throw UserPetEditingError.cannotReadAnimationAtlas
+                }
+                image = croppedImage
+            case let .png(sourceURL):
+                image = try animationAdapter.loadStaticPNGWithSecurityScope(at: sourceURL)
+            }
+            return PNGSequenceFrameImage(
+                image: try composedImage(image, placement: request.placement),
+                durationMilliseconds: request.durationMilliseconds
+            )
+        }
+        do {
+            return try animationAdapter.buildPNGSequenceAtlas(frames)
+        } catch SimpleAnimationImportError.emptySequence {
+            throw UserPetEditingError.emptyAnimation
+        } catch SimpleAnimationImportError.invalidFrameDuration {
+            throw UserPetEditingError.invalidFrameDuration
+        }
+    }
+
+    private func loadImage(at fileURL: URL) throws -> CGImage {
+        guard let source = CGImageSourceCreateWithURL(fileURL as CFURL, nil),
+              CGImageSourceGetCount(source) == 1,
+              let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
+            throw UserPetEditingError.cannotReadAnimationAtlas
+        }
+        return image
+    }
+
+    private func buildAtlas(
+        from frameRequests: [UserPetSourceFrameRequest]
+    ) throws -> PNGSequenceAtlas {
+        guard !frameRequests.isEmpty else {
+            throw UserPetEditingError.emptyAnimation
+        }
+        let frames = try frameRequests.map { request in
+            let image = try animationAdapter.loadStaticPNGWithSecurityScope(
+                at: request.sourceURL
+            )
+            return PNGSequenceFrameImage(
+                image: try composedImage(image, placement: request.placement),
+                durationMilliseconds: request.durationMilliseconds
+            )
+        }
+        return try animationAdapter.buildPNGSequenceAtlas(frames)
+    }
+
+    private func composedImage(
+        _ image: CGImage,
+        placement: FrameCanvasPlacement?
+    ) throws -> CGImage {
+        guard let placement else {
+            return image
+        }
+        do {
+            return try FrameCanvasComposer().compose(image, placement: placement)
+        } catch {
+            throw UserPetEditingError.invalidFramePlacement
+        }
     }
 
     private func validatedDetails(

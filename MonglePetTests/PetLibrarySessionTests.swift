@@ -330,7 +330,13 @@ final class PetLibrarySessionTests: XCTestCase {
                 UserPetAnimationDetailsRequest(
                     animationID: "wave",
                     animationName: "  hello  ",
-                    loops: false
+                    loops: false,
+                    frames: [
+                        UserPetAnimationFrameRequest(
+                            source: .existing(index: 0),
+                            durationMilliseconds: 120
+                        )
+                    ]
                 )
             )
         )

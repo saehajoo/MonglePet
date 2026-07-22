@@ -329,6 +329,7 @@ private struct GeneralSettingsView: View {
         }
         .sheet(item: $editingAnimation) { motion in
             UserPetAnimationDetailsEditorView(
+                item: petLibrarySession.selectedItem,
                 motion: motion,
                 petLibrarySession: petLibrarySession,
                 onSaved: { animationID in
@@ -530,111 +531,40 @@ private struct UserPetAnimationEditorView: View {
     @State private var animationName = ""
     @State private var frameDurationMilliseconds = 120
     @State private var loops = true
-    @State private var sourceURLs: [URL] = []
+    @State private var frames: [UserPetAnimationFrameDraft] = []
+    @State private var selectedFrameID: UUID?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 0) {
             Text(mode == .create ? "PNG로 새 펫 만들기" : "펫 애니메이션 추가")
                 .font(.title2.weight(.semibold))
+                .padding(.horizontal, 20)
+                .padding(.vertical, 16)
 
-            Form {
-                if mode == .create {
-                    TextField("펫 이름", text: $petName)
-                        .accessibilityIdentifier("monglepet.userPet.petName")
+            Divider()
 
-                    TextField("제작자", text: $author)
-                        .accessibilityIdentifier("monglepet.userPet.author")
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    if mode == .create {
+                        petInformationSection
+                    }
+                    animationInformationSection
+                    frameEditorSection
 
-                    TextField("버전", text: $version)
-                        .accessibilityIdentifier("monglepet.userPet.version")
+                    Text("권장: 512×512 px 투명 PNG, 모든 프레임에 동일한 캔버스와 캐릭터 크기를 사용해 주세요. 크기가 다르면 투명 영역을 기준으로 자동 맞춤하며 선택 프레임의 배율과 위치를 조정할 수 있습니다.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
 
-                    TextField("라이선스", text: $license)
-                        .accessibilityIdentifier("monglepet.userPet.license")
-
-                    TextField("설명", text: $petDescription, axis: .vertical)
-                        .lineLimit(2...4)
-                        .accessibilityIdentifier("monglepet.userPet.description")
-                }
-
-                TextField("애니메이션 이름", text: $animationName)
-                    .accessibilityIdentifier("monglepet.userPet.animationName")
-
-                LabeledContent("기본 프레임 간격") {
-                    Stepper(
-                        "\(frameDurationMilliseconds) ms",
-                        value: $frameDurationMilliseconds,
-                        in: 16...60_000,
-                        step: 10
-                    )
-                    .accessibilityIdentifier("monglepet.userPet.frameDuration")
-                }
-
-                Toggle("반복 재생", isOn: $loops)
-                    .accessibilityIdentifier("monglepet.userPet.loops")
-            }
-            .formStyle(.grouped)
-
-            HStack {
-                Text("PNG 프레임")
-                    .font(.headline)
-                Spacer()
-                Button(sourceURLs.isEmpty ? "PNG 선택…" : "PNG 다시 선택…") {
-                    choosePNGs()
-                }
-                .accessibilityIdentifier("monglepet.userPet.choosePNGs")
-            }
-
-            GroupBox {
-                if sourceURLs.isEmpty {
-                    ContentUnavailableView(
-                        "선택한 PNG가 없습니다.",
-                        systemImage: "photo.on.rectangle.angled",
-                        description: Text("한 장 또는 여러 장의 PNG를 선택해 주세요.")
-                    )
-                } else {
-                    List {
-                        ForEach(sourceURLs.indices, id: \.self) { index in
-                            HStack {
-                                Text("\(index + 1)")
-                                    .monospacedDigit()
-                                    .foregroundStyle(.secondary)
-                                    .frame(width: 28, alignment: .trailing)
-                                Text(sourceURLs[index].lastPathComponent)
-                                    .lineLimit(1)
-                                Spacer()
-                                Button {
-                                    moveFrame(at: index, offset: -1)
-                                } label: {
-                                    Image(systemName: "chevron.up")
-                                }
-                                .buttonStyle(.borderless)
-                                .disabled(index == sourceURLs.startIndex)
-                                .accessibilityLabel("위로 이동")
-
-                                Button {
-                                    moveFrame(at: index, offset: 1)
-                                } label: {
-                                    Image(systemName: "chevron.down")
-                                }
-                                .buttonStyle(.borderless)
-                                .disabled(index == sourceURLs.index(before: sourceURLs.endIndex))
-                                .accessibilityLabel("아래로 이동")
-                            }
-                        }
+                    if let errorMessage = petLibrarySession.errorMessage {
+                        Label(errorMessage, systemImage: "xmark.circle.fill")
+                            .font(.callout)
+                            .foregroundStyle(.orange)
                     }
                 }
+                .padding(20)
             }
-            .frame(minHeight: 150)
 
-            Text("크기가 다른 이미지는 가장 큰 프레임 크기의 투명 캔버스 중앙에 맞춰집니다. 프레임 간격은 원본 재생 속도이며, 행동 루틴에서 유지 시간과 재생 속도를 별도로 지정할 수 있습니다.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            if let errorMessage = petLibrarySession.errorMessage {
-                Label(errorMessage, systemImage: "xmark.circle.fill")
-                    .font(.callout)
-                    .foregroundStyle(.orange)
-            }
+            Divider()
 
             HStack {
                 Spacer()
@@ -648,9 +578,10 @@ private struct UserPetAnimationEditorView: View {
                 .disabled(!canSave || petLibrarySession.isImporting)
                 .accessibilityIdentifier("monglepet.userPet.save")
             }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 12)
         }
-        .padding(20)
-        .frame(minWidth: 560, minHeight: 570)
+        .frame(minWidth: 760, idealWidth: 820, minHeight: 560, idealHeight: 680)
         .onAppear {
             if mode == .create {
                 animationName = "기본"
@@ -658,9 +589,210 @@ private struct UserPetAnimationEditorView: View {
         }
     }
 
+    private var petInformationSection: some View {
+        GroupBox("펫 정보") {
+            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 10) {
+                GridRow {
+                    fieldLabel("펫 이름")
+                    TextField("펫 이름", text: $petName)
+                        .accessibilityIdentifier("monglepet.userPet.petName")
+                }
+
+                GridRow {
+                    fieldLabel("제작자")
+                    TextField("제작자", text: $author)
+                        .accessibilityIdentifier("monglepet.userPet.author")
+                }
+
+                GridRow {
+                    fieldLabel("버전")
+                    TextField("버전", text: $version)
+                        .accessibilityIdentifier("monglepet.userPet.version")
+                }
+
+                GridRow {
+                    fieldLabel("라이선스")
+                    TextField("라이선스", text: $license)
+                        .accessibilityIdentifier("monglepet.userPet.license")
+                }
+
+                GridRow {
+                    fieldLabel("설명")
+                    TextField("설명", text: $petDescription, axis: .vertical)
+                        .lineLimit(2...4)
+                        .accessibilityIdentifier("monglepet.userPet.description")
+                }
+            }
+            .padding(8)
+        }
+    }
+
+    private var animationInformationSection: some View {
+        GroupBox("애니메이션 설정") {
+            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 10) {
+                GridRow {
+                    fieldLabel("이름")
+                    TextField("애니메이션 이름", text: $animationName)
+                        .accessibilityIdentifier("monglepet.userPet.animationName")
+                }
+
+                GridRow {
+                    fieldLabel("새 PNG 간격")
+                    HStack {
+                        Stepper(
+                            "\(frameDurationMilliseconds) ms",
+                            value: $frameDurationMilliseconds,
+                            in: 16...60_000,
+                            step: 10
+                        )
+                        .accessibilityIdentifier("monglepet.userPet.frameDuration")
+
+                        Text("앞으로 추가할 프레임의 기본값")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                GridRow {
+                    fieldLabel("재생")
+                    Toggle("반복 재생", isOn: $loops)
+                        .accessibilityIdentifier("monglepet.userPet.loops")
+                }
+            }
+            .padding(8)
+        }
+    }
+
+    private var frameEditorSection: some View {
+        GroupBox {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("PNG 프레임")
+                            .font(.headline)
+                        Text("프레임을 선택하면 배율·위치·재생 간격을 개별 편집할 수 있습니다.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button(frames.isEmpty ? "PNG 선택…" : "PNG 추가…") {
+                        choosePNGs()
+                    }
+                    .accessibilityIdentifier("monglepet.userPet.choosePNGs")
+                }
+
+                if frames.isEmpty {
+                    ContentUnavailableView(
+                        "선택한 PNG가 없습니다.",
+                        systemImage: "photo.on.rectangle.angled",
+                        description: Text("한 장 또는 여러 장의 PNG를 선택해 주세요.")
+                    )
+                    .frame(maxWidth: .infinity, minHeight: 220)
+                } else {
+                    HStack(alignment: .top, spacing: 16) {
+                        VStack(alignment: .leading, spacing: 10) {
+                            EditableAnimationPreviewPanel(
+                                frames: frames,
+                                loops: loops,
+                                selectedFrameID: selectedFrameID
+                            )
+
+                            if let selectedFrameBinding {
+                                FramePlacementControls(frame: selectedFrameBinding)
+                            }
+                        }
+                        .frame(width: 230)
+
+                        Divider()
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("프레임 순서와 간격")
+                                .font(.subheadline.weight(.semibold))
+
+                            List(selection: $selectedFrameID) {
+                                ForEach(Array(frames.enumerated()), id: \.element.id) { index, frame in
+                                    frameRow(frame, at: index)
+                                        .tag(frame.id)
+                                }
+                            }
+                            .frame(minHeight: 320)
+                            .accessibilityIdentifier("monglepet.userPet.frames")
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                }
+            }
+            .padding(8)
+        }
+    }
+
+    private func fieldLabel(_ title: String) -> some View {
+        Text(title)
+            .foregroundStyle(.secondary)
+            .frame(width: 88, alignment: .trailing)
+    }
+
+    private func frameRow(
+        _ frame: UserPetAnimationFrameDraft,
+        at index: Int
+    ) -> some View {
+        HStack(spacing: 8) {
+            frameThumbnail(frame)
+                .frame(width: 38, height: 38)
+
+            Text("\(index + 1)")
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+                .frame(width: 24, alignment: .trailing)
+
+            Text(frameFilename(frame))
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            TextField(
+                "간격",
+                value: durationBinding(for: frame.id),
+                format: .number
+            )
+            .frame(width: 66)
+            .multilineTextAlignment(.trailing)
+            .accessibilityLabel("\(index + 1)번 프레임 간격")
+
+            Text("ms")
+                .foregroundStyle(.secondary)
+
+            Button {
+                moveFrame(at: index, offset: -1)
+            } label: {
+                Image(systemName: "chevron.up")
+            }
+            .buttonStyle(.borderless)
+            .disabled(index == frames.startIndex)
+            .accessibilityLabel("위로 이동")
+
+            Button {
+                moveFrame(at: index, offset: 1)
+            } label: {
+                Image(systemName: "chevron.down")
+            }
+            .buttonStyle(.borderless)
+            .disabled(index == frames.index(before: frames.endIndex))
+            .accessibilityLabel("아래로 이동")
+
+            Button(role: .destructive) {
+                removeFrame(id: frame.id)
+            } label: {
+                Image(systemName: "trash")
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel("프레임 삭제")
+        }
+    }
+
     private var canSave: Bool {
         !animationName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && !sourceURLs.isEmpty
+            && !frames.isEmpty
+            && frames.allSatisfy { 16...60_000 ~= $0.durationMilliseconds }
             && (mode != .create
                 || (!petName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                     && !version.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -671,7 +803,7 @@ private struct UserPetAnimationEditorView: View {
     private func choosePNGs() {
         let panel = NSOpenPanel()
         panel.title = "PNG 프레임 선택"
-        panel.prompt = "선택"
+        panel.prompt = "추가"
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = true
@@ -681,15 +813,42 @@ private struct UserPetAnimationEditorView: View {
         guard panel.runModal() == .OK else {
             return
         }
-        sourceURLs = panel.urls
+        let addedFrames = UserPetAnimationDraftFactory.new(
+            urls: panel.urls,
+            durationMilliseconds: frameDurationMilliseconds,
+            reference: frames.first
+        )
+        frames.append(contentsOf: addedFrames)
+        selectedFrameID = addedFrames.first?.id ?? selectedFrameID
     }
 
     private func moveFrame(at index: Int, offset: Int) {
         let destination = index + offset
-        guard sourceURLs.indices.contains(index), sourceURLs.indices.contains(destination) else {
+        guard frames.indices.contains(index), frames.indices.contains(destination) else {
             return
         }
-        sourceURLs.swapAt(index, destination)
+        frames.swapAt(index, destination)
+    }
+
+    private func removeFrame(id: UUID) {
+        frames.removeAll { $0.id == id }
+        if selectedFrameID == id {
+            selectedFrameID = frames.first?.id
+        }
+    }
+
+    private func durationBinding(for id: UUID) -> Binding<Int> {
+        Binding(
+            get: {
+                frames.first(where: { $0.id == id })?.durationMilliseconds ?? 120
+            },
+            set: { newValue in
+                guard let index = frames.firstIndex(where: { $0.id == id }) else {
+                    return
+                }
+                frames[index].durationMilliseconds = newValue
+            }
+        )
     }
 
     private func save() {
@@ -700,9 +859,8 @@ private struct UserPetAnimationEditorView: View {
                 UserPetCreationRequest(
                     displayName: petName,
                     animationName: animationName,
-                    frameDurationMilliseconds: frameDurationMilliseconds,
                     loops: loops,
-                    sourceURLs: sourceURLs,
+                    frames: sourceFrameRequests,
                     version: version,
                     author: author,
                     license: license,
@@ -713,15 +871,62 @@ private struct UserPetAnimationEditorView: View {
             succeeded = petLibrarySession.addAnimationToSelectedPet(
                 UserPetAnimationRequest(
                     animationName: animationName,
-                    frameDurationMilliseconds: frameDurationMilliseconds,
                     loops: loops,
-                    sourceURLs: sourceURLs
+                    frames: sourceFrameRequests
                 )
             )
         }
         if succeeded {
             dismiss()
         }
+    }
+
+    private var sourceFrameRequests: [UserPetSourceFrameRequest] {
+        frames.compactMap { frame in
+            guard case let .png(url) = frame.source else {
+                return nil
+            }
+            return UserPetSourceFrameRequest(
+                sourceURL: url,
+                durationMilliseconds: frame.durationMilliseconds,
+                placement: frame.placement
+            )
+        }
+    }
+
+    private var selectedFrameBinding: Binding<UserPetAnimationFrameDraft>? {
+        guard let selectedFrameID,
+              frames.contains(where: { $0.id == selectedFrameID }) else {
+            return nil
+        }
+        return Binding(
+            get: { frames.first(where: { $0.id == selectedFrameID })! },
+            set: { updated in
+                guard let index = frames.firstIndex(where: { $0.id == selectedFrameID }) else {
+                    return
+                }
+                frames[index] = updated
+            }
+        )
+    }
+
+    @ViewBuilder
+    private func frameThumbnail(_ frame: UserPetAnimationFrameDraft) -> some View {
+        if let image = frame.previewImage {
+            Image(decorative: image, scale: 1)
+                .resizable()
+                .scaledToFit()
+        } else {
+            Image(systemName: "photo")
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func frameFilename(_ frame: UserPetAnimationFrameDraft) -> String {
+        guard case let .png(url) = frame.source else {
+            return "기존 프레임"
+        }
+        return url.lastPathComponent
     }
 }
 
@@ -914,8 +1119,11 @@ private struct UserPetAnimationDetailsEditorView: View {
 
     @State private var animationName: String
     @State private var loops: Bool
+    @State private var frames: [UserPetAnimationFrameDraft]
+    @State private var selectedFrameID: UUID?
 
     init(
+        item: PetLibraryItem,
         motion: PetMotion,
         petLibrarySession: PetLibrarySession,
         onSaved: @escaping (String) -> Void
@@ -925,6 +1133,12 @@ private struct UserPetAnimationDetailsEditorView: View {
         self.onSaved = onSaved
         _animationName = State(initialValue: motion.id)
         _loops = State(initialValue: motion.loops)
+        let frameDrafts = UserPetAnimationDraftFactory.existing(
+            item: item,
+            motion: motion
+        )
+        _frames = State(initialValue: frameDrafts)
+        _selectedFrameID = State(initialValue: frameDrafts.first?.id)
     }
 
     var body: some View {
@@ -932,25 +1146,124 @@ private struct UserPetAnimationDetailsEditorView: View {
             Text("펫 애니메이션 수정")
                 .font(.title2.weight(.semibold))
 
-            Form {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    Form {
                 TextField("애니메이션 이름", text: $animationName)
                     .accessibilityIdentifier("monglepet.petAnimation.name")
 
                 Toggle("반복 재생", isOn: $loops)
                     .accessibilityIdentifier("monglepet.petAnimation.loops")
 
-                LabeledContent("프레임 수", value: "\(motion.frames.count)")
+                LabeledContent("프레임 수", value: "\(frames.count)")
             }
             .formStyle(.grouped)
 
-            Text("프레임 이미지와 개별 재생 시간은 유지됩니다.")
+            HStack(alignment: .top, spacing: 16) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("편집 미리보기")
+                        .font(.headline)
+                    EditableAnimationPreviewPanel(
+                        frames: frames,
+                        loops: loops,
+                        selectedFrameID: selectedFrameID
+                    )
+                        .frame(width: 220)
+                        .accessibilityLabel("편집 중인 애니메이션 미리보기")
+
+                    if let selectedFrameBinding {
+                        FramePlacementControls(frame: selectedFrameBinding)
+                    }
+
+                    Button("PNG 프레임 추가…") {
+                        choosePNGs()
+                    }
+                    .accessibilityIdentifier("monglepet.petAnimation.addFrames")
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("프레임 순서와 간격")
+                        .font(.headline)
+
+                    List {
+                        ForEach(Array(frames.enumerated()), id: \.element.id) { index, frame in
+                            HStack(spacing: 8) {
+                                frameThumbnail(frame)
+                                    .frame(width: 38, height: 38)
+
+                                Text("\(index + 1)")
+                                    .monospacedDigit()
+                                    .frame(width: 24, alignment: .trailing)
+
+                                TextField(
+                                    "간격",
+                                    value: durationBinding(for: frame.id),
+                                    format: .number
+                                )
+                                .frame(width: 72)
+                                .multilineTextAlignment(.trailing)
+                                .accessibilityLabel("\(index + 1)번 프레임 간격")
+
+                                Text("ms")
+                                    .foregroundStyle(.secondary)
+
+                                Spacer()
+
+                                Button {
+                                    moveFrame(at: index, offset: -1)
+                                } label: {
+                                    Image(systemName: "chevron.up")
+                                }
+                                .buttonStyle(.borderless)
+                                .disabled(index == frames.startIndex)
+                                .accessibilityLabel("위로 이동")
+
+                                Button {
+                                    moveFrame(at: index, offset: 1)
+                                } label: {
+                                    Image(systemName: "chevron.down")
+                                }
+                                .buttonStyle(.borderless)
+                                .disabled(index == frames.index(before: frames.endIndex))
+                                .accessibilityLabel("아래로 이동")
+
+                                Button(role: .destructive) {
+                                    removeFrame(id: frame.id)
+                                } label: {
+                                    Image(systemName: "trash")
+                                }
+                                .buttonStyle(.borderless)
+                                .disabled(frames.count == 1)
+                                .accessibilityLabel("프레임 삭제")
+                            }
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                selectedFrameID = frame.id
+                            }
+                            .background(
+                                selectedFrameID == frame.id
+                                    ? Color.accentColor.opacity(0.12)
+                                    : Color.clear,
+                                in: RoundedRectangle(cornerRadius: 6)
+                            )
+                        }
+                    }
+                    .frame(minHeight: 190)
+                    .accessibilityIdentifier("monglepet.petAnimation.frames")
+                }
+                .frame(maxWidth: .infinity)
+            }
+
+            Text("권장: 512×512 px 투명 PNG, 모든 프레임에 동일한 캔버스와 캐릭터 크기를 사용해 주세요. 새 프레임은 투명 영역을 기준으로 자동 맞춤하며 선택 프레임의 배율과 위치를 조정할 수 있습니다. 각 프레임 간격은 16~60000ms입니다.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            if let errorMessage = petLibrarySession.errorMessage {
-                Label(errorMessage, systemImage: "xmark.circle.fill")
-                    .font(.callout)
-                    .foregroundStyle(.orange)
+                    if let errorMessage = petLibrarySession.errorMessage {
+                        Label(errorMessage, systemImage: "xmark.circle.fill")
+                            .font(.callout)
+                            .foregroundStyle(.orange)
+                    }
+                }
             }
 
             HStack {
@@ -967,11 +1280,97 @@ private struct UserPetAnimationDetailsEditorView: View {
             }
         }
         .padding(20)
-        .frame(minWidth: 460, minHeight: 280)
+        .frame(minWidth: 720, idealWidth: 780, minHeight: 560, idealHeight: 680)
     }
 
     private var canSave: Bool {
         !animationName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !frames.isEmpty
+            && frames.allSatisfy { 16...60_000 ~= $0.durationMilliseconds }
+    }
+
+    @ViewBuilder
+    private func frameThumbnail(_ frame: UserPetAnimationFrameDraft) -> some View {
+        if let image = frame.previewImage {
+            Image(decorative: image, scale: 1)
+                .resizable()
+                .scaledToFit()
+        } else {
+            Image(systemName: "photo")
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func durationBinding(for id: UUID) -> Binding<Int> {
+        Binding(
+            get: {
+                frames.first(where: { $0.id == id })?.durationMilliseconds ?? 120
+            },
+            set: { newValue in
+                guard let index = frames.firstIndex(where: { $0.id == id }) else {
+                    return
+                }
+                frames[index].durationMilliseconds = newValue
+            }
+        )
+    }
+
+    private var selectedFrameBinding: Binding<UserPetAnimationFrameDraft>? {
+        guard let selectedFrameID,
+              frames.contains(where: { $0.id == selectedFrameID }) else {
+            return nil
+        }
+        return Binding(
+            get: {
+                frames.first(where: { $0.id == selectedFrameID })!
+            },
+            set: { updated in
+                guard let index = frames.firstIndex(where: { $0.id == selectedFrameID }) else {
+                    return
+                }
+                frames[index] = updated
+            }
+        )
+    }
+
+    private func choosePNGs() {
+        let panel = NSOpenPanel()
+        panel.title = "추가할 PNG 프레임 선택"
+        panel.prompt = "추가"
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = true
+        panel.resolvesAliases = true
+        panel.allowedContentTypes = [.png]
+
+        guard panel.runModal() == .OK else {
+            return
+        }
+        let addedFrames = UserPetAnimationDraftFactory.new(
+            urls: panel.urls,
+            durationMilliseconds: 120,
+            reference: frames.first
+        )
+        frames.append(contentsOf: addedFrames)
+        selectedFrameID = addedFrames.first?.id ?? selectedFrameID
+    }
+
+    private func moveFrame(at index: Int, offset: Int) {
+        let destination = index + offset
+        guard frames.indices.contains(index), frames.indices.contains(destination) else {
+            return
+        }
+        frames.swapAt(index, destination)
+    }
+
+    private func removeFrame(id: UUID) {
+        guard frames.count > 1 else {
+            return
+        }
+        frames.removeAll { $0.id == id }
+        if selectedFrameID == id {
+            selectedFrameID = frames.first?.id
+        }
     }
 
     private func save() {
@@ -982,13 +1381,488 @@ private struct UserPetAnimationDetailsEditorView: View {
             UserPetAnimationDetailsRequest(
                 animationID: motion.id,
                 animationName: normalizedName,
-                loops: loops
+                loops: loops,
+                frames: frames.map {
+                    UserPetAnimationFrameRequest(
+                        source: $0.source,
+                        durationMilliseconds: $0.durationMilliseconds,
+                        placement: $0.placement
+                    )
+                }
             )
         )
         if succeeded {
             onSaved(normalizedName)
             dismiss()
         }
+    }
+
+}
+
+private struct UserPetAnimationFrameDraft: Identifiable {
+    let id = UUID()
+    let source: UserPetAnimationFrameSource
+    var durationMilliseconds: Int
+    let content: TransparentFrameContent
+    let canvasSize: PixelSize
+    let baseScale: Double
+    let anchorX: Double
+    let anchorBottom: Double
+    var scalePercent: Double = 100
+    var offsetX: Double = 0
+    var offsetY: Double = 0
+    var previewImage: CGImage?
+
+    init?(
+        source: UserPetAnimationFrameSource,
+        durationMilliseconds: Int,
+        image: CGImage,
+        canvasSize: PixelSize,
+        baseScale: Double,
+        anchorX: Double,
+        anchorBottom: Double
+    ) {
+        guard let content = try? FrameCanvasComposer().transparentContent(in: image) else {
+            return nil
+        }
+        self.source = source
+        self.durationMilliseconds = durationMilliseconds
+        self.content = content
+        self.canvasSize = canvasSize
+        self.baseScale = baseScale
+        self.anchorX = anchorX
+        self.anchorBottom = anchorBottom
+        previewImage = nil
+        refreshPreview()
+    }
+
+    var placement: FrameCanvasPlacement {
+        let scale = baseScale * scalePercent / 100
+        return FrameCanvasPlacement(
+            canvasWidth: canvasSize.width,
+            canvasHeight: canvasSize.height,
+            scale: scale,
+            x: anchorX - Double(content.image.width) * scale / 2 + offsetX,
+            y: anchorBottom - Double(content.image.height) * scale + offsetY
+        )
+    }
+
+    var renderedContentSize: CGSize {
+        CGSize(
+            width: Double(content.image.width) * placement.scale,
+            height: Double(content.image.height) * placement.scale
+        )
+    }
+
+    mutating func refreshPreview() {
+        previewImage = try? FrameCanvasComposer().compose(
+            content,
+            placement: placement
+        )
+    }
+
+    mutating func resetPlacement() {
+        scalePercent = 100
+        offsetX = 0
+        offsetY = 0
+        refreshPreview()
+    }
+}
+
+@MainActor
+private enum UserPetAnimationDraftFactory {
+    static func existing(
+        item: PetLibraryItem,
+        motion: PetMotion
+    ) -> [UserPetAnimationFrameDraft] {
+        let atlases = (try? PetPresentationResourceLoader.loadAtlases(for: item)) ?? []
+        let atlasImages = Dictionary(uniqueKeysWithValues: atlases.map { ($0.id, $0.image) })
+        return motion.frames.enumerated().compactMap { index, frame in
+            guard let image = atlasImages[frame.atlasID]?.cropping(
+                to: CGRect(
+                    x: frame.sourceRect.x,
+                    y: frame.sourceRect.y,
+                    width: frame.sourceRect.width,
+                    height: frame.sourceRect.height
+                )
+            ), let content = try? FrameCanvasComposer().transparentContent(in: image) else {
+                return nil
+            }
+            return UserPetAnimationFrameDraft(
+                source: .existing(index: index),
+                durationMilliseconds: durationMilliseconds(frame.duration),
+                image: image,
+                canvasSize: PixelSize(
+                    width: frame.sourceRect.width,
+                    height: frame.sourceRect.height
+                ),
+                baseScale: 1,
+                anchorX: Double(content.sourceBounds.x)
+                    + Double(content.sourceBounds.width) / 2,
+                anchorBottom: Double(
+                    content.sourceBounds.y + content.sourceBounds.height
+                )
+            )
+        }
+    }
+
+    static func new(
+        urls: [URL],
+        durationMilliseconds: Int,
+        reference: UserPetAnimationFrameDraft? = nil
+    ) -> [UserPetAnimationFrameDraft] {
+        let sources = urls.compactMap { url -> (URL, CGImage, TransparentFrameContent)? in
+            guard let image = loadImage(at: url),
+                  let content = try? FrameCanvasComposer().transparentContent(in: image) else {
+                return nil
+            }
+            return (url, image, content)
+        }
+        guard !sources.isEmpty else {
+            return []
+        }
+
+        if let reference {
+            let referencePlacement = reference.placement
+            let targetSize = reference.renderedContentSize
+            let anchorX = referencePlacement.x + targetSize.width / 2
+            let anchorBottom = referencePlacement.y + targetSize.height
+            return sources.compactMap { url, image, content in
+                let scale = min(
+                    targetSize.width / Double(content.image.width),
+                    targetSize.height / Double(content.image.height)
+                )
+                return UserPetAnimationFrameDraft(
+                    source: .png(url),
+                    durationMilliseconds: durationMilliseconds,
+                    image: image,
+                    canvasSize: reference.canvasSize,
+                    baseScale: scale,
+                    anchorX: anchorX,
+                    anchorBottom: anchorBottom
+                )
+            }
+        }
+
+        let canvasSize = PixelSize(
+            width: sources.map { $0.1.width }.max() ?? 512,
+            height: sources.map { $0.1.height }.max() ?? 512
+        )
+        let usesSameCanvas = Set(sources.map { "\($0.1.width)x\($0.1.height)" }).count == 1
+        return sources.compactMap { url, image, content in
+            let scale: Double
+            let anchorX: Double
+            let anchorBottom: Double
+            if usesSameCanvas {
+                scale = 1
+                anchorX = Double(content.sourceBounds.x)
+                    + Double(content.sourceBounds.width) / 2
+                anchorBottom = Double(
+                    content.sourceBounds.y + content.sourceBounds.height
+                )
+            } else {
+                scale = min(
+                    Double(canvasSize.width) * 0.8 / Double(content.image.width),
+                    Double(canvasSize.height) * 0.8 / Double(content.image.height)
+                )
+                anchorX = Double(canvasSize.width) / 2
+                anchorBottom = Double(canvasSize.height) * 0.9
+            }
+            return UserPetAnimationFrameDraft(
+                source: .png(url),
+                durationMilliseconds: durationMilliseconds,
+                image: image,
+                canvasSize: canvasSize,
+                baseScale: scale,
+                anchorX: anchorX,
+                anchorBottom: anchorBottom
+            )
+        }
+    }
+
+    private static func loadImage(at fileURL: URL) -> CGImage? {
+        guard let source = CGImageSourceCreateWithURL(fileURL as CFURL, nil) else {
+            return nil
+        }
+        return CGImageSourceCreateImageAtIndex(source, 0, nil)
+    }
+
+    private static func durationMilliseconds(_ duration: Duration) -> Int {
+        let components = duration.components
+        let value = components.seconds * 1_000
+            + components.attoseconds / 1_000_000_000_000_000
+        return Int(clamping: value)
+    }
+}
+
+private struct FramePlacementControls: View {
+    @Binding var frame: UserPetAnimationFrameDraft
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("자동 맞춤 대비 배율")
+                Spacer()
+                Text("\(Int(frame.scalePercent.rounded()))%")
+                    .monospacedDigit()
+            }
+            .font(.caption)
+
+            Slider(value: scaleBinding, in: 25...400, step: 5)
+                .accessibilityLabel("선택 프레임 배율")
+
+            Stepper(
+                "가로 \(Int(frame.offsetX.rounded())) px (오른쪽 +)",
+                value: horizontalOffsetBinding,
+                in: -Double(frame.canvasSize.width)...Double(frame.canvasSize.width),
+                step: 1
+            )
+            .accessibilityLabel("선택 프레임 가로 위치")
+
+            Stepper(
+                "세로 \(Int(frame.offsetY.rounded())) px (아래 +)",
+                value: verticalOffsetBinding,
+                in: -Double(frame.canvasSize.height)...Double(frame.canvasSize.height),
+                step: 1
+            )
+            .accessibilityLabel("선택 프레임 세로 위치")
+
+            Button("배치 초기화") {
+                frame.resetPlacement()
+            }
+            .accessibilityIdentifier("monglepet.petAnimation.resetPlacement")
+        }
+        .controlSize(.small)
+    }
+
+    private var scaleBinding: Binding<Double> {
+        Binding(
+            get: { frame.scalePercent },
+            set: {
+                frame.scalePercent = $0
+                frame.refreshPreview()
+            }
+        )
+    }
+
+    private var horizontalOffsetBinding: Binding<Double> {
+        Binding(
+            get: { frame.offsetX },
+            set: {
+                frame.offsetX = $0
+                frame.refreshPreview()
+            }
+        )
+    }
+
+    private var verticalOffsetBinding: Binding<Double> {
+        Binding(
+            get: { frame.offsetY },
+            set: {
+                frame.offsetY = $0
+                frame.refreshPreview()
+            }
+        )
+    }
+}
+
+private enum EditableAnimationPreviewMode: String, CaseIterable, Identifiable {
+    case animation = "전체 재생"
+    case selectedFrame = "선택 프레임"
+
+    var id: Self { self }
+}
+
+private struct EditableAnimationPreviewPanel: View {
+    let frames: [UserPetAnimationFrameDraft]
+    let loops: Bool
+    let selectedFrameID: UUID?
+
+    @State private var previewMode: EditableAnimationPreviewMode = .selectedFrame
+    @State private var isPlaying = true
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Picker("미리보기 방식", selection: $previewMode) {
+                ForEach(EditableAnimationPreviewMode.allCases) { mode in
+                    Text(mode.rawValue).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .accessibilityIdentifier("monglepet.petAnimation.previewMode")
+
+            EditableAnimationPreviewView(
+                frames: frames,
+                loops: loops,
+                selectedFrameID: selectedFrameID,
+                previewMode: previewMode,
+                isPlaying: $isPlaying
+            )
+            .frame(height: 190)
+            .background(
+                .quaternary.opacity(0.18),
+                in: RoundedRectangle(cornerRadius: 10)
+            )
+
+            HStack {
+                if previewMode == .animation {
+                    Button {
+                        isPlaying.toggle()
+                    } label: {
+                        Label(
+                            isPlaying ? "일시정지" : "재생",
+                            systemImage: isPlaying ? "pause.fill" : "play.fill"
+                        )
+                    }
+                    .controlSize(.small)
+                    .accessibilityIdentifier("monglepet.petAnimation.previewPlayback")
+                }
+
+                Spacer()
+
+                Text(previewCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            }
+        }
+    }
+
+    private var previewCaption: String {
+        switch previewMode {
+        case .animation:
+            "총 \(frames.count)개 프레임"
+        case .selectedFrame:
+            if let selectedFrameID,
+               let index = frames.firstIndex(where: { $0.id == selectedFrameID }) {
+                "선택 \(index + 1)/\(frames.count)"
+            } else {
+                "프레임을 선택해 주세요"
+            }
+        }
+    }
+}
+
+private struct EditableAnimationPreviewView: View {
+    let frames: [UserPetAnimationFrameDraft]
+    let loops: Bool
+    let selectedFrameID: UUID?
+    let previewMode: EditableAnimationPreviewMode
+    @Binding var isPlaying: Bool
+
+    @State private var frameIndex = 0
+
+    var body: some View {
+        GeometryReader { geometry in
+            let canvasSize = fittedCanvasSize(in: geometry.size)
+
+            ZStack {
+                TransparencyGridView()
+
+                if let image = currentFrame?.previewImage {
+                    Image(decorative: image, scale: 1)
+                        .resizable()
+                        .interpolation(.high)
+                        .scaledToFit()
+                } else {
+                    Image(systemName: "photo")
+                        .font(.largeTitle)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .frame(width: canvasSize.width, height: canvasSize.height)
+            .overlay {
+                Rectangle()
+                    .stroke(.secondary.opacity(0.45), lineWidth: 1)
+            }
+            .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
+        }
+        .task(id: playbackIdentity) {
+            guard previewMode == .animation, isPlaying, !frames.isEmpty else {
+                return
+            }
+            if !frames.indices.contains(frameIndex) {
+                frameIndex = 0
+            }
+            if !loops, frameIndex == frames.index(before: frames.endIndex) {
+                frameIndex = 0
+            }
+            while !Task.isCancelled {
+                let delay = min(
+                    60_000,
+                    max(16, currentFrame?.durationMilliseconds ?? 120)
+                )
+                try? await Task.sleep(for: .milliseconds(delay))
+                guard !Task.isCancelled else {
+                    return
+                }
+                if frameIndex + 1 < frames.count {
+                    frameIndex += 1
+                } else if loops {
+                    frameIndex = 0
+                } else {
+                    isPlaying = false
+                    return
+                }
+            }
+        }
+    }
+
+    private var currentFrame: UserPetAnimationFrameDraft? {
+        if previewMode == .selectedFrame {
+            return frames.first(where: { $0.id == selectedFrameID }) ?? frames.first
+        }
+        guard frames.indices.contains(frameIndex) else {
+            return frames.first
+        }
+        return frames[frameIndex]
+    }
+
+    private func fittedCanvasSize(in availableSize: CGSize) -> CGSize {
+        let width = max(1, Double(currentFrame?.canvasSize.width ?? 1))
+        let height = max(1, Double(currentFrame?.canvasSize.height ?? 1))
+        let availableWidth = max(1, availableSize.width - 16)
+        let availableHeight = max(1, availableSize.height - 16)
+        let scale = min(availableWidth / width, availableHeight / height)
+        return CGSize(width: width * scale, height: height * scale)
+    }
+
+    private var playbackIdentity: String {
+        frames.map { "\($0.id.uuidString):\($0.durationMilliseconds)" }
+            .joined(separator: "|")
+            + ":\(loops):\(previewMode.rawValue):\(isPlaying)"
+    }
+}
+
+private struct TransparencyGridView: View {
+    private let squareLength = 10.0
+
+    var body: some View {
+        Canvas { context, size in
+            context.fill(
+                Path(CGRect(origin: .zero, size: size)),
+                with: .color(Color(nsColor: .controlBackgroundColor))
+            )
+            let columns = Int(ceil(size.width / squareLength))
+            let rows = Int(ceil(size.height / squareLength))
+            for row in 0..<rows {
+                for column in 0..<columns where (row + column).isMultiple(of: 2) {
+                    context.fill(
+                        Path(
+                            CGRect(
+                                x: Double(column) * squareLength,
+                                y: Double(row) * squareLength,
+                                width: squareLength,
+                                height: squareLength
+                            )
+                        ),
+                        with: .color(.secondary.opacity(0.13))
+                    )
+                }
+            }
+        }
+        .accessibilityHidden(true)
     }
 }
 

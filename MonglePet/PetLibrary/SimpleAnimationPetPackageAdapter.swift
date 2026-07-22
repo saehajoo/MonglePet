@@ -153,21 +153,48 @@ nonisolated struct SimpleAnimationPetPackageAdapter {
             throw SimpleAnimationImportError.tooManyFrames
         }
 
-        var decodedPixelCount: Int64 = 0
         let frames = try sourceURLs.map { sourceURL in
-            try securityScopedAccess.withAccess(to: sourceURL) {
-                let image = try loadStaticPNG(at: sourceURL)
-                decodedPixelCount += Int64(image.width) * Int64(image.height)
-                guard decodedPixelCount <= limits.maximumDecodedPixelCount else {
-                    throw SimpleAnimationImportError.decodedPixelLimitExceeded
-                }
-                return SimpleAnimationFrame(
-                    image: image,
-                    durationMilliseconds: frameDurationMilliseconds
-                )
-            }
+            PNGSequenceFrameImage(
+                image: try loadStaticPNGWithSecurityScope(at: sourceURL),
+                durationMilliseconds: frameDurationMilliseconds
+            )
         }
-        return try makeAtlas(frames: frames)
+        return try buildPNGSequenceAtlas(frames)
+    }
+
+    func loadStaticPNGWithSecurityScope(at sourceURL: URL) throws -> CGImage {
+        try securityScopedAccess.withAccess(to: sourceURL) {
+            try loadStaticPNG(at: sourceURL)
+        }
+    }
+
+    func buildPNGSequenceAtlas(
+        _ frames: [PNGSequenceFrameImage]
+    ) throws -> PNGSequenceAtlas {
+        guard !frames.isEmpty else {
+            throw SimpleAnimationImportError.emptySequence
+        }
+        guard frames.count <= limits.maximumFrameCount else {
+            throw SimpleAnimationImportError.tooManyFrames
+        }
+
+        var decodedPixelCount: Int64 = 0
+        let validatedFrames = try frames.map { frame in
+            guard Self.minimumDurationMilliseconds...Self.maximumDurationMilliseconds
+                ~= frame.durationMilliseconds else {
+                throw SimpleAnimationImportError.invalidFrameDuration
+            }
+            try validateFrameDimensions(frame.image)
+            decodedPixelCount += Int64(frame.image.width) * Int64(frame.image.height)
+            guard decodedPixelCount <= limits.maximumDecodedPixelCount else {
+                throw SimpleAnimationImportError.decodedPixelLimitExceeded
+            }
+            return SimpleAnimationFrame(
+                image: frame.image,
+                durationMilliseconds: frame.durationMilliseconds
+            )
+        }
+        return try makeAtlas(frames: validatedFrames)
     }
 
     private func validate(metadata: SimplePetImportMetadata) throws {
@@ -601,6 +628,162 @@ nonisolated struct PNGSequenceAtlas: @unchecked Sendable {
     let previewImage: CGImage
     let pixelSize: PixelSize
     let frames: [PetPackageManifest.Frame]
+}
+
+nonisolated struct PNGSequenceFrameImage: @unchecked Sendable {
+    let image: CGImage
+    let durationMilliseconds: Int
+}
+
+nonisolated struct FrameCanvasPlacement: Equatable, Sendable {
+    let canvasWidth: Int
+    let canvasHeight: Int
+    let scale: Double
+    let x: Double
+    let y: Double
+}
+
+nonisolated struct TransparentFrameContent: @unchecked Sendable {
+    let image: CGImage
+    let sourceBounds: PixelRect
+}
+
+nonisolated struct FrameCanvasComposer {
+    func transparentContent(in image: CGImage) throws -> TransparentFrameContent {
+        let width = image.width
+        let height = image.height
+        let (pixelCount, pixelCountOverflow) = width.multipliedReportingOverflow(by: height)
+        let (byteCount, byteCountOverflow) = pixelCount.multipliedReportingOverflow(by: 4)
+        guard width > 0,
+              height > 0,
+              width <= PetPackageLimits.standard.maximumImageDimension,
+              height <= PetPackageLimits.standard.maximumImageDimension,
+              !pixelCountOverflow,
+              !byteCountOverflow,
+              Int64(pixelCount) <= PetPackageLimits.standard.maximumDecodedPixelCount else {
+            throw SimpleAnimationImportError.invalidImage("transparent frame")
+        }
+
+        var pixels = [UInt8](repeating: 0, count: byteCount)
+        let rendered = pixels.withUnsafeMutableBytes { bytes -> Bool in
+            guard let context = CGContext(
+                data: bytes.baseAddress,
+                width: width,
+                height: height,
+                bitsPerComponent: 8,
+                bytesPerRow: width * 4,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            ) else {
+                return false
+            }
+            context.clear(CGRect(x: 0, y: 0, width: width, height: height))
+            context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+            return true
+        }
+        guard rendered else {
+            throw SimpleAnimationImportError.cannotCreateAtlas
+        }
+
+        var minimumX = width
+        var minimumDataY = height
+        var maximumX = -1
+        var maximumDataY = -1
+        for dataY in 0..<height {
+            let rowStart = dataY * width * 4
+            for x in 0..<width where pixels[rowStart + x * 4 + 3] > 0 {
+                minimumX = min(minimumX, x)
+                maximumX = max(maximumX, x)
+                minimumDataY = min(minimumDataY, dataY)
+                maximumDataY = max(maximumDataY, dataY)
+            }
+        }
+        guard maximumX >= minimumX, maximumDataY >= minimumDataY else {
+            throw SimpleAnimationImportError.invalidImage("transparent frame")
+        }
+
+        let bounds = PixelRect(
+            x: minimumX,
+            y: minimumDataY,
+            width: maximumX - minimumX + 1,
+            height: maximumDataY - minimumDataY + 1
+        )
+        guard let cropped = image.cropping(
+            to: CGRect(
+                x: bounds.x,
+                y: bounds.y,
+                width: bounds.width,
+                height: bounds.height
+            )
+        ) else {
+            throw SimpleAnimationImportError.invalidImage("transparent frame")
+        }
+        return TransparentFrameContent(image: cropped, sourceBounds: bounds)
+    }
+
+    func compose(
+        _ image: CGImage,
+        placement: FrameCanvasPlacement
+    ) throws -> CGImage {
+        try compose(transparentContent(in: image), placement: placement)
+    }
+
+    func compose(
+        _ content: TransparentFrameContent,
+        placement: FrameCanvasPlacement
+    ) throws -> CGImage {
+        guard placement.canvasWidth > 0,
+              placement.canvasHeight > 0,
+              placement.canvasWidth <= PetPackageLimits.standard.maximumImageDimension,
+              placement.canvasHeight <= PetPackageLimits.standard.maximumImageDimension,
+              Int64(placement.canvasWidth) * Int64(placement.canvasHeight)
+                <= PetPackageLimits.standard.maximumDecodedPixelCount,
+              placement.scale.isFinite,
+              placement.scale > 0,
+              placement.x.isFinite,
+              placement.y.isFinite else {
+            throw SimpleAnimationImportError.cannotCreateAtlas
+        }
+        let drawWidth = Double(content.image.width) * placement.scale
+        let drawHeight = Double(content.image.height) * placement.scale
+        guard drawWidth.isFinite, drawHeight.isFinite, drawWidth > 0, drawHeight > 0,
+              let context = CGContext(
+                data: nil,
+                width: placement.canvasWidth,
+                height: placement.canvasHeight,
+                bitsPerComponent: 8,
+                bytesPerRow: 0,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+              ) else {
+            throw SimpleAnimationImportError.cannotCreateAtlas
+        }
+        context.clear(
+            CGRect(
+                x: 0,
+                y: 0,
+                width: placement.canvasWidth,
+                height: placement.canvasHeight
+            )
+        )
+        let usesNativePixelPlacement = placement.scale == 1
+            && placement.x.rounded() == placement.x
+            && placement.y.rounded() == placement.y
+        context.interpolationQuality = usesNativePixelPlacement ? .none : .high
+        context.draw(
+            content.image,
+            in: CGRect(
+                x: placement.x,
+                y: Double(placement.canvasHeight) - placement.y - drawHeight,
+                width: drawWidth,
+                height: drawHeight
+            )
+        )
+        guard let composed = context.makeImage() else {
+            throw SimpleAnimationImportError.cannotCreateAtlas
+        }
+        return composed
+    }
 }
 
 private nonisolated struct SimpleAnimationFrame {
