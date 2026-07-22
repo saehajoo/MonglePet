@@ -10,6 +10,7 @@ struct PetAtlasImage {
 @MainActor
 final class PetOverlayView: NSView {
     var onDragEnded: (() -> Void)?
+    var allowsWindowDragging = true
 
     private var atlases: [String: PetAtlasImage]
     private(set) var displayedAtlasID: String?
@@ -100,6 +101,9 @@ final class PetOverlayView: NSView {
     }
 
     override func mouseDown(with event: NSEvent) {
+        guard allowsWindowDragging else {
+            return
+        }
         window?.performDrag(with: event)
         onDragEnded?()
     }

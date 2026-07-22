@@ -160,6 +160,28 @@ final class MonglePetTests: XCTestCase {
     }
 
     @MainActor
+    func testPetPresentationResourceLoaderProvidesBuiltInAtlasForPreview() throws {
+        let definition = BuiltInPet.mongleDefinition(
+            atlasPixelSize: PixelSize(width: 192, height: 208)
+        )
+        let session = PetLibrarySession(
+            builtInDefinition: definition,
+            installedPackagesProvider: { [] },
+            installationRemover: { _ in }
+        )
+
+        let atlases = try PetPresentationResourceLoader.loadAtlases(
+            for: session.selectedItem
+        )
+
+        let atlas = try XCTUnwrap(atlases.first)
+        XCTAssertEqual(atlases.count, 1)
+        XCTAssertEqual(atlas.id, BuiltInPet.atlasID)
+        XCTAssertGreaterThan(atlas.pixelSize.width, 0)
+        XCTAssertGreaterThan(atlas.pixelSize.height, 0)
+    }
+
+    @MainActor
     func testPetWindowAppliesInstalledPetDefinitionAtlasAndFrameAspectRatio() throws {
         let temporaryURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

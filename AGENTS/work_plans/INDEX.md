@@ -8,14 +8,12 @@
 
 | 상태 | 작업명 | 파일 | 마지막 갱신 |
 | --- | --- | --- | --- |
-| in_progress | 사용자 자유 행동 기본값 전환 | `tasks/2026-07-22-custom-behavior-defaults.md` | 2026-07-22 |
-| in_progress | Phase 5E 펫 라이브러리와 실행 중 펫 교체 | `tasks/2026-07-22-phase-5e-pet-library-runtime.md` | 2026-07-22 |
+| in_progress | Phase 6 펫 스튜디오와 메타데이터 편집 | `tasks/2026-07-22-phase-6-pet-studio.md` | 2026-07-22 |
 
 ## 계획됨
 
 | 상태 | 작업명 | 파일 | 마지막 갱신 |
 | --- | --- | --- | --- |
-| planned | Phase 6 펫 스튜디오와 메타데이터 편집 | `tasks/2026-07-22-phase-6-pet-studio.md` | 2026-07-22 |
 | planned | Phase 7 애니메이션·행동 모델 v2와 펫별 설정 | `tasks/2026-07-22-phase-7-animation-behavior-v2.md` | 2026-07-22 |
 | planned | Phase 8 로컬 펫 공유 | `tasks/2026-07-22-phase-8-local-pet-sharing.md` | 2026-07-22 |
 | planned | Phase 9 마우스 따라가기와 이동 상호작용 | `tasks/2026-07-22-phase-9-cursor-following.md` | 2026-07-22 |
@@ -29,6 +27,8 @@
 
 | 상태 | 작업명 | 파일 | 완료일 |
 | --- | --- | --- | --- |
+| completed | 사용자 자유 행동 기본값 전환 | `tasks/2026-07-22-custom-behavior-defaults.md` | 2026-07-22 |
+| completed | Phase 5E 펫 라이브러리와 실행 중 펫 교체 | `tasks/2026-07-22-phase-5e-pet-library-runtime.md` | 2026-07-22 |
 | completed | Phase 5D 행동 루틴과 자동 규칙 편집기 | `tasks/2026-07-22-phase-5d-behavior-editors.md` | 2026-07-22 |
 | completed | Phase 5C 행동 런타임과 기본 프리셋 | `tasks/2026-07-22-phase-5c-behavior-runtime-presets.md` | 2026-07-22 |
 | completed | Phase 5B 설정 적용과 기본 설정 UI | `tasks/2026-07-22-phase-5b-settings-application-ui.md` | 2026-07-22 |

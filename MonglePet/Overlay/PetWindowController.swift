@@ -18,6 +18,59 @@ extension PetPresentationLoadingError: LocalizedError {
 }
 
 @MainActor
+enum PetPresentationResourceLoader {
+    static func loadAtlases(for item: PetLibraryItem) throws -> [PetAtlasImage] {
+        if item.isBuiltIn {
+            guard let image = NSImage(named: "PlaceholderPet") else {
+                throw PetPresentationLoadingError.missingAtlas(BuiltInPet.atlasID)
+            }
+            var proposedRect = NSRect(origin: .zero, size: image.size)
+            guard let cgImage = image.cgImage(
+                forProposedRect: &proposedRect,
+                context: nil,
+                hints: nil
+            ) else {
+                throw PetPresentationLoadingError.invalidAtlas("PlaceholderPet")
+            }
+            return [
+                PetAtlasImage(
+                    id: BuiltInPet.atlasID,
+                    image: cgImage,
+                    pixelSize: PixelSize(width: cgImage.width, height: cgImage.height)
+                )
+            ]
+        }
+
+        guard let installedPackage = item.installedPackage else {
+            throw PetPresentationLoadingError.missingAtlas(item.definition.id)
+        }
+        return try loadAtlases(from: installedPackage.package.atlases)
+    }
+
+    private static func loadAtlases(
+        from resources: [PetAtlasResource]
+    ) throws -> [PetAtlasImage] {
+        try resources.map { resource in
+            guard
+                let source = CGImageSourceCreateWithURL(resource.fileURL as CFURL, nil),
+                let image = CGImageSourceCreateImageAtIndex(source, 0, nil),
+                image.width == resource.pixelSize.width,
+                image.height == resource.pixelSize.height
+            else {
+                throw PetPresentationLoadingError.invalidAtlas(
+                    resource.fileURL.lastPathComponent
+                )
+            }
+            return PetAtlasImage(
+                id: resource.id,
+                image: image,
+                pixelSize: resource.pixelSize
+            )
+        }
+    }
+}
+
+@MainActor
 final class PetWindowController: NSWindowController {
     static let defaultContentSize = NSSize(width: 192, height: 208)
     static let defaultScreenInset: CGFloat = 32
@@ -116,10 +169,8 @@ final class PetWindowController: NSWindowController {
         let atlases: [PetAtlasImage]
         if item.isBuiltIn {
             atlases = builtInAtlases
-        } else if let installedPackage = item.installedPackage {
-            atlases = try Self.loadAtlases(from: installedPackage.package.atlases)
         } else {
-            throw PetPresentationLoadingError.missingAtlas(item.definition.id)
+            atlases = try PetPresentationResourceLoader.loadAtlases(for: item)
         }
 
         guard let defaultMotion = item.definition.defaultMotion,
@@ -349,28 +400,6 @@ final class PetWindowController: NSWindowController {
         )
         if hasPositionedPanel {
             correctPanelPosition()
-        }
-    }
-
-    private static func loadAtlases(
-        from resources: [PetAtlasResource]
-    ) throws -> [PetAtlasImage] {
-        try resources.map { resource in
-            guard
-                let source = CGImageSourceCreateWithURL(resource.fileURL as CFURL, nil),
-                let image = CGImageSourceCreateImageAtIndex(source, 0, nil),
-                image.width == resource.pixelSize.width,
-                image.height == resource.pixelSize.height
-            else {
-                throw PetPresentationLoadingError.invalidAtlas(
-                    resource.fileURL.lastPathComponent
-                )
-            }
-            return PetAtlasImage(
-                id: resource.id,
-                image: image,
-                pixelSize: resource.pixelSize
-            )
         }
     }
 

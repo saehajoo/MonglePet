@@ -39,6 +39,7 @@ private struct GeneralSettingsView: View {
     @ObservedObject var petLibrarySession: PetLibrarySession
     @State private var isConfirmingRemoval = false
     @State private var userPetEditorMode: UserPetEditorMode?
+    @State private var previewMotionID: String?
 
     var body: some View {
         Form {
@@ -61,8 +62,62 @@ private struct GeneralSettingsView: View {
                 }
                 .accessibilityIdentifier("monglepet.settings.petSelection")
 
-                LabeledContent("버전", value: petLibrarySession.selectedItem.metadata.version)
-                LabeledContent("제작자", value: petLibrarySession.selectedItem.metadata.author)
+                HStack(alignment: .top, spacing: 16) {
+                    PetAnimationPreviewView(
+                        item: petLibrarySession.selectedItem,
+                        motionID: effectivePreviewMotionID
+                    )
+                    .frame(width: 176, height: 176)
+                    .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 12))
+                    .accessibilityLabel("현재 펫 애니메이션 미리보기")
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        LabeledContent(
+                            "버전",
+                            value: petLibrarySession.selectedItem.metadata.version
+                        )
+                        LabeledContent(
+                            "제작자",
+                            value: petLibrarySession.selectedItem.metadata.author
+                        )
+                        LabeledContent(
+                            "라이선스",
+                            value: petLibrarySession.selectedItem.metadata.license
+                        )
+
+                        Text("등록된 애니메이션")
+                            .font(.headline)
+
+                        List(selection: $previewMotionID) {
+                            ForEach(petLibrarySession.selectedItem.definition.motions) { motion in
+                                HStack {
+                                    Text(motion.id)
+                                    Spacer()
+                                    if motion.id
+                                        == petLibrarySession.selectedItem.definition.defaultMotionID {
+                                        Text("기본")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                                .tag(motion.id)
+                            }
+                        }
+                        .frame(minHeight: 96, maxHeight: 132)
+                        .accessibilityIdentifier("monglepet.settings.petAnimations")
+
+                        if let motion = selectedPreviewMotion {
+                            Text(motionSummary(motion))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
+                                .accessibilityIdentifier(
+                                    "monglepet.settings.petAnimationSummary"
+                                )
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
 
                 HStack {
                     Button("PNG로 새 펫 만들기…") {
@@ -203,6 +258,40 @@ private struct GeneralSettingsView: View {
                 petLibrarySession: petLibrarySession
             )
         }
+        .onAppear(perform: synchronizePreviewMotion)
+        .onChange(of: petLibrarySession.selection) {
+            synchronizePreviewMotion()
+        }
+    }
+
+    private var effectivePreviewMotionID: String {
+        if let previewMotionID,
+           petLibrarySession.selectedItem.definition.motion(id: previewMotionID) != nil {
+            return previewMotionID
+        }
+        return petLibrarySession.selectedItem.definition.defaultMotion?.id ?? ""
+    }
+
+    private var selectedPreviewMotion: PetMotion? {
+        petLibrarySession.selectedItem.definition.motion(id: effectivePreviewMotionID)
+    }
+
+    private func synchronizePreviewMotion() {
+        previewMotionID = petLibrarySession.selectedItem.definition.defaultMotion?.id
+    }
+
+    private func motionSummary(_ motion: PetMotion) -> String {
+        let duration = motion.frames.reduce(Int64.zero) {
+            $0 + durationMilliseconds($1.duration)
+        }
+        let playback = motion.loops ? "반복" : "1회"
+        return "\(motion.frames.count)프레임 · \(duration)ms · \(playback)"
+    }
+
+    private func durationMilliseconds(_ duration: Duration) -> Int64 {
+        let components = duration.components
+        return components.seconds * 1_000
+            + components.attoseconds / 1_000_000_000_000_000
     }
 
     private var awakeBinding: Binding<Bool> {
