@@ -88,7 +88,7 @@ nonisolated struct MotionScheduler: Sendable {
             return true
         }
 
-        if baseCursor.sequence.id == sequence.id {
+        if baseCursor.sequence == sequence {
             pendingSequence = nil
             return false
         }
@@ -97,6 +97,14 @@ nonisolated struct MotionScheduler: Sendable {
             baseCursor = Cursor(sequence: sequence)
             self.baseCursor = baseCursor
             pendingSequence = nil
+            return true
+        }
+
+        if baseCursor.sequence.id == sequence.id {
+            guard pendingSequence != sequence else {
+                return false
+            }
+            pendingSequence = sequence
             return true
         }
 

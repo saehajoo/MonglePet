@@ -2,6 +2,35 @@ import SwiftUI
 
 struct SettingsView: View {
     @ObservedObject var settingsSession: AppSettingsSession
+    let petDefinition: PetDefinition
+
+    var body: some View {
+        TabView {
+            GeneralSettingsView(settingsSession: settingsSession)
+                .tabItem {
+                    Label("일반", systemImage: "gearshape")
+                }
+
+            BehaviorSequencesSettingsView(
+                settingsSession: settingsSession,
+                petDefinition: petDefinition
+            )
+                .tabItem {
+                    Label("행동 루틴", systemImage: "list.bullet.rectangle")
+                }
+
+            AutomaticRulesSettingsView(settingsSession: settingsSession)
+                .tabItem {
+                    Label("자동 규칙", systemImage: "bolt.badge.clock")
+                }
+        }
+        .frame(minWidth: 680, minHeight: 540)
+        .accessibilityIdentifier("monglepet.settings.root")
+    }
+}
+
+private struct GeneralSettingsView: View {
+    @ObservedObject var settingsSession: AppSettingsSession
 
     var body: some View {
         Form {
@@ -30,7 +59,7 @@ struct SettingsView: View {
                 .accessibilityIdentifier("monglepet.settings.behaviorMode")
 
                 if settingsSession.settings.behaviorMode == .manual {
-                    Picker("수동 행동", selection: manualSequenceBinding) {
+                    Picker("수동 행동 루틴", selection: manualSequenceBinding) {
                         ForEach(settingsSession.settings.sequences) { sequence in
                             Text(BuiltInBehaviorPresets.displayName(for: sequence.id))
                                 .tag(sequence.id)
@@ -79,8 +108,6 @@ struct SettingsView: View {
             .disabled(!settingsSession.isWritingEnabled)
         }
         .formStyle(.grouped)
-        .frame(minWidth: 500, minHeight: 400)
-        .accessibilityIdentifier("monglepet.settings.root")
     }
 
     private var awakeBinding: Binding<Bool> {
@@ -132,9 +159,9 @@ struct SettingsView: View {
     private var modeDescription: String {
         switch settingsSession.settings.behaviorMode {
         case .automatic:
-            "기본값은 2분 후 휴식, 10분 후 수면입니다. 앱별 규칙 편집은 다음 단계에서 추가됩니다."
+            "활성화된 자동 규칙 중 우선순위가 가장 높은 행동을 재생합니다."
         case .manual:
-            "선택한 행동을 유지합니다. 여러 단계 행동 목록 편집은 다음 단계에서 추가됩니다."
+            "선택한 행동 루틴의 펫 애니메이션을 순서대로 재생합니다."
         }
     }
 
@@ -154,6 +181,9 @@ struct SettingsView: View {
                 settingsURL: FileManager.default.temporaryDirectory
                     .appendingPathComponent("MonglePet-Preview-settings.json")
             )
+        ),
+        petDefinition: BuiltInPet.mongleDefinition(
+            atlasPixelSize: PixelSize(width: 192, height: 208)
         )
     )
 }

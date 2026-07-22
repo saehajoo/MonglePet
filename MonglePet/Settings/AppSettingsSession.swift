@@ -7,6 +7,7 @@ final class AppSettingsSession: ObservableObject {
     @Published private(set) var isWritingEnabled = true
     @Published private(set) var loadNotice: String?
     @Published private(set) var saveErrorMessage: String?
+    @Published private(set) var behaviorEditErrorMessage: String?
 
     var onChange: ((AppSettings) -> Void)?
 
@@ -23,6 +24,7 @@ final class AppSettingsSession: ObservableObject {
         isWritingEnabled = result.isWritingEnabled
         loadNotice = Self.loadNotice(for: result)
         saveErrorMessage = nil
+        behaviorEditErrorMessage = nil
         return result
     }
 
@@ -92,6 +94,138 @@ final class AppSettingsSession: ObservableObject {
         )
     }
 
+    @discardableResult
+    func addBehaviorSequence(named name: String) -> Bool {
+        applyBehaviorEdit {
+            try BehaviorSettingsEditor.addingSequence(named: name, to: settings)
+        }
+    }
+
+    @discardableResult
+    func removeBehaviorSequence(id sequenceID: String) -> Bool {
+        applyBehaviorEdit {
+            try BehaviorSettingsEditor.removingSequence(id: sequenceID, from: settings)
+        }
+    }
+
+    @discardableResult
+    func addBehaviorStep(to sequenceID: String) -> Bool {
+        applyBehaviorEdit {
+            try BehaviorSettingsEditor.addingStep(to: sequenceID, in: settings)
+        }
+    }
+
+    @discardableResult
+    func updateBehaviorStep(
+        sequenceID: String,
+        index: Int,
+        motionID: String,
+        durationSeconds: Double,
+        playbackSpeed: Double
+    ) -> Bool {
+        applyBehaviorEdit {
+            guard
+                durationSeconds.isFinite,
+                durationSeconds > 0,
+                durationSeconds <= Double(
+                    AppSettingsLimits.maximumDurationMilliseconds
+                ) / 1_000
+            else {
+                throw BehaviorSettingsEditError.invalidStep
+            }
+            return try BehaviorSettingsEditor.replacingStep(
+                in: sequenceID,
+                at: index,
+                with: BehaviorStep(
+                    motionID: motionID,
+                    duration: .milliseconds(
+                        Int64((durationSeconds * 1_000).rounded())
+                    ),
+                    playbackSpeed: playbackSpeed
+                ),
+                settings: settings
+            )
+        }
+    }
+
+    @discardableResult
+    func removeBehaviorStep(from sequenceID: String, at index: Int) -> Bool {
+        applyBehaviorEdit {
+            try BehaviorSettingsEditor.removingStep(
+                from: sequenceID,
+                at: index,
+                settings: settings
+            )
+        }
+    }
+
+    @discardableResult
+    func moveBehaviorStep(
+        in sequenceID: String,
+        from sourceIndex: Int,
+        to destinationIndex: Int
+    ) -> Bool {
+        applyBehaviorEdit {
+            try BehaviorSettingsEditor.movingStep(
+                in: sequenceID,
+                from: sourceIndex,
+                to: destinationIndex,
+                settings: settings
+            )
+        }
+    }
+
+    @discardableResult
+    func setBehaviorSequenceRepeats(_ repeats: Bool, for sequenceID: String) -> Bool {
+        applyBehaviorEdit {
+            try BehaviorSettingsEditor.settingRepeats(
+                repeats,
+                for: sequenceID,
+                in: settings
+            )
+        }
+    }
+
+    @discardableResult
+    func addApplicationRule(bundleIdentifier: String, sequenceID: String) -> Bool {
+        applyBehaviorEdit {
+            try BehaviorSettingsEditor.addingApplicationRule(
+                bundleIdentifier: bundleIdentifier,
+                sequenceID: sequenceID,
+                to: settings
+            )
+        }
+    }
+
+    @discardableResult
+    func addIdleRule(minutes: Int, sequenceID: String) -> Bool {
+        applyBehaviorEdit {
+            try BehaviorSettingsEditor.addingIdleRule(
+                minutes: minutes,
+                sequenceID: sequenceID,
+                to: settings
+            )
+        }
+    }
+
+    @discardableResult
+    func updateAutomaticRule(_ rule: AutomaticRule) -> Bool {
+        applyBehaviorEdit {
+            try BehaviorSettingsEditor.replacingRule(rule, in: settings)
+        }
+    }
+
+    @discardableResult
+    func removeAutomaticRule(id: UUID) -> Bool {
+        applyBehaviorEdit {
+            try BehaviorSettingsEditor.removingRule(id: id, from: settings)
+        }
+    }
+
+    func clearBehaviorEditError() {
+        behaviorEditErrorMessage = nil
+    }
+
     func setOverlayWidth(_ width: Double, persist: Bool = true) {
         let normalizedWidth = min(
             max(width, AppSettingsLimits.minimumOverlayWidth),
@@ -139,6 +273,25 @@ final class AppSettingsSession: ObservableObject {
 
     private func replaceOverlay(_ overlay: OverlaySettings, persist: Bool = true) {
         update(settingsReplacingOverlay(overlay), persist: persist)
+    }
+
+    @discardableResult
+    private func applyBehaviorEdit(
+        _ edit: () throws -> AppSettings
+    ) -> Bool {
+        guard isWritingEnabled else {
+            return false
+        }
+
+        do {
+            let editedSettings = try edit()
+            behaviorEditErrorMessage = nil
+            update(editedSettings)
+            return true
+        } catch {
+            behaviorEditErrorMessage = error.localizedDescription
+            return false
+        }
     }
 
     private func settingsReplacingOverlay(_ overlay: OverlaySettings) -> AppSettings {

@@ -139,6 +139,59 @@ final class AppSettingsSessionTests: XCTestCase {
     }
 
     @MainActor
+    func testBehaviorEditingReportsErrorsAndPersistsValidChanges() {
+        let session = AppSettingsSession(
+            store: AppSettingsStore(settingsURL: settingsURL)
+        )
+        _ = session.load()
+        session.installBuiltInBehaviorPresetsIfNeeded()
+
+        XCTAssertTrue(session.addBehaviorSequence(named: "coding"))
+        XCTAssertNil(session.behaviorEditErrorMessage)
+        XCTAssertTrue(session.addBehaviorStep(to: "coding"))
+        XCTAssertTrue(
+            session.updateBehaviorStep(
+                sequenceID: "coding",
+                index: 1,
+                motionID: "focus",
+                durationSeconds: 12,
+                playbackSpeed: 1.5
+            )
+        )
+        XCTAssertFalse(session.addBehaviorSequence(named: "coding"))
+        XCTAssertNotNil(session.behaviorEditErrorMessage)
+
+        let reloaded = AppSettingsStore(settingsURL: settingsURL).load().settings
+        let coding = reloaded.sequences.first { $0.id == "coding" }
+        XCTAssertEqual(coding?.steps.count, 2)
+        XCTAssertEqual(coding?.steps[1].motionID, "focus")
+        XCTAssertEqual(coding?.steps[1].duration, .seconds(12))
+        XCTAssertEqual(coding?.steps[1].playbackSpeed, 1.5)
+    }
+
+    @MainActor
+    func testBehaviorStepEditingRejectsNonFiniteDurationWithoutChangingSettings() {
+        let session = AppSettingsSession(
+            store: AppSettingsStore(settingsURL: settingsURL)
+        )
+        _ = session.load()
+        session.installBuiltInBehaviorPresetsIfNeeded()
+        let originalSettings = session.settings
+
+        XCTAssertFalse(
+            session.updateBehaviorStep(
+                sequenceID: "idle",
+                index: 0,
+                motionID: "idle",
+                durationSeconds: .infinity,
+                playbackSpeed: 1
+            )
+        )
+        XCTAssertEqual(session.settings, originalSettings)
+        XCTAssertNotNil(session.behaviorEditErrorMessage)
+    }
+
+    @MainActor
     func testNewerSchemaPreservesFileWhileAllowingRuntimePresentationChange() throws {
         let originalData = Data(#"{"schemaVersion":9,"future":true}"#.utf8)
         try originalData.write(to: settingsURL)

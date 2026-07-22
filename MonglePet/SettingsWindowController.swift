@@ -4,10 +4,15 @@ import SwiftUI
 @MainActor
 final class SettingsWindowController {
     private let settingsSession: AppSettingsSession
+    private let petDefinition: PetDefinition
     private lazy var windowController = makeWindowController()
 
-    init(settingsSession: AppSettingsSession) {
+    init(
+        settingsSession: AppSettingsSession,
+        petDefinition: PetDefinition
+    ) {
         self.settingsSession = settingsSession
+        self.petDefinition = petDefinition
     }
 
     var window: NSWindow? {
@@ -22,7 +27,7 @@ final class SettingsWindowController {
 
     private func makeWindowController() -> NSWindowController {
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 540, height: 480),
+            contentRect: NSRect(x: 0, y: 0, width: 720, height: 620),
             styleMask: [.titled, .closable, .miniaturizable],
             backing: .buffered,
             defer: false
@@ -30,7 +35,10 @@ final class SettingsWindowController {
         window.title = "MonglePet 설정"
         window.identifier = NSUserInterfaceItemIdentifier("monglepet.settings.window")
         window.contentViewController = NSHostingController(
-            rootView: SettingsView(settingsSession: settingsSession)
+            rootView: SettingsView(
+                settingsSession: settingsSession,
+                petDefinition: petDefinition
+            )
         )
         window.isReleasedWhenClosed = false
         window.center()

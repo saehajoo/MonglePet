@@ -18,7 +18,8 @@ final class AppCoordinator {
         let petWindowController = PetWindowController()
         self.settingsSession = settingsSession
         settingsWindowController = SettingsWindowController(
-            settingsSession: settingsSession
+            settingsSession: settingsSession,
+            petDefinition: petWindowController.petDefinition
         )
         self.petWindowController = petWindowController
         behaviorRuntime = PetBehaviorRuntime(

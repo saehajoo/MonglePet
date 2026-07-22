@@ -55,6 +55,31 @@ final class MotionSchedulerTests: XCTestCase {
         XCTAssertEqual(scheduler.activeStepRemainingDuration, .seconds(3))
     }
 
+    func testEditedSequenceWithSameIDAppliesAtNextStepBoundary() throws {
+        var scheduler = MotionScheduler(petDefinition: makePet())
+        let original = makeSequence(
+            id: "work",
+            steps: [makeStep(motionID: "focus", duration: .seconds(5))]
+        )
+        let edited = makeSequence(
+            id: "work",
+            steps: [makeStep(motionID: "rest", duration: .seconds(3))]
+        )
+
+        XCTAssertTrue(scheduler.request(original))
+        scheduler.advance(by: .seconds(2))
+
+        XCTAssertTrue(scheduler.request(edited))
+        XCTAssertEqual(try playback(from: scheduler).motion.id, "focus")
+        XCTAssertEqual(scheduler.activeStepRemainingDuration, .seconds(3))
+        XCTAssertEqual(scheduler.pendingSequenceID, "work")
+
+        scheduler.advance(by: .seconds(3))
+        XCTAssertEqual(try playback(from: scheduler).motion.id, "rest")
+        XCTAssertEqual(scheduler.activeStepRemainingDuration, .seconds(3))
+        XCTAssertNil(scheduler.pendingSequenceID)
+    }
+
     func testNonRepeatingSequenceHoldsLastStepAndCanSwitchImmediatelyAfterCompletion() throws {
         var scheduler = MotionScheduler(petDefinition: makePet())
         let oneShot = makeSequence(
@@ -75,6 +100,29 @@ final class MotionSchedulerTests: XCTestCase {
         XCTAssertTrue(scheduler.request(idle))
         XCTAssertEqual(scheduler.activeSequenceID, "idle-sequence")
         XCTAssertEqual(scheduler.activeStepRemainingDuration, .seconds(3))
+    }
+
+    func testEditedNonRepeatingSequenceWithSameIDRestartsAfterCompletion() throws {
+        var scheduler = MotionScheduler(petDefinition: makePet())
+        let original = makeSequence(
+            id: "one-shot",
+            steps: [makeStep(motionID: "focus", duration: .seconds(1))],
+            repeats: false
+        )
+        let edited = makeSequence(
+            id: "one-shot",
+            steps: [makeStep(motionID: "rest", duration: .seconds(2))],
+            repeats: false
+        )
+
+        scheduler.request(original)
+        scheduler.advance(by: .seconds(1))
+        XCTAssertEqual(scheduler.activeStepRemainingDuration, .zero)
+
+        XCTAssertTrue(scheduler.request(edited))
+        XCTAssertEqual(try playback(from: scheduler).motion.id, "rest")
+        XCTAssertEqual(scheduler.activeStepRemainingDuration, .seconds(2))
+        XCTAssertNil(scheduler.pendingSequenceID)
     }
 
     func testPausePreservesRemainingTimeUntilResume() {

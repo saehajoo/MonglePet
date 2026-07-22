@@ -63,7 +63,12 @@ final class MonglePetTests: XCTestCase {
             store: AppSettingsStore(settingsURL: settingsURL)
         )
         _ = session.load()
-        let controller = SettingsWindowController(settingsSession: session)
+        let controller = SettingsWindowController(
+            settingsSession: session,
+            petDefinition: BuiltInPet.mongleDefinition(
+                atlasPixelSize: PixelSize(width: 192, height: 208)
+            )
+        )
 
         controller.show()
         let firstWindow = try XCTUnwrap(controller.window)

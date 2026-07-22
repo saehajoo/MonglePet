@@ -18,6 +18,7 @@
 
 | 상태 | 작업명 | 파일 | 완료일 |
 | --- | --- | --- | --- |
+| completed | Phase 5D 행동 루틴과 자동 규칙 편집기 | `tasks/2026-07-22-phase-5d-behavior-editors.md` | 2026-07-22 |
 | completed | Phase 5C 행동 런타임과 기본 프리셋 | `tasks/2026-07-22-phase-5c-behavior-runtime-presets.md` | 2026-07-22 |
 | completed | Phase 5B 설정 적용과 기본 설정 UI | `tasks/2026-07-22-phase-5b-settings-application-ui.md` | 2026-07-22 |
 | completed | Phase 5A 설정 저장과 복원 기반 | `tasks/2026-07-22-phase-5a-settings-storage.md` | 2026-07-22 |
