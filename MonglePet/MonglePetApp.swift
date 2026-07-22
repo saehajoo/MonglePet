@@ -21,6 +21,7 @@ enum MonglePetApp {
 @MainActor
 final class MonglePetAppDelegate: NSObject, NSApplicationDelegate {
     private var coordinator: AppCoordinator?
+    private var uiTestingSettingsDirectoryURL: URL?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let arguments = ProcessInfo.processInfo.arguments
@@ -33,9 +34,17 @@ final class MonglePetAppDelegate: NSObject, NSApplicationDelegate {
             NSApplication.shared.setActivationPolicy(.regular)
         }
 
-        let coordinator = AppCoordinator()
-        coordinator.start(openSettingsOnLaunch: isOpeningSettingsForUITest)
-        self.coordinator = coordinator
+        do {
+            let settingsStore = try makeSettingsStore(isUITesting: isUITesting)
+            let coordinator = AppCoordinator(settingsStore: settingsStore)
+            coordinator.start(openSettingsOnLaunch: isOpeningSettingsForUITest)
+            self.coordinator = coordinator
+        } catch {
+            let alert = NSAlert(error: error)
+            alert.messageText = "MonglePet을 시작할 수 없습니다."
+            alert.runModal()
+            NSApplication.shared.terminate(nil)
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -44,5 +53,26 @@ final class MonglePetAppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         coordinator?.stop()
+        if let uiTestingSettingsDirectoryURL {
+            try? FileManager.default.removeItem(at: uiTestingSettingsDirectoryURL)
+        }
+    }
+
+    private func makeSettingsStore(isUITesting: Bool) throws -> AppSettingsStore {
+        if isUITesting {
+            let directoryURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent(
+                    "MonglePet-UITests-\(ProcessInfo.processInfo.processIdentifier)",
+                    isDirectory: true
+                )
+            uiTestingSettingsDirectoryURL = directoryURL
+            return AppSettingsStore(
+                settingsURL: directoryURL.appendingPathComponent("settings.json")
+            )
+        }
+
+        return AppSettingsStore(
+            settingsURL: try AppSettingsStore.defaultSettingsURL()
+        )
     }
 }

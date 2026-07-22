@@ -51,7 +51,19 @@ final class MonglePetTests: XCTestCase {
 
     @MainActor
     func testSettingsWindowCanBeReopenedAfterClosing() throws {
-        let controller = SettingsWindowController()
+        let settingsURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+            .appendingPathComponent("settings.json")
+        defer {
+            try? FileManager.default.removeItem(
+                at: settingsURL.deletingLastPathComponent()
+            )
+        }
+        let session = AppSettingsSession(
+            store: AppSettingsStore(settingsURL: settingsURL)
+        )
+        _ = session.load()
+        let controller = SettingsWindowController(settingsSession: session)
 
         controller.show()
         let firstWindow = try XCTUnwrap(controller.window)
@@ -84,6 +96,34 @@ final class MonglePetTests: XCTestCase {
         XCTAssertTrue(panel.isMovable)
         XCTAssertTrue(panel.isMovableByWindowBackground)
         XCTAssertEqual(panel.contentLayoutRect.size, PetWindowController.defaultContentSize)
+    }
+
+    @MainActor
+    func testPetWindowAppliesSizePositionAndClickThroughSettings() throws {
+        let controller = PetWindowController()
+        let panel = try XCTUnwrap(controller.panel)
+        let settings = OverlaySettings(
+            screenIdentifier: nil,
+            originX: 120,
+            originY: 160,
+            width: 288,
+            clickThrough: true
+        )
+
+        controller.applyOverlaySettings(settings, restorePosition: true)
+
+        XCTAssertEqual(panel.frame.width, 288, accuracy: 0.001)
+        XCTAssertEqual(panel.frame.height, 312, accuracy: 0.001)
+        XCTAssertTrue(panel.ignoresMouseEvents)
+        XCTAssertTrue(
+            NSScreen.screens.map(\.visibleFrame).contains { $0.contains(panel.frame) }
+        )
+
+        let captured = try XCTUnwrap(controller.currentOverlaySettings())
+        XCTAssertEqual(captured.width, 288, accuracy: 0.001)
+        XCTAssertTrue(captured.clickThrough)
+        XCTAssertEqual(captured.originX, panel.frame.minX, accuracy: 0.001)
+        XCTAssertEqual(captured.originY, panel.frame.minY, accuracy: 0.001)
     }
 
     @MainActor

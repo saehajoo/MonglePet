@@ -7,6 +7,8 @@ final class PetWindowController: NSWindowController {
 
     private(set) var isAwake = false
     private(set) var isSystemSuspended = false
+    var onOverlayGeometryDidChange: (() -> Void)?
+
     private var hasPositionedPanel = false
     private let framePlayer: FramePlayer
     private let petOverlayView: PetOverlayView
@@ -41,6 +43,9 @@ final class PetWindowController: NSWindowController {
 
         super.init(window: panel)
         shouldCascadeWindows = false
+        petOverlayView.onDragEnded = { [weak self] in
+            self?.onOverlayGeometryDidChange?()
+        }
         framePlayer.play(defaultMotion)
         framePlayer.pause()
         NotificationCenter.default.addObserver(
@@ -72,7 +77,10 @@ final class PetWindowController: NSWindowController {
         if hasPositionedPanel {
             correctPanelPosition()
         } else {
-            let origin = Self.defaultOrigin(in: targetScreen.visibleFrame)
+            let origin = Self.defaultOrigin(
+                in: targetScreen.visibleFrame,
+                contentSize: panel.frame.size
+            )
             panel.setFrameOrigin(origin)
             hasPositionedPanel = true
         }
@@ -101,6 +109,59 @@ final class PetWindowController: NSWindowController {
         } else if isAwake {
             framePlayer.resume()
         }
+    }
+
+    func applyOverlaySettings(
+        _ settings: OverlaySettings,
+        restorePosition: Bool
+    ) {
+        guard let panel else {
+            return
+        }
+
+        let width = CGFloat(settings.width)
+        let aspectRatio = Self.defaultContentSize.height / Self.defaultContentSize.width
+        panel.setContentSize(
+            NSSize(width: width, height: width * aspectRatio)
+        )
+        panel.ignoresMouseEvents = settings.clickThrough
+
+        if restorePosition {
+            let storedFrame = NSRect(
+                x: settings.originX,
+                y: settings.originY,
+                width: panel.frame.width,
+                height: panel.frame.height
+            )
+            let preferredScreen = NSScreen.screens.first {
+                Self.screenIdentifier(for: $0) == settings.screenIdentifier
+            }
+            let visibleFrames = preferredScreen.map { [$0.visibleFrame] }
+                ?? NSScreen.screens.map(\.visibleFrame)
+            let correctedOrigin = Self.correctedOrigin(
+                for: storedFrame,
+                within: visibleFrames
+            )
+            panel.setFrameOrigin(correctedOrigin)
+            hasPositionedPanel = true
+        } else if hasPositionedPanel {
+            correctPanelPosition()
+        }
+    }
+
+    func currentOverlaySettings() -> OverlaySettings? {
+        guard let panel else {
+            return nil
+        }
+
+        let targetScreen = panel.screen ?? Self.bestScreen(for: panel.frame)
+        return OverlaySettings(
+            screenIdentifier: targetScreen.flatMap(Self.screenIdentifier(for:)),
+            originX: panel.frame.minX,
+            originY: panel.frame.minY,
+            width: panel.frame.width,
+            clickThrough: panel.ignoresMouseEvents
+        )
     }
 
     static func defaultOrigin(
@@ -155,6 +216,20 @@ final class PetWindowController: NSWindowController {
         )
     }
 
+    static func screenIdentifier(for screen: NSScreen) -> String? {
+        let key = NSDeviceDescriptionKey("NSScreenNumber")
+        guard let screenNumber = screen.deviceDescription[key] as? NSNumber else {
+            return nil
+        }
+        let displayID = CGDirectDisplayID(screenNumber.uint32Value)
+        guard let unmanagedDisplayUUID = CGDisplayCreateUUIDFromDisplayID(displayID) else {
+            return "display-id-\(displayID)"
+        }
+        let displayUUID = unmanagedDisplayUUID.takeRetainedValue()
+        let uuidString = CFUUIDCreateString(nil, displayUUID) as String
+        return "display-\(uuidString.lowercased())"
+    }
+
     private func correctPanelPosition() {
         guard let panel else {
             return
@@ -166,6 +241,13 @@ final class PetWindowController: NSWindowController {
             within: visibleFrames
         )
         panel.setFrameOrigin(correctedOrigin)
+    }
+
+    private static func bestScreen(for windowFrame: NSRect) -> NSScreen? {
+        NSScreen.screens.max { lhs, rhs in
+            intersectionArea(between: windowFrame, and: lhs.frame)
+                < intersectionArea(between: windowFrame, and: rhs.frame)
+        }
     }
 
     private static func intersectionArea(between lhs: NSRect, and rhs: NSRect) -> CGFloat {
@@ -180,5 +262,8 @@ final class PetWindowController: NSWindowController {
     @objc
     private func screenParametersDidChange(_ notification: Notification) {
         correctPanelPosition()
+        if hasPositionedPanel {
+            onOverlayGeometryDidChange?()
+        }
     }
 }

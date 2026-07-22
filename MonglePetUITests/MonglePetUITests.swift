@@ -19,6 +19,19 @@ final class MonglePetUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(app.windows["MonglePet 설정"].waitForExistence(timeout: 5))
+        XCTAssertTrue(
+            app.descendants(matching: .any)["monglepet.settings.awake"]
+                .waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)["monglepet.settings.behaviorMode"].exists
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)["monglepet.settings.overlayWidth"].exists
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)["monglepet.settings.clickThrough"].exists
+        )
     }
 
     @MainActor

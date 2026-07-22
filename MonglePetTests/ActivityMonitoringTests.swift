@@ -182,11 +182,20 @@ final class ActivityMonitoringTests: XCTestCase {
 
     func testAppCoordinatorOwnsActivityMonitorLifecycleAndLatestSnapshot() throws {
         let activityMonitor = FakeActivitySnapshotMonitor()
-        let coordinator = AppCoordinator(activityMonitor: activityMonitor)
+        let settingsDirectoryURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: settingsDirectoryURL) }
+        let coordinator = AppCoordinator(
+            settingsStore: AppSettingsStore(
+                settingsURL: settingsDirectoryURL.appendingPathComponent("settings.json")
+            ),
+            activityMonitor: activityMonitor
+        )
         coordinator.start()
         defer { coordinator.stop() }
 
         XCTAssertTrue(activityMonitor.isRunning)
+        XCTAssertTrue(coordinator.isPetAwake)
         let snapshot = ActivitySnapshot(
             capturedAt: ContinuousClock().now,
             idleDuration: .seconds(30),
@@ -200,6 +209,53 @@ final class ActivityMonitoringTests: XCTestCase {
 
         coordinator.stop()
         XCTAssertFalse(activityMonitor.isRunning)
+    }
+
+    func testAppCoordinatorRestoresUserPresentationFromSettings() throws {
+        let settingsDirectoryURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: settingsDirectoryURL) }
+        let store = AppSettingsStore(
+            settingsURL: settingsDirectoryURL.appendingPathComponent("settings.json")
+        )
+        let savedSettings = AppSettings(
+            selectedPetInstallationID: nil,
+            lastUserPresentation: .tuckedAway,
+            behaviorMode: .manual,
+            overlay: OverlaySettings(
+                screenIdentifier: nil,
+                originX: 100,
+                originY: 100,
+                width: 256,
+                clickThrough: true
+            ),
+            manualSequenceID: nil,
+            sequences: [],
+            automaticRules: []
+        )
+        try store.save(savedSettings)
+        let coordinator = AppCoordinator(
+            settingsStore: store,
+            activityMonitor: FakeActivitySnapshotMonitor()
+        )
+
+        coordinator.start()
+        defer { coordinator.stop() }
+
+        XCTAssertEqual(
+            coordinator.currentSettings.lastUserPresentation,
+            savedSettings.lastUserPresentation
+        )
+        XCTAssertEqual(coordinator.currentSettings.behaviorMode, savedSettings.behaviorMode)
+        XCTAssertEqual(
+            coordinator.currentSettings.overlay.width,
+            savedSettings.overlay.width
+        )
+        XCTAssertEqual(
+            coordinator.currentSettings.overlay.clickThrough,
+            savedSettings.overlay.clickThrough
+        )
+        XCTAssertFalse(coordinator.isPetAwake)
     }
 }
 

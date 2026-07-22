@@ -103,8 +103,10 @@ MonglePetApp
 - `AppSettings` Domain 모델과 schema-v1 `StoredAppSettings` DTO를 분리한다.
 - `AppSettingsMapper`가 명시적 enum 문자열, 조건 discriminator와 정수 밀리초를 변환하고 항목 단위 복구 결과를 만든다.
 - `AppSettingsStore`는 5MiB 상한, 같은 디렉터리 임시 파일과 원자적 교체를 책임진다.
+- `AppSettingsSession`은 저장소의 로드·복구·쓰기 상태를 SwiftUI와 `AppCoordinator`에 전달하고 유효한 Domain 설정 변경만 저장한다.
 - 손상 파일은 격리하고 기본값으로 복구하며, 미래 스키마 파일은 원본을 보존하고 쓰기를 차단한다.
 - 설정 UI는 파일 시스템이나 저장 DTO에 직접 결합하지 않고 Domain 설정을 통해 저장소와 연결한다.
+- overlay는 적용 후 실제 보정된 좌표와 디스플레이 UUID를 설정 세션에 동기화하고, 드래그 완료와 디스플레이 구성 변경 시 저장한다.
 
 ### MenuBar
 

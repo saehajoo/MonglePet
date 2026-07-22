@@ -3,6 +3,7 @@ import AppKit
 @MainActor
 final class PetOverlayView: NSView {
     let atlasPixelSize: PixelSize
+    var onDragEnded: (() -> Void)?
 
     private let atlasID: String
     private var displayedFrame: MotionFrame?
@@ -72,5 +73,6 @@ final class PetOverlayView: NSView {
 
     override func mouseDown(with event: NSEvent) {
         window?.performDrag(with: event)
+        onDragEnded?()
     }
 }
