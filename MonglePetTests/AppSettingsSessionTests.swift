@@ -109,6 +109,36 @@ final class AppSettingsSessionTests: XCTestCase {
     }
 
     @MainActor
+    func testBuiltInBehaviorPresetsInstallInMemoryAndManualSelectionPersists() {
+        let session = AppSettingsSession(
+            store: AppSettingsStore(settingsURL: settingsURL)
+        )
+        _ = session.load()
+
+        session.installBuiltInBehaviorPresetsIfNeeded()
+
+        XCTAssertEqual(
+            session.settings.sequences.map(\.id),
+            ["idle", "focus", "rest", "sleep"]
+        )
+        XCTAssertEqual(session.settings.manualSequenceID, "idle")
+        XCTAssertEqual(session.settings.automaticRules.count, 2)
+        XCTAssertEqual(
+            AppSettingsStore(settingsURL: settingsURL).load().source,
+            .defaults
+        )
+
+        session.setManualSequenceID("focus")
+        let reloaded = AppSettingsStore(settingsURL: settingsURL).load()
+        XCTAssertEqual(reloaded.settings.manualSequenceID, "focus")
+        XCTAssertEqual(reloaded.settings.sequences, BuiltInBehaviorPresets.sequences)
+        XCTAssertEqual(
+            reloaded.settings.automaticRules,
+            BuiltInBehaviorPresets.automaticRules
+        )
+    }
+
+    @MainActor
     func testNewerSchemaPreservesFileWhileAllowingRuntimePresentationChange() throws {
         let originalData = Data(#"{"schemaVersion":9,"future":true}"#.utf8)
         try originalData.write(to: settingsURL)

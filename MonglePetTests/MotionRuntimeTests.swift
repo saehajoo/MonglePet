@@ -93,7 +93,12 @@ final class MotionRuntimeTests: XCTestCase {
         XCTAssertEqual(definition.displayName, "몽글이")
         XCTAssertEqual(idle.id, "idle")
         XCTAssertEqual(idle.frames.count, 2)
-        XCTAssertTrue(idle.frames.allSatisfy { $0.sourceRect.isContained(in: atlasSize) })
+        XCTAssertEqual(definition.motions.map(\.id), ["idle", "focus", "rest", "sleep"])
+        XCTAssertTrue(
+            definition.motions
+                .flatMap(\.frames)
+                .allSatisfy { $0.sourceRect.isContained(in: atlasSize) }
+        )
     }
 
     @MainActor
@@ -177,6 +182,27 @@ final class MotionRuntimeTests: XCTestCase {
         XCTAssertFalse(player.isPlaying)
         XCTAssertEqual(player.currentFrameIndex, 0)
         XCTAssertNil(scheduler.scheduledDelay)
+    }
+
+    @MainActor
+    func testFramePlayerAppliesPlaybackSpeedToFrameDelay() {
+        let scheduler = ManualFrameScheduler()
+        let motion = makeMotion(
+            id: "focus",
+            durations: [.milliseconds(100), .milliseconds(240)]
+        )
+        let player = FramePlayer(scheduler: scheduler) { _ in }
+
+        player.play(motion, playbackSpeed: 2)
+        XCTAssertEqual(player.playbackSpeed, 2)
+        XCTAssertEqual(scheduler.scheduledDelay, .milliseconds(50))
+
+        scheduler.fire()
+        XCTAssertEqual(scheduler.scheduledDelay, .milliseconds(120))
+
+        player.play(motion, playbackSpeed: 0)
+        XCTAssertEqual(player.playbackSpeed, 1)
+        XCTAssertEqual(scheduler.scheduledDelay, .milliseconds(100))
     }
 
     @MainActor

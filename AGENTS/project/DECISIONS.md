@@ -133,3 +133,11 @@
 - 결정: `AppSettingsSession`을 저장소와 UI·`AppCoordinator` 사이의 단일 실행 상태로 사용한다. overlay는 디스플레이 UUID와 전역 좌표를 저장하고 현재 visible frame으로 보정하며, 드래그 완료 시 저장한다. 크기 조작은 즉시 반영하되 파일 저장은 조작 종료 시 수행한다.
 - 이유: 파일 시스템 책임을 SwiftUI와 AppKit에서 분리하면서 연속 슬라이더 입력의 불필요한 디스크 쓰기를 줄이고, 디스플레이 분리 후에도 펫을 조작 가능한 위치로 복구하기 위해서다.
 - 비고: 클릭 통과 상태에서도 메뉴 막대와 설정창을 복구 경로로 유지한다. 미래 스키마에서는 영구 편집을 막지만 실행 중 깨우기·재우기는 허용한다.
+
+## D-019 기본 행동 프리셋과 런타임 timer
+
+- 상태: accepted
+- 결정일: 2026-07-22
+- 결정: 행동 목록이 비어 있는 첫 실행·기존 설정에는 `idle`, `focus`, `rest`, `sleep` 3초 목록과 유휴 2분 `rest`, 10분 `sleep` 규칙을 메모리에서 주입한다. `PetBehaviorRuntime`은 현재 단계의 남은 시간에 맞춘 일회성 timer로 `BehaviorResolver`, `MotionScheduler`와 `FramePlayer`를 연결한다.
+- 이유: 기존 schema-v1 파일을 깨지 않고 즉시 사용 가능한 자동·수동 동작을 제공하며, 상시 실행 앱에서 짧은 주기의 별도 polling을 추가하지 않기 위해서다.
+- 비고: 기본 프리셋은 다음 사용자 설정 저장 시 함께 기록한다. 임시 단일 이미지는 source rect와 프레임 시간으로 상태를 구분하며, 정식 펫 자산은 같은 motion ID로 교체한다. `playbackSpeed`는 프레임 delay에만 적용한다.

@@ -10,8 +10,10 @@ final class PetWindowController: NSWindowController {
     var onOverlayGeometryDidChange: (() -> Void)?
 
     private var hasPositionedPanel = false
+    let petDefinition: PetDefinition
     private let framePlayer: FramePlayer
     private let petOverlayView: PetOverlayView
+    private(set) var scheduledMotion: ScheduledMotion?
 
     init() {
         guard
@@ -32,6 +34,7 @@ final class PetWindowController: NSWindowController {
         }
 
         self.petOverlayView = petOverlayView
+        self.petDefinition = petDefinition
         framePlayer = FramePlayer { [weak petOverlayView] frame in
             petOverlayView?.display(frame)
         }
@@ -67,6 +70,10 @@ final class PetWindowController: NSWindowController {
 
     var isAnimationPlaying: Bool {
         framePlayer.isPlaying
+    }
+
+    var currentMotionID: String? {
+        scheduledMotion?.motion.id
     }
 
     func wake(on screen: NSScreen? = NSScreen.main) {
@@ -108,6 +115,26 @@ final class PetWindowController: NSWindowController {
             framePlayer.pause()
         } else if isAwake {
             framePlayer.resume()
+        }
+    }
+
+    func setScheduledMotion(_ scheduledMotion: ScheduledMotion?) {
+        guard scheduledMotion != self.scheduledMotion else {
+            return
+        }
+
+        self.scheduledMotion = scheduledMotion
+        guard let scheduledMotion else {
+            framePlayer.stop()
+            return
+        }
+
+        framePlayer.play(
+            scheduledMotion.motion,
+            playbackSpeed: scheduledMotion.playbackSpeed
+        )
+        if !isAwake || isSystemSuspended {
+            framePlayer.pause()
         }
     }
 

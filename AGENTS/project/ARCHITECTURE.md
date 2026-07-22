@@ -81,11 +81,14 @@ MonglePetApp
 
 ### Runtime
 
+- `PetBehaviorRuntime`은 `BehaviorResolver`의 결정과 `MotionScheduler` 상태를 실제 `FramePlayer` 재생으로 연결한다.
 - `MotionScheduler`는 선택된 행동 목록을 시간에 따라 진행한다.
 - 행동 단계의 `duration`을 최소 유지 구간으로 사용하고 일반 행동 변경은 현재 단계 경계에서 적용한다.
 - 상호작용은 즉시 시작해 기존 행동 단계의 남은 시간을 보존하고, 완료 후 같은 위치로 복귀한다.
 - 스케줄러는 wall clock을 직접 읽지 않고 monotonic clock에서 계산된 경과 `Duration`만 입력받는다.
 - `FramePlayer`는 모션 프레임만 렌더링하며 자동·수동 모드 같은 제품 규칙을 알지 못한다.
+- 행동 단계 진행은 지속 polling하지 않고 현재 단계의 남은 시간에 맞춘 일회성 main run loop timer를 사용한다.
+- `playbackSpeed`는 행동 단계의 유지 시간과 분리해 프레임 delay에만 적용한다.
 - 같은 행동이 유지될 때 불필요하게 재시작하지 않는다.
 
 ### Overlay

@@ -196,6 +196,20 @@ final class ActivityMonitoringTests: XCTestCase {
 
         XCTAssertTrue(activityMonitor.isRunning)
         XCTAssertTrue(coordinator.isPetAwake)
+        XCTAssertEqual(
+            coordinator.currentSettings.sequences,
+            BuiltInBehaviorPresets.sequences
+        )
+        let activeSnapshot = ActivitySnapshot(
+            capturedAt: ContinuousClock().now,
+            idleDuration: .seconds(30),
+            frontmostApplicationID: "com.example.Editor",
+            isScreenLocked: false,
+            isSystemSleeping: false
+        )
+        activityMonitor.emit(activeSnapshot)
+        XCTAssertEqual(coordinator.currentMotionID, "idle")
+
         let snapshot = ActivitySnapshot(
             capturedAt: ContinuousClock().now,
             idleDuration: .seconds(30),

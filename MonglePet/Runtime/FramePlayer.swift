@@ -47,6 +47,7 @@ final class FramePlayer {
     private var motion: PetMotion?
     private(set) var currentFrameIndex = 0
     private(set) var isPlaying = false
+    private(set) var playbackSpeed = 1.0
 
     init(
         scheduler: any FrameScheduling = RunLoopFrameScheduler(),
@@ -56,9 +57,12 @@ final class FramePlayer {
         self.onFrameChange = onFrameChange
     }
 
-    func play(_ motion: PetMotion) {
+    func play(_ motion: PetMotion, playbackSpeed: Double = 1) {
         scheduler.cancel()
         self.motion = motion
+        self.playbackSpeed = playbackSpeed.isFinite && playbackSpeed > 0
+            ? playbackSpeed
+            : 1
         currentFrameIndex = 0
 
         guard let firstFrame = motion.frames.first else {
@@ -94,6 +98,7 @@ final class FramePlayer {
         motion = nil
         currentFrameIndex = 0
         isPlaying = false
+        playbackSpeed = 1
     }
 
     private func scheduleCurrentFrameIfNeeded() {
@@ -105,7 +110,8 @@ final class FramePlayer {
             return
         }
 
-        scheduler.schedule(after: motion.frames[currentFrameIndex].duration) { [weak self] in
+        let adjustedDuration = motion.frames[currentFrameIndex].duration / playbackSpeed
+        scheduler.schedule(after: adjustedDuration) { [weak self] in
             self?.advanceFrame()
         }
     }

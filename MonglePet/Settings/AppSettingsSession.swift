@@ -58,6 +58,40 @@ final class AppSettingsSession: ObservableObject {
         )
     }
 
+    func installBuiltInBehaviorPresetsIfNeeded() {
+        guard settings.sequences.isEmpty else {
+            return
+        }
+
+        settings = AppSettings(
+            selectedPetInstallationID: settings.selectedPetInstallationID,
+            lastUserPresentation: settings.lastUserPresentation,
+            behaviorMode: settings.behaviorMode,
+            overlay: settings.overlay,
+            manualSequenceID: BuiltInBehaviorPresets.defaultManualSequenceID,
+            sequences: BuiltInBehaviorPresets.sequences,
+            automaticRules: BuiltInBehaviorPresets.automaticRules
+        )
+    }
+
+    func setManualSequenceID(_ sequenceID: String) {
+        guard settings.sequences.contains(where: { $0.id == sequenceID }) else {
+            return
+        }
+
+        update(
+            AppSettings(
+                selectedPetInstallationID: settings.selectedPetInstallationID,
+                lastUserPresentation: settings.lastUserPresentation,
+                behaviorMode: settings.behaviorMode,
+                overlay: settings.overlay,
+                manualSequenceID: sequenceID,
+                sequences: settings.sequences,
+                automaticRules: settings.automaticRules
+            )
+        )
+    }
+
     func setOverlayWidth(_ width: Double, persist: Bool = true) {
         let normalizedWidth = min(
             max(width, AppSettingsLimits.minimumOverlayWidth),

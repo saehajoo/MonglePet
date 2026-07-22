@@ -18,6 +18,7 @@
 
 | 상태 | 작업명 | 파일 | 완료일 |
 | --- | --- | --- | --- |
+| completed | Phase 5C 행동 런타임과 기본 프리셋 | `tasks/2026-07-22-phase-5c-behavior-runtime-presets.md` | 2026-07-22 |
 | completed | Phase 5B 설정 적용과 기본 설정 UI | `tasks/2026-07-22-phase-5b-settings-application-ui.md` | 2026-07-22 |
 | completed | Phase 5A 설정 저장과 복원 기반 | `tasks/2026-07-22-phase-5a-settings-storage.md` | 2026-07-22 |
 | completed | Phase 4 macOS 활동 감지 | `tasks/2026-07-22-phase-4-macos-activity-monitoring.md` | 2026-07-22 |

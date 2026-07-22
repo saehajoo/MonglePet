@@ -5,6 +5,7 @@ final class AppCoordinator {
     private let settingsSession: AppSettingsSession
     private let settingsWindowController: SettingsWindowController
     private let petWindowController: PetWindowController
+    private let behaviorRuntime: PetBehaviorRuntime
     private let activityMonitor: any ActivitySnapshotMonitoring
     private var menuBarController: MenuBarController?
     private(set) var latestActivitySnapshot: ActivitySnapshot?
@@ -20,10 +21,15 @@ final class AppCoordinator {
             settingsSession: settingsSession
         )
         self.petWindowController = petWindowController
+        behaviorRuntime = PetBehaviorRuntime(
+            petDefinition: petWindowController.petDefinition
+        ) { [weak petWindowController] playback in
+            petWindowController?.setScheduledMotion(playback)
+        }
         self.activityMonitor = activityMonitor
 
         settingsSession.onChange = { [weak self] settings in
-            self?.apply(settings: settings, restorePosition: true)
+            self?.settingsDidChange(settings)
         }
         petWindowController.onOverlayGeometryDidChange = { [weak self] in
             self?.persistCurrentOverlayGeometry()
@@ -38,14 +44,19 @@ final class AppCoordinator {
         petWindowController.isAwake
     }
 
+    var currentMotionID: String? {
+        petWindowController.currentMotionID
+    }
+
     func start(openSettingsOnLaunch: Bool = false) {
         guard menuBarController == nil else {
             return
         }
 
         let loadResult = settingsSession.load()
+        settingsSession.installBuiltInBehaviorPresetsIfNeeded()
         apply(
-            settings: loadResult.settings,
+            settings: settingsSession.settings,
             restorePosition: loadResult.shouldRestoreOverlayPosition
         )
         activityMonitor.start { [weak self] snapshot in
@@ -73,6 +84,7 @@ final class AppCoordinator {
 
     func stop() {
         activityMonitor.stop()
+        behaviorRuntime.stop()
         menuBarController?.stop()
         menuBarController = nil
         petWindowController.sleep()
@@ -90,6 +102,21 @@ final class AppCoordinator {
         latestActivitySnapshot = snapshot
         petWindowController.setSystemSuspended(
             snapshot.isScreenLocked || snapshot.isSystemSleeping
+        )
+        behaviorRuntime.update(
+            settings: settingsSession.settings,
+            snapshot: snapshot
+        )
+    }
+
+    private func settingsDidChange(_ settings: AppSettings) {
+        apply(settings: settings, restorePosition: true)
+        guard let latestActivitySnapshot else {
+            return
+        }
+        behaviorRuntime.update(
+            settings: settingsSession.settings,
+            snapshot: latestActivitySnapshot
         )
     }
 

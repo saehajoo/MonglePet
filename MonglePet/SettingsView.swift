@@ -29,6 +29,16 @@ struct SettingsView: View {
                 .pickerStyle(.segmented)
                 .accessibilityIdentifier("monglepet.settings.behaviorMode")
 
+                if settingsSession.settings.behaviorMode == .manual {
+                    Picker("수동 행동", selection: manualSequenceBinding) {
+                        ForEach(settingsSession.settings.sequences) { sequence in
+                            Text(BuiltInBehaviorPresets.displayName(for: sequence.id))
+                                .tag(sequence.id)
+                        }
+                    }
+                    .accessibilityIdentifier("monglepet.settings.manualSequence")
+                }
+
                 Text(modeDescription)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -101,6 +111,17 @@ struct SettingsView: View {
         )
     }
 
+    private var manualSequenceBinding: Binding<String> {
+        Binding(
+            get: {
+                settingsSession.settings.manualSequenceID
+                    ?? settingsSession.settings.sequences.first?.id
+                    ?? ""
+            },
+            set: { settingsSession.setManualSequenceID($0) }
+        )
+    }
+
     private var clickThroughBinding: Binding<Bool> {
         Binding(
             get: { settingsSession.settings.overlay.clickThrough },
@@ -111,9 +132,9 @@ struct SettingsView: View {
     private var modeDescription: String {
         switch settingsSession.settings.behaviorMode {
         case .automatic:
-            "앱과 쉬는 시간에 맞춘 자동 행동입니다. 규칙 편집은 다음 단계에서 추가됩니다."
+            "기본값은 2분 후 휴식, 10분 후 수면입니다. 앱별 규칙 편집은 다음 단계에서 추가됩니다."
         case .manual:
-            "선택한 행동 목록을 유지합니다. 행동 목록 편집은 다음 단계에서 추가됩니다."
+            "선택한 행동을 유지합니다. 여러 단계 행동 목록 편집은 다음 단계에서 추가됩니다."
         }
     }
 
