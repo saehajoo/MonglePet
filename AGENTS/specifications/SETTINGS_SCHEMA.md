@@ -118,7 +118,7 @@ Phase 7에서는 최상위 전역 행동 필드인 `behaviorMode`, `manualSequen
 - 설치 펫 삭제 확인에는 연결된 행동 프로필 삭제를 포함한다.
 - `.monglepet` 내보내기는 `behaviorProfiles`를 포함하지 않는다. 앱 bundle identifier가 포함된 자동 규칙은 로컬 설정으로만 유지한다.
 
-schema-v2의 행동 단계는 `motionID`와 1 이상의 `repeatCount`를 저장하고 schema-v1의 `durationMilliseconds`, `playbackSpeed`는 제거한다. v1 마이그레이션은 선택 펫의 실제 애니메이션 한 사이클 시간을 사용해 기존 유지 시간에 가장 가까운 반복 횟수를 계산하며, 참조 애니메이션을 찾지 못하면 현재 펫 기본 애니메이션과 반복 1회로 복구한다.
+schema-v2의 행동 단계는 `motionID`와 1 이상의 `repeatCount`를 저장하고 schema-v1의 `durationMilliseconds`, `playbackSpeed`는 제거한다. v1 마이그레이션은 선택 펫 패키지에 저장된 프레임 시간으로 애니메이션 한 사이클을 계산하고, 기존 유지 시간에 가장 가까운 반복 횟수를 사용한다. 단계별 `playbackSpeed`는 패키지 프레임 시간을 단일 속도 원본으로 삼기 위해 변환에 반영하지 않는다. 참조 애니메이션을 찾지 못하면 현재 펫 기본 애니메이션과 반복 1회로 복구한다.
 
 ## 자동 규칙 조건
 

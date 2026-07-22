@@ -8,12 +8,12 @@
 
 | 상태 | 작업명 | 파일 | 마지막 갱신 |
 | --- | --- | --- | --- |
+| in_progress | Phase 7 애니메이션·행동 모델 v2와 펫별 설정 | `tasks/2026-07-22-phase-7-animation-behavior-v2.md` | 2026-07-22 |
 
 ## 계획됨
 
 | 상태 | 작업명 | 파일 | 마지막 갱신 |
 | --- | --- | --- | --- |
-| planned | Phase 7 애니메이션·행동 모델 v2와 펫별 설정 | `tasks/2026-07-22-phase-7-animation-behavior-v2.md` | 2026-07-22 |
 | planned | Phase 8 로컬 펫 공유 | `tasks/2026-07-22-phase-8-local-pet-sharing.md` | 2026-07-22 |
 | planned | Phase 9 마우스 따라가기와 이동 상호작용 | `tasks/2026-07-22-phase-9-cursor-following.md` | 2026-07-22 |
 

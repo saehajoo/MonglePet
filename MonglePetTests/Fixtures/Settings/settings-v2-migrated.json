@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 2,
+  "selectedPetInstallationID": "11111111-1111-1111-1111-111111111111",
+  "lastUserPresentation": "tuckedAway",
+  "overlay": {
+    "screenIdentifier": "display-1",
+    "originX": 100,
+    "originY": 200,
+    "width": 240,
+    "clickThrough": true
+  },
+  "behaviorProfiles": [
+    {
+      "petKey": {
+        "type": "installed",
+        "installationID": "11111111-1111-1111-1111-111111111111"
+      },
+      "mode": "manual",
+      "manualSequenceID": "coding",
+      "sequences": [
+        {
+          "id": "coding",
+          "steps": [
+            {
+              "motionID": "focus",
+              "repeatCount": 3
+            },
+            {
+              "motionID": "__monglepet_current_pet_default__",
+              "repeatCount": 2
+            },
+            {
+              "motionID": "__monglepet_current_pet_default__",
+              "repeatCount": 1
+            }
+          ],
+          "repeats": true
+        }
+      ],
+      "automaticRules": [
+        {
+          "id": "22222222-2222-2222-2222-222222222222",
+          "isEnabled": true,
+          "priority": 10,
+          "condition": {
+            "type": "application",
+            "bundleIdentifier": "com.example.Editor"
+          },
+          "sequenceID": "coding"
+        }
+      ]
+    }
+  ]
+}
