@@ -1,4 +1,21 @@
 import AppKit
+import ImageIO
+
+nonisolated enum PetPresentationLoadingError: Error, Equatable, Sendable {
+    case missingAtlas(String)
+    case invalidAtlas(String)
+}
+
+extension PetPresentationLoadingError: LocalizedError {
+    var errorDescription: String? {
+        switch self {
+        case let .missingAtlas(atlasID):
+            "펫 애니메이션 이미지가 없습니다: \(atlasID)"
+        case let .invalidAtlas(filename):
+            "펫 애니메이션 이미지를 읽을 수 없습니다: \(filename)"
+        }
+    }
+}
 
 @MainActor
 final class PetWindowController: NSWindowController {
@@ -10,14 +27,26 @@ final class PetWindowController: NSWindowController {
     var onOverlayGeometryDidChange: (() -> Void)?
 
     private var hasPositionedPanel = false
-    let petDefinition: PetDefinition
+    private(set) var petDefinition: PetDefinition
+    private(set) var activeInstallationID: UUID?
     private let framePlayer: FramePlayer
     private let petOverlayView: PetOverlayView
+    private let builtInAtlases: [PetAtlasImage]
+    private var contentAspectRatio = PetWindowController.defaultContentSize.height
+        / PetWindowController.defaultContentSize.width
     private(set) var scheduledMotion: ScheduledMotion?
 
     init() {
+        guard let placeholderImage = NSImage(named: "PlaceholderPet") else {
+            fatalError("The built-in MonglePet atlas is missing or invalid.")
+        }
+        var proposedRect = NSRect(origin: .zero, size: placeholderImage.size)
         guard
-            let placeholderImage = NSImage(named: "PlaceholderPet"),
+            let placeholderCGImage = placeholderImage.cgImage(
+                forProposedRect: &proposedRect,
+                context: nil,
+                hints: nil
+            ),
             let petOverlayView = PetOverlayView(
                 atlasID: BuiltInPet.atlasID,
                 image: placeholderImage
@@ -34,6 +63,13 @@ final class PetWindowController: NSWindowController {
         }
 
         self.petOverlayView = petOverlayView
+        builtInAtlases = [
+            PetAtlasImage(
+                id: BuiltInPet.atlasID,
+                image: placeholderCGImage,
+                pixelSize: petOverlayView.atlasPixelSize
+            )
+        ]
         self.petDefinition = petDefinition
         framePlayer = FramePlayer { [weak petOverlayView] frame in
             petOverlayView?.display(frame)
@@ -74,6 +110,38 @@ final class PetWindowController: NSWindowController {
 
     var currentMotionID: String? {
         scheduledMotion?.motion.id
+    }
+
+    func applyPet(_ item: PetLibraryItem) throws {
+        let atlases: [PetAtlasImage]
+        if item.isBuiltIn {
+            atlases = builtInAtlases
+        } else if let installedPackage = item.installedPackage {
+            atlases = try Self.loadAtlases(from: installedPackage.package.atlases)
+        } else {
+            throw PetPresentationLoadingError.missingAtlas(item.definition.id)
+        }
+
+        guard let defaultMotion = item.definition.defaultMotion,
+              let firstFrame = defaultMotion.frames.first else {
+            throw PetPresentationLoadingError.missingAtlas(item.definition.defaultMotionID)
+        }
+
+        scheduledMotion = nil
+        framePlayer.stop()
+        petOverlayView.replaceAtlases(
+            atlases,
+            accessibilityLabel: item.metadata.displayName
+        )
+        petDefinition = item.definition
+        activeInstallationID = item.selection.installationID
+        contentAspectRatio = CGFloat(firstFrame.sourceRect.height)
+            / CGFloat(firstFrame.sourceRect.width)
+        resizePanelForCurrentAspectRatio()
+        framePlayer.play(defaultMotion)
+        if !isAwake || isSystemSuspended {
+            framePlayer.pause()
+        }
     }
 
     func wake(on screen: NSScreen? = NSScreen.main) {
@@ -147,9 +215,8 @@ final class PetWindowController: NSWindowController {
         }
 
         let width = CGFloat(settings.width)
-        let aspectRatio = Self.defaultContentSize.height / Self.defaultContentSize.width
         panel.setContentSize(
-            NSSize(width: width, height: width * aspectRatio)
+            NSSize(width: width, height: width * contentAspectRatio)
         )
         panel.ignoresMouseEvents = settings.clickThrough
 
@@ -268,6 +335,43 @@ final class PetWindowController: NSWindowController {
             within: visibleFrames
         )
         panel.setFrameOrigin(correctedOrigin)
+    }
+
+    private func resizePanelForCurrentAspectRatio() {
+        guard let panel else {
+            return
+        }
+        panel.setContentSize(
+            NSSize(
+                width: panel.frame.width,
+                height: panel.frame.width * contentAspectRatio
+            )
+        )
+        if hasPositionedPanel {
+            correctPanelPosition()
+        }
+    }
+
+    private static func loadAtlases(
+        from resources: [PetAtlasResource]
+    ) throws -> [PetAtlasImage] {
+        try resources.map { resource in
+            guard
+                let source = CGImageSourceCreateWithURL(resource.fileURL as CFURL, nil),
+                let image = CGImageSourceCreateImageAtIndex(source, 0, nil),
+                image.width == resource.pixelSize.width,
+                image.height == resource.pixelSize.height
+            else {
+                throw PetPresentationLoadingError.invalidAtlas(
+                    resource.fileURL.lastPathComponent
+                )
+            }
+            return PetAtlasImage(
+                id: resource.id,
+                image: image,
+                pixelSize: resource.pixelSize
+            )
+        }
     }
 
     private static func bestScreen(for windowFrame: NSRect) -> NSScreen? {

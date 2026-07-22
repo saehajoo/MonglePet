@@ -60,20 +60,22 @@ final class AppSettingsSession: ObservableObject {
         )
     }
 
-    func installBuiltInBehaviorPresetsIfNeeded() {
-        guard settings.sequences.isEmpty else {
-            return
-        }
-
-        settings = AppSettings(
-            selectedPetInstallationID: settings.selectedPetInstallationID,
-            lastUserPresentation: settings.lastUserPresentation,
-            behaviorMode: settings.behaviorMode,
-            overlay: settings.overlay,
-            manualSequenceID: BuiltInBehaviorPresets.defaultManualSequenceID,
-            sequences: BuiltInBehaviorPresets.sequences,
-            automaticRules: BuiltInBehaviorPresets.automaticRules
+    func setSelectedPetInstallationID(_ installationID: UUID?) {
+        update(
+            AppSettings(
+                selectedPetInstallationID: installationID,
+                lastUserPresentation: settings.lastUserPresentation,
+                behaviorMode: settings.behaviorMode,
+                overlay: settings.overlay,
+                manualSequenceID: settings.manualSequenceID,
+                sequences: settings.sequences,
+                automaticRules: settings.automaticRules
+            )
         )
+    }
+
+    func ensureSystemDefaultBehavior() {
+        settings = BuiltInBehaviorPresets.normalizedDefaults(in: settings)
     }
 
     func setManualSequenceID(_ sequenceID: String) {

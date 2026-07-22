@@ -131,6 +131,17 @@ nonisolated struct SimpleAnimationPetPackageAdapter {
         to destinationURL: URL
     ) throws -> LoadedPetPackage {
         try validate(metadata: metadata)
+        let atlas = try buildPNGSequenceAtlas(
+            sourceURLs,
+            frameDurationMilliseconds: frameDurationMilliseconds
+        )
+        return try write(atlas: atlas, metadata: metadata, to: destinationURL)
+    }
+
+    func buildPNGSequenceAtlas(
+        _ sourceURLs: [URL],
+        frameDurationMilliseconds: Int = 120
+    ) throws -> PNGSequenceAtlas {
         guard Self.minimumDurationMilliseconds...Self.maximumDurationMilliseconds
             ~= frameDurationMilliseconds else {
             throw SimpleAnimationImportError.invalidFrameDuration
@@ -156,7 +167,7 @@ nonisolated struct SimpleAnimationPetPackageAdapter {
                 )
             }
         }
-        return try write(frames: frames, metadata: metadata, to: destinationURL)
+        return try makeAtlas(frames: frames)
     }
 
     private func validate(metadata: SimplePetImportMetadata) throws {
@@ -468,6 +479,14 @@ nonisolated struct SimpleAnimationPetPackageAdapter {
         metadata: SimplePetImportMetadata,
         to destinationURL: URL
     ) throws -> LoadedPetPackage {
+        try write(
+            atlas: makeAtlas(frames: frames),
+            metadata: metadata,
+            to: destinationURL
+        )
+    }
+
+    private func makeAtlas(frames: [SimpleAnimationFrame]) throws -> PNGSequenceAtlas {
         guard !frames.isEmpty else {
             throw SimpleAnimationImportError.emptySequence
         }
@@ -528,6 +547,19 @@ nonisolated struct SimpleAnimationPetPackageAdapter {
             throw SimpleAnimationImportError.cannotCreateAtlas
         }
 
+        return PNGSequenceAtlas(
+            atlasImage: atlasImage,
+            previewImage: frames[0].image,
+            pixelSize: PixelSize(width: atlasWidth, height: atlasHeight),
+            frames: manifestFrames
+        )
+    }
+
+    private func write(
+        atlas: PNGSequenceAtlas,
+        metadata: SimplePetImportMetadata,
+        to destinationURL: URL
+    ) throws -> LoadedPetPackage {
         let manifest = PetPackageManifest(
             formatVersion: 1,
             id: metadata.id,
@@ -542,8 +574,8 @@ nonisolated struct SimpleAnimationPetPackageAdapter {
                 PetPackageManifest.Atlas(
                     id: "main",
                     path: "assets/spritesheet.png",
-                    pixelWidth: atlasWidth,
-                    pixelHeight: atlasHeight
+                    pixelWidth: atlas.pixelSize.width,
+                    pixelHeight: atlas.pixelSize.height
                 )
             ],
             motions: [
@@ -551,17 +583,24 @@ nonisolated struct SimpleAnimationPetPackageAdapter {
                     id: "idle",
                     atlas: "main",
                     loop: true,
-                    frames: manifestFrames
+                    frames: atlas.frames
                 )
             ]
         )
         return try writer.writePNGAtlasPackage(
             manifest: manifest,
-            atlasImage: atlasImage,
-            previewImage: frames[0].image,
+            atlasImage: atlas.atlasImage,
+            previewImage: atlas.previewImage,
             to: destinationURL
         )
     }
+}
+
+nonisolated struct PNGSequenceAtlas: @unchecked Sendable {
+    let atlasImage: CGImage
+    let previewImage: CGImage
+    let pixelSize: PixelSize
+    let frames: [PetPackageManifest.Frame]
 }
 
 private nonisolated struct SimpleAnimationFrame {

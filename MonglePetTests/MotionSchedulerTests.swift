@@ -145,7 +145,7 @@ final class MotionSchedulerTests: XCTestCase {
         XCTAssertEqual(scheduler.activeStepRemainingDuration, .seconds(2))
     }
 
-    func testMissingMotionUsesIdleAndMissingIdleIsUnavailable() throws {
+    func testMissingMotionUsesPetDefaultMotion() throws {
         let sequence = makeSequence(
             id: "missing-motion",
             steps: [makeStep(motionID: "missing", duration: .seconds(1))]
@@ -155,7 +155,7 @@ final class MotionSchedulerTests: XCTestCase {
 
         let fallback = try playback(from: fallbackScheduler)
         XCTAssertEqual(fallback.motion.id, "idle")
-        XCTAssertTrue(fallback.usesIdleFallback)
+        XCTAssertTrue(fallback.usesFallback)
 
         let petWithoutIdle = PetDefinition(
             id: "pet.without.idle",
@@ -163,9 +163,37 @@ final class MotionSchedulerTests: XCTestCase {
             defaultMotionID: "focus",
             motions: [makeMotion(id: "focus")]
         )
-        var unavailableScheduler = MotionScheduler(petDefinition: petWithoutIdle)
-        unavailableScheduler.request(sequence)
-        XCTAssertEqual(unavailableScheduler.status, .unavailable)
+        var defaultMotionScheduler = MotionScheduler(petDefinition: petWithoutIdle)
+        defaultMotionScheduler.request(sequence)
+        let defaultFallback = try playback(from: defaultMotionScheduler)
+        XCTAssertEqual(defaultFallback.motion.id, "focus")
+        XCTAssertTrue(defaultFallback.usesFallback)
+    }
+
+    func testCurrentPetDefaultReferenceUsesDeclaredDefaultWithoutFallbackWarning() throws {
+        let pet = PetDefinition(
+            id: "pet.without.idle",
+            displayName: "No Idle",
+            defaultMotionID: "focus",
+            motions: [makeMotion(id: "focus")]
+        )
+        let sequence = makeSequence(
+            id: "current-default",
+            steps: [
+                makeStep(
+                    motionID: PetMotionReference.currentPetDefault,
+                    duration: .seconds(1)
+                )
+            ]
+        )
+        var scheduler = MotionScheduler(petDefinition: pet)
+
+        scheduler.request(sequence)
+
+        let playback = try playback(from: scheduler)
+        XCTAssertEqual(playback.requestedMotionID, PetMotionReference.currentPetDefault)
+        XCTAssertEqual(playback.motion.id, "focus")
+        XCTAssertFalse(playback.usesFallback)
     }
 
     func testInteractionCoalescesInputRestoresRemainingTimeAndUsesCooldown() throws {

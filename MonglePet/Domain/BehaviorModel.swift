@@ -46,7 +46,6 @@ nonisolated struct ActivitySnapshot: Equatable, Sendable {
 }
 
 nonisolated struct BehaviorConfiguration: Equatable, Sendable {
-    static let defaultLongIdleThreshold: Duration = .seconds(600)
     static let defaultIdleExitDelay: Duration = .seconds(3)
 
     let mode: BehaviorMode
@@ -54,7 +53,6 @@ nonisolated struct BehaviorConfiguration: Equatable, Sendable {
     let manualSequenceID: String?
     let sequences: [BehaviorSequence]
     let automaticRules: [AutomaticRule]
-    let longIdleThreshold: Duration
     let idleExitDelay: Duration
 
     init(
@@ -63,7 +61,6 @@ nonisolated struct BehaviorConfiguration: Equatable, Sendable {
         manualSequenceID: String? = nil,
         sequences: [BehaviorSequence],
         automaticRules: [AutomaticRule] = [],
-        longIdleThreshold: Duration = Self.defaultLongIdleThreshold,
         idleExitDelay: Duration = Self.defaultIdleExitDelay
     ) {
         self.mode = mode
@@ -71,7 +68,6 @@ nonisolated struct BehaviorConfiguration: Equatable, Sendable {
         self.manualSequenceID = manualSequenceID
         self.sequences = sequences
         self.automaticRules = automaticRules
-        self.longIdleThreshold = longIdleThreshold
         self.idleExitDelay = idleExitDelay
     }
 

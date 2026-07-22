@@ -6,8 +6,9 @@ nonisolated struct ScheduledMotion: Equatable, Sendable {
     let playbackSpeed: Double
     let isInteraction: Bool
 
-    var usesIdleFallback: Bool {
-        requestedMotionID != motion.id
+    var usesFallback: Bool {
+        requestedMotionID != PetMotionReference.currentPetDefault
+            && requestedMotionID != motion.id
     }
 }
 
@@ -172,9 +173,10 @@ nonisolated struct MotionScheduler: Sendable {
         }
 
         let step = cursor.sequence.steps[cursor.stepIndex]
-        guard let motion = petDefinition.motion(id: step.motionID)
-            ?? petDefinition.motion(id: "idle")
-        else {
+        let requestedMotion = step.motionID == PetMotionReference.currentPetDefault
+            ? petDefinition.defaultMotion
+            : petDefinition.motion(id: step.motionID)
+        guard let motion = requestedMotion ?? petDefinition.defaultMotion else {
             return .unavailable
         }
 

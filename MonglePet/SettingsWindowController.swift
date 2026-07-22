@@ -4,15 +4,15 @@ import SwiftUI
 @MainActor
 final class SettingsWindowController {
     private let settingsSession: AppSettingsSession
-    private let petDefinition: PetDefinition
+    private let petLibrarySession: PetLibrarySession
     private lazy var windowController = makeWindowController()
 
     init(
         settingsSession: AppSettingsSession,
-        petDefinition: PetDefinition
+        petLibrarySession: PetLibrarySession
     ) {
         self.settingsSession = settingsSession
-        self.petDefinition = petDefinition
+        self.petLibrarySession = petLibrarySession
     }
 
     var window: NSWindow? {
@@ -37,7 +37,7 @@ final class SettingsWindowController {
         window.contentViewController = NSHostingController(
             rootView: SettingsView(
                 settingsSession: settingsSession,
-                petDefinition: petDefinition
+                petLibrarySession: petLibrarySession
             )
         )
         window.isReleasedWhenClosed = false

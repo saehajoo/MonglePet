@@ -42,6 +42,38 @@ final class PetPackageInstallerTests: XCTestCase {
         XCTAssertEqual(installed.package.metadata.displayName, "설치 테스트 펫")
     }
 
+    func testImportedDirectoryCannotClaimUserEditableMarker() throws {
+        let environment = try makeEnvironment()
+        let packageURL = try makePackage(in: environment.temporaryURL)
+        try Data(#"{"schemaVersion":1,"packageID":"com.example.installable"}"#.utf8)
+            .write(
+                to: packageURL.appendingPathComponent(
+                    UserPetPackageEditor.markerFileName,
+                    isDirectory: false
+                )
+            )
+        let store = makeStore(
+            environment: environment,
+            installationIDs: [
+                UUID(uuidString: "11111111-1111-1111-1111-111111111111")!
+            ]
+        )
+        let installer = makeInstaller(environment: environment, store: store)
+
+        let installed = try installer.install(from: packageURL)
+
+        XCTAssertFalse(UserPetPackageEditor(store: store).isEditable(installed))
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: packageURL.appendingPathComponent(
+                    UserPetPackageEditor.markerFileName,
+                    isDirectory: false
+                ).path
+            ),
+            "가져오기 원본은 변경하지 않아야 합니다."
+        )
+    }
+
     func testRejectsDuplicateThenAllowsSeparateInstallation() throws {
         let environment = try makeEnvironment()
         let packageURL = try makePackage(in: environment.temporaryURL)
@@ -104,6 +136,28 @@ final class PetPackageInstallerTests: XCTestCase {
         XCTAssertEqual(replaced.package.metadata.version, "2.0.0")
         XCTAssertEqual(store.installedPackages().count, 1)
         XCTAssertTrue(try hiddenChildren(of: environment.libraryURL).isEmpty)
+    }
+
+    func testRemovesInstalledPackageAndRejectsMissingInstallation() throws {
+        let environment = try makeEnvironment()
+        let packageURL = try makePackage(in: environment.temporaryURL)
+        let archiveURL = try makeArchive(from: packageURL, keepParent: false)
+        let installationID = UUID(
+            uuidString: "11111111-1111-1111-1111-111111111111"
+        )!
+        let store = makeStore(
+            environment: environment,
+            installationIDs: [installationID]
+        )
+        let installer = makeInstaller(environment: environment, store: store)
+        _ = try installer.install(from: archiveURL)
+
+        try store.removeInstallation(installationID)
+
+        XCTAssertTrue(store.installedPackages().isEmpty)
+        XCTAssertThrowsError(try store.removeInstallation(installationID)) { error in
+            XCTAssertEqual(error as? PetLibraryError, .missingInstallation(installationID))
+        }
     }
 
     func testReplacementRequiresExistingInstallationWithSamePackageID() throws {

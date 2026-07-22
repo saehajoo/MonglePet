@@ -3,6 +3,7 @@ import AppKit
 @MainActor
 final class AppCoordinator {
     private let settingsSession: AppSettingsSession
+    private let petLibrarySession: PetLibrarySession
     private let settingsWindowController: SettingsWindowController
     private let petWindowController: PetWindowController
     private let behaviorRuntime: PetBehaviorRuntime
@@ -12,14 +13,20 @@ final class AppCoordinator {
 
     init(
         settingsStore: AppSettingsStore,
+        petLibraryStore: PetLibraryStore,
         activityMonitor: any ActivitySnapshotMonitoring = ActivitySnapshotMonitor()
     ) {
         let settingsSession = AppSettingsSession(store: settingsStore)
         let petWindowController = PetWindowController()
+        let petLibrarySession = PetLibrarySession(
+            store: petLibraryStore,
+            builtInDefinition: petWindowController.petDefinition
+        )
         self.settingsSession = settingsSession
+        self.petLibrarySession = petLibrarySession
         settingsWindowController = SettingsWindowController(
             settingsSession: settingsSession,
-            petDefinition: petWindowController.petDefinition
+            petLibrarySession: petLibrarySession
         )
         self.petWindowController = petWindowController
         behaviorRuntime = PetBehaviorRuntime(
@@ -31,6 +38,9 @@ final class AppCoordinator {
 
         settingsSession.onChange = { [weak self] settings in
             self?.settingsDidChange(settings)
+        }
+        petLibrarySession.onSelectionChange = { [weak self] item in
+            self?.selectedPetDidChange(item)
         }
         petWindowController.onOverlayGeometryDidChange = { [weak self] in
             self?.persistCurrentOverlayGeometry()
@@ -55,7 +65,17 @@ final class AppCoordinator {
         }
 
         let loadResult = settingsSession.load()
-        settingsSession.installBuiltInBehaviorPresetsIfNeeded()
+        settingsSession.ensureSystemDefaultBehavior()
+        var effectiveInstallationID = petLibrarySession.reload(
+            preferredInstallationID: settingsSession.settings.selectedPetInstallationID
+        )
+        if !applySelectedPet(petLibrarySession.selectedItem) {
+            _ = petLibrarySession.select(.builtIn)
+            effectiveInstallationID = nil
+        }
+        if effectiveInstallationID != settingsSession.settings.selectedPetInstallationID {
+            settingsSession.setSelectedPetInstallationID(effectiveInstallationID)
+        }
         apply(
             settings: settingsSession.settings,
             restorePosition: loadResult.shouldRestoreOverlayPosition
@@ -111,6 +131,19 @@ final class AppCoordinator {
     }
 
     private func settingsDidChange(_ settings: AppSettings) {
+        if settings.selectedPetInstallationID != petLibrarySession.selectedInstallationID {
+            let effectiveInstallationID = petLibrarySession.reload(
+                preferredInstallationID: settings.selectedPetInstallationID
+            )
+            if !applySelectedPet(petLibrarySession.selectedItem) {
+                _ = petLibrarySession.select(.builtIn)
+                return
+            }
+            if effectiveInstallationID != settings.selectedPetInstallationID {
+                settingsSession.setSelectedPetInstallationID(effectiveInstallationID)
+                return
+            }
+        }
         apply(settings: settings, restorePosition: true)
         guard let latestActivitySnapshot else {
             return
@@ -119,6 +152,31 @@ final class AppCoordinator {
             settings: settingsSession.settings,
             snapshot: latestActivitySnapshot
         )
+    }
+
+    private func selectedPetDidChange(_ item: PetLibraryItem) {
+        guard applySelectedPet(item) else {
+            _ = petLibrarySession.select(.builtIn)
+            return
+        }
+        settingsSession.setSelectedPetInstallationID(item.selection.installationID)
+    }
+
+    @discardableResult
+    private func applySelectedPet(_ item: PetLibraryItem) -> Bool {
+        do {
+            try petWindowController.applyPet(item)
+            behaviorRuntime.replacePetDefinition(item.definition)
+            if let latestActivitySnapshot {
+                behaviorRuntime.update(
+                    settings: settingsSession.settings,
+                    snapshot: latestActivitySnapshot
+                )
+            }
+            return true
+        } catch {
+            return false
+        }
     }
 
     private func apply(settings: AppSettings, restorePosition: Bool) {

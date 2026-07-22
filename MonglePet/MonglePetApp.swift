@@ -36,7 +36,11 @@ final class MonglePetAppDelegate: NSObject, NSApplicationDelegate {
 
         do {
             let settingsStore = try makeSettingsStore(isUITesting: isUITesting)
-            let coordinator = AppCoordinator(settingsStore: settingsStore)
+            let petLibraryStore = try makePetLibraryStore(isUITesting: isUITesting)
+            let coordinator = AppCoordinator(
+                settingsStore: settingsStore,
+                petLibraryStore: petLibraryStore
+            )
             coordinator.start(openSettingsOnLaunch: isOpeningSettingsForUITest)
             self.coordinator = coordinator
         } catch {
@@ -73,6 +77,18 @@ final class MonglePetAppDelegate: NSObject, NSApplicationDelegate {
 
         return AppSettingsStore(
             settingsURL: try AppSettingsStore.defaultSettingsURL()
+        )
+    }
+
+    private func makePetLibraryStore(isUITesting: Bool) throws -> PetLibraryStore {
+        if isUITesting, let uiTestingSettingsDirectoryURL {
+            return PetLibraryStore(
+                libraryRootURL: uiTestingSettingsDirectoryURL
+                    .appendingPathComponent("Library", isDirectory: true)
+            )
+        }
+        return PetLibraryStore(
+            libraryRootURL: try PetLibraryStore.defaultLibraryRootURL()
         )
     }
 }

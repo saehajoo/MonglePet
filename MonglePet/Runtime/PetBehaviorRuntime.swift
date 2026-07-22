@@ -82,6 +82,17 @@ final class PetBehaviorRuntime {
         motionScheduler.isPaused
     }
 
+    func replacePetDefinition(_ petDefinition: PetDefinition) {
+        tickScheduler.cancel()
+        motionScheduler.stop()
+        motionScheduler = MotionScheduler(petDefinition: petDefinition)
+        resolver = BehaviorResolver()
+        lastAdvancedAt = nil
+        latestDecision = nil
+        currentPlayback = nil
+        hasEmittedPlayback = false
+    }
+
     func update(settings: AppSettings, snapshot: ActivitySnapshot) {
         let now = clock.now
         advance(to: now)

@@ -93,7 +93,7 @@ final class MotionRuntimeTests: XCTestCase {
         XCTAssertEqual(definition.displayName, "몽글이")
         XCTAssertEqual(idle.id, "idle")
         XCTAssertEqual(idle.frames.count, 2)
-        XCTAssertEqual(definition.motions.map(\.id), ["idle", "focus", "rest", "sleep"])
+        XCTAssertEqual(definition.motions.map(\.id), ["idle"])
         XCTAssertTrue(
             definition.motions
                 .flatMap(\.frames)

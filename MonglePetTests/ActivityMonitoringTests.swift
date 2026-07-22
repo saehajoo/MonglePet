@@ -189,6 +189,9 @@ final class ActivityMonitoringTests: XCTestCase {
             settingsStore: AppSettingsStore(
                 settingsURL: settingsDirectoryURL.appendingPathComponent("settings.json")
             ),
+            petLibraryStore: PetLibraryStore(
+                libraryRootURL: settingsDirectoryURL.appendingPathComponent("Library")
+            ),
             activityMonitor: activityMonitor
         )
         coordinator.start()
@@ -250,6 +253,9 @@ final class ActivityMonitoringTests: XCTestCase {
         try store.save(savedSettings)
         let coordinator = AppCoordinator(
             settingsStore: store,
+            petLibraryStore: PetLibraryStore(
+                libraryRootURL: settingsDirectoryURL.appendingPathComponent("Library")
+            ),
             activityMonitor: FakeActivitySnapshotMonitor()
         )
 
@@ -270,6 +276,42 @@ final class ActivityMonitoringTests: XCTestCase {
             savedSettings.overlay.clickThrough
         )
         XCTAssertFalse(coordinator.isPetAwake)
+    }
+
+    func testAppCoordinatorClearsMissingSavedPetInstallation() throws {
+        let settingsDirectoryURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: settingsDirectoryURL) }
+        let store = AppSettingsStore(
+            settingsURL: settingsDirectoryURL.appendingPathComponent("settings.json")
+        )
+        let missingInstallationID = UUID(
+            uuidString: "99999999-9999-9999-9999-999999999999"
+        )!
+        try store.save(
+            AppSettings(
+                selectedPetInstallationID: missingInstallationID,
+                lastUserPresentation: .awake,
+                behaviorMode: .automatic,
+                overlay: .default,
+                manualSequenceID: nil,
+                sequences: [],
+                automaticRules: []
+            )
+        )
+        let coordinator = AppCoordinator(
+            settingsStore: store,
+            petLibraryStore: PetLibraryStore(
+                libraryRootURL: settingsDirectoryURL.appendingPathComponent("Library")
+            ),
+            activityMonitor: FakeActivitySnapshotMonitor()
+        )
+
+        coordinator.start()
+        defer { coordinator.stop() }
+
+        XCTAssertNil(coordinator.currentSettings.selectedPetInstallationID)
+        XCTAssertNil(store.load().settings.selectedPetInstallationID)
     }
 }
 

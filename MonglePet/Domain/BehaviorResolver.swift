@@ -64,11 +64,7 @@ nonisolated struct BehaviorResolver: Sendable {
             }
             .map(\.element)
 
-        let rawRule = firstMatchingRule(
-            in: orderedRules,
-            snapshot: snapshot,
-            longIdleThreshold: configuration.longIdleThreshold
-        )
+        let rawRule = firstMatchingRule(in: orderedRules, snapshot: snapshot)
 
         if let activeIdleRuleID,
            let activeRule = orderedRules.first(where: { $0.id == activeIdleRuleID }),
@@ -107,39 +103,20 @@ nonisolated struct BehaviorResolver: Sendable {
 
     private func firstMatchingRule(
         in orderedRules: [AutomaticRule],
-        snapshot: ActivitySnapshot,
-        longIdleThreshold: Duration
+        snapshot: ActivitySnapshot
     ) -> AutomaticRule? {
-        if let longIdleRule = orderedRules.first(where: {
-            guard case let .idleAtLeast(milliseconds) = $0.condition, milliseconds > 0 else {
+        orderedRules.first { rule in
+            switch rule.condition {
+            case let .application(bundleIdentifier):
+                return !bundleIdentifier.isEmpty
+                    && bundleIdentifier == snapshot.frontmostApplicationID
+            case let .idleAtLeast(milliseconds):
+                return milliseconds > 0
+                    && snapshot.idleDuration >= Duration.milliseconds(milliseconds)
+            case .unsupported:
                 return false
             }
-
-            let threshold = Duration.milliseconds(milliseconds)
-            return threshold >= longIdleThreshold && snapshot.idleDuration >= threshold
-        }) {
-            return longIdleRule
         }
-
-        if let applicationRule = orderedRules.first(where: {
-            guard case let .application(bundleIdentifier) = $0.condition else {
-                return false
-            }
-
-            return !bundleIdentifier.isEmpty
-                && bundleIdentifier == snapshot.frontmostApplicationID
-        }) {
-            return applicationRule
-        }
-
-        return orderedRules.first(where: {
-            guard case let .idleAtLeast(milliseconds) = $0.condition, milliseconds > 0 else {
-                return false
-            }
-
-            let threshold = Duration.milliseconds(milliseconds)
-            return threshold < longIdleThreshold && snapshot.idleDuration >= threshold
-        })
     }
 
     private mutating func shouldKeepIdleRule(

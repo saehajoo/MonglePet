@@ -73,45 +73,42 @@ final class BehaviorResolverTests: XCTestCase {
         XCTAssertEqual(source(from: decision), .manual)
     }
 
-    func testAutomaticPriorityIsLongIdleThenApplicationThenShortIdleThenDefault() throws {
-        let configuration = makeConfiguration(mode: .automatic)
+    func testAutomaticRulesUseConfiguredPriorityAcrossConditionTypes() throws {
+        let base = makeConfiguration(mode: .automatic)
+        let applicationRule = AutomaticRule(
+            id: UUID(),
+            isEnabled: true,
+            priority: 30,
+            condition: .application(bundleIdentifier: "com.example.Editor"),
+            sequenceID: "focus"
+        )
+        let idleRule = AutomaticRule(
+            id: UUID(),
+            isEnabled: true,
+            priority: 10,
+            condition: .idleAtLeast(milliseconds: 600_000),
+            sequenceID: "sleep"
+        )
+        let configuration = BehaviorConfiguration(
+            mode: .automatic,
+            defaultSequenceID: base.defaultSequenceID,
+            sequences: base.sequences,
+            automaticRules: [idleRule, applicationRule]
+        )
         var resolver = BehaviorResolver()
 
-        let defaultDecision = resolver.resolve(
-            configuration: configuration,
-            snapshot: snapshot(at: .zero, idle: .seconds(119)),
-            runtimeState: BehaviorRuntimeState(presentation: .awake)
-        )
-        XCTAssertEqual(try sequence(from: defaultDecision).id, "idle")
-
-        let shortIdleDecision = resolver.resolve(
-            configuration: configuration,
-            snapshot: snapshot(at: .seconds(1), idle: .seconds(120)),
-            runtimeState: BehaviorRuntimeState(presentation: .awake)
-        )
-        XCTAssertEqual(try sequence(from: shortIdleDecision).id, "rest")
-
-        let applicationDecision = resolver.resolve(
+        let decision = resolver.resolve(
             configuration: configuration,
             snapshot: snapshot(
-                at: .seconds(2),
-                idle: .seconds(120),
-                applicationID: "com.example.Editor"
-            ),
-            runtimeState: BehaviorRuntimeState(presentation: .awake)
-        )
-        XCTAssertEqual(try sequence(from: applicationDecision).id, "focus")
-
-        let longIdleDecision = resolver.resolve(
-            configuration: configuration,
-            snapshot: snapshot(
-                at: .seconds(3),
+                at: .zero,
                 idle: .seconds(600),
                 applicationID: "com.example.Editor"
             ),
             runtimeState: BehaviorRuntimeState(presentation: .awake)
         )
-        XCTAssertEqual(try sequence(from: longIdleDecision).id, "sleep")
+
+        XCTAssertEqual(try sequence(from: decision).id, "focus")
+        XCTAssertEqual(source(from: decision), .automaticRule(applicationRule.id))
     }
 
     func testRulesUseHigherPriorityThenStableArrayOrder() throws {

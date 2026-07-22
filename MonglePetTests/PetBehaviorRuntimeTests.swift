@@ -33,7 +33,7 @@ final class PetBehaviorRuntimeTests: XCTestCase {
         XCTAssertEqual(receivedPlaybacks.compactMap { $0 }.map(\.motion.id), ["focus", "rest"])
     }
 
-    func testAutomaticIdleRulesDriveRestThenSleep() {
+    func testAutomaticModeWithoutRulesKeepsCurrentPetDefaultMotion() {
         let clock = ManualBehaviorRuntimeClock()
         let tickScheduler = ManualBehaviorTickScheduler()
         let runtime = PetBehaviorRuntime(
@@ -46,15 +46,10 @@ final class PetBehaviorRuntimeTests: XCTestCase {
         runtime.update(settings: settings, snapshot: snapshot(idle: .zero))
         XCTAssertEqual(runtime.currentPlayback?.motion.id, "idle")
 
-        runtime.update(settings: settings, snapshot: snapshot(idle: .seconds(120)))
-        clock.advance(by: .seconds(3))
-        tickScheduler.fire()
-        XCTAssertEqual(runtime.currentPlayback?.motion.id, "rest")
-
         runtime.update(settings: settings, snapshot: snapshot(idle: .seconds(600)))
         clock.advance(by: .seconds(3))
         tickScheduler.fire()
-        XCTAssertEqual(runtime.currentPlayback?.motion.id, "sleep")
+        XCTAssertEqual(runtime.currentPlayback?.motion.id, "idle")
     }
 
     func testSuspensionCancelsTickAndPreservesRemainingStepTime() {
@@ -88,10 +83,40 @@ final class PetBehaviorRuntimeTests: XCTestCase {
     func testBuiltInFallbackConfigurationProvidesUsableDefaults() {
         let configuration = BuiltInBehaviorPresets.configuration(for: .default)
 
-        XCTAssertEqual(configuration.defaultSequenceID, "idle")
+        XCTAssertEqual(
+            configuration.defaultSequenceID,
+            BuiltInBehaviorPresets.defaultSequenceID
+        )
         XCTAssertEqual(configuration.sequences, BuiltInBehaviorPresets.sequences)
-        XCTAssertEqual(configuration.automaticRules, BuiltInBehaviorPresets.automaticRules)
-        XCTAssertEqual(configuration.manualSequenceID, nil)
+        XCTAssertTrue(configuration.automaticRules.isEmpty)
+        XCTAssertEqual(
+            configuration.manualSequenceID,
+            BuiltInBehaviorPresets.defaultSequenceID
+        )
+    }
+
+    func testReplacingPetDefinitionRestartsDecisionWithIdleFallback() {
+        let clock = ManualBehaviorRuntimeClock()
+        let tickScheduler = ManualBehaviorTickScheduler()
+        var receivedMotionIDs: [String?] = []
+        let runtime = PetBehaviorRuntime(
+            petDefinition: makePet(),
+            clock: clock,
+            tickScheduler: tickScheduler
+        ) { receivedMotionIDs.append($0?.motion.id) }
+        let settings = makeSettings(mode: .manual, manualSequenceID: "focus")
+
+        runtime.update(settings: settings, snapshot: snapshot())
+        XCTAssertEqual(runtime.currentPlayback?.motion.id, "focus")
+
+        runtime.replacePetDefinition(makeIdleOnlyPet())
+        XCTAssertNil(runtime.currentPlayback)
+        runtime.update(settings: settings, snapshot: snapshot())
+
+        XCTAssertEqual(runtime.currentPlayback?.requestedMotionID, "focus")
+        XCTAssertEqual(runtime.currentPlayback?.motion.id, "idle")
+        XCTAssertTrue(runtime.currentPlayback?.usesFallback == true)
+        XCTAssertEqual(receivedMotionIDs, ["focus", "idle"])
     }
 
     private func makeSettings(
@@ -104,8 +129,8 @@ final class PetBehaviorRuntimeTests: XCTestCase {
             behaviorMode: mode,
             overlay: .default,
             manualSequenceID: manualSequenceID,
-            sequences: BuiltInBehaviorPresets.sequences,
-            automaticRules: BuiltInBehaviorPresets.automaticRules
+            sequences: BuiltInBehaviorPresets.legacySequences,
+            automaticRules: []
         )
     }
 
@@ -127,6 +152,27 @@ final class PetBehaviorRuntimeTests: XCTestCase {
                     ]
                 )
             }
+        )
+    }
+
+    private func makeIdleOnlyPet() -> PetDefinition {
+        PetDefinition(
+            id: "idle-only.pet",
+            displayName: "Idle Only",
+            defaultMotionID: "idle",
+            motions: [
+                PetMotion(
+                    id: "idle",
+                    loops: true,
+                    frames: [
+                        MotionFrame(
+                            atlasID: "main",
+                            sourceRect: frameRect,
+                            duration: .milliseconds(100)
+                        )
+                    ]
+                )
+            ]
         )
     }
 

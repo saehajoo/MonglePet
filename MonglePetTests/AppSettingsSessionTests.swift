@@ -61,6 +61,30 @@ final class AppSettingsSessionTests: XCTestCase {
     }
 
     @MainActor
+    func testSelectedPetInstallationPersistsAndCanReturnToBuiltInPet() {
+        let session = AppSettingsSession(
+            store: AppSettingsStore(settingsURL: settingsURL)
+        )
+        _ = session.load()
+        let installationID = UUID(
+            uuidString: "11111111-1111-1111-1111-111111111111"
+        )!
+
+        session.setSelectedPetInstallationID(installationID)
+        XCTAssertEqual(
+            AppSettingsStore(settingsURL: settingsURL).load()
+                .settings.selectedPetInstallationID,
+            installationID
+        )
+
+        session.setSelectedPetInstallationID(nil)
+        XCTAssertNil(
+            AppSettingsStore(settingsURL: settingsURL).load()
+                .settings.selectedPetInstallationID
+        )
+    }
+
+    @MainActor
     func testOverlayWidthPreviewWaitsForExplicitPersistence() {
         let session = AppSettingsSession(
             store: AppSettingsStore(settingsURL: settingsURL)
@@ -109,33 +133,37 @@ final class AppSettingsSessionTests: XCTestCase {
     }
 
     @MainActor
-    func testBuiltInBehaviorPresetsInstallInMemoryAndManualSelectionPersists() {
+    func testSystemDefaultBehaviorInstallsInMemoryAndCustomSelectionPersists() {
         let session = AppSettingsSession(
             store: AppSettingsStore(settingsURL: settingsURL)
         )
         _ = session.load()
 
-        session.installBuiltInBehaviorPresetsIfNeeded()
+        session.ensureSystemDefaultBehavior()
 
         XCTAssertEqual(
             session.settings.sequences.map(\.id),
-            ["idle", "focus", "rest", "sleep"]
+            [BuiltInBehaviorPresets.defaultSequenceID]
         )
-        XCTAssertEqual(session.settings.manualSequenceID, "idle")
-        XCTAssertEqual(session.settings.automaticRules.count, 2)
+        XCTAssertEqual(
+            session.settings.manualSequenceID,
+            BuiltInBehaviorPresets.defaultSequenceID
+        )
+        XCTAssertTrue(session.settings.automaticRules.isEmpty)
         XCTAssertEqual(
             AppSettingsStore(settingsURL: settingsURL).load().source,
             .defaults
         )
 
-        session.setManualSequenceID("focus")
+        XCTAssertTrue(session.addBehaviorSequence(named: "coding"))
+        session.setManualSequenceID("coding")
         let reloaded = AppSettingsStore(settingsURL: settingsURL).load()
-        XCTAssertEqual(reloaded.settings.manualSequenceID, "focus")
-        XCTAssertEqual(reloaded.settings.sequences, BuiltInBehaviorPresets.sequences)
+        XCTAssertEqual(reloaded.settings.manualSequenceID, "coding")
         XCTAssertEqual(
-            reloaded.settings.automaticRules,
-            BuiltInBehaviorPresets.automaticRules
+            reloaded.settings.sequences.map(\.id),
+            [BuiltInBehaviorPresets.defaultSequenceID, "coding"]
         )
+        XCTAssertTrue(reloaded.settings.automaticRules.isEmpty)
     }
 
     @MainActor
@@ -144,7 +172,7 @@ final class AppSettingsSessionTests: XCTestCase {
             store: AppSettingsStore(settingsURL: settingsURL)
         )
         _ = session.load()
-        session.installBuiltInBehaviorPresetsIfNeeded()
+        session.ensureSystemDefaultBehavior()
 
         XCTAssertTrue(session.addBehaviorSequence(named: "coding"))
         XCTAssertNil(session.behaviorEditErrorMessage)
@@ -175,20 +203,82 @@ final class AppSettingsSessionTests: XCTestCase {
             store: AppSettingsStore(settingsURL: settingsURL)
         )
         _ = session.load()
-        session.installBuiltInBehaviorPresetsIfNeeded()
+        session.ensureSystemDefaultBehavior()
         let originalSettings = session.settings
 
         XCTAssertFalse(
             session.updateBehaviorStep(
-                sequenceID: "idle",
+                sequenceID: BuiltInBehaviorPresets.defaultSequenceID,
                 index: 0,
-                motionID: "idle",
+                motionID: PetMotionReference.currentPetDefault,
                 durationSeconds: .infinity,
                 playbackSpeed: 1
             )
         )
         XCTAssertEqual(session.settings, originalSettings)
         XCTAssertNotNil(session.behaviorEditErrorMessage)
+    }
+
+    @MainActor
+    func testUnmodifiedLegacyDefaultsMigrateToSingleSystemDefault() throws {
+        let legacySettings = AppSettings(
+            selectedPetInstallationID: nil,
+            lastUserPresentation: .awake,
+            behaviorMode: .automatic,
+            overlay: .default,
+            manualSequenceID: "idle",
+            sequences: BuiltInBehaviorPresets.legacySequences,
+            automaticRules: BuiltInBehaviorPresets.legacyAutomaticRules
+        )
+        try AppSettingsStore(settingsURL: settingsURL).save(legacySettings)
+        let session = AppSettingsSession(
+            store: AppSettingsStore(settingsURL: settingsURL)
+        )
+
+        _ = session.load()
+        session.ensureSystemDefaultBehavior()
+
+        XCTAssertEqual(session.settings.sequences, BuiltInBehaviorPresets.sequences)
+        XCTAssertEqual(
+            session.settings.manualSequenceID,
+            BuiltInBehaviorPresets.defaultSequenceID
+        )
+        XCTAssertTrue(session.settings.automaticRules.isEmpty)
+    }
+
+    func testModifiedLegacyBehaviorIsPreservedWhileSystemDefaultIsAdded() throws {
+        var modifiedSequences = BuiltInBehaviorPresets.legacySequences
+        let idle = try XCTUnwrap(modifiedSequences.first)
+        modifiedSequences[0] = BehaviorSequence(
+            id: idle.id,
+            steps: [
+                BehaviorStep(
+                    motionID: "idle",
+                    duration: .seconds(4),
+                    playbackSpeed: 1
+                )
+            ],
+            repeats: true
+        )
+        let settings = AppSettings(
+            selectedPetInstallationID: nil,
+            lastUserPresentation: .awake,
+            behaviorMode: .automatic,
+            overlay: .default,
+            manualSequenceID: "idle",
+            sequences: modifiedSequences,
+            automaticRules: BuiltInBehaviorPresets.legacyAutomaticRules
+        )
+
+        let normalized = BuiltInBehaviorPresets.normalizedDefaults(in: settings)
+
+        XCTAssertEqual(normalized.sequences.first, BuiltInBehaviorPresets.sequences[0])
+        XCTAssertEqual(Array(normalized.sequences.dropFirst()), modifiedSequences)
+        XCTAssertEqual(normalized.manualSequenceID, "idle")
+        XCTAssertEqual(
+            normalized.automaticRules,
+            BuiltInBehaviorPresets.legacyAutomaticRules
+        )
     }
 
     @MainActor

@@ -202,6 +202,15 @@ nonisolated struct PetLibraryStore {
         }
     }
 
+    func removeInstallation(_ installationID: UUID) throws {
+        let installed = try installedPackage(installationID: installationID)
+        do {
+            try fileManager.removeItem(at: installed.rootURL)
+        } catch {
+            throw PetLibraryError.fileOperationFailed
+        }
+    }
+
     private func installedPackage(installationID: UUID) throws -> InstalledPetPackage {
         guard let installed = installedPackages().first(where: {
             $0.installationID == installationID

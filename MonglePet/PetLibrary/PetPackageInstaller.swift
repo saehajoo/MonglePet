@@ -40,7 +40,15 @@ nonisolated struct PetPackageInstaller {
             var isDirectory: ObjCBool = false
             if fileManager.fileExists(atPath: sourceURL.path, isDirectory: &isDirectory),
                isDirectory.boolValue {
-                packageRootURL = sourceURL
+                packageRootURL = workspaceURL.appendingPathComponent(
+                    "Imported.monglepet",
+                    isDirectory: true
+                )
+                do {
+                    try fileManager.copyItem(at: sourceURL, to: packageRootURL)
+                } catch {
+                    throw PetLibraryError.fileOperationFailed
+                }
             } else {
                 packageRootURL = try archiveExtractor.extractArchive(
                     at: sourceURL,
@@ -48,6 +56,7 @@ nonisolated struct PetPackageInstaller {
                 )
             }
 
+            try removeEditingMarker(from: packageRootURL)
             let validatedPackage = try loader.loadPackage(at: packageRootURL)
             return try libraryStore.install(
                 packageAt: packageRootURL,
@@ -63,6 +72,21 @@ nonisolated struct PetPackageInstaller {
                 at: workspaceURL,
                 withIntermediateDirectories: false
             )
+        } catch {
+            throw PetLibraryError.fileOperationFailed
+        }
+    }
+
+    private func removeEditingMarker(from packageRootURL: URL) throws {
+        let markerURL = packageRootURL.appendingPathComponent(
+            UserPetPackageEditor.markerFileName,
+            isDirectory: false
+        )
+        guard fileManager.fileExists(atPath: markerURL.path) else {
+            return
+        }
+        do {
+            try fileManager.removeItem(at: markerURL)
         } catch {
             throw PetLibraryError.fileOperationFailed
         }

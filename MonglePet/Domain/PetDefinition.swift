@@ -31,6 +31,10 @@ nonisolated struct PetMotion: Equatable, Identifiable, Sendable {
     let frames: [MotionFrame]
 }
 
+nonisolated enum PetMotionReference {
+    static let currentPetDefault = "__monglepet_current_pet_default__"
+}
+
 nonisolated struct PetDefinition: Equatable, Identifiable, Sendable {
     let id: String
     let displayName: String

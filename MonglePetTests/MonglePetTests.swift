@@ -5,6 +5,8 @@
 //  Created by netsprint on 7/21/26.
 //
 
+import ImageIO
+import UniformTypeIdentifiers
 import XCTest
 @testable import MonglePet
 
@@ -65,8 +67,12 @@ final class MonglePetTests: XCTestCase {
         _ = session.load()
         let controller = SettingsWindowController(
             settingsSession: session,
-            petDefinition: BuiltInPet.mongleDefinition(
-                atlasPixelSize: PixelSize(width: 192, height: 208)
+            petLibrarySession: PetLibrarySession(
+                builtInDefinition: BuiltInPet.mongleDefinition(
+                    atlasPixelSize: PixelSize(width: 192, height: 208)
+                ),
+                installedPackagesProvider: { [] },
+                installationRemover: { _ in }
             )
         )
 
@@ -101,6 +107,134 @@ final class MonglePetTests: XCTestCase {
         XCTAssertTrue(panel.isMovable)
         XCTAssertTrue(panel.isMovableByWindowBackground)
         XCTAssertEqual(panel.contentLayoutRect.size, PetWindowController.defaultContentSize)
+    }
+
+    @MainActor
+    func testPetOverlaySwitchesBetweenRegisteredAtlases() throws {
+        let firstImage = try makeImage(width: 20, height: 10)
+        let secondImage = try makeImage(width: 12, height: 24)
+        let view = try XCTUnwrap(
+            PetOverlayView(
+                atlasID: "first",
+                image: NSImage(
+                    cgImage: firstImage,
+                    size: NSSize(width: 20, height: 10)
+                )
+            )
+        )
+        view.replaceAtlases(
+            [
+                PetAtlasImage(
+                    id: "first",
+                    image: firstImage,
+                    pixelSize: PixelSize(width: 20, height: 10)
+                ),
+                PetAtlasImage(
+                    id: "second",
+                    image: secondImage,
+                    pixelSize: PixelSize(width: 12, height: 24)
+                )
+            ],
+            accessibilityLabel: "테스트 펫"
+        )
+
+        XCTAssertTrue(
+            view.display(
+                MotionFrame(
+                    atlasID: "second",
+                    sourceRect: PixelRect(x: 0, y: 0, width: 12, height: 24),
+                    duration: .milliseconds(100)
+                )
+            )
+        )
+        XCTAssertEqual(view.displayedAtlasID, "second")
+        XCTAssertFalse(
+            view.display(
+                MotionFrame(
+                    atlasID: "missing",
+                    sourceRect: PixelRect(x: 0, y: 0, width: 1, height: 1),
+                    duration: .milliseconds(100)
+                )
+            )
+        )
+    }
+
+    @MainActor
+    func testPetWindowAppliesInstalledPetDefinitionAtlasAndFrameAspectRatio() throws {
+        let temporaryURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: temporaryURL) }
+        try FileManager.default.createDirectory(
+            at: temporaryURL.appendingPathComponent("assets", isDirectory: true),
+            withIntermediateDirectories: true
+        )
+        try writePNG(
+            to: temporaryURL.appendingPathComponent("preview.png"),
+            width: 12,
+            height: 24
+        )
+        try writePNG(
+            to: temporaryURL.appendingPathComponent("assets/atlas.png"),
+            width: 12,
+            height: 24
+        )
+        let manifest: [String: Any] = [
+            "formatVersion": 1,
+            "id": "test.tall-pet",
+            "displayName": "세로 펫",
+            "version": "1.0.0",
+            "author": "Tester",
+            "license": "Test",
+            "previewPath": "preview.png",
+            "defaultMotion": "idle",
+            "atlases": [[
+                "id": "main",
+                "path": "assets/atlas.png",
+                "pixelWidth": 12,
+                "pixelHeight": 24
+            ]],
+            "motions": [[
+                "id": "idle",
+                "atlas": "main",
+                "loop": true,
+                "frames": [[
+                    "x": 0,
+                    "y": 0,
+                    "width": 12,
+                    "height": 24,
+                    "durationMs": 120
+                ]]
+            ]]
+        ]
+        try JSONSerialization.data(withJSONObject: manifest)
+            .write(to: temporaryURL.appendingPathComponent("pet.json"))
+        let package = try PetPackageLoader().loadPackage(at: temporaryURL)
+        let installationID = UUID(
+            uuidString: "11111111-1111-1111-1111-111111111111"
+        )!
+        let installed = InstalledPetPackage(
+            installationID: installationID,
+            rootURL: temporaryURL,
+            package: package
+        )
+        let item = PetLibraryItem(
+            selection: .installed(installationID),
+            metadata: package.metadata,
+            previewURL: package.previewURL,
+            definition: package.definition,
+            installedPackage: installed
+        )
+        let controller = PetWindowController()
+        let panel = try XCTUnwrap(controller.panel)
+        controller.wake()
+
+        try controller.applyPet(item)
+
+        XCTAssertEqual(controller.petDefinition.id, "test.tall-pet")
+        XCTAssertEqual(controller.activeInstallationID, installationID)
+        XCTAssertEqual(panel.frame.height, panel.frame.width * 2, accuracy: 0.001)
+        XCTAssertTrue(controller.isAnimationPlaying)
+        controller.sleep()
     }
 
     @MainActor
@@ -236,5 +370,36 @@ final class MonglePetTests: XCTestCase {
         )
 
         XCTAssertEqual(origin, NSPoint(x: 808, y: 592))
+    }
+
+    private func makeImage(width: Int, height: Int) throws -> CGImage {
+        let context = try XCTUnwrap(
+            CGContext(
+                data: nil,
+                width: width,
+                height: height,
+                bitsPerComponent: 8,
+                bytesPerRow: width * 4,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            )
+        )
+        context.setFillColor(NSColor.systemBlue.cgColor)
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        return try XCTUnwrap(context.makeImage())
+    }
+
+    private func writePNG(to fileURL: URL, width: Int, height: Int) throws {
+        let image = try makeImage(width: width, height: height)
+        let destination = try XCTUnwrap(
+            CGImageDestinationCreateWithURL(
+                fileURL as CFURL,
+                UTType.png.identifier as CFString,
+                1,
+                nil
+            )
+        )
+        CGImageDestinationAddImage(destination, image, nil)
+        XCTAssertTrue(CGImageDestinationFinalize(destination))
     }
 }

@@ -1,12 +1,23 @@
 import AppKit
 
 @MainActor
+struct PetAtlasImage {
+    let id: String
+    let image: CGImage
+    let pixelSize: PixelSize
+}
+
+@MainActor
 final class PetOverlayView: NSView {
-    let atlasPixelSize: PixelSize
     var onDragEnded: (() -> Void)?
 
-    private let atlasID: String
+    private var atlases: [String: PetAtlasImage]
+    private(set) var displayedAtlasID: String?
     private var displayedFrame: MotionFrame?
+
+    var atlasPixelSize: PixelSize {
+        atlases.values.first?.pixelSize ?? PixelSize(width: 1, height: 1)
+    }
 
     init?(atlasID: String, image: NSImage) {
         var proposedRect = NSRect(origin: .zero, size: image.size)
@@ -18,8 +29,12 @@ final class PetOverlayView: NSView {
             return nil
         }
 
-        self.atlasID = atlasID
-        atlasPixelSize = PixelSize(width: cgImage.width, height: cgImage.height)
+        let atlas = PetAtlasImage(
+            id: atlasID,
+            image: cgImage,
+            pixelSize: PixelSize(width: cgImage.width, height: cgImage.height)
+        )
+        atlases = [atlasID: atlas]
         super.init(frame: .zero)
 
         wantsLayer = true
@@ -43,8 +58,8 @@ final class PetOverlayView: NSView {
     @discardableResult
     func display(_ frame: MotionFrame) -> Bool {
         guard
-            frame.atlasID == atlasID,
-            frame.sourceRect.isContained(in: atlasPixelSize)
+            let atlas = atlases[frame.atlasID],
+            frame.sourceRect.isContained(in: atlas.pixelSize)
         else {
             return false
         }
@@ -54,21 +69,34 @@ final class PetOverlayView: NSView {
         }
 
         let sourceRect = frame.sourceRect
-        let atlasWidth = CGFloat(atlasPixelSize.width)
-        let atlasHeight = CGFloat(atlasPixelSize.height)
+        let atlasWidth = CGFloat(atlas.pixelSize.width)
+        let atlasHeight = CGFloat(atlas.pixelSize.height)
         let normalizedRect = CGRect(
             x: CGFloat(sourceRect.x) / atlasWidth,
-            y: CGFloat(atlasPixelSize.height - sourceRect.y - sourceRect.height) / atlasHeight,
+            y: CGFloat(atlas.pixelSize.height - sourceRect.y - sourceRect.height) / atlasHeight,
             width: CGFloat(sourceRect.width) / atlasWidth,
             height: CGFloat(sourceRect.height) / atlasHeight
         )
 
         CATransaction.begin()
         CATransaction.setDisableActions(true)
+        if displayedAtlasID != atlas.id {
+            layer?.contents = atlas.image
+            displayedAtlasID = atlas.id
+        }
         layer?.contentsRect = normalizedRect
         CATransaction.commit()
         displayedFrame = frame
         return true
+    }
+
+    func replaceAtlases(_ atlases: [PetAtlasImage], accessibilityLabel: String) {
+        self.atlases = Dictionary(uniqueKeysWithValues: atlases.map { ($0.id, $0) })
+        displayedAtlasID = nil
+        displayedFrame = nil
+        layer?.contents = nil
+        layer?.contentsRect = CGRect(x: 0, y: 0, width: 1, height: 1)
+        setAccessibilityLabel(accessibilityLabel)
     }
 
     override func mouseDown(with event: NSEvent) {

@@ -21,11 +21,11 @@ final class BehaviorSettingsEditorTests: XCTestCase {
 
         XCTAssertEqual(
             BehaviorMotionCatalog.identifiers(for: pet, including: "waving"),
-            ["idle", "waving"]
+            [PetMotionReference.currentPetDefault, "waving"]
         )
         XCTAssertEqual(
             BehaviorMotionCatalog.identifiers(for: pet, including: "legacy"),
-            ["idle", "waving", "legacy"]
+            [PetMotionReference.currentPetDefault, "waving", "legacy"]
         )
     }
 
@@ -75,7 +75,10 @@ final class BehaviorSettingsEditorTests: XCTestCase {
         )
 
         var custom = try XCTUnwrap(settings.sequences.first { $0.id == "custom" })
-        XCTAssertEqual(custom.steps.map(\.motionID), ["focus", "idle"])
+        XCTAssertEqual(
+            custom.steps.map(\.motionID),
+            ["focus", PetMotionReference.currentPetDefault]
+        )
         XCTAssertEqual(custom.steps[0].duration, .seconds(9))
 
         settings = try BehaviorSettingsEditor.removingStep(
@@ -99,7 +102,7 @@ final class BehaviorSettingsEditorTests: XCTestCase {
     func testDeletingCustomSequenceCleansReferencesAndProtectsBuiltIns() throws {
         var settings = try BehaviorSettingsEditor.addingSequence(
             named: "custom",
-            to: makeSettings(manualSequenceID: "idle")
+            to: makeSettings()
         )
         settings = settingsReplacingManualSequenceID("custom", in: settings)
         settings = try BehaviorSettingsEditor.addingApplicationRule(
@@ -113,11 +116,17 @@ final class BehaviorSettingsEditorTests: XCTestCase {
             from: settings
         )
 
-        XCTAssertEqual(settings.manualSequenceID, "idle")
+        XCTAssertEqual(
+            settings.manualSequenceID,
+            BuiltInBehaviorPresets.defaultSequenceID
+        )
         XCTAssertFalse(settings.sequences.contains { $0.id == "custom" })
         XCTAssertFalse(settings.automaticRules.contains { $0.sequenceID == "custom" })
         XCTAssertThrowsError(
-            try BehaviorSettingsEditor.removingSequence(id: "idle", from: settings)
+            try BehaviorSettingsEditor.removingSequence(
+                id: BuiltInBehaviorPresets.defaultSequenceID,
+                from: settings
+            )
         ) { error in
             XCTAssertEqual(error as? BehaviorSettingsEditError, .protectedSequence)
         }
@@ -128,13 +137,13 @@ final class BehaviorSettingsEditorTests: XCTestCase {
         let idleRuleID = UUID()
         var settings = try BehaviorSettingsEditor.addingApplicationRule(
             bundleIdentifier: "com.apple.dt.Xcode",
-            sequenceID: "focus",
+            sequenceID: BuiltInBehaviorPresets.defaultSequenceID,
             id: applicationRuleID,
             to: makeSettings(rules: [])
         )
         settings = try BehaviorSettingsEditor.addingIdleRule(
             minutes: 3,
-            sequenceID: "rest",
+            sequenceID: BuiltInBehaviorPresets.defaultSequenceID,
             id: idleRuleID,
             to: settings
         )
@@ -150,7 +159,7 @@ final class BehaviorSettingsEditorTests: XCTestCase {
             isEnabled: false,
             priority: 8,
             condition: .application(bundleIdentifier: "com.apple.Safari"),
-            sequenceID: "idle"
+            sequenceID: BuiltInBehaviorPresets.defaultSequenceID
         )
         settings = try BehaviorSettingsEditor.replacingRule(edited, in: settings)
         XCTAssertEqual(settings.automaticRules[0], edited)
@@ -161,7 +170,7 @@ final class BehaviorSettingsEditorTests: XCTestCase {
         XCTAssertThrowsError(
             try BehaviorSettingsEditor.addingApplicationRule(
                 bundleIdentifier: "com.example bad",
-                sequenceID: "idle",
+                sequenceID: BuiltInBehaviorPresets.defaultSequenceID,
                 to: settings
             )
         ) { error in
@@ -170,7 +179,7 @@ final class BehaviorSettingsEditorTests: XCTestCase {
         XCTAssertThrowsError(
             try BehaviorSettingsEditor.addingIdleRule(
                 minutes: 0,
-                sequenceID: "idle",
+                sequenceID: BuiltInBehaviorPresets.defaultSequenceID,
                 to: settings
             )
         ) { error in
@@ -179,7 +188,7 @@ final class BehaviorSettingsEditorTests: XCTestCase {
     }
 
     private func makeSettings(
-        manualSequenceID: String? = "idle",
+        manualSequenceID: String? = BuiltInBehaviorPresets.defaultSequenceID,
         rules: [AutomaticRule] = BuiltInBehaviorPresets.automaticRules
     ) -> AppSettings {
         AppSettings(

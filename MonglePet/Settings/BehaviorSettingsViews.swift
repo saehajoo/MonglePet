@@ -5,7 +5,10 @@ nonisolated enum BehaviorMotionCatalog {
         for petDefinition: PetDefinition,
         including currentMotionID: String
     ) -> [String] {
-        var identifiers = petDefinition.motions.map(\.id)
+        var identifiers = [PetMotionReference.currentPetDefault]
+        identifiers.append(contentsOf: petDefinition.motions
+            .map(\.id)
+            .filter { $0 != petDefinition.defaultMotionID })
         if !currentMotionID.isEmpty, !identifiers.contains(currentMotionID) {
             identifiers.append(currentMotionID)
         }
@@ -195,7 +198,7 @@ private struct BehaviorStepEditorRow: View {
 
             Picker("펫 애니메이션", selection: motionIDBinding) {
                 ForEach(availableMotionIDs, id: \.self) { motionID in
-                    Text(BuiltInBehaviorPresets.displayName(for: motionID))
+                    Text(BuiltInBehaviorPresets.motionDisplayName(for: motionID))
                         .tag(motionID)
                 }
             }
@@ -230,7 +233,9 @@ private struct BehaviorStepEditorRow: View {
 
     private var motionIDBinding: Binding<String> {
         Binding(
-            get: { currentStep?.motionID ?? "idle" },
+            get: {
+                currentStep?.motionID ?? PetMotionReference.currentPetDefault
+            },
             set: { update(motionID: $0) }
         )
     }

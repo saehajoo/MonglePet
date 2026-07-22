@@ -47,7 +47,9 @@ extension BehaviorSettingsEditError: LocalizedError {
 }
 
 nonisolated enum BehaviorSettingsEditor {
-    static let protectedSequenceIDs: Set<String> = ["idle", "focus", "rest", "sleep"]
+    static let protectedSequenceIDs: Set<String> = [
+        BuiltInBehaviorPresets.defaultSequenceID
+    ]
 
     static func addingSequence(
         named name: String,
@@ -111,7 +113,9 @@ nonisolated enum BehaviorSettingsEditor {
         }
 
         let sequences = settings.sequences.filter { $0.id != sequenceID }
-        let fallbackSequenceID = sequences.first(where: { $0.id == "idle" })?.id
+        let fallbackSequenceID = sequences.first(where: {
+            $0.id == BuiltInBehaviorPresets.defaultSequenceID
+        })?.id
             ?? sequences.first?.id
         let manualSequenceID = settings.manualSequenceID == sequenceID
             ? fallbackSequenceID
@@ -305,7 +309,7 @@ nonisolated enum BehaviorSettingsEditor {
     }
 
     private static let defaultStep = BehaviorStep(
-        motionID: "idle",
+        motionID: PetMotionReference.currentPetDefault,
         duration: BuiltInBehaviorPresets.stepDuration,
         playbackSpeed: 1
     )

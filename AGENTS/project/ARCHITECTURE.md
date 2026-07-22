@@ -21,6 +21,7 @@ MonglePetApp
 ├── PetLibrary
 │   ├── PackageImporter
 │   ├── PackageValidator
+│   ├── PackageEditor / PackageExporter
 │   └── PetLibraryStore
 ├── Runtime
 │   ├── PetRuntime
@@ -28,6 +29,7 @@ MonglePetApp
 │   └── FramePlayer
 ├── Overlay
 │   ├── PetWindowController
+│   ├── PetMovementController
 │   ├── PetWindow
 │   └── PetView
 ├── Settings
@@ -77,6 +79,9 @@ MonglePetApp
 - 사용자 선택 파일의 security-scoped 접근은 검사와 추출 동안만 유지하고 bookmark를 저장하지 않는다.
 - ZIP 엔트리를 사전 검증한 뒤 개별 추출하며 심볼릭 링크와 경로 충돌을 허용하지 않는다.
 - 라이브러리와 같은 볼륨의 staging에서 다시 검증한 뒤 UUID 최종 경로로 rename 또는 replace한다.
+- 사용자 펫 편집은 설치 디렉터리에 직접 쓰지 않고 임시 사본을 수정·재검증한 뒤 같은 설치 UUID로 원자적 교체한다.
+- 가져온 패키지는 읽기 전용으로 유지하고 사용자가 요청할 때 새 패키지 ID의 편집 가능한 사본을 만든다.
+- 공유 내보내기는 편집 marker와 로컬 행동 설정을 제외한 표준 `.monglepet` 아카이브를 생성한다.
 - 상세 형식과 보안 제한은 `../specifications/PET_PACKAGE.md`를 따른다.
 
 ### Runtime
@@ -100,6 +105,8 @@ MonglePetApp
 - 위치, 크기, 창 레벨, Space 동작과 클릭 통과를 관리한다.
 - SwiftUI 설정 화면과 펫 렌더링 창의 책임을 분리한다.
 - 화면 구성 변경 시 패널 전체가 모든 디스플레이 밖으로 벗어나지 않도록 위치를 보정한다.
+- `PetMovementController`는 선택적으로 포인터 위치를 메모리에서만 읽어 목표 창 위치를 계산하며 행동 결정과 애니메이션 선택을 직접 소유하지 않는다.
+- 사용자 드래그, 재우기, 잠금·절전과 동작 줄이기 상태는 자동 이동보다 우선한다.
 
 ### Settings
 
@@ -110,6 +117,9 @@ MonglePetApp
 - 손상 파일은 격리하고 기본값으로 복구하며, 미래 스키마 파일은 원본을 보존하고 쓰기를 차단한다.
 - 설정 UI는 파일 시스템이나 저장 DTO에 직접 결합하지 않고 Domain 설정을 통해 저장소와 연결한다.
 - overlay는 적용 후 실제 보정된 좌표와 디스플레이 UUID를 설정 세션에 동기화하고, 드래그 완료와 디스플레이 구성 변경 시 저장한다.
+- 후속 schema-v2에서는 행동 모드, 수동 선택, 행동 루틴과 자동 규칙을 내장 펫 예약 키 또는 설치 UUID별 `BehaviorProfile`로 저장한다.
+- 펫 패키지 교체는 같은 설치 UUID의 행동 프로필을 유지하고, 별도 사본 설치는 새 기본 프로필을 만든다.
+- 펫 삭제 시 해당 설치 UUID의 행동 프로필도 사용자 확인 후 제거한다.
 
 ### MenuBar
 
@@ -129,7 +139,8 @@ MonglePetApp
 ## 핵심 모델 분리
 
 - `PetDefinition`: 설치된 캐릭터와 사용 가능한 모션 데이터
-- `PetInstance`: 화면 위치, 크기, 현재 모드와 사용자 행동 규칙
+- `PetInstance`: 화면 위치, 크기와 현재 선택 펫
+- `BehaviorProfile`: 특정 내장 펫 또는 설치 UUID에 연결된 모드, 행동 루틴과 자동 규칙
 - `PetPresentation`: 화면 표시, 사용자에 의한 숨김, 시스템에 의한 일시 중지
 - `BehaviorMode`: 자동 또는 수동 행동 결정 방식
 - `BehaviorSequence`: 시간에 따라 재생할 모션 목록
