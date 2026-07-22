@@ -38,6 +38,7 @@ private struct GeneralSettingsView: View {
     @ObservedObject var settingsSession: AppSettingsSession
     @ObservedObject var petLibrarySession: PetLibrarySession
     @State private var isConfirmingRemoval = false
+    @State private var isEditingPetDetails = false
     @State private var userPetEditorMode: UserPetEditorMode?
     @State private var previewMotionID: String?
 
@@ -84,6 +85,9 @@ private struct GeneralSettingsView: View {
                             "라이선스",
                             value: petLibrarySession.selectedItem.metadata.license
                         )
+                        if let description = petLibrarySession.selectedItem.metadata.description {
+                            LabeledContent("설명", value: description)
+                        }
 
                         Text("등록된 애니메이션")
                             .font(.headline)
@@ -127,6 +131,12 @@ private struct GeneralSettingsView: View {
                     .accessibilityIdentifier("monglepet.settings.createUserPet")
 
                     if petLibrarySession.selectedItem.isEditable {
+                        Button("펫 정보 수정…") {
+                            isEditingPetDetails = true
+                        }
+                        .disabled(petLibrarySession.isImporting)
+                        .accessibilityIdentifier("monglepet.settings.editPetDetails")
+
                         Button("펫 애니메이션 추가…") {
                             userPetEditorMode = .addAnimation
                         }
@@ -255,6 +265,12 @@ private struct GeneralSettingsView: View {
         .sheet(item: $userPetEditorMode) { mode in
             UserPetAnimationEditorView(
                 mode: mode,
+                petLibrarySession: petLibrarySession
+            )
+        }
+        .sheet(isPresented: $isEditingPetDetails) {
+            UserPetDetailsEditorView(
+                item: petLibrarySession.selectedItem,
                 petLibrarySession: petLibrarySession
             )
         }
@@ -417,6 +433,10 @@ private struct UserPetAnimationEditorView: View {
     @ObservedObject var petLibrarySession: PetLibrarySession
 
     @State private var petName = ""
+    @State private var version = "1.0.0"
+    @State private var author = "MonglePet 사용자"
+    @State private var license = "Private Use"
+    @State private var petDescription = "MonglePet에서 사용자가 만든 펫입니다."
     @State private var animationName = ""
     @State private var frameDurationMilliseconds = 120
     @State private var loops = true
@@ -431,6 +451,19 @@ private struct UserPetAnimationEditorView: View {
                 if mode == .create {
                     TextField("펫 이름", text: $petName)
                         .accessibilityIdentifier("monglepet.userPet.petName")
+
+                    TextField("제작자", text: $author)
+                        .accessibilityIdentifier("monglepet.userPet.author")
+
+                    TextField("버전", text: $version)
+                        .accessibilityIdentifier("monglepet.userPet.version")
+
+                    TextField("라이선스", text: $license)
+                        .accessibilityIdentifier("monglepet.userPet.license")
+
+                    TextField("설명", text: $petDescription, axis: .vertical)
+                        .lineLimit(2...4)
+                        .accessibilityIdentifier("monglepet.userPet.description")
                 }
 
                 TextField("애니메이션 이름", text: $animationName)
@@ -539,7 +572,10 @@ private struct UserPetAnimationEditorView: View {
         !animationName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !sourceURLs.isEmpty
             && (mode != .create
-                || !petName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                || (!petName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    && !version.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    && !author.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    && !license.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
     }
 
     private func choosePNGs() {
@@ -576,7 +612,11 @@ private struct UserPetAnimationEditorView: View {
                     animationName: animationName,
                     frameDurationMilliseconds: frameDurationMilliseconds,
                     loops: loops,
-                    sourceURLs: sourceURLs
+                    sourceURLs: sourceURLs,
+                    version: version,
+                    author: author,
+                    license: license,
+                    description: petDescription
                 )
             )
         case .addAnimation:
@@ -589,6 +629,115 @@ private struct UserPetAnimationEditorView: View {
                 )
             )
         }
+        if succeeded {
+            dismiss()
+        }
+    }
+}
+
+private struct UserPetDetailsEditorView: View {
+    @Environment(\.dismiss) private var dismiss
+    let item: PetLibraryItem
+    @ObservedObject var petLibrarySession: PetLibrarySession
+
+    @State private var displayName: String
+    @State private var version: String
+    @State private var author: String
+    @State private var license: String
+    @State private var petDescription: String
+    @State private var defaultMotionID: String
+
+    init(item: PetLibraryItem, petLibrarySession: PetLibrarySession) {
+        self.item = item
+        self.petLibrarySession = petLibrarySession
+        _displayName = State(initialValue: item.metadata.displayName)
+        _version = State(initialValue: item.metadata.version)
+        _author = State(initialValue: item.metadata.author)
+        _license = State(initialValue: item.metadata.license)
+        _petDescription = State(initialValue: item.metadata.description ?? "")
+        _defaultMotionID = State(initialValue: item.definition.defaultMotionID)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("펫 정보 수정")
+                .font(.title2.weight(.semibold))
+
+            Form {
+                LabeledContent("패키지 ID", value: item.metadata.id)
+                    .textSelection(.enabled)
+
+                TextField("펫 이름", text: $displayName)
+                    .accessibilityIdentifier("monglepet.petDetails.name")
+
+                TextField("제작자", text: $author)
+                    .accessibilityIdentifier("monglepet.petDetails.author")
+
+                TextField("버전", text: $version)
+                    .accessibilityIdentifier("monglepet.petDetails.version")
+
+                TextField("라이선스", text: $license)
+                    .accessibilityIdentifier("monglepet.petDetails.license")
+
+                TextField("설명", text: $petDescription, axis: .vertical)
+                    .lineLimit(2...5)
+                    .accessibilityIdentifier("monglepet.petDetails.description")
+
+                Picker("기본 애니메이션", selection: $defaultMotionID) {
+                    ForEach(item.definition.motions) { motion in
+                        Text(motion.id).tag(motion.id)
+                    }
+                }
+                .accessibilityIdentifier("monglepet.petDetails.defaultAnimation")
+            }
+            .formStyle(.grouped)
+
+            Text("패키지 ID와 설치 항목은 유지됩니다. 저장 전 임시 사본을 전체 검증한 뒤 현재 펫을 교체합니다.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            if let errorMessage = petLibrarySession.errorMessage {
+                Label(errorMessage, systemImage: "xmark.circle.fill")
+                    .font(.callout)
+                    .foregroundStyle(.orange)
+            }
+
+            HStack {
+                Spacer()
+                Button("취소", role: .cancel) {
+                    dismiss()
+                }
+                Button("저장") {
+                    save()
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(!canSave || petLibrarySession.isImporting)
+                .accessibilityIdentifier("monglepet.petDetails.save")
+            }
+        }
+        .padding(20)
+        .frame(minWidth: 520, minHeight: 440)
+    }
+
+    private var canSave: Bool {
+        !displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !version.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !author.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !license.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && item.definition.motion(id: defaultMotionID) != nil
+    }
+
+    private func save() {
+        let succeeded = petLibrarySession.updateSelectedPetDetails(
+            UserPetDetailsRequest(
+                displayName: displayName,
+                version: version,
+                author: author,
+                license: license,
+                description: petDescription,
+                defaultMotionID: defaultMotionID
+            )
+        )
         if succeeded {
             dismiss()
         }

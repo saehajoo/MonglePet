@@ -97,6 +97,113 @@ final class UserPetPackageEditorTests: XCTestCase {
         }
     }
 
+    func testAtomicallyUpdatesEditablePetDetailsAndDefaultAnimation() throws {
+        let environment = try makeEnvironment()
+        let installationID = UUID(
+            uuidString: "33333333-3333-3333-3333-333333333333"
+        )!
+        let store = PetLibraryStore(
+            libraryRootURL: environment.libraryURL,
+            installationIDGenerator: { installationID }
+        )
+        let editor = UserPetPackageEditor(store: store)
+        let frameURL = environment.rootURL.appendingPathComponent("frame.png")
+        try writePNG(to: frameURL, width: 4, height: 4)
+        let created = try editor.createPet(
+            UserPetCreationRequest(
+                displayName: "처음 이름",
+                animationName: "기본",
+                frameDurationMilliseconds: 120,
+                loops: true,
+                sourceURLs: [frameURL],
+                version: "0.1.0",
+                author: "처음 제작자",
+                license: "Private Use",
+                description: "처음 설명"
+            )
+        )
+        XCTAssertEqual(created.package.metadata.version, "0.1.0")
+        XCTAssertEqual(created.package.metadata.author, "처음 제작자")
+        XCTAssertEqual(created.package.metadata.license, "Private Use")
+        XCTAssertEqual(created.package.metadata.description, "처음 설명")
+        let withSecondAnimation = try editor.addAnimation(
+            UserPetAnimationRequest(
+                animationName: "인사",
+                frameDurationMilliseconds: 180,
+                loops: false,
+                sourceURLs: [frameURL]
+            ),
+            to: created
+        )
+
+        let updated = try editor.updateDetails(
+            UserPetDetailsRequest(
+                displayName: "  새 이름  ",
+                version: " 2.0.0 ",
+                author: " 새 제작자 ",
+                license: " CC-BY-4.0 ",
+                description: "  새 설명  ",
+                defaultMotionID: "인사"
+            ),
+            for: withSecondAnimation
+        )
+
+        XCTAssertEqual(updated.installationID, installationID)
+        XCTAssertEqual(updated.package.metadata.id, created.package.metadata.id)
+        XCTAssertEqual(updated.package.metadata.displayName, "새 이름")
+        XCTAssertEqual(updated.package.metadata.version, "2.0.0")
+        XCTAssertEqual(updated.package.metadata.author, "새 제작자")
+        XCTAssertEqual(updated.package.metadata.license, "CC-BY-4.0")
+        XCTAssertEqual(updated.package.metadata.description, "새 설명")
+        XCTAssertEqual(updated.package.definition.defaultMotionID, "인사")
+        XCTAssertEqual(store.installedPackages().count, 1)
+        XCTAssertTrue(editor.isEditable(updated))
+    }
+
+    func testRejectsInvalidDetailsWithoutChangingInstalledManifest() throws {
+        let environment = try makeEnvironment()
+        let store = PetLibraryStore(libraryRootURL: environment.libraryURL)
+        let editor = UserPetPackageEditor(store: store)
+        let frameURL = environment.rootURL.appendingPathComponent("frame.png")
+        try writePNG(to: frameURL, width: 3, height: 3)
+        let created = try editor.createPet(
+            UserPetCreationRequest(
+                displayName: "사용자 펫",
+                animationName: "기본",
+                frameDurationMilliseconds: 120,
+                loops: true,
+                sourceURLs: [frameURL]
+            )
+        )
+        let manifestURL = created.rootURL.appendingPathComponent("pet.json")
+        let originalManifest = try Data(contentsOf: manifestURL)
+
+        XCTAssertThrowsError(
+            try editor.updateDetails(
+                UserPetDetailsRequest(
+                    displayName: "바뀌면 안 됨",
+                    version: "2.0.0",
+                    author: "제작자",
+                    license: "Test",
+                    description: nil,
+                    defaultMotionID: "없는 애니메이션"
+                ),
+                for: created
+            )
+        ) { error in
+            XCTAssertEqual(
+                error as? UserPetEditingError,
+                .invalidDefaultAnimation("없는 애니메이션")
+            )
+        }
+
+        XCTAssertEqual(try Data(contentsOf: manifestURL), originalManifest)
+        XCTAssertEqual(
+            store.installedPackages().first?.package.metadata.displayName,
+            "사용자 펫"
+        )
+    }
+
     private func makeEnvironment() throws -> UserPetEditorFixture {
         let rootURL = FileManager.default.temporaryDirectory.appendingPathComponent(
             "MonglePet-UserPetTests-\(UUID().uuidString)",

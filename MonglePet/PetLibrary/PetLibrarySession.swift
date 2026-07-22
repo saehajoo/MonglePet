@@ -83,6 +83,10 @@ final class PetLibrarySession: ObservableObject {
         UserPetAnimationRequest,
         InstalledPetPackage
     ) throws -> InstalledPetPackage
+    private let detailsUpdater: (
+        UserPetDetailsRequest,
+        InstalledPetPackage
+    ) throws -> InstalledPetPackage
 
     convenience init(
         store: PetLibraryStore,
@@ -96,7 +100,8 @@ final class PetLibrarySession: ObservableObject {
             packageInstaller: PetPackageInstaller(libraryStore: store).install,
             editablePackageProvider: editor.isEditable,
             userPetCreator: editor.createPet,
-            animationAdder: editor.addAnimation
+            animationAdder: editor.addAnimation,
+            detailsUpdater: editor.updateDetails
         )
     }
 
@@ -117,6 +122,12 @@ final class PetLibrarySession: ObservableObject {
             },
         animationAdder: @escaping (
             UserPetAnimationRequest,
+            InstalledPetPackage
+        ) throws -> InstalledPetPackage = { _, _ in
+            throw PetLibraryError.fileOperationFailed
+        },
+        detailsUpdater: @escaping (
+            UserPetDetailsRequest,
             InstalledPetPackage
         ) throws -> InstalledPetPackage = { _, _ in
             throw PetLibraryError.fileOperationFailed
@@ -143,6 +154,7 @@ final class PetLibrarySession: ObservableObject {
         self.editablePackageProvider = editablePackageProvider
         self.userPetCreator = userPetCreator
         self.animationAdder = animationAdder
+        self.detailsUpdater = detailsUpdater
         items = [builtInItem]
     }
 
@@ -287,6 +299,18 @@ final class PetLibrarySession: ObservableObject {
         }
         return performUserPetChange {
             try animationAdder(request, installedPackage)
+        }
+    }
+
+    @discardableResult
+    func updateSelectedPetDetails(_ request: UserPetDetailsRequest) -> Bool {
+        guard let installedPackage = selectedItem.installedPackage,
+              selectedItem.isEditable else {
+            errorMessage = UserPetEditingError.importedPackageIsReadOnly.localizedDescription
+            return false
+        }
+        return performUserPetChange {
+            try detailsUpdater(request, installedPackage)
         }
     }
 

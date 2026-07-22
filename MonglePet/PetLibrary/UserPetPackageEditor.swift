@@ -9,6 +9,32 @@ nonisolated struct UserPetCreationRequest: Equatable, Sendable {
     let frameDurationMilliseconds: Int
     let loops: Bool
     let sourceURLs: [URL]
+    let version: String
+    let author: String
+    let license: String
+    let description: String?
+
+    init(
+        displayName: String,
+        animationName: String,
+        frameDurationMilliseconds: Int,
+        loops: Bool,
+        sourceURLs: [URL],
+        version: String = "1.0.0",
+        author: String = "MonglePet 사용자",
+        license: String = "Private Use",
+        description: String? = "MonglePet에서 사용자가 만든 펫입니다."
+    ) {
+        self.displayName = displayName
+        self.animationName = animationName
+        self.frameDurationMilliseconds = frameDurationMilliseconds
+        self.loops = loops
+        self.sourceURLs = sourceURLs
+        self.version = version
+        self.author = author
+        self.license = license
+        self.description = description
+    }
 }
 
 nonisolated struct UserPetAnimationRequest: Equatable, Sendable {
@@ -18,9 +44,22 @@ nonisolated struct UserPetAnimationRequest: Equatable, Sendable {
     let sourceURLs: [URL]
 }
 
+nonisolated struct UserPetDetailsRequest: Equatable, Sendable {
+    let displayName: String
+    let version: String
+    let author: String
+    let license: String
+    let description: String?
+    let defaultMotionID: String
+}
+
 nonisolated enum UserPetEditingError: Error, Equatable, Sendable {
     case invalidPetName
+    case invalidVersion
+    case invalidAuthor
+    case invalidLicense
     case invalidAnimationName
+    case invalidDefaultAnimation(String)
     case duplicateAnimationName(String)
     case importedPackageIsReadOnly
     case cannotWritePackage
@@ -31,12 +70,20 @@ extension UserPetEditingError: LocalizedError {
         switch self {
         case .invalidPetName:
             "펫 이름을 입력해 주세요."
+        case .invalidVersion:
+            "펫 버전을 입력해 주세요."
+        case .invalidAuthor:
+            "제작자 이름을 입력해 주세요."
+        case .invalidLicense:
+            "라이선스를 입력해 주세요."
         case .invalidAnimationName:
             "펫 애니메이션 이름을 입력해 주세요."
+        case let .invalidDefaultAnimation(name):
+            "기본 애니메이션을 찾을 수 없습니다: \(name)"
         case let .duplicateAnimationName(name):
             "같은 이름의 펫 애니메이션이 이미 있습니다: \(name)"
         case .importedPackageIsReadOnly:
-            "MonglePet에서 만든 펫만 애니메이션을 추가할 수 있습니다."
+            "MonglePet에서 만든 펫만 직접 수정할 수 있습니다."
         case .cannotWritePackage:
             "사용자 펫 패키지를 저장하지 못했습니다."
         }
@@ -82,10 +129,13 @@ nonisolated struct UserPetPackageEditor {
     }
 
     func createPet(_ request: UserPetCreationRequest) throws -> InstalledPetPackage {
-        let displayName = request.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !displayName.isEmpty else {
-            throw UserPetEditingError.invalidPetName
-        }
+        let details = try validatedDetails(
+            displayName: request.displayName,
+            version: request.version,
+            author: request.author,
+            license: request.license,
+            description: request.description
+        )
         let animationName = try validatedAnimationName(request.animationName)
         let atlas = try animationAdapter.buildPNGSequenceAtlas(
             request.sourceURLs,
@@ -95,11 +145,11 @@ nonisolated struct UserPetPackageEditor {
         let manifest = PetPackageManifest(
             formatVersion: 1,
             id: packageID,
-            displayName: displayName,
-            version: "1.0.0",
-            author: "MonglePet 사용자",
-            license: "Private Use",
-            description: "MonglePet에서 사용자가 만든 펫입니다.",
+            displayName: details.displayName,
+            version: details.version,
+            author: details.author,
+            license: details.license,
+            description: details.description,
             previewPath: "preview.png",
             defaultMotion: animationName,
             atlases: [
@@ -207,12 +257,103 @@ nonisolated struct UserPetPackageEditor {
         }
     }
 
+    func updateDetails(
+        _ request: UserPetDetailsRequest,
+        for installedPackage: InstalledPetPackage
+    ) throws -> InstalledPetPackage {
+        guard isEditable(installedPackage) else {
+            throw UserPetEditingError.importedPackageIsReadOnly
+        }
+        let details = try validatedDetails(
+            displayName: request.displayName,
+            version: request.version,
+            author: request.author,
+            license: request.license,
+            description: request.description
+        )
+        let defaultMotionID = request.defaultMotionID.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
+        guard installedPackage.package.definition.motion(id: defaultMotionID) != nil else {
+            throw UserPetEditingError.invalidDefaultAnimation(defaultMotionID)
+        }
+
+        return try withTemporaryPackage { packageURL in
+            do {
+                try fileManager.copyItem(at: installedPackage.rootURL, to: packageURL)
+            } catch {
+                throw UserPetEditingError.cannotWritePackage
+            }
+
+            let currentManifest = try readManifest(from: packageURL)
+            let updatedManifest = PetPackageManifest(
+                formatVersion: currentManifest.formatVersion,
+                id: currentManifest.id,
+                displayName: details.displayName,
+                version: details.version,
+                author: details.author,
+                license: details.license,
+                description: details.description,
+                previewPath: currentManifest.previewPath,
+                defaultMotion: defaultMotionID,
+                atlases: currentManifest.atlases,
+                motions: currentManifest.motions
+            )
+            try writeManifest(updatedManifest, to: packageURL)
+            let validated = try loader.loadPackage(at: packageURL)
+            return try store.install(
+                packageAt: packageURL,
+                validatedPackage: validated,
+                mode: .replace(installationID: installedPackage.installationID)
+            )
+        }
+    }
+
     private func validatedAnimationName(_ value: String) throws -> String {
         let name = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else {
             throw UserPetEditingError.invalidAnimationName
         }
         return name
+    }
+
+    private func validatedDetails(
+        displayName: String,
+        version: String,
+        author: String,
+        license: String,
+        description: String?
+    ) throws -> (
+        displayName: String,
+        version: String,
+        author: String,
+        license: String,
+        description: String?
+    ) {
+        let displayName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !displayName.isEmpty else {
+            throw UserPetEditingError.invalidPetName
+        }
+        let version = version.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !version.isEmpty else {
+            throw UserPetEditingError.invalidVersion
+        }
+        let author = author.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !author.isEmpty else {
+            throw UserPetEditingError.invalidAuthor
+        }
+        let license = license.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !license.isEmpty else {
+            throw UserPetEditingError.invalidLicense
+        }
+        let description = description?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (
+            displayName,
+            version,
+            author,
+            license,
+            description?.isEmpty == true ? nil : description
+        )
     }
 
     private func withTemporaryPackage<Result>(

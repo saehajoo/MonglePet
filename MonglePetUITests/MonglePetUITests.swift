@@ -50,4 +50,24 @@ final class MonglePetUITests: XCTestCase {
             app.images["monglepet.overlay.pet"].waitForExistence(timeout: 5)
         )
     }
+
+    @MainActor
+    func testNewPetSheetIncludesMetadataFields() throws {
+        let app = XCUIApplication()
+        app.launchArguments.append("--ui-testing-open-settings")
+        app.launch()
+
+        let createButton = app.buttons["monglepet.settings.createUserPet"]
+        XCTAssertTrue(createButton.waitForExistence(timeout: 5))
+        createButton.click()
+
+        XCTAssertTrue(
+            app.descendants(matching: .any)["monglepet.userPet.petName"]
+                .waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(app.descendants(matching: .any)["monglepet.userPet.author"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["monglepet.userPet.version"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["monglepet.userPet.license"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["monglepet.userPet.description"].exists)
+    }
 }

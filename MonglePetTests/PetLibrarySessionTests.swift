@@ -172,6 +172,65 @@ final class PetLibrarySessionTests: XCTestCase {
         XCTAssertEqual(selections, [.installed(firstID)])
     }
 
+    func testUpdatingSelectedPetDetailsReloadsSameInstallationAndNotifiesRuntime() {
+        let original = makeInstalled(id: firstID, name: "처음 이름")
+        let updated = makeInstalled(id: firstID, name: "새 이름")
+        var packages = [original]
+        let request = UserPetDetailsRequest(
+            displayName: "새 이름",
+            version: "2.0.0",
+            author: "새 제작자",
+            license: "Test",
+            description: "새 설명",
+            defaultMotionID: "idle"
+        )
+        let session = PetLibrarySession(
+            builtInDefinition: builtInDefinition,
+            installedPackagesProvider: { packages },
+            installationRemover: { _ in },
+            editablePackageProvider: { $0.installationID == self.firstID },
+            detailsUpdater: { receivedRequest, receivedPackage in
+                XCTAssertEqual(receivedRequest, request)
+                XCTAssertEqual(receivedPackage, original)
+                packages = [updated]
+                return updated
+            }
+        )
+        _ = session.reload(preferredInstallationID: firstID)
+        var selections: [PetLibraryItem] = []
+        session.onSelectionChange = { selections.append($0) }
+
+        XCTAssertTrue(session.updateSelectedPetDetails(request))
+        XCTAssertEqual(session.selection, .installed(firstID))
+        XCTAssertEqual(session.selectedItem.metadata.displayName, "새 이름")
+        XCTAssertEqual(selections.map(\.metadata.displayName), ["새 이름"])
+        XCTAssertNil(session.errorMessage)
+    }
+
+    func testUpdatingReadOnlyPetDetailsIsRejected() {
+        let installed = makeInstalled(id: firstID, name: "가져온 펫")
+        let session = makeSession(packages: [installed])
+        _ = session.reload(preferredInstallationID: firstID)
+
+        XCTAssertFalse(
+            session.updateSelectedPetDetails(
+                UserPetDetailsRequest(
+                    displayName: "변경",
+                    version: "2.0.0",
+                    author: "제작자",
+                    license: "Test",
+                    description: nil,
+                    defaultMotionID: "idle"
+                )
+            )
+        )
+        XCTAssertEqual(session.selectedItem.metadata.displayName, "가져온 펫")
+        XCTAssertEqual(
+            session.errorMessage,
+            UserPetEditingError.importedPackageIsReadOnly.localizedDescription
+        )
+    }
+
     private var builtInDefinition: PetDefinition {
         BuiltInPet.mongleDefinition(
             atlasPixelSize: PixelSize(width: 192, height: 208)
