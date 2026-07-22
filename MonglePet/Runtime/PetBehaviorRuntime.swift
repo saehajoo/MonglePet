@@ -164,7 +164,7 @@ final class PetBehaviorRuntime {
         tickScheduler.cancel()
         guard
             !motionScheduler.isPaused,
-            let remainingDuration = motionScheduler.activeStepRemainingDuration,
+            let remainingDuration = motionScheduler.activeCycleRemainingDuration,
             remainingDuration > .zero
         else {
             return

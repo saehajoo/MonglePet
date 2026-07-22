@@ -67,7 +67,12 @@ final class AppCoordinator {
             return
         }
 
-        let loadResult = settingsSession.load()
+        let loadResult = settingsSession.load { [petLibrarySession] installationID in
+            _ = petLibrarySession.reload(
+                preferredInstallationID: installationID
+            )
+            return petLibrarySession.selectedItem.definition
+        }
         settingsSession.ensureSystemDefaultBehavior()
         var effectiveInstallationID = petLibrarySession.reload(
             preferredInstallationID: settingsSession.settings.selectedPetInstallationID

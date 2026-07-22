@@ -90,6 +90,10 @@ nonisolated enum AppSettingsV1ToV2Migrator {
         let mapped = AppSettingsMapper.domainSettings(from: stored)
         let normalized = try AppSettingsMapper.storedSettings(from: mapped.settings)
         var issues = mapped.issues
+        let usesUnmodifiedLegacyDefaults = mapped.settings.sequences
+            == BuiltInBehaviorPresets.legacySequences
+            && mapped.settings.automaticRules
+                == BuiltInBehaviorPresets.legacyAutomaticRules
 
         let selectedInstallationID = mapped.settings.selectedPetInstallationID
         let petKey: StoredPetBehaviorKeyV2 = if let installationID = selectedInstallationID {
@@ -98,20 +102,42 @@ nonisolated enum AppSettingsV1ToV2Migrator {
             .builtIn
         }
 
-        let sequences = normalized.sequences.enumerated().map { sequenceIndex, sequence in
-            let steps = sequence.steps.enumerated().map { stepIndex, step in
-                migratedStep(
-                    step,
-                    definition: selectedPetDefinition,
-                    fieldPath: "behaviorProfiles.0.sequences.\(sequenceIndex).steps.\(stepIndex)",
-                    issues: &issues
+        let sequences: [StoredBehaviorSequenceV2]
+        let manualSequenceID: String?
+        let automaticRules: [StoredAutomaticRule]
+        if usesUnmodifiedLegacyDefaults {
+            sequences = [
+                StoredBehaviorSequenceV2(
+                    id: BuiltInBehaviorPresets.defaultSequenceID,
+                    steps: [
+                        StoredBehaviorStepV2(
+                            motionID: PetMotionReference.currentPetDefault,
+                            repeatCount: 1
+                        )
+                    ],
+                    repeats: true
+                )
+            ]
+            manualSequenceID = BuiltInBehaviorPresets.defaultManualSequenceID
+            automaticRules = []
+        } else {
+            sequences = normalized.sequences.enumerated().map { sequenceIndex, sequence in
+                let steps = sequence.steps.enumerated().map { stepIndex, step in
+                    migratedStep(
+                        step,
+                        definition: selectedPetDefinition,
+                        fieldPath: "behaviorProfiles.0.sequences.\(sequenceIndex).steps.\(stepIndex)",
+                        issues: &issues
+                    )
+                }
+                return StoredBehaviorSequenceV2(
+                    id: sequence.id,
+                    steps: steps,
+                    repeats: sequence.repeats
                 )
             }
-            return StoredBehaviorSequenceV2(
-                id: sequence.id,
-                steps: steps,
-                repeats: sequence.repeats
-            )
+            manualSequenceID = normalized.manualSequenceID
+            automaticRules = normalized.automaticRules
         }
 
         return AppSettingsV2MigrationResult(
@@ -124,9 +150,9 @@ nonisolated enum AppSettingsV1ToV2Migrator {
                     StoredBehaviorProfileV2(
                         petKey: petKey,
                         mode: normalized.behaviorMode,
-                        manualSequenceID: normalized.manualSequenceID,
+                        manualSequenceID: manualSequenceID,
                         sequences: sequences,
-                        automaticRules: normalized.automaticRules
+                        automaticRules: automaticRules
                     )
                 ]
             ),

@@ -15,10 +15,10 @@ nonisolated enum BuiltInBehaviorPresets {
     static let automaticRules: [AutomaticRule] = []
 
     static let legacySequences = [
-        sequence(id: "idle", motionID: "idle"),
-        sequence(id: "focus", motionID: "focus"),
-        sequence(id: "rest", motionID: "rest"),
-        sequence(id: "sleep", motionID: "sleep")
+        legacySequence(id: "idle", motionID: "idle"),
+        legacySequence(id: "focus", motionID: "focus"),
+        legacySequence(id: "rest", motionID: "rest"),
+        legacySequence(id: "sleep", motionID: "sleep")
     ]
 
     static let legacyAutomaticRules = [
@@ -105,6 +105,22 @@ nonisolated enum BuiltInBehaviorPresets {
             steps: [
                 BehaviorStep(
                     motionID: motionID,
+                    repeatCount: 1
+                )
+            ],
+            repeats: true
+        )
+    }
+
+    private static func legacySequence(
+        id: String,
+        motionID: String
+    ) -> BehaviorSequence {
+        BehaviorSequence(
+            id: id,
+            steps: [
+                BehaviorStep(
+                    motionID: motionID,
                     duration: stepDuration,
                     playbackSpeed: 1
                 )
@@ -119,14 +135,14 @@ nonisolated enum BuiltInBehaviorPresets {
         manualSequenceID: String?,
         automaticRules: [AutomaticRule]
     ) -> AppSettings {
-        AppSettings(
-            selectedPetInstallationID: settings.selectedPetInstallationID,
-            lastUserPresentation: settings.lastUserPresentation,
-            behaviorMode: settings.behaviorMode,
-            overlay: settings.overlay,
-            manualSequenceID: manualSequenceID,
-            sequences: sequences,
-            automaticRules: automaticRules
+        settings.replacingActiveBehaviorProfile(
+            BehaviorProfile(
+                petKey: settings.selectedPetKey,
+                mode: settings.behaviorMode,
+                manualSequenceID: manualSequenceID,
+                sequences: sequences,
+                automaticRules: automaticRules
+            )
         )
     }
 }

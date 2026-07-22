@@ -62,8 +62,7 @@ final class BehaviorSettingsEditorTests: XCTestCase {
             at: 1,
             with: BehaviorStep(
                 motionID: "focus",
-                duration: .seconds(9),
-                playbackSpeed: 1.5
+                repeatCount: 9
             ),
             settings: settings
         )
@@ -79,7 +78,7 @@ final class BehaviorSettingsEditorTests: XCTestCase {
             custom.steps.map(\.motionID),
             ["focus", PetMotionReference.currentPetDefault]
         )
-        XCTAssertEqual(custom.steps[0].duration, .seconds(9))
+        XCTAssertEqual(custom.steps[0].repeatCount, 9)
 
         settings = try BehaviorSettingsEditor.removingStep(
             from: "custom",
@@ -197,8 +196,7 @@ final class BehaviorSettingsEditorTests: XCTestCase {
             at: 0,
             with: BehaviorStep(
                 motionID: "waving",
-                duration: .seconds(7),
-                playbackSpeed: 1.5
+                repeatCount: 7
             ),
             settings: settings
         )
@@ -212,8 +210,7 @@ final class BehaviorSettingsEditorTests: XCTestCase {
             settings.sequences.first { $0.id == "custom" }?.steps.first
         )
         XCTAssertEqual(step.motionID, "hello")
-        XCTAssertEqual(step.duration, .seconds(7))
-        XCTAssertEqual(step.playbackSpeed, 1.5)
+        XCTAssertEqual(step.repeatCount, 7)
 
         settings = try BehaviorSettingsEditor.replacingMotionReferences(
             from: "hello",
@@ -224,8 +221,7 @@ final class BehaviorSettingsEditorTests: XCTestCase {
             settings.sequences.first { $0.id == "custom" }?.steps.first
         )
         XCTAssertEqual(step.motionID, PetMotionReference.currentPetDefault)
-        XCTAssertEqual(step.duration, .seconds(7))
-        XCTAssertEqual(step.playbackSpeed, 1.5)
+        XCTAssertEqual(step.repeatCount, 7)
     }
 
     private func makeSettings(
@@ -247,14 +243,14 @@ final class BehaviorSettingsEditorTests: XCTestCase {
         _ manualSequenceID: String,
         in settings: AppSettings
     ) -> AppSettings {
-        AppSettings(
-            selectedPetInstallationID: settings.selectedPetInstallationID,
-            lastUserPresentation: settings.lastUserPresentation,
-            behaviorMode: settings.behaviorMode,
-            overlay: settings.overlay,
-            manualSequenceID: manualSequenceID,
-            sequences: settings.sequences,
-            automaticRules: settings.automaticRules
+        settings.replacingActiveBehaviorProfile(
+            BehaviorProfile(
+                petKey: settings.selectedPetKey,
+                mode: settings.behaviorMode,
+                manualSequenceID: manualSequenceID,
+                sequences: settings.sequences,
+                automaticRules: settings.automaticRules
+            )
         )
     }
 }

@@ -45,6 +45,7 @@ final class MotionRuntimeTests: XCTestCase {
         let timeline = try XCTUnwrap(FrameTimeline(motion: motion))
 
         XCTAssertEqual(timeline.totalDuration, .milliseconds(600))
+        XCTAssertEqual(motion.cycleDuration, .milliseconds(600))
         XCTAssertEqual(timeline.frameIndex(at: .zero), 0)
         XCTAssertEqual(timeline.frameIndex(at: .milliseconds(99)), 0)
         XCTAssertEqual(timeline.frameIndex(at: .milliseconds(100)), 1)
@@ -74,6 +75,8 @@ final class MotionRuntimeTests: XCTestCase {
 
         XCTAssertNil(FrameTimeline(motion: emptyMotion))
         XCTAssertNil(FrameTimeline(motion: invalidMotion))
+        XCTAssertNil(emptyMotion.cycleDuration)
+        XCTAssertNil(invalidMotion.cycleDuration)
     }
 
     func testPixelRectContainmentRejectsInvalidOrOverflowingFrames() {

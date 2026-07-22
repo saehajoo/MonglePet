@@ -29,6 +29,17 @@ nonisolated struct PetMotion: Equatable, Identifiable, Sendable {
     let id: String
     let loops: Bool
     let frames: [MotionFrame]
+
+    var cycleDuration: Duration? {
+        guard !frames.isEmpty, frames.allSatisfy({ $0.duration > .zero }) else {
+            return nil
+        }
+
+        let duration = frames.reduce(Duration.zero) { partialResult, frame in
+            partialResult + frame.duration
+        }
+        return duration > .zero ? duration : nil
+    }
 }
 
 nonisolated enum PetMotionReference {

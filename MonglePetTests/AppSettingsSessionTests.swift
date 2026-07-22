@@ -85,6 +85,59 @@ final class AppSettingsSessionTests: XCTestCase {
     }
 
     @MainActor
+    func testBehaviorProfilesStayIndependentAcrossPetSwitchesAndRelaunch() throws {
+        let installedID = UUID(
+            uuidString: "11111111-1111-1111-1111-111111111112"
+        )!
+        let session = AppSettingsSession(
+            store: AppSettingsStore(settingsURL: settingsURL)
+        )
+        _ = session.load()
+        session.ensureSystemDefaultBehavior()
+
+        XCTAssertTrue(session.addBehaviorSequence(named: "built-in-custom"))
+        session.setManualSequenceID("built-in-custom")
+        session.setBehaviorMode(.manual)
+
+        session.setSelectedPetInstallationID(installedID)
+        XCTAssertEqual(
+            session.settings.sequences.map(\.id),
+            [BuiltInBehaviorPresets.defaultSequenceID]
+        )
+        XCTAssertEqual(session.settings.behaviorMode, .automatic)
+        XCTAssertTrue(session.addBehaviorSequence(named: "installed-custom"))
+        XCTAssertTrue(
+            session.updateBehaviorStep(
+                sequenceID: "installed-custom",
+                index: 0,
+                motionID: "coding",
+                repeatCount: 5
+            )
+        )
+
+        session.setSelectedPetInstallationID(nil)
+        XCTAssertEqual(session.settings.behaviorMode, .manual)
+        XCTAssertEqual(session.settings.manualSequenceID, "built-in-custom")
+        XCTAssertTrue(session.settings.sequences.contains { $0.id == "built-in-custom" })
+        XCTAssertFalse(session.settings.sequences.contains { $0.id == "installed-custom" })
+
+        let reloaded = AppSettingsSession(
+            store: AppSettingsStore(settingsURL: settingsURL)
+        )
+        XCTAssertEqual(reloaded.load().source, .file)
+        XCTAssertEqual(reloaded.settings.behaviorProfiles.count, 2)
+        reloaded.setSelectedPetInstallationID(installedID)
+
+        XCTAssertEqual(reloaded.settings.behaviorMode, .automatic)
+        XCTAssertFalse(reloaded.settings.sequences.contains { $0.id == "built-in-custom" })
+        let installedStep = try XCTUnwrap(
+            reloaded.settings.sequences.first { $0.id == "installed-custom" }?.steps.first
+        )
+        XCTAssertEqual(installedStep.motionID, "coding")
+        XCTAssertEqual(installedStep.repeatCount, 5)
+    }
+
+    @MainActor
     func testOverlayWidthPreviewWaitsForExplicitPersistence() {
         let session = AppSettingsSession(
             store: AppSettingsStore(settingsURL: settingsURL)
@@ -182,8 +235,7 @@ final class AppSettingsSessionTests: XCTestCase {
                 sequenceID: "coding",
                 index: 1,
                 motionID: "focus",
-                durationSeconds: 12,
-                playbackSpeed: 1.5
+                repeatCount: 12
             )
         )
         XCTAssertFalse(session.addBehaviorSequence(named: "coding"))
@@ -193,12 +245,11 @@ final class AppSettingsSessionTests: XCTestCase {
         let coding = reloaded.sequences.first { $0.id == "coding" }
         XCTAssertEqual(coding?.steps.count, 2)
         XCTAssertEqual(coding?.steps[1].motionID, "focus")
-        XCTAssertEqual(coding?.steps[1].duration, .seconds(12))
-        XCTAssertEqual(coding?.steps[1].playbackSpeed, 1.5)
+        XCTAssertEqual(coding?.steps[1].repeatCount, 12)
     }
 
     @MainActor
-    func testBehaviorStepEditingRejectsNonFiniteDurationWithoutChangingSettings() {
+    func testBehaviorStepEditingRejectsInvalidRepeatCountWithoutChangingSettings() {
         let session = AppSettingsSession(
             store: AppSettingsStore(settingsURL: settingsURL)
         )
@@ -211,8 +262,7 @@ final class AppSettingsSessionTests: XCTestCase {
                 sequenceID: BuiltInBehaviorPresets.defaultSequenceID,
                 index: 0,
                 motionID: PetMotionReference.currentPetDefault,
-                durationSeconds: .infinity,
-                playbackSpeed: 1
+                repeatCount: 0
             )
         )
         XCTAssertEqual(session.settings, originalSettings)
@@ -232,8 +282,7 @@ final class AppSettingsSessionTests: XCTestCase {
                 sequenceID: "custom",
                 index: 0,
                 motionID: "wave",
-                durationSeconds: 4,
-                playbackSpeed: 1.25
+                repeatCount: 4
             )
         )
         var changes: [AppSettings] = []
@@ -260,21 +309,57 @@ final class AppSettingsSessionTests: XCTestCase {
 
     @MainActor
     func testUnmodifiedLegacyDefaultsMigrateToSingleSystemDefault() throws {
-        let legacySettings = AppSettings(
+        let legacySettings = StoredAppSettings(
+            schemaVersion: 1,
             selectedPetInstallationID: nil,
-            lastUserPresentation: .awake,
-            behaviorMode: .automatic,
-            overlay: .default,
+            lastUserPresentation: "awake",
+            behaviorMode: "automatic",
+            overlay: StoredOverlaySettings(
+                screenIdentifier: nil,
+                originX: 0,
+                originY: 0,
+                width: 192,
+                clickThrough: false
+            ),
             manualSequenceID: "idle",
-            sequences: BuiltInBehaviorPresets.legacySequences,
-            automaticRules: BuiltInBehaviorPresets.legacyAutomaticRules
+            sequences: BuiltInBehaviorPresets.legacySequences.map { sequence in
+                StoredBehaviorSequence(
+                    id: sequence.id,
+                    steps: sequence.steps.map { step in
+                        StoredBehaviorStep(
+                            motionID: step.motionID,
+                            durationMilliseconds: 3_000,
+                            playbackSpeed: 1
+                        )
+                    },
+                    repeats: sequence.repeats
+                )
+            },
+            automaticRules: BuiltInBehaviorPresets.legacyAutomaticRules.map { rule in
+                StoredAutomaticRule(
+                    id: rule.id.uuidString,
+                    isEnabled: rule.isEnabled,
+                    priority: rule.priority,
+                    condition: {
+                        switch rule.condition {
+                        case let .idleAtLeast(milliseconds):
+                            return .idleAtLeast(milliseconds: milliseconds)
+                        case let .application(bundleIdentifier):
+                            return .application(bundleIdentifier: bundleIdentifier)
+                        case let .unsupported(type):
+                            return .unsupported(type: type)
+                        }
+                    }(),
+                    sequenceID: rule.sequenceID
+                )
+            }
         )
-        try AppSettingsStore(settingsURL: settingsURL).save(legacySettings)
+        try JSONEncoder().encode(legacySettings).write(to: settingsURL)
         let session = AppSettingsSession(
             store: AppSettingsStore(settingsURL: settingsURL)
         )
 
-        _ = session.load()
+        _ = session.load { _ in self.migrationPetDefinition }
         session.ensureSystemDefaultBehavior()
 
         XCTAssertEqual(session.settings.sequences, BuiltInBehaviorPresets.sequences)
@@ -283,6 +368,22 @@ final class AppSettingsSessionTests: XCTestCase {
             BuiltInBehaviorPresets.defaultSequenceID
         )
         XCTAssertTrue(session.settings.automaticRules.isEmpty)
+    }
+
+    private var migrationPetDefinition: PetDefinition {
+        let frame = MotionFrame(
+            atlasID: "main",
+            sourceRect: PixelRect(x: 0, y: 0, width: 10, height: 10),
+            duration: .seconds(1)
+        )
+        return PetDefinition(
+            id: "migration.pet",
+            displayName: "Migration Pet",
+            defaultMotionID: "idle",
+            motions: ["idle", "focus", "rest", "sleep"].map {
+                PetMotion(id: $0, loops: true, frames: [frame])
+            }
+        )
     }
 
     func testModifiedLegacyBehaviorIsPreservedWhileSystemDefaultIsAdded() throws {

@@ -13,6 +13,38 @@ nonisolated enum BehaviorMode: String, Equatable, Sendable {
 
 nonisolated struct BehaviorStep: Equatable, Sendable {
     let motionID: String
+    let repeatCount: Int
+    let legacyTiming: LegacyBehaviorStepTiming?
+
+    init(motionID: String, repeatCount: Int) {
+        self.motionID = motionID
+        self.repeatCount = repeatCount
+        legacyTiming = nil
+    }
+
+    init(
+        motionID: String,
+        duration: Duration,
+        playbackSpeed: Double
+    ) {
+        self.motionID = motionID
+        repeatCount = 1
+        legacyTiming = LegacyBehaviorStepTiming(
+            duration: duration,
+            playbackSpeed: playbackSpeed
+        )
+    }
+
+    var duration: Duration {
+        legacyTiming?.duration ?? .zero
+    }
+
+    var playbackSpeed: Double {
+        legacyTiming?.playbackSpeed ?? 1
+    }
+}
+
+nonisolated struct LegacyBehaviorStepTiming: Equatable, Sendable {
     let duration: Duration
     let playbackSpeed: Double
 }

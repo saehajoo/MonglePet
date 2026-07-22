@@ -60,7 +60,9 @@ nonisolated final class AppSettingsStore {
             .appendingPathComponent("settings.json", isDirectory: false)
     }
 
-    func load() -> AppSettingsLoadResult {
+    func load(
+        migrationPetDefinitionProvider: ((UUID?) -> PetDefinition?)? = nil
+    ) -> AppSettingsLoadResult {
         guard fileManager.fileExists(atPath: settingsURL.path) else {
             isWritingEnabled = true
             return AppSettingsLoadResult(
@@ -96,13 +98,58 @@ nonisolated final class AppSettingsStore {
             )
         }
 
+        if envelope.schemaVersion == 1 {
+            guard let storedSettings = try? decoder.decode(StoredAppSettings.self, from: data) else {
+                return recoverCorruptFile()
+            }
+            let selectedInstallationID = storedSettings.selectedPetInstallationID
+                .flatMap(UUID.init(uuidString:))
+            guard
+                let selectedPetDefinition = migrationPetDefinitionProvider?(
+                    selectedInstallationID
+                )
+            else {
+                isWritingEnabled = false
+                return AppSettingsLoadResult(
+                    settings: .default,
+                    issues: [.invalidField("settingsMigration.selectedPetDefinition")],
+                    source: .recovered,
+                    isWritingEnabled: false
+                )
+            }
+            do {
+                let migrated = try AppSettingsV1ToV2Migrator.migrate(
+                    storedSettings,
+                    selectedPetDefinition: selectedPetDefinition
+                )
+                try write(migrated.settings)
+                let mapped = AppSettingsV2Mapper.domainSettings(from: migrated.settings)
+                let issues = migrated.issues + mapped.issues
+                isWritingEnabled = true
+                return AppSettingsLoadResult(
+                    settings: mapped.settings,
+                    issues: issues,
+                    source: issues.isEmpty ? .file : .recovered,
+                    isWritingEnabled: true
+                )
+            } catch {
+                isWritingEnabled = false
+                return AppSettingsLoadResult(
+                    settings: .default,
+                    issues: [.invalidField("settingsMigration")],
+                    source: .recovered,
+                    isWritingEnabled: false
+                )
+            }
+        }
+
         guard envelope.schemaVersion == AppSettingsLimits.schemaVersion,
-              let storedSettings = try? decoder.decode(StoredAppSettings.self, from: data)
+              let storedSettings = try? decoder.decode(StoredAppSettingsV2.self, from: data)
         else {
             return recoverCorruptFile()
         }
 
-        let mapped = AppSettingsMapper.domainSettings(from: storedSettings)
+        let mapped = AppSettingsV2Mapper.domainSettings(from: storedSettings)
         isWritingEnabled = true
         return AppSettingsLoadResult(
             settings: mapped.settings,
@@ -117,9 +164,9 @@ nonisolated final class AppSettingsStore {
             throw AppSettingsStoreError.writingDisabledForNewerSchema
         }
 
-        let storedSettings: StoredAppSettings
+        let storedSettings: StoredAppSettingsV2
         do {
-            storedSettings = try AppSettingsMapper.storedSettings(from: settings)
+            storedSettings = try AppSettingsV2Mapper.storedSettings(from: settings)
         } catch let error as AppSettingsMappingError {
             switch error {
             case let .invalidSettings(field):
@@ -127,6 +174,10 @@ nonisolated final class AppSettingsStore {
             }
         }
 
+        try write(storedSettings)
+    }
+
+    private func write<T: Encodable>(_ storedSettings: T) throws {
         let data: Data
         do {
             data = try encoder.encode(storedSettings)

@@ -19,17 +19,26 @@ nonisolated enum MotionSchedulerStatus: Equatable, Sendable {
 }
 
 nonisolated struct MotionScheduler: Sendable {
+    private struct ResolvedStep: Equatable, Sendable {
+        let source: BehaviorStep
+        let motion: PetMotion
+        let cycleDuration: Duration
+        let repeatCount: Int
+        let playbackSpeed: Double
+    }
+
     private struct Cursor: Equatable, Sendable {
         let sequence: BehaviorSequence
-        var stepIndex: Int
-        var remainingDuration: Duration
-        var isComplete: Bool
+        let steps: [ResolvedStep]
+        var stepIndex = 0
+        var completedCycles = 0
+        var remainingCycleDuration: Duration
+        var isComplete = false
 
-        init(sequence: BehaviorSequence) {
+        init(sequence: BehaviorSequence, steps: [ResolvedStep]) {
             self.sequence = sequence
-            stepIndex = 0
-            remainingDuration = sequence.steps[0].duration
-            isComplete = false
+            self.steps = steps
+            remainingCycleDuration = steps[0].cycleDuration
         }
     }
 
@@ -69,8 +78,9 @@ nonisolated struct MotionScheduler: Sendable {
         pendingSequence?.id
     }
 
-    var activeStepRemainingDuration: Duration? {
-        interactionCursor?.remainingDuration ?? baseCursor?.remainingDuration
+    var activeCycleRemainingDuration: Duration? {
+        interactionCursor?.remainingCycleDuration
+            ?? baseCursor?.remainingCycleDuration
     }
 
     var isInteractionPlaying: Bool {
@@ -79,12 +89,12 @@ nonisolated struct MotionScheduler: Sendable {
 
     @discardableResult
     mutating func request(_ sequence: BehaviorSequence) -> Bool {
-        guard Self.isValid(sequence) else {
+        guard let requestedCursor = makeCursor(for: sequence) else {
             return false
         }
 
         guard var baseCursor else {
-            self.baseCursor = Cursor(sequence: sequence)
+            self.baseCursor = requestedCursor
             pendingSequence = nil
             return true
         }
@@ -95,7 +105,7 @@ nonisolated struct MotionScheduler: Sendable {
         }
 
         if baseCursor.isComplete {
-            baseCursor = Cursor(sequence: sequence)
+            baseCursor = requestedCursor
             self.baseCursor = baseCursor
             pendingSequence = nil
             return true
@@ -122,12 +132,12 @@ nonisolated struct MotionScheduler: Sendable {
         guard
             interactionCursor == nil,
             cooldownRemaining <= .zero,
-            Self.isValid(sequence)
+            let cursor = makeCursor(for: sequence)
         else {
             return false
         }
 
-        interactionCursor = Cursor(sequence: sequence)
+        interactionCursor = cursor
         return true
     }
 
@@ -168,24 +178,17 @@ nonisolated struct MotionScheduler: Sendable {
         for cursor: Cursor,
         isInteraction: Bool
     ) -> MotionSchedulerStatus {
-        guard cursor.sequence.steps.indices.contains(cursor.stepIndex) else {
+        guard cursor.steps.indices.contains(cursor.stepIndex) else {
             return .unavailable
         }
 
-        let step = cursor.sequence.steps[cursor.stepIndex]
-        let requestedMotion = step.motionID == PetMotionReference.currentPetDefault
-            ? petDefinition.defaultMotion
-            : petDefinition.motion(id: step.motionID)
-        guard let motion = requestedMotion ?? petDefinition.defaultMotion else {
-            return .unavailable
-        }
-
+        let step = cursor.steps[cursor.stepIndex]
         return .playing(
             ScheduledMotion(
                 sequenceID: cursor.sequence.id,
                 stepIndex: cursor.stepIndex,
-                requestedMotionID: step.motionID,
-                motion: motion,
+                requestedMotionID: step.source.motionID,
+                motion: step.motion,
                 playbackSpeed: step.playbackSpeed,
                 isInteraction: isInteraction
             )
@@ -196,17 +199,14 @@ nonisolated struct MotionScheduler: Sendable {
         var remainingElapsed = elapsed
 
         while remainingElapsed > .zero, var cursor = interactionCursor {
-            if remainingElapsed < cursor.remainingDuration {
-                cursor.remainingDuration -= remainingElapsed
+            if remainingElapsed < cursor.remainingCycleDuration {
+                cursor.remainingCycleDuration -= remainingElapsed
                 interactionCursor = cursor
                 return .zero
             }
 
-            remainingElapsed -= cursor.remainingDuration
-            let nextStepIndex = cursor.stepIndex + 1
-            if cursor.sequence.steps.indices.contains(nextStepIndex) {
-                cursor.stepIndex = nextStepIndex
-                cursor.remainingDuration = cursor.sequence.steps[nextStepIndex].duration
+            remainingElapsed -= cursor.remainingCycleDuration
+            if advanceCursorAfterCycle(&cursor) {
                 interactionCursor = cursor
             } else {
                 interactionCursor = nil
@@ -221,34 +221,110 @@ nonisolated struct MotionScheduler: Sendable {
         var remainingElapsed = elapsed
 
         while remainingElapsed > .zero, var cursor = baseCursor, !cursor.isComplete {
-            if remainingElapsed < cursor.remainingDuration {
-                cursor.remainingDuration -= remainingElapsed
+            if remainingElapsed < cursor.remainingCycleDuration {
+                cursor.remainingCycleDuration -= remainingElapsed
                 baseCursor = cursor
                 return
             }
 
-            remainingElapsed -= cursor.remainingDuration
+            remainingElapsed -= cursor.remainingCycleDuration
 
-            if let pendingSequence {
-                baseCursor = Cursor(sequence: pendingSequence)
+            if let pendingSequence, let pendingCursor = makeCursor(for: pendingSequence) {
+                baseCursor = pendingCursor
                 self.pendingSequence = nil
                 continue
             }
 
-            let nextStepIndex = cursor.stepIndex + 1
-            if cursor.sequence.steps.indices.contains(nextStepIndex) {
-                cursor.stepIndex = nextStepIndex
-                cursor.remainingDuration = cursor.sequence.steps[nextStepIndex].duration
-            } else if cursor.sequence.repeats {
-                cursor.stepIndex = 0
-                cursor.remainingDuration = cursor.sequence.steps[0].duration
+            if advanceCursorAfterCycle(&cursor) {
+                baseCursor = cursor
             } else {
-                cursor.remainingDuration = .zero
+                cursor.remainingCycleDuration = .zero
                 cursor.isComplete = true
+                baseCursor = cursor
             }
-
-            baseCursor = cursor
         }
+    }
+
+    private func advanceCursorAfterCycle(_ cursor: inout Cursor) -> Bool {
+        let step = cursor.steps[cursor.stepIndex]
+        cursor.completedCycles += 1
+        if cursor.completedCycles < step.repeatCount {
+            cursor.remainingCycleDuration = step.cycleDuration
+            return true
+        }
+
+        let nextStepIndex = cursor.stepIndex + 1
+        if cursor.steps.indices.contains(nextStepIndex) {
+            cursor.stepIndex = nextStepIndex
+            cursor.completedCycles = 0
+            cursor.remainingCycleDuration = cursor.steps[nextStepIndex].cycleDuration
+            return true
+        }
+
+        guard cursor.sequence.repeats else {
+            return false
+        }
+
+        cursor.stepIndex = 0
+        cursor.completedCycles = 0
+        cursor.remainingCycleDuration = cursor.steps[0].cycleDuration
+        return true
+    }
+
+    private func makeCursor(for sequence: BehaviorSequence) -> Cursor? {
+        guard !sequence.steps.isEmpty else {
+            return nil
+        }
+
+        let resolvedSteps = sequence.steps.compactMap(resolve)
+        guard resolvedSteps.count == sequence.steps.count else {
+            return nil
+        }
+        return Cursor(sequence: sequence, steps: resolvedSteps)
+    }
+
+    private func resolve(_ step: BehaviorStep) -> ResolvedStep? {
+        guard !step.motionID.isEmpty else {
+            return nil
+        }
+
+        let requestedMotion = step.motionID == PetMotionReference.currentPetDefault
+            ? petDefinition.defaultMotion
+            : petDefinition.motion(id: step.motionID)
+        guard
+            let motion = requestedMotion ?? petDefinition.defaultMotion,
+            let unadjustedCycleDuration = motion.cycleDuration
+        else {
+            return nil
+        }
+
+        if let legacyTiming = step.legacyTiming {
+            guard
+                legacyTiming.duration > .zero,
+                legacyTiming.playbackSpeed.isFinite,
+                legacyTiming.playbackSpeed > 0
+            else {
+                return nil
+            }
+            return ResolvedStep(
+                source: step,
+                motion: motion,
+                cycleDuration: legacyTiming.duration,
+                repeatCount: 1,
+                playbackSpeed: legacyTiming.playbackSpeed
+            )
+        }
+
+        guard step.repeatCount > 0 else {
+            return nil
+        }
+        return ResolvedStep(
+            source: step,
+            motion: motion,
+            cycleDuration: unadjustedCycleDuration,
+            repeatCount: step.repeatCount,
+            playbackSpeed: 1
+        )
     }
 
     private mutating func reduceCooldown(by elapsed: Duration) {
@@ -259,12 +335,4 @@ nonisolated struct MotionScheduler: Sendable {
         cooldownRemaining = max(cooldownRemaining - elapsed, .zero)
     }
 
-    private static func isValid(_ sequence: BehaviorSequence) -> Bool {
-        !sequence.steps.isEmpty && sequence.steps.allSatisfy {
-            !$0.motionID.isEmpty
-                && $0.duration > .zero
-                && $0.playbackSpeed.isFinite
-                && $0.playbackSpeed > 0
-        }
-    }
 }

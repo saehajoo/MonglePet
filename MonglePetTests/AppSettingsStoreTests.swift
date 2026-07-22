@@ -45,15 +45,18 @@ final class AppSettingsStoreTests: XCTestCase {
             JSONSerialization.jsonObject(with: Data(contentsOf: settingsURL))
                 as? [String: Any]
         )
-        XCTAssertEqual(json["schemaVersion"] as? Int, 1)
+        XCTAssertEqual(json["schemaVersion"] as? Int, 2)
         XCTAssertEqual(json["lastUserPresentation"] as? String, "tuckedAway")
-        XCTAssertEqual(json["behaviorMode"] as? String, "manual")
+        XCTAssertNil(json["behaviorMode"])
 
-        let sequences = try XCTUnwrap(json["sequences"] as? [[String: Any]])
+        let profiles = try XCTUnwrap(json["behaviorProfiles"] as? [[String: Any]])
+        XCTAssertEqual(profiles.first?["mode"] as? String, "manual")
+        let sequences = try XCTUnwrap(profiles.first?["sequences"] as? [[String: Any]])
         let steps = try XCTUnwrap(sequences.first?["steps"] as? [[String: Any]])
-        XCTAssertEqual(steps.first?["durationMilliseconds"] as? Int, 2_000)
+        XCTAssertEqual(steps.first?["repeatCount"] as? Int, 2)
+        XCTAssertNil(steps.first?["durationMilliseconds"])
 
-        let rules = try XCTUnwrap(json["automaticRules"] as? [[String: Any]])
+        let rules = try XCTUnwrap(profiles.first?["automaticRules"] as? [[String: Any]])
         let applicationCondition = try XCTUnwrap(rules.first?["condition"] as? [String: Any])
         XCTAssertEqual(applicationCondition["type"] as? String, "application")
         XCTAssertEqual(
@@ -66,29 +69,26 @@ final class AppSettingsStoreTests: XCTestCase {
     }
 
     func testInvalidItemsRecoverIndependentlyAndUnknownConditionIsDisabled() throws {
-        let validSequence = StoredBehaviorSequence(
+        let validSequence = StoredBehaviorSequenceV2(
             id: "focus-sequence",
             steps: [
-                StoredBehaviorStep(
+                StoredBehaviorStepV2(
                     motionID: "",
-                    durationMilliseconds: 0,
-                    playbackSpeed: 100
+                    repeatCount: 0
                 ),
-                StoredBehaviorStep(
+                StoredBehaviorStepV2(
                     motionID: "focus",
-                    durationMilliseconds: 5_000,
-                    playbackSpeed: 1
+                    repeatCount: 5
                 )
             ],
             repeats: true
         )
         let unknownRuleID = UUID()
         let missingSequenceRuleID = UUID()
-        let stored = StoredAppSettings(
-            schemaVersion: 1,
+        let stored = StoredAppSettingsV2(
+            schemaVersion: 2,
             selectedPetInstallationID: "not-a-uuid",
             lastUserPresentation: "suspended",
-            behaviorMode: "future-mode",
             overlay: StoredOverlaySettings(
                 screenIdentifier: "   ",
                 originX: 10,
@@ -96,33 +96,43 @@ final class AppSettingsStoreTests: XCTestCase {
                 width: 1_000,
                 clickThrough: true
             ),
-            manualSequenceID: "missing-sequence",
-            sequences: [
-                validSequence,
-                validSequence,
-                StoredBehaviorSequence(id: "empty", steps: [], repeats: true)
-            ],
-            automaticRules: [
-                StoredAutomaticRule(
-                    id: unknownRuleID.uuidString,
-                    isEnabled: true,
-                    priority: 10,
-                    condition: .unsupported(type: "futureCondition"),
-                    sequenceID: "focus-sequence"
-                ),
-                StoredAutomaticRule(
-                    id: missingSequenceRuleID.uuidString,
-                    isEnabled: true,
-                    priority: 1,
-                    condition: .application(bundleIdentifier: "com.example.Editor"),
-                    sequenceID: "missing-sequence"
-                ),
-                StoredAutomaticRule(
-                    id: "invalid-rule-id",
-                    isEnabled: true,
-                    priority: 0,
-                    condition: .idleAtLeast(milliseconds: 120_000),
-                    sequenceID: "focus-sequence"
+            behaviorProfiles: [
+                StoredBehaviorProfileV2(
+                    petKey: .builtIn,
+                    mode: "future-mode",
+                    manualSequenceID: "missing-sequence",
+                    sequences: [
+                        validSequence,
+                        validSequence,
+                        StoredBehaviorSequenceV2(
+                            id: "empty",
+                            steps: [],
+                            repeats: true
+                        )
+                    ],
+                    automaticRules: [
+                        StoredAutomaticRule(
+                            id: unknownRuleID.uuidString,
+                            isEnabled: true,
+                            priority: 10,
+                            condition: .unsupported(type: "futureCondition"),
+                            sequenceID: "focus-sequence"
+                        ),
+                        StoredAutomaticRule(
+                            id: missingSequenceRuleID.uuidString,
+                            isEnabled: true,
+                            priority: 1,
+                            condition: .application(bundleIdentifier: "com.example.Editor"),
+                            sequenceID: "missing-sequence"
+                        ),
+                        StoredAutomaticRule(
+                            id: "invalid-rule-id",
+                            isEnabled: true,
+                            priority: 0,
+                            condition: .idleAtLeast(milliseconds: 120_000),
+                            sequenceID: "focus-sequence"
+                        )
+                    ]
                 )
             ]
         )
@@ -181,14 +191,14 @@ final class AppSettingsStoreTests: XCTestCase {
     }
 
     func testNewerSchemaIsPreservedAndDisablesWriting() throws {
-        let originalData = Data(#"{"schemaVersion":2,"futureValue":true}"#.utf8)
+        let originalData = Data(#"{"schemaVersion":3,"futureValue":true}"#.utf8)
         try originalData.write(to: settingsURL)
         let store = AppSettingsStore(settingsURL: settingsURL)
 
         let loaded = store.load()
 
-        XCTAssertEqual(loaded.source, .newerSchema(2))
-        XCTAssertEqual(loaded.issues, [.newerSchemaVersion(2)])
+        XCTAssertEqual(loaded.source, .newerSchema(3))
+        XCTAssertEqual(loaded.issues, [.newerSchemaVersion(3)])
         XCTAssertFalse(loaded.isWritingEnabled)
         XCTAssertEqual(try Data(contentsOf: settingsURL), originalData)
         XCTAssertThrowsError(try store.save(.default)) { error in
@@ -268,6 +278,48 @@ final class AppSettingsStoreTests: XCTestCase {
         XCTAssertEqual(children.map(\.lastPathComponent), ["settings.json"])
     }
 
+    func testV1LoadMigratesAndAtomicallyRewritesSettingsAsV2() throws {
+        let stored = makeLegacySettings()
+        try JSONEncoder().encode(stored).write(to: settingsURL)
+        let store = AppSettingsStore(settingsURL: settingsURL)
+
+        let loaded = store.load { _ in self.migrationPetDefinition }
+
+        XCTAssertEqual(loaded.source, .file)
+        XCTAssertTrue(loaded.isWritingEnabled)
+        XCTAssertEqual(loaded.settings.sequences.first?.steps.first?.repeatCount, 3)
+        let migratedData = try Data(contentsOf: settingsURL)
+        let envelope = try JSONDecoder().decode(
+            StoredSchemaEnvelope.self,
+            from: migratedData
+        )
+        XCTAssertEqual(envelope.schemaVersion, 2)
+        XCTAssertNoThrow(
+            try JSONDecoder().decode(StoredAppSettingsV2.self, from: migratedData)
+        )
+        let children = try FileManager.default.contentsOfDirectory(
+            at: temporaryDirectoryURL,
+            includingPropertiesForKeys: nil
+        )
+        XCTAssertEqual(children.map(\.lastPathComponent), ["settings.json"])
+    }
+
+    func testV1LoadWithoutSelectedPetDefinitionPreservesOriginalFile() throws {
+        let originalData = try JSONEncoder().encode(makeLegacySettings())
+        try originalData.write(to: settingsURL)
+        let store = AppSettingsStore(settingsURL: settingsURL)
+
+        let unavailable = store.load()
+
+        XCTAssertEqual(unavailable.source, .recovered)
+        XCTAssertFalse(unavailable.isWritingEnabled)
+        XCTAssertEqual(try Data(contentsOf: settingsURL), originalData)
+
+        let migrated = store.load { _ in self.migrationPetDefinition }
+        XCTAssertTrue(migrated.isWritingEnabled)
+        XCTAssertEqual(migrated.settings.sequences.first?.steps.first?.repeatCount, 3)
+    }
+
     private func makeSettings() -> AppSettings {
         let selectedPetID = UUID(
             uuidString: "30000000-0000-0000-0000-000000000001"
@@ -283,8 +335,7 @@ final class AppSettingsStoreTests: XCTestCase {
             steps: [
                 BehaviorStep(
                     motionID: "idle",
-                    duration: .seconds(2),
-                    playbackSpeed: 1
+                    repeatCount: 2
                 )
             ],
             repeats: true
@@ -294,8 +345,7 @@ final class AppSettingsStoreTests: XCTestCase {
             steps: [
                 BehaviorStep(
                     motionID: "focus",
-                    duration: .seconds(30),
-                    playbackSpeed: 1.5
+                    repeatCount: 30
                 )
             ],
             repeats: true
@@ -328,6 +378,58 @@ final class AppSettingsStoreTests: XCTestCase {
                     priority: 5,
                     condition: .idleAtLeast(milliseconds: 120_000),
                     sequenceID: idleSequence.id
+                )
+            ]
+        )
+    }
+
+    private func makeLegacySettings() -> StoredAppSettings {
+        StoredAppSettings(
+            schemaVersion: 1,
+            selectedPetInstallationID: nil,
+            lastUserPresentation: "awake",
+            behaviorMode: "manual",
+            overlay: StoredOverlaySettings(
+                screenIdentifier: nil,
+                originX: 0,
+                originY: 0,
+                width: 192,
+                clickThrough: false
+            ),
+            manualSequenceID: "legacy-custom",
+            sequences: [
+                StoredBehaviorSequence(
+                    id: "legacy-custom",
+                    steps: [
+                        StoredBehaviorStep(
+                            motionID: "idle",
+                            durationMilliseconds: 3_000,
+                            playbackSpeed: 1
+                        )
+                    ],
+                    repeats: true
+                )
+            ],
+            automaticRules: []
+        )
+    }
+
+    private var migrationPetDefinition: PetDefinition {
+        PetDefinition(
+            id: "migration.pet",
+            displayName: "Migration Pet",
+            defaultMotionID: "idle",
+            motions: [
+                PetMotion(
+                    id: "idle",
+                    loops: true,
+                    frames: [
+                        MotionFrame(
+                            atlasID: "main",
+                            sourceRect: PixelRect(x: 0, y: 0, width: 10, height: 10),
+                            duration: .seconds(1)
+                        )
+                    ]
                 )
             ]
         )

@@ -203,18 +203,11 @@ private struct BehaviorStepEditorRow: View {
                 }
             }
 
-            Stepper(value: durationBinding, in: 1...86_400, step: 1) {
-                Text("유지 시간: \(Int(durationBinding.wrappedValue))초")
-                    .monospacedDigit()
-            }
-
             Stepper(
-                value: playbackSpeedBinding,
-                in: AppSettingsLimits.minimumPlaybackSpeed
-                    ... AppSettingsLimits.maximumPlaybackSpeed,
-                step: 0.25
+                value: repeatCountBinding,
+                in: 1...AppSettingsLimits.maximumRepeatCount
             ) {
-                Text("재생 속도: \(playbackSpeedBinding.wrappedValue, specifier: "%.2f")배")
+                Text("반복 횟수: \(repeatCountBinding.wrappedValue)회")
                     .monospacedDigit()
             }
         }
@@ -240,26 +233,16 @@ private struct BehaviorStepEditorRow: View {
         )
     }
 
-    private var durationBinding: Binding<Double> {
+    private var repeatCountBinding: Binding<Int> {
         Binding(
-            get: {
-                currentStep.map { BehaviorSettingsEditor.durationSeconds($0.duration) } ?? 1
-            },
-            set: { update(durationSeconds: $0) }
-        )
-    }
-
-    private var playbackSpeedBinding: Binding<Double> {
-        Binding(
-            get: { currentStep?.playbackSpeed ?? 1 },
-            set: { update(playbackSpeed: $0) }
+            get: { currentStep?.repeatCount ?? 1 },
+            set: { update(repeatCount: $0) }
         )
     }
 
     private func update(
         motionID: String? = nil,
-        durationSeconds: Double? = nil,
-        playbackSpeed: Double? = nil
+        repeatCount: Int? = nil
     ) {
         guard let currentStep else {
             return
@@ -268,9 +251,7 @@ private struct BehaviorStepEditorRow: View {
             sequenceID: sequenceID,
             index: index,
             motionID: motionID ?? currentStep.motionID,
-            durationSeconds: durationSeconds
-                ?? BehaviorSettingsEditor.durationSeconds(currentStep.duration),
-            playbackSpeed: playbackSpeed ?? currentStep.playbackSpeed
+            repeatCount: repeatCount ?? currentStep.repeatCount
         )
     }
 }

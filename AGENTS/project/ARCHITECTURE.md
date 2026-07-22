@@ -88,12 +88,12 @@ MonglePetApp
 
 - `PetBehaviorRuntime`은 `BehaviorResolver`의 결정과 `MotionScheduler` 상태를 실제 `FramePlayer` 재생으로 연결한다.
 - `MotionScheduler`는 선택된 행동 목록을 시간에 따라 진행한다.
-- 행동 단계의 `duration`을 최소 유지 구간으로 사용하고 일반 행동 변경은 현재 단계 경계에서 적용한다.
+- 행동 단계는 선택 애니메이션의 전체 사이클을 `repeatCount`회 재생하고 일반 행동 변경은 현재 사이클 경계에서 적용한다.
 - 상호작용은 즉시 시작해 기존 행동 단계의 남은 시간을 보존하고, 완료 후 같은 위치로 복귀한다.
 - 스케줄러는 wall clock을 직접 읽지 않고 monotonic clock에서 계산된 경과 `Duration`만 입력받는다.
 - `FramePlayer`는 모션 프레임만 렌더링하며 자동·수동 모드 같은 제품 규칙을 알지 못한다.
-- 행동 단계 진행은 지속 polling하지 않고 현재 단계의 남은 시간에 맞춘 일회성 main run loop timer를 사용한다.
-- `playbackSpeed`는 행동 단계의 유지 시간과 분리해 프레임 delay에만 적용한다.
+- 행동 단계 진행은 지속 polling하지 않고 현재 사이클의 남은 시간에 맞춘 일회성 main run loop timer를 사용한다.
+- 프레임별 `duration`이 재생 속도의 단일 원본이며 행동 단계에는 별도 배속을 저장하지 않는다.
 - 같은 행동이 유지될 때 불필요하게 재시작하지 않는다.
 
 ### Overlay
@@ -110,14 +110,15 @@ MonglePetApp
 
 ### Settings
 
-- `AppSettings` Domain 모델과 schema-v1 `StoredAppSettings` DTO를 분리한다.
-- `AppSettingsMapper`가 명시적 enum 문자열, 조건 discriminator와 정수 밀리초를 변환하고 항목 단위 복구 결과를 만든다.
+- `AppSettings` Domain 모델과 현재 schema-v2 `StoredAppSettingsV2`, 마이그레이션 전용 schema-v1 DTO를 분리한다.
+- `AppSettingsV2Mapper`가 명시적 enum 문자열, 펫 키 discriminator와 반복 횟수를 변환하고 프로필·항목 단위 복구 결과를 만든다.
+- v1 마이그레이터는 선택 펫의 실제 프레임 사이클을 사용해 유지 시간을 반복 횟수로 변환하고 성공한 v2 결과만 원자적으로 기록한다.
 - `AppSettingsStore`는 5MiB 상한, 같은 디렉터리 임시 파일과 원자적 교체를 책임진다.
 - `AppSettingsSession`은 저장소의 로드·복구·쓰기 상태를 SwiftUI와 `AppCoordinator`에 전달하고 유효한 Domain 설정 변경만 저장한다.
 - 손상 파일은 격리하고 기본값으로 복구하며, 미래 스키마 파일은 원본을 보존하고 쓰기를 차단한다.
 - 설정 UI는 파일 시스템이나 저장 DTO에 직접 결합하지 않고 Domain 설정을 통해 저장소와 연결한다.
 - overlay는 적용 후 실제 보정된 좌표와 디스플레이 UUID를 설정 세션에 동기화하고, 드래그 완료와 디스플레이 구성 변경 시 저장한다.
-- 후속 schema-v2에서는 행동 모드, 수동 선택, 행동 루틴과 자동 규칙을 내장 펫 예약 키 또는 설치 UUID별 `BehaviorProfile`로 저장한다.
+- 행동 모드, 수동 선택, 행동 루틴과 자동 규칙을 내장 펫 예약 키 또는 설치 UUID별 `BehaviorProfile`로 저장한다.
 - 펫 패키지 교체는 같은 설치 UUID의 행동 프로필을 유지하고, 별도 사본 설치는 새 기본 프로필을 만든다.
 - 펫 삭제 시 해당 설치 UUID의 행동 프로필도 사용자 확인 후 제거한다.
 

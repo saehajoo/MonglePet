@@ -3,6 +3,108 @@ import XCTest
 @testable import MonglePet
 
 final class AppSettingsV2MigrationTests: XCTestCase {
+    func testV2MapperRoundTripsMultiplePetProfilesWithoutChangingOrder() throws {
+        let installedID = UUID(
+            uuidString: "40000000-0000-0000-0000-000000000001"
+        )!
+        let builtInProfile = BehaviorProfile(
+            petKey: .builtIn,
+            mode: .manual,
+            manualSequenceID: "built-in-custom",
+            sequences: [
+                BehaviorSequence(
+                    id: "built-in-custom",
+                    steps: [BehaviorStep(motionID: "wave", repeatCount: 3)],
+                    repeats: true
+                )
+            ],
+            automaticRules: []
+        )
+        let installedProfile = BehaviorProfile(
+            petKey: .installed(installedID),
+            mode: .automatic,
+            manualSequenceID: "installed-custom",
+            sequences: [
+                BehaviorSequence(
+                    id: "installed-custom",
+                    steps: [BehaviorStep(motionID: "coding", repeatCount: 7)],
+                    repeats: false
+                )
+            ],
+            automaticRules: []
+        )
+        let settings = AppSettings(
+            selectedPetInstallationID: installedID,
+            lastUserPresentation: .awake,
+            overlay: .default,
+            behaviorProfiles: [builtInProfile, installedProfile]
+        )
+
+        let stored = try AppSettingsV2Mapper.storedSettings(from: settings)
+        let mapped = AppSettingsV2Mapper.domainSettings(from: stored)
+
+        XCTAssertEqual(stored.schemaVersion, 2)
+        XCTAssertEqual(mapped.settings, settings)
+        XCTAssertTrue(mapped.issues.isEmpty)
+        XCTAssertEqual(mapped.settings.behaviorProfiles.map(\.petKey), [
+            .builtIn,
+            .installed(installedID)
+        ])
+    }
+
+    func testV2MapperDropsInvalidAndDuplicateProfileKeysIndependently() {
+        let installedID = UUID(
+            uuidString: "40000000-0000-0000-0000-000000000002"
+        )!
+        let sequence = StoredBehaviorSequenceV2(
+            id: "default",
+            steps: [StoredBehaviorStepV2(motionID: "idle", repeatCount: 1)],
+            repeats: true
+        )
+        let profile = { (key: StoredPetBehaviorKeyV2) in
+            StoredBehaviorProfileV2(
+                petKey: key,
+                mode: "automatic",
+                manualSequenceID: "default",
+                sequences: [sequence],
+                automaticRules: []
+            )
+        }
+        let stored = StoredAppSettingsV2(
+            schemaVersion: 2,
+            selectedPetInstallationID: installedID.uuidString,
+            lastUserPresentation: "awake",
+            overlay: StoredOverlaySettings(
+                screenIdentifier: nil,
+                originX: 0,
+                originY: 0,
+                width: 192,
+                clickThrough: false
+            ),
+            behaviorProfiles: [
+                profile(.installed(installationID: "invalid")),
+                profile(.builtIn),
+                profile(.builtIn),
+                profile(.installed(installationID: installedID.uuidString))
+            ]
+        )
+
+        let mapped = AppSettingsV2Mapper.domainSettings(from: stored)
+
+        XCTAssertEqual(mapped.settings.behaviorProfiles.map(\.petKey), [
+            .builtIn,
+            .installed(installedID)
+        ])
+        XCTAssertEqual(
+            mapped.issues.filter { $0 == .invalidField("behaviorProfiles.0.petKey") }.count,
+            1
+        )
+        XCTAssertEqual(
+            mapped.issues.filter { $0 == .invalidField("behaviorProfiles.2.petKey") }.count,
+            1
+        )
+    }
+
     func testMigratesV1FixtureIntoSelectedInstalledProfileUsingMotionCycles() throws {
         let decoder = JSONDecoder()
         let source = try decoder.decode(

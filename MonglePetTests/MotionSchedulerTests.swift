@@ -4,151 +4,158 @@ import XCTest
 final class MotionSchedulerTests: XCTestCase {
     private let frameRect = PixelRect(x: 0, y: 0, width: 192, height: 208)
 
-    func testSequenceAdvancesAtExactBoundariesAndRepeats() throws {
+    func testSequenceAdvancesAfterCompleteCyclesAndRepeatCounts() throws {
         var scheduler = MotionScheduler(petDefinition: makePet())
         let sequence = makeSequence(
             id: "work",
             steps: [
-                makeStep(motionID: "focus", duration: .seconds(2)),
-                makeStep(motionID: "rest", duration: .seconds(3))
+                makeStep(motionID: "focus", repeatCount: 2),
+                makeStep(motionID: "rest", repeatCount: 1)
             ]
         )
 
         XCTAssertTrue(scheduler.request(sequence))
         XCTAssertEqual(try playback(from: scheduler).stepIndex, 0)
 
-        scheduler.advance(by: .milliseconds(1_999))
+        scheduler.advance(by: .milliseconds(999))
         XCTAssertEqual(try playback(from: scheduler).stepIndex, 0)
-        XCTAssertEqual(scheduler.activeStepRemainingDuration, .milliseconds(1))
+        XCTAssertEqual(scheduler.activeCycleRemainingDuration, .milliseconds(1))
 
         scheduler.advance(by: .milliseconds(1))
-        XCTAssertEqual(try playback(from: scheduler).stepIndex, 1)
-
-        scheduler.advance(by: .seconds(3))
         XCTAssertEqual(try playback(from: scheduler).stepIndex, 0)
-        XCTAssertEqual(scheduler.activeStepRemainingDuration, .seconds(2))
+        XCTAssertEqual(scheduler.activeCycleRemainingDuration, .seconds(1))
+
+        scheduler.advance(by: .seconds(1))
+        XCTAssertEqual(try playback(from: scheduler).stepIndex, 1)
+        XCTAssertEqual(scheduler.activeCycleRemainingDuration, .seconds(2))
+
+        scheduler.advance(by: .seconds(2))
+        XCTAssertEqual(try playback(from: scheduler).stepIndex, 0)
+        XCTAssertEqual(scheduler.activeCycleRemainingDuration, .seconds(1))
     }
 
-    func testSameSequencePreservesProgressAndDifferentSequenceWaitsForStepBoundary() throws {
+    func testDifferentSequenceWaitsOnlyForCurrentAnimationCycleBoundary() throws {
         var scheduler = MotionScheduler(petDefinition: makePet())
         let current = makeSequence(
             id: "current",
-            steps: [makeStep(motionID: "focus", duration: .seconds(5))]
+            steps: [makeStep(motionID: "focus", repeatCount: 5)]
         )
         let next = makeSequence(
             id: "next",
-            steps: [makeStep(motionID: "rest", duration: .seconds(4))]
+            steps: [makeStep(motionID: "rest", repeatCount: 2)]
         )
 
         scheduler.request(current)
-        scheduler.advance(by: .seconds(2))
+        scheduler.advance(by: .milliseconds(250))
         XCTAssertFalse(scheduler.request(current))
-        XCTAssertEqual(scheduler.activeStepRemainingDuration, .seconds(3))
+        XCTAssertEqual(scheduler.activeCycleRemainingDuration, .milliseconds(750))
 
         XCTAssertTrue(scheduler.request(next))
         XCTAssertEqual(scheduler.activeSequenceID, "current")
         XCTAssertEqual(scheduler.pendingSequenceID, "next")
 
-        scheduler.advance(by: .seconds(4))
+        scheduler.advance(by: .milliseconds(749))
+        XCTAssertEqual(scheduler.activeSequenceID, "current")
+        scheduler.advance(by: .milliseconds(1))
         XCTAssertEqual(scheduler.activeSequenceID, "next")
         XCTAssertEqual(try playback(from: scheduler).motion.id, "rest")
-        XCTAssertEqual(scheduler.activeStepRemainingDuration, .seconds(3))
+        XCTAssertEqual(scheduler.activeCycleRemainingDuration, .seconds(2))
     }
 
-    func testEditedSequenceWithSameIDAppliesAtNextStepBoundary() throws {
+    func testEditedSequenceWithSameIDAppliesAtNextAnimationCycleBoundary() throws {
         var scheduler = MotionScheduler(petDefinition: makePet())
         let original = makeSequence(
             id: "work",
-            steps: [makeStep(motionID: "focus", duration: .seconds(5))]
+            steps: [makeStep(motionID: "focus", repeatCount: 5)]
         )
         let edited = makeSequence(
             id: "work",
-            steps: [makeStep(motionID: "rest", duration: .seconds(3))]
+            steps: [makeStep(motionID: "rest", repeatCount: 3)]
         )
 
         XCTAssertTrue(scheduler.request(original))
-        scheduler.advance(by: .seconds(2))
+        scheduler.advance(by: .milliseconds(400))
 
         XCTAssertTrue(scheduler.request(edited))
         XCTAssertEqual(try playback(from: scheduler).motion.id, "focus")
-        XCTAssertEqual(scheduler.activeStepRemainingDuration, .seconds(3))
+        XCTAssertEqual(scheduler.activeCycleRemainingDuration, .milliseconds(600))
         XCTAssertEqual(scheduler.pendingSequenceID, "work")
 
-        scheduler.advance(by: .seconds(3))
+        scheduler.advance(by: .milliseconds(600))
         XCTAssertEqual(try playback(from: scheduler).motion.id, "rest")
-        XCTAssertEqual(scheduler.activeStepRemainingDuration, .seconds(3))
+        XCTAssertEqual(scheduler.activeCycleRemainingDuration, .seconds(2))
         XCTAssertNil(scheduler.pendingSequenceID)
     }
 
-    func testNonRepeatingSequenceHoldsLastStepAndCanSwitchImmediatelyAfterCompletion() throws {
+    func testNonRepeatingSequenceHoldsLastStepAndCanSwitchAfterCompletion() throws {
         var scheduler = MotionScheduler(petDefinition: makePet())
         let oneShot = makeSequence(
             id: "one-shot",
-            steps: [makeStep(motionID: "rest", duration: .seconds(1))],
+            steps: [makeStep(motionID: "rest", repeatCount: 1)],
             repeats: false
         )
         let idle = makeSequence(
             id: "idle-sequence",
-            steps: [makeStep(motionID: "idle", duration: .seconds(3))]
+            steps: [makeStep(motionID: "idle", repeatCount: 1)]
         )
 
         scheduler.request(oneShot)
         scheduler.advance(by: .seconds(5))
         XCTAssertEqual(try playback(from: scheduler).motion.id, "rest")
-        XCTAssertEqual(scheduler.activeStepRemainingDuration, .zero)
+        XCTAssertEqual(scheduler.activeCycleRemainingDuration, .zero)
 
         XCTAssertTrue(scheduler.request(idle))
         XCTAssertEqual(scheduler.activeSequenceID, "idle-sequence")
-        XCTAssertEqual(scheduler.activeStepRemainingDuration, .seconds(3))
+        XCTAssertEqual(scheduler.activeCycleRemainingDuration, .seconds(1))
     }
 
     func testEditedNonRepeatingSequenceWithSameIDRestartsAfterCompletion() throws {
         var scheduler = MotionScheduler(petDefinition: makePet())
         let original = makeSequence(
             id: "one-shot",
-            steps: [makeStep(motionID: "focus", duration: .seconds(1))],
+            steps: [makeStep(motionID: "focus", repeatCount: 1)],
             repeats: false
         )
         let edited = makeSequence(
             id: "one-shot",
-            steps: [makeStep(motionID: "rest", duration: .seconds(2))],
+            steps: [makeStep(motionID: "rest", repeatCount: 2)],
             repeats: false
         )
 
         scheduler.request(original)
         scheduler.advance(by: .seconds(1))
-        XCTAssertEqual(scheduler.activeStepRemainingDuration, .zero)
+        XCTAssertEqual(scheduler.activeCycleRemainingDuration, .zero)
 
         XCTAssertTrue(scheduler.request(edited))
         XCTAssertEqual(try playback(from: scheduler).motion.id, "rest")
-        XCTAssertEqual(scheduler.activeStepRemainingDuration, .seconds(2))
+        XCTAssertEqual(scheduler.activeCycleRemainingDuration, .seconds(2))
         XCTAssertNil(scheduler.pendingSequenceID)
     }
 
-    func testPausePreservesRemainingTimeUntilResume() {
+    func testPausePreservesCurrentCycleProgressUntilResume() {
         var scheduler = MotionScheduler(petDefinition: makePet())
         scheduler.request(
             makeSequence(
                 id: "focus",
-                steps: [makeStep(motionID: "focus", duration: .seconds(5))]
+                steps: [makeStep(motionID: "focus", repeatCount: 5)]
             )
         )
-        scheduler.advance(by: .seconds(2))
+        scheduler.advance(by: .milliseconds(400))
         scheduler.pause()
         scheduler.advance(by: .seconds(20))
 
         XCTAssertTrue(scheduler.isPaused)
-        XCTAssertEqual(scheduler.activeStepRemainingDuration, .seconds(3))
+        XCTAssertEqual(scheduler.activeCycleRemainingDuration, .milliseconds(600))
 
         scheduler.resume()
-        scheduler.advance(by: .seconds(1))
-        XCTAssertEqual(scheduler.activeStepRemainingDuration, .seconds(2))
+        scheduler.advance(by: .milliseconds(100))
+        XCTAssertEqual(scheduler.activeCycleRemainingDuration, .milliseconds(500))
     }
 
-    func testMissingMotionUsesPetDefaultMotion() throws {
+    func testMissingMotionUsesPetDefaultMotionCycle() throws {
         let sequence = makeSequence(
             id: "missing-motion",
-            steps: [makeStep(motionID: "missing", duration: .seconds(1))]
+            steps: [makeStep(motionID: "missing", repeatCount: 2)]
         )
         var fallbackScheduler = MotionScheduler(petDefinition: makePet())
         fallbackScheduler.request(sequence)
@@ -156,18 +163,20 @@ final class MotionSchedulerTests: XCTestCase {
         let fallback = try playback(from: fallbackScheduler)
         XCTAssertEqual(fallback.motion.id, "idle")
         XCTAssertTrue(fallback.usesFallback)
+        XCTAssertEqual(fallbackScheduler.activeCycleRemainingDuration, .seconds(1))
 
         let petWithoutIdle = PetDefinition(
             id: "pet.without.idle",
             displayName: "No Idle",
             defaultMotionID: "focus",
-            motions: [makeMotion(id: "focus")]
+            motions: [makeMotion(id: "focus", frameDurations: [.seconds(3)])]
         )
         var defaultMotionScheduler = MotionScheduler(petDefinition: petWithoutIdle)
         defaultMotionScheduler.request(sequence)
         let defaultFallback = try playback(from: defaultMotionScheduler)
         XCTAssertEqual(defaultFallback.motion.id, "focus")
         XCTAssertTrue(defaultFallback.usesFallback)
+        XCTAssertEqual(defaultMotionScheduler.activeCycleRemainingDuration, .seconds(3))
     }
 
     func testCurrentPetDefaultReferenceUsesDeclaredDefaultWithoutFallbackWarning() throws {
@@ -175,14 +184,14 @@ final class MotionSchedulerTests: XCTestCase {
             id: "pet.without.idle",
             displayName: "No Idle",
             defaultMotionID: "focus",
-            motions: [makeMotion(id: "focus")]
+            motions: [makeMotion(id: "focus", frameDurations: [.milliseconds(300), .milliseconds(700)])]
         )
         let sequence = makeSequence(
             id: "current-default",
             steps: [
                 makeStep(
                     motionID: PetMotionReference.currentPetDefault,
-                    duration: .seconds(1)
+                    repeatCount: 1
                 )
             ]
         )
@@ -194,29 +203,30 @@ final class MotionSchedulerTests: XCTestCase {
         XCTAssertEqual(playback.requestedMotionID, PetMotionReference.currentPetDefault)
         XCTAssertEqual(playback.motion.id, "focus")
         XCTAssertFalse(playback.usesFallback)
+        XCTAssertEqual(scheduler.activeCycleRemainingDuration, .seconds(1))
     }
 
-    func testInteractionCoalescesInputRestoresRemainingTimeAndUsesCooldown() throws {
+    func testInteractionRestoresBaseCycleProgressAndUsesCooldown() throws {
         var scheduler = MotionScheduler(
             petDefinition: makePet(),
             interactionCooldown: .milliseconds(500)
         )
         let focus = makeSequence(
             id: "focus-sequence",
-            steps: [makeStep(motionID: "focus", duration: .seconds(10))]
+            steps: [makeStep(motionID: "focus", repeatCount: 10)]
         )
         let petting = makeSequence(
             id: "petting-sequence",
             steps: [
-                makeStep(motionID: "petting", duration: .seconds(1)),
-                makeStep(motionID: "rest", duration: .seconds(1))
+                makeStep(motionID: "petting", repeatCount: 1),
+                makeStep(motionID: "rest", repeatCount: 1)
             ],
             repeats: false
         )
 
         scheduler.request(focus)
-        scheduler.advance(by: .seconds(4))
-        XCTAssertEqual(scheduler.activeStepRemainingDuration, .seconds(6))
+        scheduler.advance(by: .milliseconds(400))
+        XCTAssertEqual(scheduler.activeCycleRemainingDuration, .milliseconds(600))
 
         XCTAssertTrue(scheduler.triggerInteraction(petting))
         XCTAssertFalse(scheduler.triggerInteraction(petting))
@@ -224,12 +234,12 @@ final class MotionSchedulerTests: XCTestCase {
 
         scheduler.advance(by: .milliseconds(1_500))
         XCTAssertEqual(try playback(from: scheduler).stepIndex, 1)
-        XCTAssertEqual(scheduler.activeStepRemainingDuration, .milliseconds(500))
+        XCTAssertEqual(scheduler.activeCycleRemainingDuration, .milliseconds(1_500))
 
-        scheduler.advance(by: .milliseconds(500))
+        scheduler.advance(by: .milliseconds(1_500))
         XCTAssertFalse(scheduler.isInteractionPlaying)
         XCTAssertEqual(scheduler.activeSequenceID, "focus-sequence")
-        XCTAssertEqual(scheduler.activeStepRemainingDuration, .seconds(6))
+        XCTAssertEqual(scheduler.activeCycleRemainingDuration, .milliseconds(600))
         XCTAssertFalse(scheduler.triggerInteraction(petting))
 
         scheduler.advance(by: .milliseconds(499))
@@ -238,19 +248,46 @@ final class MotionSchedulerTests: XCTestCase {
         XCTAssertTrue(scheduler.triggerInteraction(petting))
     }
 
-    func testInvalidSequenceIsRejectedWithoutReplacingCurrentSequence() {
+    func testLegacyTimingKeepsV1StepBoundaryUntilSchemaV2Migration() throws {
+        var scheduler = MotionScheduler(petDefinition: makePet())
+        let legacyStep = BehaviorStep(
+            motionID: "focus",
+            duration: .milliseconds(2_600),
+            playbackSpeed: 2
+        )
+
+        XCTAssertTrue(
+            scheduler.request(
+                makeSequence(id: "legacy", steps: [legacyStep], repeats: false)
+            )
+        )
+        XCTAssertEqual(try playback(from: scheduler).playbackSpeed, 2)
+        XCTAssertEqual(scheduler.activeCycleRemainingDuration, .milliseconds(2_600))
+
+        scheduler.advance(by: .seconds(2))
+        XCTAssertEqual(scheduler.activeCycleRemainingDuration, .milliseconds(600))
+        scheduler.advance(by: .milliseconds(600))
+        XCTAssertEqual(scheduler.activeCycleRemainingDuration, .zero)
+    }
+
+    func testInvalidRepeatCountAndEmptyMotionAreRejected() {
         var scheduler = MotionScheduler(petDefinition: makePet())
         let valid = makeSequence(
             id: "valid",
-            steps: [makeStep(motionID: "idle", duration: .seconds(2))]
+            steps: [makeStep(motionID: "idle", repeatCount: 1)]
         )
-        let invalid = makeSequence(
-            id: "invalid",
-            steps: [makeStep(motionID: "idle", duration: .zero)]
+        let zeroRepeats = makeSequence(
+            id: "zero",
+            steps: [makeStep(motionID: "idle", repeatCount: 0)]
+        )
+        let emptyMotion = makeSequence(
+            id: "empty",
+            steps: [makeStep(motionID: "", repeatCount: 1)]
         )
 
         XCTAssertTrue(scheduler.request(valid))
-        XCTAssertFalse(scheduler.request(invalid))
+        XCTAssertFalse(scheduler.request(zeroRepeats))
+        XCTAssertFalse(scheduler.request(emptyMotion))
         XCTAssertEqual(scheduler.activeSequenceID, "valid")
         XCTAssertNil(scheduler.pendingSequenceID)
     }
@@ -261,26 +298,33 @@ final class MotionSchedulerTests: XCTestCase {
             displayName: "Test Pet",
             defaultMotionID: "idle",
             motions: [
-                makeMotion(id: "idle"),
-                makeMotion(id: "focus"),
-                makeMotion(id: "rest"),
-                makeMotion(id: "sleep"),
-                makeMotion(id: "petting", loops: false)
+                makeMotion(id: "idle", frameDurations: [.seconds(1)]),
+                makeMotion(
+                    id: "focus",
+                    frameDurations: [.milliseconds(400), .milliseconds(600)]
+                ),
+                makeMotion(id: "rest", frameDurations: [.milliseconds(750), .milliseconds(1_250)]),
+                makeMotion(id: "sleep", frameDurations: [.seconds(3)]),
+                makeMotion(id: "petting", loops: false, frameDurations: [.seconds(1)])
             ]
         )
     }
 
-    private func makeMotion(id: String, loops: Bool = true) -> PetMotion {
+    private func makeMotion(
+        id: String,
+        loops: Bool = true,
+        frameDurations: [Duration]
+    ) -> PetMotion {
         PetMotion(
             id: id,
             loops: loops,
-            frames: [
+            frames: frameDurations.map {
                 MotionFrame(
                     atlasID: "main",
                     sourceRect: frameRect,
-                    duration: .milliseconds(100)
+                    duration: $0
                 )
-            ]
+            }
         )
     }
 
@@ -292,8 +336,8 @@ final class MotionSchedulerTests: XCTestCase {
         BehaviorSequence(id: id, steps: steps, repeats: repeats)
     }
 
-    private func makeStep(motionID: String, duration: Duration) -> BehaviorStep {
-        BehaviorStep(motionID: motionID, duration: duration, playbackSpeed: 1)
+    private func makeStep(motionID: String, repeatCount: Int) -> BehaviorStep {
+        BehaviorStep(motionID: motionID, repeatCount: repeatCount)
     }
 
     private func playback(from scheduler: MotionScheduler) throws -> ScheduledMotion {

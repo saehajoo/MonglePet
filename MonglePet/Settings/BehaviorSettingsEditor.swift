@@ -33,7 +33,7 @@ extension BehaviorSettingsEditError: LocalizedError {
         case .cannotRemoveLastStep:
             "행동 루틴에는 애니메이션 단계가 하나 이상 필요합니다."
         case .invalidStep:
-            "펫 애니메이션, 실행 시간 또는 재생 속도가 올바르지 않습니다."
+            "펫 애니메이션 또는 반복 횟수가 올바르지 않습니다."
         case .invalidStepIndex:
             "편집할 행동 단계를 찾을 수 없습니다."
         case .ruleLimitReached:
@@ -322,8 +322,7 @@ nonisolated enum BehaviorSettingsEditor {
                     }
                     return BehaviorStep(
                         motionID: newMotionID,
-                        duration: step.duration,
-                        playbackSpeed: step.playbackSpeed
+                        repeatCount: step.repeatCount
                     )
                 },
                 repeats: sequence.repeats
@@ -340,16 +339,9 @@ nonisolated enum BehaviorSettingsEditor {
         )
     }
 
-    static func durationSeconds(_ duration: Duration) -> Double {
-        let components = duration.components
-        return Double(components.seconds)
-            + Double(components.attoseconds) / 1_000_000_000_000_000_000
-    }
-
     private static let defaultStep = BehaviorStep(
         motionID: PetMotionReference.currentPetDefault,
-        duration: BuiltInBehaviorPresets.stepDuration,
-        playbackSpeed: 1
+        repeatCount: 1
     )
 
     private static func addingRule(
@@ -406,15 +398,12 @@ nonisolated enum BehaviorSettingsEditor {
     private static func isValid(_ step: BehaviorStep) -> Bool {
         guard
             normalizedIdentifier(step.motionID) == step.motionID,
-            step.duration > .zero,
-            step.duration <= .milliseconds(AppSettingsLimits.maximumDurationMilliseconds),
-            step.playbackSpeed.isFinite
+            step.legacyTiming == nil,
+            (1...AppSettingsLimits.maximumRepeatCount).contains(step.repeatCount)
         else {
             return false
         }
-        return (AppSettingsLimits.minimumPlaybackSpeed
-            ... AppSettingsLimits.maximumPlaybackSpeed)
-            .contains(step.playbackSpeed)
+        return true
     }
 
     private static func isValid(
@@ -450,14 +439,14 @@ nonisolated enum BehaviorSettingsEditor {
         manualSequenceID: String?,
         automaticRules: [AutomaticRule]
     ) -> AppSettings {
-        AppSettings(
-            selectedPetInstallationID: settings.selectedPetInstallationID,
-            lastUserPresentation: settings.lastUserPresentation,
-            behaviorMode: settings.behaviorMode,
-            overlay: settings.overlay,
-            manualSequenceID: manualSequenceID,
-            sequences: sequences,
-            automaticRules: automaticRules
+        settings.replacingActiveBehaviorProfile(
+            BehaviorProfile(
+                petKey: settings.selectedPetKey,
+                mode: settings.behaviorMode,
+                manualSequenceID: manualSequenceID,
+                sequences: sequences,
+                automaticRules: automaticRules
+            )
         )
     }
 }

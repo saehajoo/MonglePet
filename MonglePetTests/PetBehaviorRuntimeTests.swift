@@ -52,6 +52,47 @@ final class PetBehaviorRuntimeTests: XCTestCase {
         XCTAssertEqual(runtime.currentPlayback?.motion.id, "idle")
     }
 
+    func testCycleStepSchedulesEachFullCycleAndAdvancesAfterRepeatCount() {
+        let clock = ManualBehaviorRuntimeClock()
+        let tickScheduler = ManualBehaviorTickScheduler()
+        let runtime = PetBehaviorRuntime(
+            petDefinition: makePet(),
+            clock: clock,
+            tickScheduler: tickScheduler
+        ) { _ in }
+        let sequence = BehaviorSequence(
+            id: "cycle-routine",
+            steps: [
+                BehaviorStep(motionID: "focus", repeatCount: 2),
+                BehaviorStep(motionID: "rest", repeatCount: 1)
+            ],
+            repeats: false
+        )
+        let settings = AppSettings(
+            selectedPetInstallationID: nil,
+            lastUserPresentation: .awake,
+            behaviorMode: .manual,
+            overlay: .default,
+            manualSequenceID: sequence.id,
+            sequences: [sequence],
+            automaticRules: []
+        )
+
+        runtime.update(settings: settings, snapshot: snapshot())
+        XCTAssertEqual(runtime.currentPlayback?.motion.id, "focus")
+        XCTAssertEqual(tickScheduler.scheduledDelay, .milliseconds(100))
+
+        clock.advance(by: .milliseconds(100))
+        tickScheduler.fire()
+        XCTAssertEqual(runtime.currentPlayback?.motion.id, "focus")
+        XCTAssertEqual(tickScheduler.scheduledDelay, .milliseconds(100))
+
+        clock.advance(by: .milliseconds(100))
+        tickScheduler.fire()
+        XCTAssertEqual(runtime.currentPlayback?.motion.id, "rest")
+        XCTAssertEqual(tickScheduler.scheduledDelay, .milliseconds(100))
+    }
+
     func testSuspensionCancelsTickAndPreservesRemainingStepTime() {
         let clock = ManualBehaviorRuntimeClock()
         let tickScheduler = ManualBehaviorTickScheduler()
@@ -60,10 +101,23 @@ final class PetBehaviorRuntimeTests: XCTestCase {
             clock: clock,
             tickScheduler: tickScheduler
         ) { _ in }
-        let settings = makeSettings(mode: .automatic)
+        let sequence = BehaviorSequence(
+            id: "cycle-routine",
+            steps: [BehaviorStep(motionID: "idle", repeatCount: 3)],
+            repeats: true
+        )
+        let settings = AppSettings(
+            selectedPetInstallationID: nil,
+            lastUserPresentation: .awake,
+            behaviorMode: .manual,
+            overlay: .default,
+            manualSequenceID: sequence.id,
+            sequences: [sequence],
+            automaticRules: []
+        )
 
         runtime.update(settings: settings, snapshot: snapshot())
-        clock.advance(by: .seconds(1))
+        clock.advance(by: .milliseconds(40))
         runtime.update(
             settings: settings,
             snapshot: snapshot(isScreenLocked: true)
@@ -77,7 +131,7 @@ final class PetBehaviorRuntimeTests: XCTestCase {
 
         XCTAssertFalse(runtime.isPaused)
         XCTAssertEqual(runtime.currentPlayback?.motion.id, "idle")
-        XCTAssertEqual(tickScheduler.scheduledDelay, .seconds(2))
+        XCTAssertEqual(tickScheduler.scheduledDelay, .milliseconds(60))
     }
 
     func testBuiltInFallbackConfigurationProvidesUsableDefaults() {

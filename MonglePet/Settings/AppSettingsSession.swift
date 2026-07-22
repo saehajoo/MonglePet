@@ -18,8 +18,12 @@ final class AppSettingsSession: ObservableObject {
     }
 
     @discardableResult
-    func load() -> AppSettingsLoadResult {
-        let result = store.load()
+    func load(
+        migrationPetDefinitionProvider: ((UUID?) -> PetDefinition?)? = nil
+    ) -> AppSettingsLoadResult {
+        let result = store.load(
+            migrationPetDefinitionProvider: migrationPetDefinitionProvider
+        )
         settings = result.settings
         isWritingEnabled = result.isWritingEnabled
         loadNotice = Self.loadNotice(for: result)
@@ -37,22 +41,17 @@ final class AppSettingsSession: ObservableObject {
             AppSettings(
                 selectedPetInstallationID: settings.selectedPetInstallationID,
                 lastUserPresentation: presentation,
-                behaviorMode: settings.behaviorMode,
                 overlay: settings.overlay,
-                manualSequenceID: settings.manualSequenceID,
-                sequences: settings.sequences,
-                automaticRules: settings.automaticRules
+                behaviorProfiles: settings.behaviorProfiles
             )
         )
     }
 
     func setBehaviorMode(_ mode: BehaviorMode) {
-        update(
-            AppSettings(
-                selectedPetInstallationID: settings.selectedPetInstallationID,
-                lastUserPresentation: settings.lastUserPresentation,
-                behaviorMode: mode,
-                overlay: settings.overlay,
+        updateActiveProfile(
+            BehaviorProfile(
+                petKey: settings.selectedPetKey,
+                mode: mode,
                 manualSequenceID: settings.manualSequenceID,
                 sequences: settings.sequences,
                 automaticRules: settings.automaticRules
@@ -61,16 +60,14 @@ final class AppSettingsSession: ObservableObject {
     }
 
     func setSelectedPetInstallationID(_ installationID: UUID?) {
+        let selectedSettings = AppSettings(
+            selectedPetInstallationID: installationID,
+            lastUserPresentation: settings.lastUserPresentation,
+            overlay: settings.overlay,
+            behaviorProfiles: settings.behaviorProfiles
+        )
         update(
-            AppSettings(
-                selectedPetInstallationID: installationID,
-                lastUserPresentation: settings.lastUserPresentation,
-                behaviorMode: settings.behaviorMode,
-                overlay: settings.overlay,
-                manualSequenceID: settings.manualSequenceID,
-                sequences: settings.sequences,
-                automaticRules: settings.automaticRules
-            )
+            BuiltInBehaviorPresets.normalizedDefaults(in: selectedSettings)
         )
     }
 
@@ -83,12 +80,10 @@ final class AppSettingsSession: ObservableObject {
             return
         }
 
-        update(
-            AppSettings(
-                selectedPetInstallationID: settings.selectedPetInstallationID,
-                lastUserPresentation: settings.lastUserPresentation,
-                behaviorMode: settings.behaviorMode,
-                overlay: settings.overlay,
+        updateActiveProfile(
+            BehaviorProfile(
+                petKey: settings.selectedPetKey,
+                mode: settings.behaviorMode,
                 manualSequenceID: sequenceID,
                 sequences: settings.sequences,
                 automaticRules: settings.automaticRules
@@ -122,17 +117,10 @@ final class AppSettingsSession: ObservableObject {
         sequenceID: String,
         index: Int,
         motionID: String,
-        durationSeconds: Double,
-        playbackSpeed: Double
+        repeatCount: Int
     ) -> Bool {
         applyBehaviorEdit {
-            guard
-                durationSeconds.isFinite,
-                durationSeconds > 0,
-                durationSeconds <= Double(
-                    AppSettingsLimits.maximumDurationMilliseconds
-                ) / 1_000
-            else {
+            guard (1...AppSettingsLimits.maximumRepeatCount).contains(repeatCount) else {
                 throw BehaviorSettingsEditError.invalidStep
             }
             return try BehaviorSettingsEditor.replacingStep(
@@ -140,10 +128,7 @@ final class AppSettingsSession: ObservableObject {
                 at: index,
                 with: BehaviorStep(
                     motionID: motionID,
-                    duration: .milliseconds(
-                        Int64((durationSeconds * 1_000).rounded())
-                    ),
-                    playbackSpeed: playbackSpeed
+                    repeatCount: repeatCount
                 ),
                 settings: settings
             )
@@ -314,12 +299,13 @@ final class AppSettingsSession: ObservableObject {
         AppSettings(
             selectedPetInstallationID: settings.selectedPetInstallationID,
             lastUserPresentation: settings.lastUserPresentation,
-            behaviorMode: settings.behaviorMode,
             overlay: overlay,
-            manualSequenceID: settings.manualSequenceID,
-            sequences: settings.sequences,
-            automaticRules: settings.automaticRules
+            behaviorProfiles: settings.behaviorProfiles
         )
+    }
+
+    private func updateActiveProfile(_ profile: BehaviorProfile) {
+        update(settings.replacingActiveBehaviorProfile(profile))
     }
 
     private func update(_ newSettings: AppSettings, persist shouldPersist: Bool = true) {
