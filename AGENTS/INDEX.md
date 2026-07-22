@@ -16,7 +16,7 @@
 
 | 문서 | 역할 | 상태 |
 | --- | --- | --- |
-| `specifications/BEHAVIOR_MODEL.md` | 자동·수동 행동 결정과 전환 규칙 | draft |
+| `specifications/BEHAVIOR_MODEL.md` | 자동·수동 행동 결정과 전환 규칙 | active |
 | `specifications/PET_PACKAGE.md` | `.monglepet` 패키지와 가져오기 규격 | draft |
 | `specifications/SETTINGS_SCHEMA.md` | JSON 설정 저장, 복원과 마이그레이션 규칙 | draft |
 

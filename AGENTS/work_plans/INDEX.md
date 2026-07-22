@@ -18,6 +18,7 @@
 
 | 상태 | 작업명 | 파일 | 완료일 |
 | --- | --- | --- | --- |
+| completed | Phase 3 행동 엔진 | `tasks/2026-07-22-phase-3-behavior-engine.md` | 2026-07-22 |
 | completed | Phase 2D 호환 가져오기 | `tasks/2026-07-21-phase-2d-compatible-importers.md` | 2026-07-21 |
 | completed | Phase 2C 외부 패키지 설치 | `tasks/2026-07-21-phase-2c-package-installation.md` | 2026-07-21 |
 | completed | Phase 2B MonglePet 패키지 로더 | `tasks/2026-07-21-phase-2b-package-loader.md` | 2026-07-21 |

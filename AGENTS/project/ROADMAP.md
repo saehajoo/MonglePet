@@ -2,7 +2,7 @@
 
 ## 현재 상태
 
-- 현재 단계: **2단계 완료 — 다음 단계는 3단계 행동 엔진**
+- 현재 단계: **3단계 완료 — 다음 단계는 4단계 macOS 활동 감지**
 - macOS 앱, XCTest 타깃과 XCUITest 타깃 생성 완료
 - macOS 14, Swift 6, Bundle Identifier `kr.mapleroom.MonglePet` 설정 완료
 - AppKit 앱 생명주기, 메뉴 막대 항목, 재사용 가능한 설정창과 Dock 비노출 구성 완료
@@ -14,7 +14,9 @@
 - 디렉터리형 `.monglepet` manifest, 경로, PNG·정적 WebP, atlas와 모션 전체 검증 로더 구현 완료
 - ZIP 엔트리 사전 검사, security-scoped 접근과 원자적 Application Support 라이브러리 설치 구현 완료
 - Codex legacy v1/v2, GIF, APNG와 명시적 PNG 시퀀스를 내부 패키지로 변환하는 adapter 구현 완료
-- Debug 빌드와 단위 테스트 62개 통과, 전체 화면·Space·다중 모니터와 모션 재생을 포함한 실제 앱 수동 QA 완료
+- 자동·수동 결정 우선순위, 유휴 히스테리시스와 시간 기반 행동 목록 스케줄러 구현 완료
+- 단계 경계 전환, 일회성 상호작용 중단·복귀, cooldown과 누락 모션 `idle` 폴백 구현 완료
+- Debug 빌드와 단위 테스트 76개 통과, 전체 화면·Space·다중 모니터와 모션 재생을 포함한 실제 앱 수동 QA 완료
 - 정적 펫 표시 상태 기준 CPU 0.0%, 메모리 약 26MB 측정
 - 임시 내장 모션 표시 상태 CPU 0.0%, 메모리 약 24MB 측정
 - 프로젝트 지침과 상세 문서를 `AGENTS.md` 및 `AGENTS/` 구조로 정리
@@ -106,11 +108,11 @@
 
 ## 3단계: 행동 엔진
 
-- 자동 및 수동 모드
-- `BehaviorSequence`와 시간 기반 반복
-- `BehaviorResolver` 우선순위
-- 폴백, 최소 유지 시간, 히스테리시스
-- 경계값 단위 테스트
+- [x] 자동 및 수동 모드
+- [x] `BehaviorSequence`와 시간 기반 반복
+- [x] `BehaviorResolver` 우선순위
+- [x] 폴백, 최소 유지 시간, 히스테리시스
+- [x] 경계값 단위 테스트
 
 완료 조건: 운영체제 API 없이 가짜 시간과 입력으로 모든 전환을 테스트할 수 있다.
 
@@ -163,4 +165,4 @@ macOS에서 검증된 도메인 모델, JSON 스키마와 테스트 시나리오
 ---
 
 문서 상태: active
-마지막 갱신: 2026-07-21
+마지막 갱신: 2026-07-22
