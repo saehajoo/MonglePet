@@ -6,6 +6,7 @@ final class PetWindowController: NSWindowController {
     static let defaultScreenInset: CGFloat = 32
 
     private(set) var isAwake = false
+    private(set) var isSystemSuspended = false
     private var hasPositionedPanel = false
     private let framePlayer: FramePlayer
     private let petOverlayView: PetOverlayView
@@ -78,13 +79,28 @@ final class PetWindowController: NSWindowController {
 
         panel.orderFrontRegardless()
         isAwake = true
-        framePlayer.resume()
+        if !isSystemSuspended {
+            framePlayer.resume()
+        }
     }
 
     func sleep() {
         framePlayer.pause()
         panel?.orderOut(nil)
         isAwake = false
+    }
+
+    func setSystemSuspended(_ isSuspended: Bool) {
+        guard isSuspended != isSystemSuspended else {
+            return
+        }
+
+        isSystemSuspended = isSuspended
+        if isSuspended {
+            framePlayer.pause()
+        } else if isAwake {
+            framePlayer.resume()
+        }
     }
 
     static func defaultOrigin(

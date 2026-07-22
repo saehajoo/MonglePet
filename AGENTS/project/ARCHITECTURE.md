@@ -59,8 +59,12 @@ MonglePetApp
 ### Activity
 
 - 전면 앱, 유휴 시간, 화면 잠금과 절전 상태를 감지한다.
+- 전면 앱은 `NSWorkspace` 활성화 알림에서 bundle identifier만 읽고, 유휴 시간은 `CGEventSource`의 모든 입력 이후 경과 시간만 1초 간격으로 확인한다.
+- 사용자 세션 비활성화와 화면 수면을 화면 사용 불가 상태로 합쳐 `ActivitySnapshot.isScreenLocked`에 전달한다.
+- 화면 사용 불가 또는 시스템 절전 중에는 유휴 polling을 중단하고 복귀 시 즉시 새 snapshot을 만든다.
 - 시스템 정보를 `ActivitySnapshot`으로 변환할 뿐 행동을 직접 선택하지 않는다.
 - 실제 키 입력이나 화면 내용을 수집하지 않는다.
+- snapshot은 메모리에만 유지하고 활동 기록이나 통계를 저장하지 않는다.
 
 ### PetLibrary
 

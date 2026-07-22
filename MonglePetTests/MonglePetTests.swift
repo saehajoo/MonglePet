@@ -133,6 +133,27 @@ final class MonglePetTests: XCTestCase {
     }
 
     @MainActor
+    func testSystemSuspensionPausesAnimationWithoutChangingUserAwakeState() {
+        let controller = PetWindowController()
+
+        controller.wake()
+        controller.setSystemSuspended(true)
+        XCTAssertTrue(controller.isAwake)
+        XCTAssertTrue(controller.isSystemSuspended)
+        XCTAssertFalse(controller.isAnimationPlaying)
+
+        controller.sleep()
+        controller.setSystemSuspended(false)
+        XCTAssertFalse(controller.isAwake)
+        XCTAssertFalse(controller.isSystemSuspended)
+        XCTAssertFalse(controller.isAnimationPlaying)
+
+        controller.wake()
+        XCTAssertTrue(controller.isAnimationPlaying)
+        controller.sleep()
+    }
+
+    @MainActor
     func testCorrectedOriginKeepsVisibleWindowPosition() {
         let visibleFrame = NSRect(x: 0, y: 0, width: 1_000, height: 800)
         let windowFrame = NSRect(x: 600, y: 300, width: 192, height: 208)

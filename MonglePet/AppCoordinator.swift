@@ -4,13 +4,24 @@ import AppKit
 final class AppCoordinator {
     private let settingsWindowController = SettingsWindowController()
     private let petWindowController = PetWindowController()
+    private let activityMonitor: any ActivitySnapshotMonitoring
     private var menuBarController: MenuBarController?
+    private(set) var latestActivitySnapshot: ActivitySnapshot?
+
+    init(
+        activityMonitor: any ActivitySnapshotMonitoring = ActivitySnapshotMonitor()
+    ) {
+        self.activityMonitor = activityMonitor
+    }
 
     func start(openSettingsOnLaunch: Bool = false) {
         guard menuBarController == nil else {
             return
         }
 
+        activityMonitor.start { [weak self] snapshot in
+            self?.activitySnapshotDidChange(snapshot)
+        }
         petWindowController.wake()
         let menuBarController = MenuBarController(
             isPetAwake: petWindowController.isAwake,
@@ -32,6 +43,13 @@ final class AppCoordinator {
         }
     }
 
+    func stop() {
+        activityMonitor.stop()
+        menuBarController?.stop()
+        menuBarController = nil
+        petWindowController.sleep()
+    }
+
     private func togglePetAwakeState() {
         if petWindowController.isAwake {
             petWindowController.sleep()
@@ -40,5 +58,12 @@ final class AppCoordinator {
         }
 
         menuBarController?.setPetAwake(petWindowController.isAwake)
+    }
+
+    private func activitySnapshotDidChange(_ snapshot: ActivitySnapshot) {
+        latestActivitySnapshot = snapshot
+        petWindowController.setSystemSuspended(
+            snapshot.isScreenLocked || snapshot.isSystemSleeping
+        )
     }
 }
