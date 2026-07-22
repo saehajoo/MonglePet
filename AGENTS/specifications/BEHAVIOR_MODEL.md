@@ -77,7 +77,8 @@ struct StoredBehaviorSequence: Codable, Equatable, Sendable {
 
 - 저장 DTO와 Domain 모델 사이의 변환은 저장 계층에서만 수행한다.
 - `durationMilliseconds`는 1 이상의 정수여야 한다.
-- `playbackSpeed`의 허용 범위는 설정 명세를 확정할 때 명시한다.
+- `durationMilliseconds`는 최대 86,400,000(24시간)이다.
+- `playbackSpeed`의 허용 범위는 0.25–4.0이다.
 - JSON 필드명과 enum 문자열은 Windows 구현과 공유할 공개 스키마이므로 Swift의 자동 합성 표현에 의존하지 않는다.
 
 ## 4. 자동 규칙
@@ -86,6 +87,7 @@ struct StoredBehaviorSequence: Codable, Equatable, Sendable {
 enum RuleCondition: Equatable, Sendable {
     case application(bundleIdentifier: String)
     case idleAtLeast(milliseconds: Int64)
+    case unsupported(type: String)
 }
 
 struct AutomaticRule: Equatable, Sendable {
@@ -118,7 +120,8 @@ struct AutomaticRule: Equatable, Sendable {
 - `priority`가 같으면 설정 파일의 배열 순서를 우선한다.
 - `priority` 숫자가 클수록 먼저 평가한다.
 - 저장 시 배열 순서를 보존하며 UI에서 순서를 바꾸면 `priority`를 다시 정규화한다.
-- 알 수 없는 조건 `type`은 규칙 단위로 비활성화하고 설정 복구 로그에 남긴다.
+- 알 수 없는 조건 `type`은 `.unsupported(type:)`로 문자열을 보존하고 규칙 단위로 비활성화하며 설정 복구 결과에 남긴다.
+- 행동 결정기는 `.unsupported` 조건을 항상 무시한다.
 
 ## 5. 결정 우선순위
 

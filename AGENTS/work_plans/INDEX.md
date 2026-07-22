@@ -18,6 +18,7 @@
 
 | 상태 | 작업명 | 파일 | 완료일 |
 | --- | --- | --- | --- |
+| completed | Phase 5A 설정 저장과 복원 기반 | `tasks/2026-07-22-phase-5a-settings-storage.md` | 2026-07-22 |
 | completed | Phase 4 macOS 활동 감지 | `tasks/2026-07-22-phase-4-macos-activity-monitoring.md` | 2026-07-22 |
 | completed | Phase 3 행동 엔진 | `tasks/2026-07-22-phase-3-behavior-engine.md` | 2026-07-22 |
 | completed | Phase 2D 호환 가져오기 | `tasks/2026-07-21-phase-2d-compatible-importers.md` | 2026-07-21 |

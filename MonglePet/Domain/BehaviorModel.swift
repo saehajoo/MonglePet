@@ -26,6 +26,7 @@ nonisolated struct BehaviorSequence: Equatable, Identifiable, Sendable {
 nonisolated enum RuleCondition: Equatable, Sendable {
     case application(bundleIdentifier: String)
     case idleAtLeast(milliseconds: Int64)
+    case unsupported(type: String)
 }
 
 nonisolated struct AutomaticRule: Equatable, Identifiable, Sendable {

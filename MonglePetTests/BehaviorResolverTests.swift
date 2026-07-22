@@ -232,6 +232,33 @@ final class BehaviorResolverTests: XCTestCase {
         XCTAssertEqual(unavailable, .unavailable)
     }
 
+    func testUnsupportedAutomaticRuleConditionIsIgnored() throws {
+        let idle = makeSequence(id: "idle", motionID: "idle")
+        let unsupportedRule = AutomaticRule(
+            id: UUID(),
+            isEnabled: true,
+            priority: 100,
+            condition: .unsupported(type: "futureCondition"),
+            sequenceID: idle.id
+        )
+        let configuration = BehaviorConfiguration(
+            mode: .automatic,
+            defaultSequenceID: idle.id,
+            sequences: [idle],
+            automaticRules: [unsupportedRule]
+        )
+        var resolver = BehaviorResolver()
+
+        let decision = resolver.resolve(
+            configuration: configuration,
+            snapshot: snapshot(at: .zero),
+            runtimeState: BehaviorRuntimeState(presentation: .awake)
+        )
+
+        XCTAssertEqual(try sequence(from: decision).id, idle.id)
+        XCTAssertEqual(source(from: decision), .defaultBehavior)
+    }
+
     private func makeConfiguration(
         mode: BehaviorMode,
         manualSequenceID: String? = nil
