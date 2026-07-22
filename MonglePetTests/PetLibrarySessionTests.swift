@@ -231,6 +231,67 @@ final class PetLibrarySessionTests: XCTestCase {
         )
     }
 
+    func testAnimationChangesReloadAndPublishReferenceUpdates() {
+        let original = makeInstalled(
+            id: firstID,
+            name: "사용자 펫",
+            motionIDs: ["idle", "wave"]
+        )
+        let renamed = makeInstalled(
+            id: firstID,
+            name: "사용자 펫",
+            motionIDs: ["idle", "hello"]
+        )
+        let removed = makeInstalled(
+            id: firstID,
+            name: "사용자 펫",
+            motionIDs: ["idle"]
+        )
+        var packages = [original]
+        let session = PetLibrarySession(
+            builtInDefinition: builtInDefinition,
+            installedPackagesProvider: { packages },
+            installationRemover: { _ in },
+            editablePackageProvider: { _ in true },
+            animationUpdater: { request, installedPackage in
+                XCTAssertEqual(request.animationID, "wave")
+                XCTAssertEqual(request.animationName, "  hello  ")
+                XCTAssertEqual(installedPackage, original)
+                packages = [renamed]
+                return renamed
+            },
+            animationRemover: { animationID, installedPackage in
+                XCTAssertEqual(animationID, "hello")
+                XCTAssertEqual(installedPackage, renamed)
+                packages = [removed]
+                return removed
+            }
+        )
+        _ = session.reload(preferredInstallationID: firstID)
+        var changes: [PetAnimationReferenceChange] = []
+        session.onAnimationReferenceChange = { changes.append($0) }
+
+        XCTAssertTrue(
+            session.updateSelectedPetAnimation(
+                UserPetAnimationDetailsRequest(
+                    animationID: "wave",
+                    animationName: "  hello  ",
+                    loops: false
+                )
+            )
+        )
+        XCTAssertEqual(session.selectedItem.definition.motions.map(\.id), ["idle", "hello"])
+        XCTAssertTrue(session.removeSelectedPetAnimation(id: "hello"))
+        XCTAssertEqual(session.selectedItem.definition.motions.map(\.id), ["idle"])
+        XCTAssertEqual(
+            changes,
+            [
+                .renamed(from: "wave", to: "hello"),
+                .removed("hello")
+            ]
+        )
+    }
+
     private var builtInDefinition: PetDefinition {
         BuiltInPet.mongleDefinition(
             atlasPixelSize: PixelSize(width: 192, height: 208)
@@ -245,7 +306,12 @@ final class PetLibrarySessionTests: XCTestCase {
         )
     }
 
-    private func makeInstalled(id: UUID, name: String) -> InstalledPetPackage {
+    private func makeInstalled(
+        id: UUID,
+        name: String,
+        motionIDs: [String] = ["idle"],
+        defaultMotionID: String = "idle"
+    ) -> InstalledPetPackage {
         let rootURL = URL(fileURLWithPath: "/tmp/\(id.uuidString)", isDirectory: true)
         let frame = MotionFrame(
             atlasID: "main",
@@ -255,8 +321,10 @@ final class PetLibrarySessionTests: XCTestCase {
         let definition = PetDefinition(
             id: "test.\(id.uuidString)",
             displayName: name,
-            defaultMotionID: "idle",
-            motions: [PetMotion(id: "idle", loops: true, frames: [frame])]
+            defaultMotionID: defaultMotionID,
+            motions: motionIDs.map {
+                PetMotion(id: $0, loops: true, frames: [frame])
+            }
         )
         let package = LoadedPetPackage(
             packageRootURL: rootURL,

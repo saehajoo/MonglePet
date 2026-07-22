@@ -302,6 +302,44 @@ nonisolated enum BehaviorSettingsEditor {
         )
     }
 
+    static func replacingMotionReferences(
+        from oldMotionID: String,
+        with newMotionID: String,
+        in settings: AppSettings
+    ) throws -> AppSettings {
+        guard
+            let oldMotionID = normalizedIdentifier(oldMotionID),
+            let newMotionID = normalizedIdentifier(newMotionID)
+        else {
+            throw BehaviorSettingsEditError.invalidStep
+        }
+        let sequences = settings.sequences.map { sequence in
+            BehaviorSequence(
+                id: sequence.id,
+                steps: sequence.steps.map { step in
+                    guard step.motionID == oldMotionID else {
+                        return step
+                    }
+                    return BehaviorStep(
+                        motionID: newMotionID,
+                        duration: step.duration,
+                        playbackSpeed: step.playbackSpeed
+                    )
+                },
+                repeats: sequence.repeats
+            )
+        }
+        guard sequences.allSatisfy(isValid) else {
+            throw BehaviorSettingsEditError.invalidStep
+        }
+        return replacing(
+            settings,
+            sequences: sequences,
+            manualSequenceID: settings.manualSequenceID,
+            automaticRules: settings.automaticRules
+        )
+    }
+
     static func durationSeconds(_ duration: Duration) -> Double {
         let components = duration.components
         return Double(components.seconds)

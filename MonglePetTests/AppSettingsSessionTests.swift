@@ -220,6 +220,45 @@ final class AppSettingsSessionTests: XCTestCase {
     }
 
     @MainActor
+    func testReplacingMotionReferencesAppliesImmediatelyAndPersists() throws {
+        let session = AppSettingsSession(
+            store: AppSettingsStore(settingsURL: settingsURL)
+        )
+        _ = session.load()
+        session.ensureSystemDefaultBehavior()
+        XCTAssertTrue(session.addBehaviorSequence(named: "custom"))
+        XCTAssertTrue(
+            session.updateBehaviorStep(
+                sequenceID: "custom",
+                index: 0,
+                motionID: "wave",
+                durationSeconds: 4,
+                playbackSpeed: 1.25
+            )
+        )
+        var changes: [AppSettings] = []
+        session.onChange = { changes.append($0) }
+
+        XCTAssertTrue(
+            session.replaceBehaviorMotionReferences(
+                from: "wave",
+                with: PetMotionReference.currentPetDefault
+            )
+        )
+
+        let currentStep = try XCTUnwrap(
+            session.settings.sequences.first { $0.id == "custom" }?.steps.first
+        )
+        XCTAssertEqual(currentStep.motionID, PetMotionReference.currentPetDefault)
+        XCTAssertEqual(changes.last, session.settings)
+        let reloaded = AppSettingsStore(settingsURL: settingsURL).load().settings
+        XCTAssertEqual(
+            reloaded.sequences.first { $0.id == "custom" }?.steps.first?.motionID,
+            PetMotionReference.currentPetDefault
+        )
+    }
+
+    @MainActor
     func testUnmodifiedLegacyDefaultsMigrateToSingleSystemDefault() throws {
         let legacySettings = AppSettings(
             selectedPetInstallationID: nil,

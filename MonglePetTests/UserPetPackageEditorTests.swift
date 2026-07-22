@@ -204,6 +204,102 @@ final class UserPetPackageEditorTests: XCTestCase {
         )
     }
 
+    func testRenamesAnimationUpdatesDefaultAndRemovesUnusedAtlas() throws {
+        let environment = try makeEnvironment()
+        let installationID = UUID(
+            uuidString: "44444444-4444-4444-4444-444444444444"
+        )!
+        let store = PetLibraryStore(
+            libraryRootURL: environment.libraryURL,
+            installationIDGenerator: { installationID }
+        )
+        let editor = UserPetPackageEditor(store: store)
+        let frameURL = environment.rootURL.appendingPathComponent("frame.png")
+        try writePNG(to: frameURL, width: 4, height: 4)
+        let created = try editor.createPet(
+            UserPetCreationRequest(
+                displayName: "사용자 펫",
+                animationName: "기본",
+                frameDurationMilliseconds: 120,
+                loops: true,
+                sourceURLs: [frameURL]
+            )
+        )
+        let withSecondAnimation = try editor.addAnimation(
+            UserPetAnimationRequest(
+                animationName: "인사",
+                frameDurationMilliseconds: 180,
+                loops: true,
+                sourceURLs: [frameURL]
+            ),
+            to: created
+        )
+        let secondAtlasURL = try XCTUnwrap(
+            withSecondAnimation.package.atlases.first { $0.id != "main" }?.fileURL
+        )
+
+        let renamedDefault = try editor.updateAnimation(
+            UserPetAnimationDetailsRequest(
+                animationID: "기본",
+                animationName: "대기",
+                loops: false
+            ),
+            for: withSecondAnimation
+        )
+
+        XCTAssertEqual(renamedDefault.installationID, installationID)
+        XCTAssertEqual(renamedDefault.package.definition.defaultMotionID, "대기")
+        XCTAssertEqual(renamedDefault.package.definition.motions.map(\.id), ["대기", "인사"])
+        XCTAssertFalse(try XCTUnwrap(renamedDefault.package.definition.motion(id: "대기")).loops)
+
+        let removed = try editor.removeAnimation(id: "인사", from: renamedDefault)
+
+        XCTAssertEqual(removed.installationID, installationID)
+        XCTAssertEqual(removed.package.definition.motions.map(\.id), ["대기"])
+        XCTAssertEqual(removed.package.atlases.map(\.id), ["main"])
+        XCTAssertFalse(FileManager.default.fileExists(atPath: secondAtlasURL.path))
+        XCTAssertTrue(editor.isEditable(removed))
+    }
+
+    func testProtectsDefaultAndLastAnimationsFromDeletion() throws {
+        let environment = try makeEnvironment()
+        let store = PetLibraryStore(libraryRootURL: environment.libraryURL)
+        let editor = UserPetPackageEditor(store: store)
+        let frameURL = environment.rootURL.appendingPathComponent("frame.png")
+        try writePNG(to: frameURL, width: 3, height: 3)
+        let created = try editor.createPet(
+            UserPetCreationRequest(
+                displayName: "사용자 펫",
+                animationName: "기본",
+                frameDurationMilliseconds: 120,
+                loops: true,
+                sourceURLs: [frameURL]
+            )
+        )
+
+        XCTAssertThrowsError(
+            try editor.removeAnimation(id: "기본", from: created)
+        ) { error in
+            XCTAssertEqual(error as? UserPetEditingError, .cannotDeleteLastAnimation)
+        }
+
+        let withSecondAnimation = try editor.addAnimation(
+            UserPetAnimationRequest(
+                animationName: "인사",
+                frameDurationMilliseconds: 120,
+                loops: true,
+                sourceURLs: [frameURL]
+            ),
+            to: created
+        )
+        XCTAssertThrowsError(
+            try editor.removeAnimation(id: "기본", from: withSecondAnimation)
+        ) { error in
+            XCTAssertEqual(error as? UserPetEditingError, .cannotDeleteDefaultAnimation)
+        }
+        XCTAssertEqual(store.installedPackages().first?.package.definition.motions.count, 2)
+    }
+
     private func makeEnvironment() throws -> UserPetEditorFixture {
         let rootURL = FileManager.default.temporaryDirectory.appendingPathComponent(
             "MonglePet-UserPetTests-\(UUID().uuidString)",

@@ -42,6 +42,9 @@ final class AppCoordinator {
         petLibrarySession.onSelectionChange = { [weak self] item in
             self?.selectedPetDidChange(item)
         }
+        petLibrarySession.onAnimationReferenceChange = { [weak self] change in
+            self?.petAnimationReferencesDidChange(change)
+        }
         petWindowController.onOverlayGeometryDidChange = { [weak self] in
             self?.persistCurrentOverlayGeometry()
         }
@@ -160,6 +163,23 @@ final class AppCoordinator {
             return
         }
         settingsSession.setSelectedPetInstallationID(item.selection.installationID)
+    }
+
+    private func petAnimationReferencesDidChange(
+        _ change: PetAnimationReferenceChange
+    ) {
+        switch change {
+        case let .renamed(oldMotionID, newMotionID):
+            _ = settingsSession.replaceBehaviorMotionReferences(
+                from: oldMotionID,
+                with: newMotionID
+            )
+        case let .removed(motionID):
+            _ = settingsSession.replaceBehaviorMotionReferences(
+                from: motionID,
+                with: PetMotionReference.currentPetDefault
+            )
+        }
     }
 
     @discardableResult

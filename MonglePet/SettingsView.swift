@@ -38,8 +38,10 @@ private struct GeneralSettingsView: View {
     @ObservedObject var settingsSession: AppSettingsSession
     @ObservedObject var petLibrarySession: PetLibrarySession
     @State private var isConfirmingRemoval = false
+    @State private var isConfirmingAnimationRemoval = false
     @State private var isEditingPetDetails = false
     @State private var userPetEditorMode: UserPetEditorMode?
+    @State private var editingAnimation: PetMotion?
     @State private var previewMotionID: String?
 
     var body: some View {
@@ -118,6 +120,31 @@ private struct GeneralSettingsView: View {
                                 .accessibilityIdentifier(
                                     "monglepet.settings.petAnimationSummary"
                                 )
+                        }
+
+                        if petLibrarySession.selectedItem.isEditable,
+                           let motion = selectedPreviewMotion {
+                            HStack {
+                                Button("애니메이션 수정…") {
+                                    editingAnimation = motion
+                                }
+                                .disabled(petLibrarySession.isImporting)
+                                .accessibilityIdentifier(
+                                    "monglepet.settings.editPetAnimation"
+                                )
+
+                                Button("애니메이션 삭제…", role: .destructive) {
+                                    isConfirmingAnimationRemoval = true
+                                }
+                                .disabled(
+                                    !canDeleteSelectedAnimation
+                                        || petLibrarySession.isImporting
+                                )
+                                .help(animationDeletionHelp)
+                                .accessibilityIdentifier(
+                                    "monglepet.settings.removePetAnimation"
+                                )
+                            }
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -262,6 +289,17 @@ private struct GeneralSettingsView: View {
         } message: {
             Text("라이브러리에서 패키지 파일을 삭제하고 내장 몽글이로 전환합니다.")
         }
+        .alert(
+            "선택한 애니메이션을 삭제할까요?",
+            isPresented: $isConfirmingAnimationRemoval
+        ) {
+            Button("삭제", role: .destructive) {
+                removeSelectedAnimation()
+            }
+            Button("취소", role: .cancel) {}
+        } message: {
+            Text("이 애니메이션을 사용하던 행동 단계는 현재 펫의 기본 애니메이션으로 복구됩니다.")
+        }
         .sheet(item: $userPetEditorMode) { mode in
             UserPetAnimationEditorView(
                 mode: mode,
@@ -272,6 +310,15 @@ private struct GeneralSettingsView: View {
             UserPetDetailsEditorView(
                 item: petLibrarySession.selectedItem,
                 petLibrarySession: petLibrarySession
+            )
+        }
+        .sheet(item: $editingAnimation) { motion in
+            UserPetAnimationDetailsEditorView(
+                motion: motion,
+                petLibrarySession: petLibrarySession,
+                onSaved: { animationID in
+                    previewMotionID = animationID
+                }
             )
         }
         .onAppear(perform: synchronizePreviewMotion)
@@ -292,8 +339,36 @@ private struct GeneralSettingsView: View {
         petLibrarySession.selectedItem.definition.motion(id: effectivePreviewMotionID)
     }
 
+    private var canDeleteSelectedAnimation: Bool {
+        guard let motion = selectedPreviewMotion else {
+            return false
+        }
+        return petLibrarySession.selectedItem.definition.motions.count > 1
+            && motion.id != petLibrarySession.selectedItem.definition.defaultMotionID
+    }
+
+    private var animationDeletionHelp: String {
+        guard petLibrarySession.selectedItem.definition.motions.count > 1 else {
+            return "마지막 남은 애니메이션은 삭제할 수 없습니다."
+        }
+        guard selectedPreviewMotion?.id
+                != petLibrarySession.selectedItem.definition.defaultMotionID else {
+            return "기본 애니메이션은 펫 정보 수정에서 다른 기본값을 선택한 뒤 삭제할 수 있습니다."
+        }
+        return "선택한 애니메이션을 삭제합니다."
+    }
+
     private func synchronizePreviewMotion() {
         previewMotionID = petLibrarySession.selectedItem.definition.defaultMotion?.id
+    }
+
+    private func removeSelectedAnimation() {
+        guard let motionID = selectedPreviewMotion?.id else {
+            return
+        }
+        if petLibrarySession.removeSelectedPetAnimation(id: motionID) {
+            synchronizePreviewMotion()
+        }
     }
 
     private func motionSummary(_ motion: PetMotion) -> String {
@@ -739,6 +814,92 @@ private struct UserPetDetailsEditorView: View {
             )
         )
         if succeeded {
+            dismiss()
+        }
+    }
+}
+
+private struct UserPetAnimationDetailsEditorView: View {
+    @Environment(\.dismiss) private var dismiss
+    let motion: PetMotion
+    @ObservedObject var petLibrarySession: PetLibrarySession
+    let onSaved: (String) -> Void
+
+    @State private var animationName: String
+    @State private var loops: Bool
+
+    init(
+        motion: PetMotion,
+        petLibrarySession: PetLibrarySession,
+        onSaved: @escaping (String) -> Void
+    ) {
+        self.motion = motion
+        self.petLibrarySession = petLibrarySession
+        self.onSaved = onSaved
+        _animationName = State(initialValue: motion.id)
+        _loops = State(initialValue: motion.loops)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("펫 애니메이션 수정")
+                .font(.title2.weight(.semibold))
+
+            Form {
+                TextField("애니메이션 이름", text: $animationName)
+                    .accessibilityIdentifier("monglepet.petAnimation.name")
+
+                Toggle("반복 재생", isOn: $loops)
+                    .accessibilityIdentifier("monglepet.petAnimation.loops")
+
+                LabeledContent("프레임 수", value: "\(motion.frames.count)")
+            }
+            .formStyle(.grouped)
+
+            Text("프레임 이미지와 개별 재생 시간은 유지됩니다.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            if let errorMessage = petLibrarySession.errorMessage {
+                Label(errorMessage, systemImage: "xmark.circle.fill")
+                    .font(.callout)
+                    .foregroundStyle(.orange)
+            }
+
+            HStack {
+                Spacer()
+                Button("취소", role: .cancel) {
+                    dismiss()
+                }
+                Button("저장") {
+                    save()
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(!canSave || petLibrarySession.isImporting)
+                .accessibilityIdentifier("monglepet.petAnimation.save")
+            }
+        }
+        .padding(20)
+        .frame(minWidth: 460, minHeight: 280)
+    }
+
+    private var canSave: Bool {
+        !animationName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private func save() {
+        let normalizedName = animationName.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
+        let succeeded = petLibrarySession.updateSelectedPetAnimation(
+            UserPetAnimationDetailsRequest(
+                animationID: motion.id,
+                animationName: normalizedName,
+                loops: loops
+            )
+        )
+        if succeeded {
+            onSaved(normalizedName)
             dismiss()
         }
     }

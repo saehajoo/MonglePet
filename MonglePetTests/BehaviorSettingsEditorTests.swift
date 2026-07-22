@@ -187,6 +187,47 @@ final class BehaviorSettingsEditorTests: XCTestCase {
         }
     }
 
+    func testMotionReferencesCanBeRenamedOrRecoveredToCurrentPetDefault() throws {
+        var settings = try BehaviorSettingsEditor.addingSequence(
+            named: "custom",
+            to: makeSettings()
+        )
+        settings = try BehaviorSettingsEditor.replacingStep(
+            in: "custom",
+            at: 0,
+            with: BehaviorStep(
+                motionID: "waving",
+                duration: .seconds(7),
+                playbackSpeed: 1.5
+            ),
+            settings: settings
+        )
+
+        settings = try BehaviorSettingsEditor.replacingMotionReferences(
+            from: "waving",
+            with: "hello",
+            in: settings
+        )
+        var step = try XCTUnwrap(
+            settings.sequences.first { $0.id == "custom" }?.steps.first
+        )
+        XCTAssertEqual(step.motionID, "hello")
+        XCTAssertEqual(step.duration, .seconds(7))
+        XCTAssertEqual(step.playbackSpeed, 1.5)
+
+        settings = try BehaviorSettingsEditor.replacingMotionReferences(
+            from: "hello",
+            with: PetMotionReference.currentPetDefault,
+            in: settings
+        )
+        step = try XCTUnwrap(
+            settings.sequences.first { $0.id == "custom" }?.steps.first
+        )
+        XCTAssertEqual(step.motionID, PetMotionReference.currentPetDefault)
+        XCTAssertEqual(step.duration, .seconds(7))
+        XCTAssertEqual(step.playbackSpeed, 1.5)
+    }
+
     private func makeSettings(
         manualSequenceID: String? = BuiltInBehaviorPresets.defaultSequenceID,
         rules: [AutomaticRule] = BuiltInBehaviorPresets.automaticRules

@@ -62,6 +62,11 @@ nonisolated struct DuplicatePetInstallRequest: Equatable, Identifiable, Sendable
     }
 }
 
+nonisolated enum PetAnimationReferenceChange: Equatable, Sendable {
+    case renamed(from: String, to: String)
+    case removed(String)
+}
+
 @MainActor
 final class PetLibrarySession: ObservableObject {
     @Published private(set) var items: [PetLibraryItem]
@@ -71,6 +76,7 @@ final class PetLibrarySession: ObservableObject {
     @Published private(set) var isImporting = false
 
     var onSelectionChange: ((PetLibraryItem) -> Void)?
+    var onAnimationReferenceChange: ((PetAnimationReferenceChange) -> Void)?
 
     private let builtInItem: PetLibraryItem
     private let installedPackagesProvider: () -> [InstalledPetPackage]
@@ -87,6 +93,14 @@ final class PetLibrarySession: ObservableObject {
         UserPetDetailsRequest,
         InstalledPetPackage
     ) throws -> InstalledPetPackage
+    private let animationUpdater: (
+        UserPetAnimationDetailsRequest,
+        InstalledPetPackage
+    ) throws -> InstalledPetPackage
+    private let animationRemover: (
+        String,
+        InstalledPetPackage
+    ) throws -> InstalledPetPackage
 
     convenience init(
         store: PetLibraryStore,
@@ -101,7 +115,9 @@ final class PetLibrarySession: ObservableObject {
             editablePackageProvider: editor.isEditable,
             userPetCreator: editor.createPet,
             animationAdder: editor.addAnimation,
-            detailsUpdater: editor.updateDetails
+            detailsUpdater: editor.updateDetails,
+            animationUpdater: editor.updateAnimation,
+            animationRemover: editor.removeAnimation
         )
     }
 
@@ -131,6 +147,18 @@ final class PetLibrarySession: ObservableObject {
             InstalledPetPackage
         ) throws -> InstalledPetPackage = { _, _ in
             throw PetLibraryError.fileOperationFailed
+        },
+        animationUpdater: @escaping (
+            UserPetAnimationDetailsRequest,
+            InstalledPetPackage
+        ) throws -> InstalledPetPackage = { _, _ in
+            throw PetLibraryError.fileOperationFailed
+        },
+        animationRemover: @escaping (
+            String,
+            InstalledPetPackage
+        ) throws -> InstalledPetPackage = { _, _ in
+            throw PetLibraryError.fileOperationFailed
         }
     ) {
         let builtInItem = PetLibraryItem(
@@ -155,6 +183,8 @@ final class PetLibrarySession: ObservableObject {
         self.userPetCreator = userPetCreator
         self.animationAdder = animationAdder
         self.detailsUpdater = detailsUpdater
+        self.animationUpdater = animationUpdater
+        self.animationRemover = animationRemover
         items = [builtInItem]
     }
 
@@ -312,6 +342,45 @@ final class PetLibrarySession: ObservableObject {
         return performUserPetChange {
             try detailsUpdater(request, installedPackage)
         }
+    }
+
+    @discardableResult
+    func updateSelectedPetAnimation(
+        _ request: UserPetAnimationDetailsRequest
+    ) -> Bool {
+        guard let installedPackage = selectedItem.installedPackage,
+              selectedItem.isEditable else {
+            errorMessage = UserPetEditingError.importedPackageIsReadOnly.localizedDescription
+            return false
+        }
+        let newAnimationID = request.animationName.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
+        let succeeded = performUserPetChange {
+            try animationUpdater(request, installedPackage)
+        }
+        if succeeded, request.animationID != newAnimationID {
+            onAnimationReferenceChange?(
+                .renamed(from: request.animationID, to: newAnimationID)
+            )
+        }
+        return succeeded
+    }
+
+    @discardableResult
+    func removeSelectedPetAnimation(id animationID: String) -> Bool {
+        guard let installedPackage = selectedItem.installedPackage,
+              selectedItem.isEditable else {
+            errorMessage = UserPetEditingError.importedPackageIsReadOnly.localizedDescription
+            return false
+        }
+        let succeeded = performUserPetChange {
+            try animationRemover(animationID, installedPackage)
+        }
+        if succeeded {
+            onAnimationReferenceChange?(.removed(animationID))
+        }
+        return succeeded
     }
 
     private func performUserPetChange(

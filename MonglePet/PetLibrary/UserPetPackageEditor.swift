@@ -53,6 +53,12 @@ nonisolated struct UserPetDetailsRequest: Equatable, Sendable {
     let defaultMotionID: String
 }
 
+nonisolated struct UserPetAnimationDetailsRequest: Equatable, Sendable {
+    let animationID: String
+    let animationName: String
+    let loops: Bool
+}
+
 nonisolated enum UserPetEditingError: Error, Equatable, Sendable {
     case invalidPetName
     case invalidVersion
@@ -60,7 +66,10 @@ nonisolated enum UserPetEditingError: Error, Equatable, Sendable {
     case invalidLicense
     case invalidAnimationName
     case invalidDefaultAnimation(String)
+    case animationNotFound(String)
     case duplicateAnimationName(String)
+    case cannotDeleteDefaultAnimation
+    case cannotDeleteLastAnimation
     case importedPackageIsReadOnly
     case cannotWritePackage
 }
@@ -80,8 +89,14 @@ extension UserPetEditingError: LocalizedError {
             "펫 애니메이션 이름을 입력해 주세요."
         case let .invalidDefaultAnimation(name):
             "기본 애니메이션을 찾을 수 없습니다: \(name)"
+        case let .animationNotFound(name):
+            "펫 애니메이션을 찾을 수 없습니다: \(name)"
         case let .duplicateAnimationName(name):
             "같은 이름의 펫 애니메이션이 이미 있습니다: \(name)"
+        case .cannotDeleteDefaultAnimation:
+            "기본 애니메이션은 삭제할 수 없습니다. 먼저 다른 애니메이션을 기본으로 지정해 주세요."
+        case .cannotDeleteLastAnimation:
+            "마지막 남은 펫 애니메이션은 삭제할 수 없습니다."
         case .importedPackageIsReadOnly:
             "MonglePet에서 만든 펫만 직접 수정할 수 있습니다."
         case .cannotWritePackage:
@@ -309,6 +324,112 @@ nonisolated struct UserPetPackageEditor {
         }
     }
 
+    func updateAnimation(
+        _ request: UserPetAnimationDetailsRequest,
+        for installedPackage: InstalledPetPackage
+    ) throws -> InstalledPetPackage {
+        guard isEditable(installedPackage) else {
+            throw UserPetEditingError.importedPackageIsReadOnly
+        }
+        guard installedPackage.package.definition.motion(id: request.animationID) != nil else {
+            throw UserPetEditingError.animationNotFound(request.animationID)
+        }
+        let animationName = try validatedAnimationName(request.animationName)
+        guard !installedPackage.package.definition.motions.contains(where: {
+            $0.id != request.animationID
+                && $0.id.localizedCaseInsensitiveCompare(animationName) == .orderedSame
+        }) else {
+            throw UserPetEditingError.duplicateAnimationName(animationName)
+        }
+
+        return try editingPackage(installedPackage) { currentManifest in
+            let motions = currentManifest.motions.map { motion in
+                guard motion.id == request.animationID else {
+                    return motion
+                }
+                return PetPackageManifest.Motion(
+                    id: animationName,
+                    atlas: motion.atlas,
+                    loop: request.loops,
+                    frames: motion.frames
+                )
+            }
+            return PetPackageManifest(
+                formatVersion: currentManifest.formatVersion,
+                id: currentManifest.id,
+                displayName: currentManifest.displayName,
+                version: currentManifest.version,
+                author: currentManifest.author,
+                license: currentManifest.license,
+                description: currentManifest.description,
+                previewPath: currentManifest.previewPath,
+                defaultMotion: installedPackage.package.definition.defaultMotionID
+                    == request.animationID
+                    ? animationName
+                    : currentManifest.defaultMotion,
+                atlases: currentManifest.atlases,
+                motions: motions
+            )
+        }
+    }
+
+    func removeAnimation(
+        id animationID: String,
+        from installedPackage: InstalledPetPackage
+    ) throws -> InstalledPetPackage {
+        guard isEditable(installedPackage) else {
+            throw UserPetEditingError.importedPackageIsReadOnly
+        }
+        guard installedPackage.package.definition.motion(id: animationID) != nil else {
+            throw UserPetEditingError.animationNotFound(animationID)
+        }
+        guard installedPackage.package.definition.motions.count > 1 else {
+            throw UserPetEditingError.cannotDeleteLastAnimation
+        }
+        guard installedPackage.package.definition.defaultMotionID != animationID else {
+            throw UserPetEditingError.cannotDeleteDefaultAnimation
+        }
+
+        return try editingPackage(installedPackage) { currentManifest in
+            guard let removedMotion = currentManifest.motions.first(where: {
+                $0.id == animationID
+            }) else {
+                throw UserPetEditingError.animationNotFound(animationID)
+            }
+            let remainingMotions = currentManifest.motions.filter { $0.id != animationID }
+            let atlasIsStillUsed = remainingMotions.contains { $0.atlas == removedMotion.atlas }
+            let remainingAtlases = atlasIsStillUsed
+                ? currentManifest.atlases
+                : currentManifest.atlases.filter { $0.id != removedMotion.atlas }
+            return PetPackageManifest(
+                formatVersion: currentManifest.formatVersion,
+                id: currentManifest.id,
+                displayName: currentManifest.displayName,
+                version: currentManifest.version,
+                author: currentManifest.author,
+                license: currentManifest.license,
+                description: currentManifest.description,
+                previewPath: currentManifest.previewPath,
+                defaultMotion: currentManifest.defaultMotion,
+                atlases: remainingAtlases,
+                motions: remainingMotions
+            )
+        } beforeValidation: { packageURL, originalManifest, updatedManifest in
+            let removedAtlases = originalManifest.atlases.filter { original in
+                !updatedManifest.atlases.contains { $0.id == original.id }
+            }
+            for atlas in removedAtlases {
+                do {
+                    try fileManager.removeItem(
+                        at: packageURL.appendingPathComponent(atlas.path, isDirectory: false)
+                    )
+                } catch {
+                    throw UserPetEditingError.cannotWritePackage
+                }
+            }
+        }
+    }
+
     private func validatedAnimationName(_ value: String) throws -> String {
         let name = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else {
@@ -354,6 +475,34 @@ nonisolated struct UserPetPackageEditor {
             license,
             description?.isEmpty == true ? nil : description
         )
+    }
+
+    private func editingPackage(
+        _ installedPackage: InstalledPetPackage,
+        updateManifest: (PetPackageManifest) throws -> PetPackageManifest,
+        beforeValidation: (
+            URL,
+            PetPackageManifest,
+            PetPackageManifest
+        ) throws -> Void = { _, _, _ in }
+    ) throws -> InstalledPetPackage {
+        try withTemporaryPackage { packageURL in
+            do {
+                try fileManager.copyItem(at: installedPackage.rootURL, to: packageURL)
+            } catch {
+                throw UserPetEditingError.cannotWritePackage
+            }
+            let currentManifest = try readManifest(from: packageURL)
+            let updatedManifest = try updateManifest(currentManifest)
+            try writeManifest(updatedManifest, to: packageURL)
+            try beforeValidation(packageURL, currentManifest, updatedManifest)
+            let validated = try loader.loadPackage(at: packageURL)
+            return try store.install(
+                packageAt: packageURL,
+                validatedPackage: validated,
+                mode: .replace(installationID: installedPackage.installationID)
+            )
+        }
     }
 
     private func withTemporaryPackage<Result>(

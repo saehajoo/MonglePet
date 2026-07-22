@@ -224,6 +224,20 @@ final class AppSettingsSession: ObservableObject {
         }
     }
 
+    @discardableResult
+    func replaceBehaviorMotionReferences(
+        from oldMotionID: String,
+        with newMotionID: String
+    ) -> Bool {
+        applyBehaviorEdit {
+            try BehaviorSettingsEditor.replacingMotionReferences(
+                from: oldMotionID,
+                with: newMotionID,
+                in: settings
+            )
+        }
+    }
+
     func clearBehaviorEditError() {
         behaviorEditErrorMessage = nil
     }
