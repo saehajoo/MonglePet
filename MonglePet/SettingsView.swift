@@ -217,7 +217,11 @@ private struct GeneralSettingsView: View {
                     if !petLibrarySession.selectedItem.isBuiltIn {
                         Button("선택한 펫 내보내기…") {
                             shareReview = petLibrarySession
-                                .reviewSelectedPetForSharing()
+                                .reviewSelectedPetForSharing(
+                                    behaviorProfile:
+                                        settingsSession.settings
+                                            .activeBehaviorProfile
+                                )
                         }
                         .disabled(isPetLibraryBusy)
                         .accessibilityIdentifier("monglepet.settings.exportPackage")
@@ -384,8 +388,8 @@ private struct GeneralSettingsView: View {
                         ? .editDetails
                         : .createEditableCopy
                 },
-                onExport: {
-                    pendingSharingFollowUp = .export(review)
+                onExport: { options in
+                    pendingSharingFollowUp = .export(review, options)
                 }
             )
         }
@@ -581,7 +585,8 @@ private struct GeneralSettingsView: View {
     }
 
     private func preparePetPackageExport(
-        for review: PetPackageShareReview
+        for review: PetPackageShareReview,
+        options: PetPackageShareOptions
     ) {
         let workspaceURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(
@@ -606,6 +611,7 @@ private struct GeneralSettingsView: View {
 
         guard petLibrarySession.exportSelectedPet(
             reviewed: review,
+            options: options,
             isConfirmed: true,
             to: archiveURL
         ) else {
@@ -646,8 +652,8 @@ private struct GeneralSettingsView: View {
         pendingSharingFollowUp = nil
 
         switch followUp {
-        case let .export(review):
-            preparePetPackageExport(for: review)
+        case let .export(review, options):
+            preparePetPackageExport(for: review, options: options)
         case .editDetails:
             isEditingPetDetails = true
         case .createEditableCopy:
@@ -693,7 +699,7 @@ nonisolated struct MonglePetPackageDocument: FileDocument {
 }
 
 private enum PetSharingFollowUp {
-    case export(PetPackageShareReview)
+    case export(PetPackageShareReview, PetPackageShareOptions)
     case editDetails
     case createEditableCopy
 }
@@ -915,53 +921,63 @@ private struct PetPackageShareReviewView: View {
     let review: PetPackageShareReview
     let blockedActionTitle: String?
     let onBlockedAction: () -> Void
-    let onExport: () -> Void
+    let onExport: (PetPackageShareOptions) -> Void
 
     @State private var isSharingRightsConfirmed = false
+    @State private var includesRecommendedProfile = false
+    @State private var includesApplicationRules = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("펫 공유 정보 확인")
-                    .font(.title2.weight(.semibold))
-                Text("저장할 패키지에 포함되는 제작자와 라이선스 정보입니다.")
+        VStack(alignment: .leading, spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("공유 내용 확인")
+                            .font(.title2.weight(.semibold))
+                        Text("저장할 `.monglepet` 파일에 포함할 내용을 선택합니다.")
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Grid(
+                        alignment: .leading,
+                        horizontalSpacing: 20,
+                        verticalSpacing: 10
+                    ) {
+                        shareInformationRow("펫 이름", value: review.displayName)
+                        shareInformationRow("버전", value: review.version)
+                        shareInformationRow("제작자", value: review.author)
+                        shareInformationRow("라이선스", value: review.license)
+                    }
+                    .padding(12)
+                    .background(
+                        .quaternary.opacity(0.35),
+                        in: RoundedRectangle(cornerRadius: 10)
+                    )
+
+                    if let blockingReason = review.blockingReason {
+                        blockedContent(reason: blockingReason)
+                    } else {
+                        sharedContentOptions
+
+                        Toggle(
+                            "이 펫과 이미지 자산을 다른 사용자에게 공유할 권한이 있음을 확인합니다.",
+                            isOn: $isSharingRightsConfirmed
+                        )
+                        .accessibilityIdentifier(
+                            "monglepet.share.rightsConfirmation"
+                        )
+                    }
+
+                    Text(
+                        "MonglePet은 입력된 라이선스의 법적 유효성이나 실제 공유 권한을 보증하지 않습니다."
+                    )
+                    .font(.caption)
                     .foregroundStyle(.secondary)
+                }
+                .padding(20)
             }
 
-            Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 10) {
-                shareInformationRow("펫 이름", value: review.displayName)
-                shareInformationRow("버전", value: review.version)
-                shareInformationRow("제작자", value: review.author)
-                shareInformationRow("라이선스", value: review.license)
-            }
-            .padding(12)
-            .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 10))
-
-            if let blockingReason = review.blockingReason {
-                Label(blockingReason.message, systemImage: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.orange)
-                    .accessibilityIdentifier("monglepet.share.blockedReason")
-
-                Text(
-                    "편집 가능한 펫은 라이선스 정보를 수정할 수 있습니다. "
-                        + "가져온 읽기 전용 펫은 먼저 편집 가능한 사본을 만들어 주세요."
-                )
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            } else {
-                Toggle(
-                    "이 펫과 이미지 자산을 다른 사용자에게 공유할 권한이 있음을 확인합니다.",
-                    isOn: $isSharingRightsConfirmed
-                )
-                .accessibilityIdentifier("monglepet.share.rightsConfirmation")
-            }
-
-            Text(
-                "MonglePet은 입력된 라이선스의 법적 유효성이나 실제 공유 권한을 보증하지 않습니다."
-            )
-            .font(.caption)
-            .foregroundStyle(.secondary)
-
+            Divider()
             HStack {
                 Spacer()
                 Button("취소", role: .cancel) {
@@ -970,7 +986,14 @@ private struct PetPackageShareReviewView: View {
 
                 if review.canExport {
                     Button("저장 위치 선택…") {
-                        onExport()
+                        onExport(
+                            PetPackageShareOptions(
+                                includesRecommendedProfile:
+                                    includesRecommendedProfile,
+                                includesApplicationRules:
+                                    includesApplicationRules
+                            )
+                        )
                         dismiss()
                     }
                     .keyboardShortcut(.defaultAction)
@@ -984,10 +1007,159 @@ private struct PetPackageShareReviewView: View {
                     .accessibilityIdentifier("monglepet.share.resolveBlock")
                 }
             }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 12)
         }
-        .padding(20)
-        .frame(width: 500)
+        .frame(width: 560)
+        .frame(minHeight: 480, maxHeight: 680)
+        .onChange(of: includesRecommendedProfile) {
+            if !includesRecommendedProfile {
+                includesApplicationRules = false
+            }
+        }
         .accessibilityIdentifier("monglepet.share.review")
+    }
+
+    @ViewBuilder
+    private func blockedContent(
+        reason: PetPackageSharingBlockReason
+    ) -> some View {
+        Label(reason.message, systemImage: "exclamationmark.triangle.fill")
+            .foregroundStyle(.orange)
+            .accessibilityIdentifier("monglepet.share.blockedReason")
+
+        Text(
+            "편집 가능한 펫은 라이선스 정보를 수정할 수 있습니다. "
+                + "가져온 읽기 전용 펫은 먼저 편집 가능한 사본을 만들어 주세요."
+        )
+        .font(.caption)
+        .foregroundStyle(.secondary)
+    }
+
+    private var sharedContentOptions: some View {
+        GroupBox("내보낼 내용") {
+            VStack(alignment: .leading, spacing: 12) {
+                Label(
+                    "펫 정보, 미리보기와 등록된 애니메이션",
+                    systemImage: "photo.on.rectangle.angled"
+                )
+
+                Divider()
+
+                Toggle(
+                    "펫별 행동·이동 권장 설정 포함",
+                    isOn: $includesRecommendedProfile
+                )
+                .disabled(review.recommendedProfile == nil)
+                .accessibilityIdentifier(
+                    "monglepet.share.includeRecommendedProfile"
+                )
+
+                if let issue = review.recommendedProfileIssue {
+                    Label(
+                        "현재 설정은 포함할 수 없습니다: \(issue)",
+                        systemImage: "exclamationmark.triangle"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                } else if review.recommendedProfile == nil {
+                    Text("현재 펫에 공유할 행동·이동 권장 설정이 없습니다.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else if includesRecommendedProfile {
+                    recommendedProfileSummary
+                    applicationRuleOptions
+                } else {
+                    Text("선택하지 않으면 기존과 같이 펫과 애니메이션만 저장합니다.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 4)
+        }
+    }
+
+    @ViewBuilder
+    private var recommendedProfileSummary: some View {
+        if let profile = review.recommendedProfile {
+            Grid(
+                alignment: .leading,
+                horizontalSpacing: 16,
+                verticalSpacing: 6
+            ) {
+                shareInformationRow(
+                    "행동 모드",
+                    value: profile.mode == .automatic ? "자동" : "수동"
+                )
+                shareInformationRow(
+                    "행동 루틴",
+                    value: "\(profile.sequences.count)개"
+                )
+                shareInformationRow(
+                    "유휴 자동 규칙",
+                    value: "\(profile.automaticRules.count)개"
+                )
+                shareInformationRow(
+                    "이동 방식",
+                    value: movementModeName(profile.movement.mode)
+                )
+                shareInformationRow(
+                    "쓰다듬기",
+                    value: profile.pettingMotionID ?? "지정 안 함"
+                )
+            }
+            .padding(.leading, 24)
+            .font(.caption)
+        }
+    }
+
+    @ViewBuilder
+    private var applicationRuleOptions: some View {
+        if review.applicationRuleCount > 0 {
+            Divider()
+
+            Toggle(
+                "앱별 자동 규칙 \(review.applicationRuleCount)개 포함",
+                isOn: $includesApplicationRules
+            )
+            .disabled(review.recommendedProfileWithApplicationRules == nil)
+            .accessibilityIdentifier(
+                "monglepet.share.includeApplicationRules"
+            )
+
+            if let issue = review.applicationRulesIssue {
+                Label(
+                    "앱별 자동 규칙은 포함할 수 없습니다: \(issue)",
+                    systemImage: "exclamationmark.triangle"
+                )
+                .font(.caption)
+                .foregroundStyle(.orange)
+            } else {
+                Text(
+                    includesApplicationRules
+                        ? "포함할 앱 식별자: "
+                            + review.applicationBundleIdentifiers.joined(
+                                separator: ", "
+                            )
+                        : "앱별 자동 규칙은 기본적으로 포함하지 않습니다."
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+            }
+        }
+    }
+
+    private func movementModeName(_ mode: PetMovementMode) -> String {
+        switch mode {
+        case .fixed:
+            "위치 고정"
+        case .cursorFollowing:
+            "마우스 따라가기"
+        case .freeRoaming:
+            "자유 이동"
+        }
     }
 
     private func shareInformationRow(

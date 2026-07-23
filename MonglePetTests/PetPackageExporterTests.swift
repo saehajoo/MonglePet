@@ -72,6 +72,241 @@ final class PetPackageExporterTests: XCTestCase {
         )
     }
 
+    func testExportOptionallyIncludesValidatedRecommendedProfile() throws {
+        let installedPackage = try makeInstalledPackage()
+        let destinationURL = temporaryDirectoryURL.appendingPathComponent(
+            "Shared With Settings.monglepet"
+        )
+        let profile = makeRecommendedProfile()
+
+        try makeExporter().export(
+            installedPackage,
+            recommendedProfile: profile,
+            to: destinationURL
+        )
+
+        let extractedRootURL = try extract(destinationURL)
+        XCTAssertEqual(
+            try regularFilePaths(in: extractedRootURL),
+            [
+                "assets/spritesheet.png",
+                "pet.json",
+                "preview.png",
+                "recommended-profile.json"
+            ]
+        )
+        let profileData = try Data(
+            contentsOf: extractedRootURL.appendingPathComponent(
+                "recommended-profile.json"
+            )
+        )
+        XCTAssertEqual(
+            try RecommendedPetProfileCodec.decode(
+                profileData,
+                for: installedPackage.package.definition
+            ),
+            profile
+        )
+        let json = try XCTUnwrap(String(data: profileData, encoding: .utf8))
+        for forbiddenKey in [
+            "installationID",
+            "petKey",
+            "originX",
+            "originY",
+            "screenIdentifier",
+            "lastUserPresentation",
+            "clickThrough"
+        ] {
+            XCTAssertFalse(json.contains(forbiddenKey))
+        }
+    }
+
+    func testInvalidRecommendedProfilePreservesExistingDestination() throws {
+        let installedPackage = try makeInstalledPackage()
+        let destinationURL = temporaryDirectoryURL.appendingPathComponent(
+            "Existing Settings Export.monglepet"
+        )
+        let originalData = Data("existing export".utf8)
+        try originalData.write(to: destinationURL)
+        let invalidProfile = RecommendedPetProfile(
+            mode: .manual,
+            manualSequenceID: "default",
+            sequences: [
+                BehaviorSequence(
+                    id: "default",
+                    steps: [
+                        BehaviorStep(motionID: "missing", repeatCount: 1)
+                    ],
+                    repeats: true
+                )
+            ],
+            automaticRules: [],
+            movement: .default,
+            pettingMotionID: nil
+        )
+
+        XCTAssertThrowsError(
+            try makeExporter().export(
+                installedPackage,
+                recommendedProfile: invalidProfile,
+                to: destinationURL
+            )
+        ) { error in
+            XCTAssertEqual(
+                error as? PetPackageExportError,
+                .recommendedProfileInvalid(
+                    .invalidField("behavior.sequences.0.steps.0")
+                )
+            )
+        }
+        XCTAssertEqual(try Data(contentsOf: destinationURL), originalData)
+    }
+
+    func testSharingReviewSeparatesApplicationRulesFromDefaultContent() throws {
+        let installedPackage = try makeInstalledPackage(license: "CC-BY-4.0")
+        let service = PetPackageSharingService(exporter: makeExporter())
+        let behaviorProfile = makeBehaviorProfile(
+            installationID: installedPackage.installationID
+        )
+
+        let review = try service.review(
+            installedPackage,
+            behaviorProfile: behaviorProfile
+        )
+
+        XCTAssertEqual(review.recommendedProfile?.automaticRules.count, 1)
+        XCTAssertEqual(
+            review.recommendedProfileWithApplicationRules?.automaticRules.count,
+            2
+        )
+        XCTAssertEqual(review.applicationRuleCount, 1)
+        XCTAssertEqual(
+            review.applicationBundleIdentifiers,
+            ["com.apple.dt.Xcode"]
+        )
+        XCTAssertNil(review.recommendedProfileIssue)
+        XCTAssertNil(review.applicationRulesIssue)
+
+        let withoutAppRulesURL = temporaryDirectoryURL.appendingPathComponent(
+            "Without App Rules.monglepet"
+        )
+        try service.export(
+            installedPackage,
+            reviewed: review,
+            options: PetPackageShareOptions(
+                includesRecommendedProfile: true,
+                includesApplicationRules: false
+            ),
+            isConfirmed: true,
+            to: withoutAppRulesURL
+        )
+        let withoutAppRules = try decodeRecommendedProfile(
+            from: withoutAppRulesURL,
+            definition: installedPackage.package.definition
+        )
+        XCTAssertEqual(withoutAppRules.automaticRules.count, 1)
+        XCTAssertTrue(
+            withoutAppRules.automaticRules.allSatisfy {
+                guard case .application = $0.condition else {
+                    return true
+                }
+                return false
+            }
+        )
+
+        let withAppRulesURL = temporaryDirectoryURL.appendingPathComponent(
+            "With App Rules.monglepet"
+        )
+        try service.export(
+            installedPackage,
+            reviewed: review,
+            options: PetPackageShareOptions(
+                includesRecommendedProfile: true,
+                includesApplicationRules: true
+            ),
+            isConfirmed: true,
+            to: withAppRulesURL
+        )
+        let withAppRules = try decodeRecommendedProfile(
+            from: withAppRulesURL,
+            definition: installedPackage.package.definition
+        )
+        XCTAssertEqual(withAppRules.automaticRules.count, 2)
+        XCTAssertTrue(
+            withAppRules.automaticRules.contains {
+                $0.condition
+                    == .application(bundleIdentifier: "com.apple.dt.Xcode")
+            }
+        )
+    }
+
+    func testInvalidLocalSettingsStillAllowPetOnlyExport() throws {
+        let installedPackage = try makeInstalledPackage(license: "CC-BY-4.0")
+        let service = PetPackageSharingService(exporter: makeExporter())
+        let invalidProfile = BehaviorProfile(
+            petKey: .installed(installedPackage.installationID),
+            mode: .manual,
+            manualSequenceID: "default",
+            sequences: [
+                BehaviorSequence(
+                    id: "default",
+                    steps: [
+                        BehaviorStep(motionID: "missing", repeatCount: 1)
+                    ],
+                    repeats: true
+                )
+            ],
+            automaticRules: [],
+            movement: .default,
+            pettingMotionID: nil
+        )
+        let review = try service.review(
+            installedPackage,
+            behaviorProfile: invalidProfile
+        )
+
+        XCTAssertNil(review.recommendedProfile)
+        XCTAssertNotNil(review.recommendedProfileIssue)
+
+        let petOnlyURL = temporaryDirectoryURL.appendingPathComponent(
+            "Pet Only Fallback.monglepet"
+        )
+        try service.export(
+            installedPackage,
+            reviewed: review,
+            options: .petOnly,
+            isConfirmed: true,
+            to: petOnlyURL
+        )
+        XCTAssertFalse(
+            FileManager.default.fileExists(
+                atPath: try extract(petOnlyURL)
+                    .appendingPathComponent("recommended-profile.json")
+                    .path
+            )
+        )
+
+        XCTAssertThrowsError(
+            try service.export(
+                installedPackage,
+                reviewed: review,
+                options: PetPackageShareOptions(
+                    includesRecommendedProfile: true,
+                    includesApplicationRules: false
+                ),
+                isConfirmed: true,
+                to: temporaryDirectoryURL.appendingPathComponent(
+                    "Unavailable Settings.monglepet"
+                )
+            )
+        ) { error in
+            XCTAssertEqual(
+                error as? PetPackageSharingError,
+                .recommendedProfileUnavailable
+            )
+        }
+    }
+
     func testConfirmedSharedArchiveInstallsIntoFreshLibraryAsReadOnlyPackage() throws {
         let sourceInstallation = try makeInstalledPackage(license: "CC-BY-4.0")
         let sharingService = PetPackageSharingService(exporter: makeExporter())
@@ -433,6 +668,67 @@ final class PetPackageExporterTests: XCTestCase {
         )
     }
 
+    private func makeRecommendedProfile() -> RecommendedPetProfile {
+        RecommendedPetProfile(
+            mode: .manual,
+            manualSequenceID: "default",
+            sequences: [
+                BehaviorSequence(
+                    id: "default",
+                    steps: [
+                        BehaviorStep(motionID: "idle", repeatCount: 2)
+                    ],
+                    repeats: true
+                )
+            ],
+            automaticRules: [],
+            movement: .default,
+            pettingMotionID: nil
+        )
+    }
+
+    private func makeBehaviorProfile(
+        installationID: UUID
+    ) -> BehaviorProfile {
+        let sequence = BehaviorSequence(
+            id: "default",
+            steps: [
+                BehaviorStep(motionID: "idle", repeatCount: 2)
+            ],
+            repeats: true
+        )
+        return BehaviorProfile(
+            petKey: .installed(installationID),
+            mode: .automatic,
+            manualSequenceID: "default",
+            sequences: [sequence],
+            automaticRules: [
+                AutomaticRule(
+                    id: UUID(
+                        uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA"
+                    )!,
+                    isEnabled: true,
+                    priority: 10,
+                    condition: .idleAtLeast(milliseconds: 60_000),
+                    sequenceID: "default"
+                ),
+                AutomaticRule(
+                    id: UUID(
+                        uuidString: "BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB"
+                    )!,
+                    isEnabled: true,
+                    priority: 5,
+                    condition: .application(
+                        bundleIdentifier: "com.apple.dt.Xcode"
+                    ),
+                    sequenceID: "default"
+                )
+            ],
+            movement: .default,
+            pettingMotionID: nil
+        )
+    }
+
     private func replaceLicense(
         with license: String,
         in packageRootURL: URL
@@ -462,6 +758,22 @@ final class PetPackageExporterTests: XCTestCase {
         return try PetPackageArchiveExtractor().extractArchive(
             at: archiveURL,
             into: workspaceURL
+        )
+    }
+
+    private func decodeRecommendedProfile(
+        from archiveURL: URL,
+        definition: PetDefinition
+    ) throws -> RecommendedPetProfile {
+        let extractedRootURL = try extract(archiveURL)
+        let data = try Data(
+            contentsOf: extractedRootURL.appendingPathComponent(
+                "recommended-profile.json"
+            )
+        )
+        return try RecommendedPetProfileCodec.decode(
+            data,
+            for: definition
         )
     }
 

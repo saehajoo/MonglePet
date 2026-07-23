@@ -5,6 +5,7 @@ nonisolated enum PetPackageExportError: Error, Equatable, Sendable {
     case invalidDestination
     case sourcePackageChanged
     case packageValidationFailed(PetPackageLoadingError)
+    case recommendedProfileInvalid(RecommendedPetProfileError)
     case archiveValidationFailed(PetPackageArchiveError)
     case archiveTooLarge
     case fileOperationFailed
@@ -19,6 +20,8 @@ extension PetPackageExportError: LocalizedError {
             "설치된 펫이 변경되어 내보내기를 안전하게 완료할 수 없습니다."
         case let .packageValidationFailed(error):
             "내보내기 전 펫 패키지 검증에 실패했습니다: \(error.localizedDescription)"
+        case let .recommendedProfileInvalid(error):
+            "함께 공유할 권장 설정을 검증하지 못했습니다: \(error.localizedDescription)"
         case let .archiveValidationFailed(error):
             "만든 공유 패키지 검증에 실패했습니다: \(error.localizedDescription)"
         case .archiveTooLarge:
@@ -59,6 +62,7 @@ nonisolated struct PetPackageExporter {
     @discardableResult
     func export(
         _ installedPackage: InstalledPetPackage,
+        recommendedProfile: RecommendedPetProfile? = nil,
         to destinationURL: URL
     ) throws -> URL {
         try validateDestination(destinationURL)
@@ -88,6 +92,7 @@ nonisolated struct PetPackageExporter {
             try createDirectory(at: payloadURL)
             try createSanitizedPackage(
                 from: sourcePackage,
+                recommendedProfile: recommendedProfile,
                 at: payloadURL
             )
 
@@ -117,6 +122,7 @@ nonisolated struct PetPackageExporter {
             try validateArchiveRoundTrip(
                 at: archiveURL,
                 expectedPackage: sanitizedPackage,
+                expectedRecommendedProfile: recommendedProfile,
                 workspaceURL: workspaceURL
             )
             try writeArchiveAtomically(
@@ -129,6 +135,7 @@ nonisolated struct PetPackageExporter {
 
     private func createSanitizedPackage(
         from sourcePackage: LoadedPetPackage,
+        recommendedProfile: RecommendedPetProfile?,
         at destinationRootURL: URL
     ) throws {
         let sourceManifestURL = sourcePackage.packageRootURL.appendingPathComponent(
@@ -180,11 +187,33 @@ nonisolated struct PetPackageExporter {
                 in: destinationRootURL
             )
         }
+
+        if let recommendedProfile {
+            let profileData: Data
+            do {
+                profileData = try RecommendedPetProfileCodec.encode(
+                    recommendedProfile,
+                    for: sourcePackage.definition
+                )
+            } catch let error as RecommendedPetProfileError {
+                throw PetPackageExportError.recommendedProfileInvalid(error)
+            } catch {
+                throw PetPackageExportError.fileOperationFailed
+            }
+            try write(
+                profileData,
+                to: destinationRootURL.appendingPathComponent(
+                    "recommended-profile.json",
+                    isDirectory: false
+                )
+            )
+        }
     }
 
     private func validateArchiveRoundTrip(
         at archiveURL: URL,
         expectedPackage: LoadedPetPackage,
+        expectedRecommendedProfile: RecommendedPetProfile?,
         workspaceURL: URL
     ) throws {
         let verificationURL = workspaceURL.appendingPathComponent(
@@ -209,6 +238,49 @@ nonisolated struct PetPackageExporter {
             roundTrippedPackage.metadata == expectedPackage.metadata,
             roundTrippedPackage.definition == expectedPackage.definition
         else {
+            throw PetPackageExportError.sourcePackageChanged
+        }
+        try validateRecommendedProfileRoundTrip(
+            at: extractedRootURL,
+            definition: roundTrippedPackage.definition,
+            expected: expectedRecommendedProfile
+        )
+    }
+
+    private func validateRecommendedProfileRoundTrip(
+        at packageRootURL: URL,
+        definition: PetDefinition,
+        expected: RecommendedPetProfile?
+    ) throws {
+        let profileURL = packageRootURL.appendingPathComponent(
+            "recommended-profile.json",
+            isDirectory: false
+        )
+        guard let expected else {
+            guard !fileManager.fileExists(atPath: profileURL.path) else {
+                throw PetPackageExportError.sourcePackageChanged
+            }
+            return
+        }
+
+        let data: Data
+        do {
+            data = try Data(contentsOf: profileURL, options: .mappedIfSafe)
+        } catch {
+            throw PetPackageExportError.sourcePackageChanged
+        }
+        let decoded: RecommendedPetProfile
+        do {
+            decoded = try RecommendedPetProfileCodec.decode(
+                data,
+                for: definition
+            )
+        } catch let error as RecommendedPetProfileError {
+            throw PetPackageExportError.recommendedProfileInvalid(error)
+        } catch {
+            throw PetPackageExportError.fileOperationFailed
+        }
+        guard decoded == expected else {
             throw PetPackageExportError.sourcePackageChanged
         }
     }

@@ -417,7 +417,7 @@ final class PetLibrarySessionTests: XCTestCase {
             builtInDefinition: builtInDefinition,
             installedPackagesProvider: { [] },
             installationRemover: { _ in },
-            packageShareReviewer: { _ in
+            packageShareReviewer: { _, _ in
                 reviewCallCount += 1
                 throw PetLibraryError.fileOperationFailed
             }
@@ -430,6 +430,7 @@ final class PetLibrarySessionTests: XCTestCase {
 
     func testSharingReviewUsesSelectedInstalledPet() {
         let installed = makeInstalled(id: firstID, name: "공유 펫")
+        let behaviorProfile = makeBehaviorProfile(installationID: firstID)
         let expectedReview = PetPackageSharingPolicy.review(
             metadata: installed.package.metadata
         )
@@ -438,14 +439,20 @@ final class PetLibrarySessionTests: XCTestCase {
             builtInDefinition: builtInDefinition,
             installedPackagesProvider: { [installed] },
             installationRemover: { _ in },
-            packageShareReviewer: { receivedPackage in
+            packageShareReviewer: { receivedPackage, receivedProfile in
                 reviewedPackages.append(receivedPackage)
+                XCTAssertEqual(receivedProfile, behaviorProfile)
                 return expectedReview
             }
         )
         _ = session.reload(preferredInstallationID: firstID)
 
-        XCTAssertEqual(session.reviewSelectedPetForSharing(), expectedReview)
+        XCTAssertEqual(
+            session.reviewSelectedPetForSharing(
+                behaviorProfile: behaviorProfile
+            ),
+            expectedReview
+        )
         XCTAssertEqual(reviewedPackages, [installed])
         XCTAssertNil(session.errorMessage)
     }
@@ -456,6 +463,10 @@ final class PetLibrarySessionTests: XCTestCase {
             metadata: installed.package.metadata
         )
         let destinationURL = URL(fileURLWithPath: "/tmp/shared.monglepet")
+        let options = PetPackageShareOptions(
+            includesRecommendedProfile: true,
+            includesApplicationRules: true
+        )
         var receivedConfirmation = false
         var session: PetLibrarySession!
         session = PetLibrarySession(
@@ -465,11 +476,13 @@ final class PetLibrarySessionTests: XCTestCase {
             packageShareExporter: {
                 receivedPackage,
                 receivedReview,
+                receivedOptions,
                 isConfirmed,
                 receivedDestinationURL in
                 XCTAssertTrue(session.isExporting)
                 XCTAssertEqual(receivedPackage, installed)
                 XCTAssertEqual(receivedReview, review)
+                XCTAssertEqual(receivedOptions, options)
                 XCTAssertEqual(receivedDestinationURL, destinationURL)
                 receivedConfirmation = isConfirmed
                 return receivedDestinationURL
@@ -480,6 +493,7 @@ final class PetLibrarySessionTests: XCTestCase {
         XCTAssertTrue(
             session.exportSelectedPet(
                 reviewed: review,
+                options: options,
                 isConfirmed: true,
                 to: destinationURL
             )
@@ -498,7 +512,7 @@ final class PetLibrarySessionTests: XCTestCase {
             builtInDefinition: builtInDefinition,
             installedPackagesProvider: { [installed] },
             installationRemover: { _ in },
-            packageShareExporter: { _, _, _, _ in
+            packageShareExporter: { _, _, _, _, _ in
                 throw PetPackageSharingError.confirmationRequired
             }
         )
@@ -521,6 +535,28 @@ final class PetLibrarySessionTests: XCTestCase {
     private var builtInDefinition: PetDefinition {
         BuiltInPet.mongleDefinition(
             atlasPixelSize: PixelSize(width: 192, height: 208)
+        )
+    }
+
+    private func makeBehaviorProfile(
+        installationID: UUID
+    ) -> BehaviorProfile {
+        BehaviorProfile(
+            petKey: .installed(installationID),
+            mode: .manual,
+            manualSequenceID: "default",
+            sequences: [
+                BehaviorSequence(
+                    id: "default",
+                    steps: [
+                        BehaviorStep(motionID: "idle", repeatCount: 1)
+                    ],
+                    repeats: true
+                )
+            ],
+            automaticRules: [],
+            movement: .default,
+            pettingMotionID: nil
         )
     }
 

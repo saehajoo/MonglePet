@@ -124,11 +124,13 @@ final class PetLibrarySession: ObservableObject {
         InstalledPetPackage
     ) throws -> InstalledPetPackage
     private let packageShareReviewer: (
-        InstalledPetPackage
+        InstalledPetPackage,
+        BehaviorProfile?
     ) throws -> PetPackageShareReview
     private let packageShareExporter: (
         InstalledPetPackage,
         PetPackageShareReview,
+        PetPackageShareOptions,
         Bool,
         URL
     ) throws -> URL
@@ -202,16 +204,18 @@ final class PetLibrarySession: ObservableObject {
             throw PetLibraryError.fileOperationFailed
         },
         packageShareReviewer: @escaping (
-            InstalledPetPackage
-        ) throws -> PetPackageShareReview = { _ in
+            InstalledPetPackage,
+            BehaviorProfile?
+        ) throws -> PetPackageShareReview = { _, _ in
             throw PetLibraryError.fileOperationFailed
         },
         packageShareExporter: @escaping (
             InstalledPetPackage,
             PetPackageShareReview,
+            PetPackageShareOptions,
             Bool,
             URL
-        ) throws -> URL = { _, _, _, _ in
+        ) throws -> URL = { _, _, _, _, _ in
             throw PetLibraryError.fileOperationFailed
         }
     ) {
@@ -368,7 +372,9 @@ final class PetLibrarySession: ObservableObject {
         duplicateInstallRequest = nil
     }
 
-    func reviewSelectedPetForSharing() -> PetPackageShareReview? {
+    func reviewSelectedPetForSharing(
+        behaviorProfile: BehaviorProfile? = nil
+    ) -> PetPackageShareReview? {
         guard let installedPackage = selectedItem.installedPackage else {
             return nil
         }
@@ -377,7 +383,10 @@ final class PetLibrarySession: ObservableObject {
         }
 
         do {
-            let review = try packageShareReviewer(installedPackage)
+            let review = try packageShareReviewer(
+                installedPackage,
+                behaviorProfile
+            )
             errorMessage = nil
             return review
         } catch {
@@ -389,6 +398,7 @@ final class PetLibrarySession: ObservableObject {
     @discardableResult
     func exportSelectedPet(
         reviewed review: PetPackageShareReview,
+        options: PetPackageShareOptions = .petOnly,
         isConfirmed: Bool,
         to destinationURL: URL
     ) -> Bool {
@@ -405,6 +415,7 @@ final class PetLibrarySession: ObservableObject {
             _ = try packageShareExporter(
                 installedPackage,
                 review,
+                options,
                 isConfirmed,
                 destinationURL
             )
