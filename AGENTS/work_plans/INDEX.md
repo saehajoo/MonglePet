@@ -13,7 +13,8 @@
 
 | 상태 | 작업명 | 파일 | 마지막 갱신 |
 | --- | --- | --- | --- |
-| planned | Phase 9 마우스 따라가기와 이동 상호작용 | `tasks/2026-07-22-phase-9-cursor-following.md` | 2026-07-22 |
+| planned | Phase 9 펫 이동 모드와 상호작용 | `tasks/2026-07-22-phase-9-cursor-following.md` | 2026-07-23 |
+| planned | Phase 9A 공유 권장 프로필 | `tasks/2026-07-23-phase-9a-shared-pet-profile.md` | 2026-07-23 |
 
 ## 보류 / 대기
 
