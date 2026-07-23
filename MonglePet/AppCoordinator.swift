@@ -139,7 +139,9 @@ final class AppCoordinator: NSObject {
             name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification,
             object: nil
         )
-        movementLifecycle.setReduceMotion(reduceMotionProvider())
+        let shouldReduceMotion = reduceMotionProvider()
+        movementLifecycle.setReduceMotion(shouldReduceMotion)
+        petWindowController.setReduceMotion(shouldReduceMotion)
 
         let loadResult = settingsSession.load { [petLibrarySession] installationID in
             _ = petLibrarySession.reload(
@@ -360,6 +362,8 @@ final class AppCoordinator: NSObject {
     private func accessibilityDisplayOptionsDidChange(
         _ notification: Notification
     ) {
-        movementLifecycle.setReduceMotion(reduceMotionProvider())
+        let shouldReduceMotion = reduceMotionProvider()
+        movementLifecycle.setReduceMotion(shouldReduceMotion)
+        petWindowController.setReduceMotion(shouldReduceMotion)
     }
 }

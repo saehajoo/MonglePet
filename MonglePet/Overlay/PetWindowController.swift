@@ -89,6 +89,7 @@ final class PetWindowController: NSWindowController {
     private var appliedOverlaySettings: OverlaySettings = .default
     private let framePlayer: FramePlayer
     private let petOverlayView: PetOverlayView
+    private let pointerOverlapLifecycle: PetPointerOverlapLifecycle
     private let builtInAtlases: [PetAtlasImage]
     private var contentAspectRatio = PetWindowController.defaultContentSize.height
         / PetWindowController.defaultContentSize.width
@@ -137,6 +138,30 @@ final class PetWindowController: NSWindowController {
         let panel = PetWindow(contentRect: contentRect)
         panel.contentView = petOverlayView
         panel.setContentSize(Self.defaultContentSize)
+        pointerOverlapLifecycle = PetPointerOverlapLifecycle(
+            isPointerOverVisibleContent: { [weak panel, weak petOverlayView] in
+                guard let panel,
+                      let petOverlayView,
+                      panel.isVisible else {
+                    return false
+                }
+                let windowPoint = panel.convertPoint(
+                    fromScreen: NSEvent.mouseLocation
+                )
+                let viewPoint = petOverlayView.convert(windowPoint, from: nil)
+                return petOverlayView.containsVisibleContent(at: viewPoint)
+            },
+            applyOpacity: { [weak panel] opacity, animated in
+                guard let panel else {
+                    return
+                }
+                Self.applyOpacity(
+                    opacity,
+                    to: panel,
+                    animated: animated
+                )
+            }
+        )
 
         super.init(window: panel)
         shouldCascadeWindows = false
@@ -278,12 +303,14 @@ final class PetWindowController: NSWindowController {
 
         panel.orderFrontRegardless()
         isAwake = true
+        pointerOverlapLifecycle.setAwake(true)
         if !isSystemSuspended {
             framePlayer.resume()
         }
     }
 
     func sleep() {
+        pointerOverlapLifecycle.setAwake(false)
         framePlayer.pause()
         panel?.orderOut(nil)
         isAwake = false
@@ -295,11 +322,16 @@ final class PetWindowController: NSWindowController {
         }
 
         isSystemSuspended = isSuspended
+        pointerOverlapLifecycle.setSystemSuspended(isSuspended)
         if isSuspended {
             framePlayer.pause()
         } else if isAwake {
             framePlayer.resume()
         }
+    }
+
+    func setReduceMotion(_ shouldReduceMotion: Bool) {
+        pointerOverlapLifecycle.setReduceMotion(shouldReduceMotion)
     }
 
     func setScheduledMotion(_ scheduledMotion: ScheduledMotion?) {
@@ -336,6 +368,7 @@ final class PetWindowController: NSWindowController {
             NSSize(width: width, height: width * contentAspectRatio)
         )
         panel.ignoresMouseEvents = settings.clickThrough
+        pointerOverlapLifecycle.setSettings(settings)
 
         if restorePosition {
             let storedFrame = NSRect(
@@ -489,6 +522,26 @@ final class PetWindowController: NSWindowController {
         }
 
         return intersection.width * intersection.height
+    }
+
+    private static func applyOpacity(
+        _ opacity: Double,
+        to panel: NSPanel,
+        animated: Bool
+    ) {
+        let alphaValue = CGFloat(opacity)
+        guard animated, panel.isVisible else {
+            panel.alphaValue = alphaValue
+            return
+        }
+
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.12
+            context.timingFunction = CAMediaTimingFunction(
+                name: .easeInEaseOut
+            )
+            panel.animator().alphaValue = alphaValue
+        }
     }
 
     @objc

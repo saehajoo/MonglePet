@@ -61,6 +61,36 @@ final class AppSettingsSessionTests: XCTestCase {
     }
 
     @MainActor
+    func testOverlayOpacitySettingsClampApplyAndPersist() {
+        let session = AppSettingsSession(
+            store: AppSettingsStore(settingsURL: settingsURL)
+        )
+        _ = session.load()
+
+        session.setOverlayOpacity(0, persist: false)
+        session.setClickThrough(true)
+        session.setPointerOverlapFadeEnabled(true)
+        session.setPointerOverlapOpacity(2, persist: false)
+
+        XCTAssertEqual(
+            session.settings.overlay.opacity,
+            AppSettingsLimits.minimumOverlayOpacity
+        )
+        XCTAssertTrue(session.settings.overlay.clickThrough)
+        XCTAssertTrue(session.settings.overlay.pointerOverlapFadeEnabled)
+        XCTAssertEqual(
+            session.settings.overlay.pointerOverlapOpacity,
+            AppSettingsLimits.maximumPointerOverlapOpacity
+        )
+
+        session.persistCurrentSettings()
+        let reloaded = AppSettingsStore(settingsURL: settingsURL)
+            .load()
+            .settings
+        XCTAssertEqual(reloaded.overlay, session.settings.overlay)
+    }
+
+    @MainActor
     func testSelectedPetInstallationPersistsAndCanReturnToBuiltInPet() {
         let session = AppSettingsSession(
             store: AppSettingsStore(settingsURL: settingsURL)

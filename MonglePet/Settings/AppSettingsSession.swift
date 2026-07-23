@@ -370,6 +370,71 @@ final class AppSettingsSession: ObservableObject {
         )
     }
 
+    func setOverlayOpacity(_ opacity: Double, persist: Bool = true) {
+        let normalizedOpacity = min(
+            max(opacity, AppSettingsLimits.minimumOverlayOpacity),
+            AppSettingsLimits.maximumOverlayOpacity
+        )
+        replaceOverlay(
+            OverlaySettings(
+                screenIdentifier: settings.overlay.screenIdentifier,
+                originX: settings.overlay.originX,
+                originY: settings.overlay.originY,
+                width: settings.overlay.width,
+                clickThrough: settings.overlay.clickThrough,
+                opacity: normalizedOpacity,
+                pointerOverlapFadeEnabled:
+                    settings.overlay.pointerOverlapFadeEnabled,
+                pointerOverlapOpacity:
+                    settings.overlay.pointerOverlapOpacity,
+                movementBoundary: settings.overlay.movementBoundary
+            ),
+            persist: persist
+        )
+    }
+
+    func setPointerOverlapFadeEnabled(_ isEnabled: Bool) {
+        replaceOverlay(
+            OverlaySettings(
+                screenIdentifier: settings.overlay.screenIdentifier,
+                originX: settings.overlay.originX,
+                originY: settings.overlay.originY,
+                width: settings.overlay.width,
+                clickThrough: settings.overlay.clickThrough,
+                opacity: settings.overlay.opacity,
+                pointerOverlapFadeEnabled: isEnabled,
+                pointerOverlapOpacity:
+                    settings.overlay.pointerOverlapOpacity,
+                movementBoundary: settings.overlay.movementBoundary
+            )
+        )
+    }
+
+    func setPointerOverlapOpacity(
+        _ opacity: Double,
+        persist: Bool = true
+    ) {
+        let normalizedOpacity = min(
+            max(opacity, AppSettingsLimits.minimumPointerOverlapOpacity),
+            AppSettingsLimits.maximumPointerOverlapOpacity
+        )
+        replaceOverlay(
+            OverlaySettings(
+                screenIdentifier: settings.overlay.screenIdentifier,
+                originX: settings.overlay.originX,
+                originY: settings.overlay.originY,
+                width: settings.overlay.width,
+                clickThrough: settings.overlay.clickThrough,
+                opacity: settings.overlay.opacity,
+                pointerOverlapFadeEnabled:
+                    settings.overlay.pointerOverlapFadeEnabled,
+                pointerOverlapOpacity: normalizedOpacity,
+                movementBoundary: settings.overlay.movementBoundary
+            ),
+            persist: persist
+        )
+    }
+
     func setMovementBoundary(
         _ movementBoundary: MovementBoundarySettings,
         persist: Bool = true

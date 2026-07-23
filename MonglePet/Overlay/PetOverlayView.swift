@@ -17,6 +17,9 @@ final class PetOverlayView: NSView {
     private var atlases: [String: PetAtlasImage]
     private(set) var displayedAtlasID: String?
     private var displayedFrame: MotionFrame?
+    private var alphaMaskCache: [String: PetFrameAlphaMask] = [:]
+    private var alphaMaskCacheOrder: [String] = []
+    private static let maximumCachedAlphaMaskCount = 256
 
     var atlasPixelSize: PixelSize {
         atlases.values.first?.pixelSize ?? PixelSize(width: 1, height: 1)
@@ -97,9 +100,35 @@ final class PetOverlayView: NSView {
         self.atlases = Dictionary(uniqueKeysWithValues: atlases.map { ($0.id, $0) })
         displayedAtlasID = nil
         displayedFrame = nil
+        alphaMaskCache.removeAll(keepingCapacity: true)
+        alphaMaskCacheOrder.removeAll(keepingCapacity: true)
         layer?.contents = nil
         layer?.contentsRect = CGRect(x: 0, y: 0, width: 1, height: 1)
         setAccessibilityLabel(accessibilityLabel)
+    }
+
+    func containsVisibleContent(at point: NSPoint) -> Bool {
+        guard let displayedFrame,
+              let atlas = atlases[displayedFrame.atlasID],
+              let normalizedPoint = PetFrameAlphaMask.normalizedContentPoint(
+                  pointX: point.x,
+                  pointY: point.y,
+                  boundsWidth: bounds.width,
+                  boundsHeight: bounds.height,
+                  contentWidth: Double(displayedFrame.sourceRect.width),
+                  contentHeight: Double(displayedFrame.sourceRect.height)
+              ),
+              let alphaMask = alphaMask(
+                  for: displayedFrame,
+                  atlas: atlas
+              ) else {
+            return false
+        }
+
+        return alphaMask.containsVisiblePixel(
+            normalizedX: normalizedPoint.x,
+            normalizedY: normalizedPoint.y
+        )
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -137,5 +166,37 @@ final class PetOverlayView: NSView {
             finalOrigin.x - initialOrigin.x,
             finalOrigin.y - initialOrigin.y
         ) >= threshold
+    }
+
+    private func alphaMask(
+        for frame: MotionFrame,
+        atlas: PetAtlasImage
+    ) -> PetFrameAlphaMask? {
+        let key = [
+            frame.atlasID,
+            String(frame.sourceRect.x),
+            String(frame.sourceRect.y),
+            String(frame.sourceRect.width),
+            String(frame.sourceRect.height)
+        ].joined(separator: ":")
+        if let cached = alphaMaskCache[key] {
+            return cached
+        }
+
+        guard let mask = PetFrameAlphaMaskBuilder.make(
+            atlasImage: atlas.image,
+            sourceRect: frame.sourceRect
+        ) else {
+            return nil
+        }
+
+        if alphaMaskCache.count >= Self.maximumCachedAlphaMaskCount,
+           let oldestKey = alphaMaskCacheOrder.first {
+            alphaMaskCache.removeValue(forKey: oldestKey)
+            alphaMaskCacheOrder.removeFirst()
+        }
+        alphaMaskCache[key] = mask
+        alphaMaskCacheOrder.append(key)
+        return mask
     }
 }

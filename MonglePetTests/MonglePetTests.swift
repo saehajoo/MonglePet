@@ -268,7 +268,10 @@ final class MonglePetTests: XCTestCase {
             originX: 120,
             originY: 160,
             width: 288,
-            clickThrough: true
+            clickThrough: true,
+            opacity: 0.65,
+            pointerOverlapFadeEnabled: true,
+            pointerOverlapOpacity: 0.15
         )
 
         controller.applyOverlaySettings(settings, restorePosition: true)
@@ -276,6 +279,7 @@ final class MonglePetTests: XCTestCase {
         XCTAssertEqual(panel.frame.width, 288, accuracy: 0.001)
         XCTAssertEqual(panel.frame.height, 312, accuracy: 0.001)
         XCTAssertTrue(panel.ignoresMouseEvents)
+        XCTAssertEqual(panel.alphaValue, 0.65, accuracy: 0.001)
         XCTAssertTrue(
             NSScreen.screens.map(\.visibleFrame).contains { $0.contains(panel.frame) }
         )
@@ -283,6 +287,13 @@ final class MonglePetTests: XCTestCase {
         let captured = try XCTUnwrap(controller.currentOverlaySettings())
         XCTAssertEqual(captured.width, 288, accuracy: 0.001)
         XCTAssertTrue(captured.clickThrough)
+        XCTAssertEqual(captured.opacity, 0.65, accuracy: 0.001)
+        XCTAssertTrue(captured.pointerOverlapFadeEnabled)
+        XCTAssertEqual(
+            captured.pointerOverlapOpacity,
+            0.15,
+            accuracy: 0.001
+        )
         XCTAssertEqual(captured.originX, panel.frame.minX, accuracy: 0.001)
         XCTAssertEqual(captured.originY, panel.frame.minY, accuracy: 0.001)
     }

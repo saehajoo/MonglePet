@@ -196,7 +196,7 @@ schema-v3의 행동 단계는 schema-v2와 동일하게 `motionID`와 `repeatCou
 
 ## schema-v4 로컬 표시 환경
 
-schema-v4는 전역 overlay에 이동 범위와 투명도 설정을 추가한다. 현재 이동 범위는 설정 UI와 자동 이동에 적용되며, 투명도 UI와 런타임 적용은 Phase 9B 후속 단계에서 연결한다.
+schema-v4는 전역 overlay에 이동 범위와 투명도 설정을 추가한다. 이동 범위는 설정 UI와 자동 이동에 적용하고, 투명도는 일반 설정 UI와 펫 패널 런타임에 즉시 적용한다.
 
 ```json
 {
@@ -227,6 +227,8 @@ schema-v4는 전역 overlay에 이동 범위와 투명도 설정을 추가한다
 - `overlay.opacity`: 평상시 패널 투명도이며 `0.10...1.00`, 기본값 `1.00`이다.
 - `overlay.pointerOverlapFadeEnabled`: 클릭 통과 중 마우스가 실제 표시 픽셀과 겹칠 때 투명도를 바꿀지 나타내며 기본값은 `false`다.
 - `overlay.pointerOverlapOpacity`: 겹침 상태 투명도이며 `0.05...1.00`, 기본값 `0.20`이다. 실제 적용 값은 `opacity`보다 커지지 않는다.
+- 마우스 겹침 투명화는 클릭 통과, 펫 awake, 화면 사용 가능과 macOS 동작 줄이기 꺼짐 조건을 모두 만족할 때만 포인터를 확인한다. 나머지 상태에서는 감지 timer를 해제하고 기본 투명도를 적용한다.
+- 겹침 판정은 패널 전체가 아니라 현재 애니메이션 프레임의 실제 알파 표시 영역과 종횡비 여백을 기준으로 한다.
 - `overlay.movementBoundary.mode`: `allDisplays`, `selectedDisplay`, `customArea` 중 하나이며 기본값은 `allDisplays`다.
 - `selectedDisplay`와 `customArea`에는 디스플레이 UUID 기반 `screenIdentifier`가 필요하다.
 - `customArea.normalizedRect`는 선택한 화면의 현재 visible frame을 기준으로 한 `x`, `y`, `width`, `height`의 `0...1` 정규화 사각형이다.
