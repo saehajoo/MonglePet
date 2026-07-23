@@ -13,7 +13,7 @@
 
 | 상태 | 작업명 | 파일 | 마지막 갱신 |
 | --- | --- | --- | --- |
-| planned | Phase 9A 공유 권장 프로필 | `tasks/2026-07-23-phase-9a-shared-pet-profile.md` | 2026-07-23 |
+| in_progress | Phase 9A 공유 권장 프로필 | `tasks/2026-07-23-phase-9a-shared-pet-profile.md` | 2026-07-23 |
 
 ## 보류 / 대기
 

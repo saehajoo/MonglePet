@@ -11,6 +11,7 @@
 ```text
 mongle.monglepet/
 ├── pet.json
+├── recommended-profile.json  # 선택 사항
 ├── preview.png
 └── assets/
     └── spritesheet.webp
@@ -200,8 +201,9 @@ GIF, APNG 또는 PNG 시퀀스는 다음 기본 manifest를 생성해 내부 패
 ### 로컬 공유 내보내기
 
 - 내보내기 파일은 ZIP 컨테이너의 `.monglepet` 확장자를 사용한다.
-- `pet.json`, 미리보기와 참조된 이미지 자산만 포함한다.
-- `monglepet-editor.json`, 설치 UUID, 행동 루틴과 자동 규칙은 포함하지 않는다.
+- 기본 내보내기는 `pet.json`, 미리보기와 참조된 이미지 자산만 포함한다.
+- 사용자가 `펫 설정도 함께 공유`를 선택하면 별도 `recommended-profile.json`을 포함할 수 있다.
+- `monglepet-editor.json`, 설치 UUID와 화면 좌표를 포함한 로컬 앱 설정은 포함하지 않는다.
 - 내보내기 직전에 패키지를 다시 로드·검증하고 허용되지 않은 파일을 거부한다.
 - 설치 폴더 전체를 직접 압축하지 않고 manifest를 현재 schema로 다시 인코딩한 뒤 `pet.json`, `previewPath`와 `atlases[].path`가 참조하는 파일만 임시 패키지에 복사한다. 임시 패키지와 완성된 ZIP의 가져오기 왕복 검증이 모두 성공해야 목적지에 원자적으로 기록한다.
 - `Private Use` 등 공유를 허용하지 않는 라이선스는 경고 없이 내보내지 않으며 사용자가 권한을 확인하거나 라이선스를 수정해야 한다.
@@ -210,6 +212,54 @@ GIF, APNG 또는 PNG 시퀀스는 다음 기본 manifest를 생성해 내부 패
 - 내장 몽글이는 앱 번들 자산이므로 일반 설정의 내보내기 대상에 포함하지 않는다. 설치 펫은 검토 시트에서 이름·버전·제작자·라이선스를 보여주고, 공유 가능한 라이선스는 명시적 권한 확인 뒤 macOS 저장 패널을 연다.
 - 차단된 편집 가능 펫은 펫 정보 수정으로, 차단된 읽기 전용 펫은 편집 가능한 사본 만들기로 안내한다. 저장 패널을 취소하면 패키지를 만들거나 기존 파일을 변경하지 않는다.
 - 가져온 공유 패키지는 읽기 전용으로 설치하고 수정은 편집 가능한 사본에서 수행한다.
+
+### 공유 권장 프로필
+
+`recommended-profile.json`은 펫 패키지와 독립적으로 버전을 갖는 선택 데이터다. 받는 사용자의 설정을 강제하지 않으며 적용을 명시적으로 선택한 경우에만 설치 UUID에 연결된 편집 가능한 로컬 행동 프로필로 복사한다.
+
+schema-v1 예시:
+
+```json
+{
+  "schemaVersion": 1,
+  "behavior": {
+    "mode": "manual",
+    "manualSequenceID": "default",
+    "sequences": [
+      {
+        "id": "default",
+        "steps": [
+          { "motionID": "idle", "repeatCount": 1 }
+        ],
+        "repeats": true
+      }
+    ]
+  },
+  "movement": {
+    "mode": "freeRoaming",
+    "speed": 120,
+    "cursorDistance": 80,
+    "stopRadius": 24,
+    "freeRoamingDwellMilliseconds": 8000,
+    "prefersFrontmostWindow": true,
+    "cursorFollowingMotionID": "run",
+    "freeRoamingMotionID": "walk"
+  },
+  "pettingMotionID": "petting",
+  "automaticRules": []
+}
+```
+
+- 행동 모드는 `automatic` 또는 `manual`, 이동 모드는 `fixed`, `cursorFollowing`, `freeRoaming`만 허용한다.
+- 수동 모드에는 존재하는 행동 루틴 ID를 `manualSequenceID`로 지정해야 한다.
+- 행동 루틴과 단계, 자동 규칙의 개수·반복 횟수·유휴 시간, 이동 값은 앱 설정과 같은 상한을 적용한다.
+- 행동 단계는 패키지에 존재하는 모션 ID 또는 예약된 `현재 펫의 기본 애니메이션` 참조만 사용할 수 있다.
+- 이동 중 애니메이션과 쓰다듬기 애니메이션은 런타임에서 직접 재생하므로 패키지에 실제로 존재하는 모션 ID만 사용할 수 있다.
+- 자동 규칙은 고유한 규칙 ID와 존재하는 행동 루틴 참조를 가져야 한다. 앱 bundle identifier 규칙은 내보내는 사용자가 별도로 포함을 선택하고 목록을 검토한 경우에만 기록한다.
+- 파일 크기는 압축 해제 상태에서 최대 1 MiB로 제한한다.
+- 설치 UUID, 로컬 펫 키, 화면·창 좌표, 디스플레이 식별자, 펫 크기, 클릭 통과, 깨움 상태와 이동 이력 필드는 정의하지 않는다.
+- 지원하지 않는 미래 schema 또는 내용이 손상된 권장 프로필은 펫 자산 패키지 전체를 무효화하지 않는다. 보안 검증을 통과한 펫만 설치하고 권장 설정을 적용하지 않았음을 알린다.
+- 실행 파일, 스크립트, 안전하지 않은 경로, 크기 제한 초과처럼 패키지 보안 경계를 위반한 파일은 권장 프로필의 선택 여부와 관계없이 전체 패키지를 거부한다.
 
 ## 8. Codex 호환 WebP 가져오기
 
