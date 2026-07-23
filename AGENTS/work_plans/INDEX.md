@@ -13,7 +13,6 @@
 
 | 상태 | 작업명 | 파일 | 마지막 갱신 |
 | --- | --- | --- | --- |
-| in_progress | Phase 9A 공유 권장 프로필 | `tasks/2026-07-23-phase-9a-shared-pet-profile.md` | 2026-07-23 |
 
 ## 보류 / 대기
 
@@ -24,6 +23,7 @@
 
 | 상태 | 작업명 | 파일 | 완료일 |
 | --- | --- | --- | --- |
+| completed | Phase 9A 공유 권장 프로필 | `tasks/2026-07-23-phase-9a-shared-pet-profile.md` | 2026-07-23 |
 | completed | Phase 9 펫 이동 모드와 상호작용 | `tasks/2026-07-22-phase-9-cursor-following.md` | 2026-07-23 |
 | completed | Phase 8 로컬 펫 공유 | `tasks/2026-07-22-phase-8-local-pet-sharing.md` | 2026-07-23 |
 | completed | Phase 7 애니메이션·행동 모델 v2와 펫별 설정 | `tasks/2026-07-22-phase-7-animation-behavior-v2.md` | 2026-07-23 |

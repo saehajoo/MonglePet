@@ -377,6 +377,120 @@ final class PetPackageExporterTests: XCTestCase {
         )
     }
 
+    @MainActor
+    func testRecommendedProfileRoundTripsThroughArchiveFreshInstallAndSettings() throws {
+        let sourceInstallation = try makeInstalledPackage(license: "CC-BY-4.0")
+        let sourceBehaviorProfile = makeBehaviorProfile(
+            installationID: sourceInstallation.installationID
+        )
+        let sharingService = PetPackageSharingService(exporter: makeExporter())
+        let sharingReview = try sharingService.review(
+            sourceInstallation,
+            behaviorProfile: sourceBehaviorProfile
+        )
+        let expectedProfile = try XCTUnwrap(
+            sharingReview.recommendedProfileWithApplicationRules
+        )
+        let archiveURL = temporaryDirectoryURL.appendingPathComponent(
+            "Recommended Profile Round Trip.monglepet"
+        )
+        try sharingService.export(
+            sourceInstallation,
+            reviewed: sharingReview,
+            options: PetPackageShareOptions(
+                includesRecommendedProfile: true,
+                includesApplicationRules: true
+            ),
+            isConfirmed: true,
+            to: archiveURL
+        )
+
+        let importedInstallationID = UUID(
+            uuidString: "22222222-2222-2222-2222-222222222222"
+        )!
+        let freshLibraryURL = temporaryDirectoryURL.appendingPathComponent(
+            "ProfileRoundTripLibrary",
+            isDirectory: true
+        )
+        let freshStore = PetLibraryStore(
+            libraryRootURL: freshLibraryURL,
+            installationIDGenerator: { importedInstallationID }
+        )
+        let installer = PetPackageInstaller(
+            libraryStore: freshStore,
+            temporaryDirectoryURL: temporaryDirectoryURL
+        )
+        let importReview = try installer.review(from: archiveURL)
+        let installationResult = try installer.installReviewed(
+            from: archiveURL,
+            mode: .rejectDuplicate,
+            expectedReview: importReview
+        )
+
+        XCTAssertEqual(importReview.recommendedProfile, expectedProfile)
+        XCTAssertNil(importReview.recommendedProfileIssue)
+        XCTAssertEqual(
+            importReview.applicationBundleIdentifiers,
+            ["com.apple.dt.Xcode"]
+        )
+        XCTAssertEqual(
+            try regularFilePaths(in: installationResult.installedPackage.rootURL),
+            [
+                "assets/spritesheet.png",
+                "pet.json",
+                "preview.png",
+                "recommended-profile.json"
+            ]
+        )
+        XCTAssertFalse(
+            UserPetPackageEditor(store: freshStore).isEditable(
+                installationResult.installedPackage
+            )
+        )
+
+        let settingsURL = temporaryDirectoryURL.appendingPathComponent(
+            "ProfileRoundTripSettings.json"
+        )
+        let settingsSession = AppSettingsSession(
+            store: AppSettingsStore(settingsURL: settingsURL)
+        )
+        XCTAssertEqual(settingsSession.load().source, .defaults)
+        settingsSession.setSelectedPetInstallationID(importedInstallationID)
+        XCTAssertTrue(
+            settingsSession.applyRecommendedProfile(
+                expectedProfile,
+                to: importedInstallationID
+            )
+        )
+        XCTAssertEqual(
+            settingsSession.settings.activeBehaviorProfile,
+            expectedProfile.behaviorProfile(
+                for: .installed(importedInstallationID)
+            )
+        )
+        XCTAssertEqual(settingsSession.settings.overlay, .default)
+        XCTAssertEqual(settingsSession.settings.lastUserPresentation, .awake)
+
+        let reloadedSession = AppSettingsSession(
+            store: AppSettingsStore(settingsURL: settingsURL)
+        )
+        XCTAssertEqual(reloadedSession.load().source, .file)
+        XCTAssertEqual(
+            reloadedSession.settings.activeBehaviorProfile,
+            expectedProfile.behaviorProfile(
+                for: .installed(importedInstallationID)
+            )
+        )
+        XCTAssertEqual(
+            reloadedSession.settings.behaviorProfiles.count,
+            1
+        )
+        XCTAssertNotEqual(
+            importedInstallationID,
+            sourceInstallation.installationID
+        )
+    }
+
     func testRevalidationFailurePreservesExistingDestination() throws {
         let installedPackage = try makeInstalledPackage()
         let destinationURL = temporaryDirectoryURL.appendingPathComponent(
@@ -724,8 +838,17 @@ final class PetPackageExporterTests: XCTestCase {
                     sequenceID: "default"
                 )
             ],
-            movement: .default,
-            pettingMotionID: nil
+            movement: PetMovementSettings(
+                mode: .freeRoaming,
+                speed: 240,
+                cursorDistance: 88,
+                stopRadius: 18,
+                freeRoamingDwellMilliseconds: 7_000,
+                prefersFrontmostWindow: false,
+                cursorFollowingMotionID: "idle",
+                freeRoamingMotionID: "idle"
+            ),
+            pettingMotionID: "idle"
         )
     }
 

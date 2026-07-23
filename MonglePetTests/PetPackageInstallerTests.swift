@@ -72,6 +72,58 @@ final class PetPackageInstallerTests: XCTestCase {
         )
     }
 
+    func testMalformedRecommendedProfileDoesNotBlockPetInstallation() throws {
+        let environment = try makeEnvironment()
+        let packageURL = try makePackage(in: environment.temporaryURL)
+        try Data(#"{"schemaVersion":"#.utf8).write(
+            to: packageURL.appendingPathComponent("recommended-profile.json")
+        )
+        let installer = makeInstaller(environment: environment)
+
+        let review = try installer.review(from: packageURL)
+        let result = try installer.installReviewed(
+            from: packageURL,
+            mode: .rejectDuplicate,
+            expectedReview: review
+        )
+
+        XCTAssertTrue(review.containsRecommendedProfile)
+        XCTAssertNil(review.recommendedProfile)
+        XCTAssertEqual(review.recommendedProfileIssue, .unreadable)
+        XCTAssertEqual(
+            result.installedPackage.package.metadata.id,
+            "com.example.installable"
+        )
+    }
+
+    func testPackageWithoutRecommendedProfileKeepsLegacyImportBehavior() throws {
+        let environment = try makeEnvironment()
+        let packageURL = try makePackage(in: environment.temporaryURL)
+        let installer = makeInstaller(environment: environment)
+
+        let review = try installer.review(from: packageURL)
+        let result = try installer.installReviewed(
+            from: packageURL,
+            mode: .rejectDuplicate,
+            expectedReview: review
+        )
+
+        XCTAssertFalse(review.containsRecommendedProfile)
+        XCTAssertNil(review.recommendedProfile)
+        XCTAssertNil(review.recommendedProfileIssue)
+        XCTAssertEqual(
+            result.installedPackage.package.metadata,
+            review.metadata
+        )
+        XCTAssertFalse(
+            FileManager.default.fileExists(
+                atPath: result.installedPackage.rootURL
+                    .appendingPathComponent("recommended-profile.json")
+                    .path
+            )
+        )
+    }
+
     func testOversizedRecommendedProfileRejectsWholeImport() throws {
         let environment = try makeEnvironment()
         let packageURL = try makePackage(in: environment.temporaryURL)
