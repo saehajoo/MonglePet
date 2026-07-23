@@ -14,7 +14,7 @@ nonisolated struct InstalledPetPackage: Equatable, Sendable {
 
 nonisolated enum PetLibraryError: Error, Equatable, Sendable {
     case unavailableApplicationSupport
-    case duplicatePackage(packageID: String, installationIDs: [UUID])
+    case duplicatePackage(metadata: PetPackageMetadata, installationIDs: [UUID])
     case missingInstallation(UUID)
     case packageIdentifierMismatch(expected: String, actual: String)
     case stagingValidationFailed(PetPackageLoadingError)
@@ -26,8 +26,8 @@ extension PetLibraryError: LocalizedError {
         switch self {
         case .unavailableApplicationSupport:
             "Application Support 경로를 찾을 수 없습니다."
-        case let .duplicatePackage(packageID, _):
-            "같은 패키지가 이미 설치되어 있습니다: \(packageID)"
+        case let .duplicatePackage(metadata, _):
+            "같은 패키지가 이미 설치되어 있습니다: \(metadata.id)"
         case let .missingInstallation(installationID):
             "교체할 설치 항목을 찾을 수 없습니다: \(installationID.uuidString)"
         case let .packageIdentifierMismatch(expected, actual):
@@ -86,7 +86,7 @@ nonisolated struct PetLibraryStore {
         case .rejectDuplicate:
             guard matchingInstallations.isEmpty else {
                 throw PetLibraryError.duplicatePackage(
-                    packageID: validatedPackage.metadata.id,
+                    metadata: validatedPackage.metadata,
                     installationIDs: matchingInstallations.map(\.installationID)
                 )
             }

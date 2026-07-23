@@ -299,21 +299,11 @@ private struct GeneralSettingsView: View {
             .disabled(!settingsSession.isWritingEnabled)
         }
         .formStyle(.grouped)
-        .alert(
-            "동일한 펫 패키지가 이미 설치되어 있습니다.",
-            isPresented: duplicateInstallAlertBinding
-        ) {
-            Button("별도 사본으로 설치") {
-                petLibrarySession.installDuplicateSeparately()
-            }
-            Button("기존 항목 교체", role: .destructive) {
-                petLibrarySession.replaceDuplicateInstallation()
-            }
-            Button("취소", role: .cancel) {
-                petLibrarySession.cancelDuplicateInstallation()
-            }
-        } message: {
-            Text(duplicateInstallMessage)
+        .sheet(item: duplicateInstallRequestBinding) { request in
+            DuplicatePetInstallView(
+                request: request,
+                petLibrarySession: petLibrarySession
+            )
         }
         .alert("선택한 펫을 삭제할까요?", isPresented: $isConfirmingRemoval) {
             Button("삭제", role: .destructive) {
@@ -541,11 +531,11 @@ private struct GeneralSettingsView: View {
         }
     }
 
-    private var duplicateInstallAlertBinding: Binding<Bool> {
+    private var duplicateInstallRequestBinding: Binding<DuplicatePetInstallRequest?> {
         Binding(
-            get: { petLibrarySession.duplicateInstallRequest != nil },
-            set: { isPresented in
-                if !isPresented {
+            get: { petLibrarySession.duplicateInstallRequest },
+            set: { request in
+                if request == nil {
                     petLibrarySession.cancelDuplicateInstallation()
                 }
             }
@@ -561,16 +551,6 @@ private struct GeneralSettingsView: View {
                 }
             }
         )
-    }
-
-    private var duplicateInstallMessage: String {
-        guard let request = petLibrarySession.duplicateInstallRequest else {
-            return ""
-        }
-        if request.installationIDs.count > 1 {
-            return "같은 패키지 ID의 설치 항목이 \(request.installationIDs.count)개 있습니다. 교체를 선택하면 기존 항목 목록의 첫 항목을 교체합니다."
-        }
-        return "기존 설치를 유지하고 사본을 추가하거나, 기존 항목을 같은 설치 ID로 교체할 수 있습니다."
     }
 
     private func choosePetPackage() {
@@ -707,6 +687,217 @@ private enum PetSharingFollowUp {
     case export(PetPackageShareReview)
     case editDetails
     case createEditableCopy
+}
+
+private struct DuplicatePetInstallView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let request: DuplicatePetInstallRequest
+    @ObservedObject var petLibrarySession: PetLibrarySession
+
+    @State private var selectedInstallationID: UUID?
+
+    init(
+        request: DuplicatePetInstallRequest,
+        petLibrarySession: PetLibrarySession
+    ) {
+        self.request = request
+        self.petLibrarySession = petLibrarySession
+        _selectedInstallationID = State(
+            initialValue: request.preferredReplacementInstallationID
+        )
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("같은 펫 패키지가 이미 있습니다")
+                    .font(.title2.weight(.semibold))
+                Text("새 설치로 추가하거나, 아래 설치 중 하나를 선택해 교체할 수 있습니다.")
+                    .foregroundStyle(.secondary)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("가져올 펫")
+                    .font(.headline)
+                packageInformation(request.incomingMetadata)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("교체할 기존 설치")
+                    .font(.headline)
+
+                if request.candidates.isEmpty {
+                    Label(
+                        "기존 설치 정보를 다시 불러오지 못했습니다. 취소 후 다시 시도해 주세요.",
+                        systemImage: "exclamationmark.triangle.fill"
+                    )
+                    .foregroundStyle(.orange)
+                } else {
+                    ScrollView {
+                        LazyVStack(spacing: 0) {
+                            ForEach(request.candidates) { candidate in
+                                Button {
+                                    selectedInstallationID = candidate.installationID
+                                } label: {
+                                    candidateRow(candidate)
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityIdentifier(
+                                    "monglepet.import.candidate.\(candidate.installationID.uuidString)"
+                                )
+
+                                if candidate.id != request.candidates.last?.id {
+                                    Divider()
+                                }
+                            }
+                        }
+                    }
+                    .frame(maxHeight: 220)
+                    .background(
+                        .quaternary.opacity(0.35),
+                        in: RoundedRectangle(cornerRadius: 10)
+                    )
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Label(
+                    "새 설치는 새 설치 ID와 독립된 행동 루틴·자동 규칙을 사용하며 읽기 전용으로 등록됩니다.",
+                    systemImage: "plus.square.on.square"
+                )
+                Label(
+                    replacementDescription,
+                    systemImage: selectedCandidate?.isEditable == true
+                        ? "exclamationmark.triangle.fill"
+                        : "arrow.triangle.2.circlepath"
+                )
+                .foregroundStyle(
+                    selectedCandidate?.isEditable == true ? Color.orange : Color.secondary
+                )
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+
+            if let errorMessage = petLibrarySession.errorMessage {
+                Label(errorMessage, systemImage: "xmark.circle.fill")
+                    .foregroundStyle(.orange)
+                    .font(.callout)
+                    .accessibilityIdentifier("monglepet.import.error")
+            }
+
+            HStack {
+                Spacer()
+                Button("취소", role: .cancel) {
+                    petLibrarySession.cancelDuplicateInstallation()
+                    dismiss()
+                }
+                Button("새 설치로 추가") {
+                    petLibrarySession.installDuplicateSeparately()
+                }
+                .disabled(petLibrarySession.isImporting)
+                .accessibilityIdentifier("monglepet.import.installSeparately")
+                Button("선택 항목 교체", role: .destructive) {
+                    guard let selectedInstallationID else {
+                        return
+                    }
+                    petLibrarySession.replaceDuplicateInstallation(
+                        selectedInstallationID
+                    )
+                }
+                .disabled(
+                    selectedInstallationID == nil || petLibrarySession.isImporting
+                )
+                .accessibilityIdentifier("monglepet.import.replaceSelected")
+            }
+        }
+        .padding(20)
+        .frame(width: 560)
+        .accessibilityIdentifier("monglepet.import.duplicateReview")
+    }
+
+    private var selectedCandidate: DuplicatePetInstallationCandidate? {
+        request.candidates.first {
+            $0.installationID == selectedInstallationID
+        }
+    }
+
+    private var replacementDescription: String {
+        if selectedCandidate?.isEditable == true {
+            return "교체하면 선택한 펫 파일과 편집 가능 상태가 읽기 전용 패키지로 바뀝니다. 기존 행동 루틴·자동 규칙은 유지됩니다."
+        }
+        return "교체하면 선택한 설치 ID의 펫 파일만 바뀌고 기존 행동 루틴·자동 규칙은 유지됩니다."
+    }
+
+    @ViewBuilder
+    private func packageInformation(_ metadata: PetPackageMetadata) -> some View {
+        Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 8) {
+            importInformationRow("펫 이름", value: metadata.displayName)
+            importInformationRow("버전", value: metadata.version)
+            importInformationRow("제작자", value: metadata.author)
+            importInformationRow("패키지 ID", value: metadata.id)
+        }
+        .padding(12)
+        .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 10))
+    }
+
+    @ViewBuilder
+    private func candidateRow(
+        _ candidate: DuplicatePetInstallationCandidate
+    ) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(
+                systemName: candidate.installationID == selectedInstallationID
+                    ? "largecircle.fill.circle"
+                    : "circle"
+            )
+            .foregroundStyle(
+                candidate.installationID == selectedInstallationID
+                    ? Color.accentColor
+                    : Color.secondary
+            )
+
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    Text(candidate.metadata.displayName)
+                        .fontWeight(.medium)
+                    if candidate.isCurrentlySelected {
+                        Text("현재 선택")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    Text(candidate.isEditable ? "편집 가능" : "읽기 전용")
+                        .font(.caption2)
+                        .foregroundStyle(
+                            candidate.isEditable ? Color.blue : Color.secondary
+                        )
+                }
+                Text("버전 \(candidate.metadata.version) · 제작자 \(candidate.metadata.author)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                Text("설치 ID \(candidate.installationID.uuidString)")
+                    .font(.caption2.monospaced())
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+            }
+            Spacer()
+        }
+        .contentShape(Rectangle())
+        .padding(12)
+    }
+
+    private func importInformationRow(
+        _ label: String,
+        value: String
+    ) -> some View {
+        GridRow {
+            Text(label)
+                .foregroundStyle(.secondary)
+            Text(value)
+                .textSelection(.enabled)
+        }
+    }
 }
 
 private struct PetPackageShareReviewView: View {

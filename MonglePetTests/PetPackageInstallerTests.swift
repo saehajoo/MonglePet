@@ -89,13 +89,13 @@ final class PetPackageInstallerTests: XCTestCase {
         _ = try installer.install(from: archiveURL)
 
         XCTAssertThrowsError(try installer.install(from: archiveURL)) { error in
-            XCTAssertEqual(
-                error as? PetLibraryError,
-                .duplicatePackage(
-                    packageID: "com.example.installable",
-                    installationIDs: [firstID]
-                )
-            )
+            guard case let .duplicatePackage(metadata, installationIDs) = error
+                as? PetLibraryError else {
+                return XCTFail("중복 패키지 오류가 필요합니다: \(error)")
+            }
+            XCTAssertEqual(metadata.id, "com.example.installable")
+            XCTAssertEqual(metadata.version, "1.0.0")
+            XCTAssertEqual(installationIDs, [firstID])
         }
 
         let separate = try installer.install(from: archiveURL, mode: .installSeparately)

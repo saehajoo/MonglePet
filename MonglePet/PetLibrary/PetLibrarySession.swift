@@ -48,17 +48,33 @@ nonisolated struct PetLibraryItem: Equatable, Identifiable, Sendable {
     }
 }
 
+nonisolated struct DuplicatePetInstallationCandidate: Equatable, Identifiable, Sendable {
+    let installationID: UUID
+    let metadata: PetPackageMetadata
+    let isEditable: Bool
+    let isCurrentlySelected: Bool
+
+    var id: UUID {
+        installationID
+    }
+}
+
 nonisolated struct DuplicatePetInstallRequest: Equatable, Identifiable, Sendable {
     let sourceURL: URL
-    let packageID: String
-    let installationIDs: [UUID]
+    let incomingMetadata: PetPackageMetadata
+    let candidates: [DuplicatePetInstallationCandidate]
 
     var id: URL {
         sourceURL
     }
 
-    var replacementInstallationID: UUID? {
-        installationIDs.first
+    var packageID: String {
+        incomingMetadata.id
+    }
+
+    var preferredReplacementInstallationID: UUID? {
+        candidates.first(where: \.isCurrentlySelected)?.installationID
+            ?? candidates.first?.installationID
     }
 }
 
@@ -290,17 +306,32 @@ final class PetLibrarySession: ObservableObject {
             onSelectionChange?(selectedItem)
             return true
         } catch let error as PetLibraryError {
-            if case let .duplicatePackage(packageID, installationIDs) = error {
+            if case let .duplicatePackage(incomingMetadata, installationIDs) = error {
                 let preferredInstallationID = selectedInstallationID.flatMap { selectedID in
                     installationIDs.contains(selectedID) ? selectedID : nil
                 }
                 let orderedInstallationIDs = preferredInstallationID.map { preferredID in
                     [preferredID] + installationIDs.filter { $0 != preferredID }
                 } ?? installationIDs
+                let installedPackagesByID = Dictionary(
+                    uniqueKeysWithValues: installedPackagesProvider().map {
+                        ($0.installationID, $0)
+                    }
+                )
+                let candidates = orderedInstallationIDs.compactMap { installationID in
+                    installedPackagesByID[installationID].map { installedPackage in
+                        DuplicatePetInstallationCandidate(
+                            installationID: installationID,
+                            metadata: installedPackage.package.metadata,
+                            isEditable: editablePackageProvider(installedPackage),
+                            isCurrentlySelected: installationID == selectedInstallationID
+                        )
+                    }
+                }
                 duplicateInstallRequest = DuplicatePetInstallRequest(
                     sourceURL: sourceURL,
-                    packageID: packageID,
-                    installationIDs: orderedInstallationIDs
+                    incomingMetadata: incomingMetadata,
+                    candidates: candidates
                 )
                 errorMessage = nil
             } else {
@@ -320,16 +351,16 @@ final class PetLibrarySession: ObservableObject {
         _ = installPackage(from: request.sourceURL, mode: .installSeparately)
     }
 
-    func replaceDuplicateInstallation() {
+    func replaceDuplicateInstallation(_ installationID: UUID) {
         guard
             let request = duplicateInstallRequest,
-            let replacementInstallationID = request.replacementInstallationID
+            request.candidates.contains(where: { $0.installationID == installationID })
         else {
             return
         }
         _ = installPackage(
             from: request.sourceURL,
-            mode: .replace(installationID: replacementInstallationID)
+            mode: .replace(installationID: installationID)
         )
     }
 

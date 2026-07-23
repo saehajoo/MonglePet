@@ -105,9 +105,29 @@ final class PetLibrarySessionTests: XCTestCase {
 
     func testDuplicateInstallCanRetryAsSeparateCopyOrReplacement() {
         let sourceURL = URL(fileURLWithPath: "/tmp/test.monglepet")
+        let thirdID = UUID(
+            uuidString: "33333333-3333-3333-3333-333333333333"
+        )!
         var requestedModes: [PetPackageInstallationMode] = []
-        let installed = makeInstalled(id: secondID, name: "가람 사본")
-        var packages: [InstalledPetPackage] = []
+        let first = makeInstalled(
+            id: firstID,
+            name: "가람 편집본",
+            packageID: "test.pet",
+            version: "1.0.0"
+        )
+        let second = makeInstalled(
+            id: secondID,
+            name: "가람 읽기 전용",
+            packageID: "test.pet",
+            version: "1.5.0"
+        )
+        let incoming = makeInstalled(
+            id: thirdID,
+            name: "가람 새 버전",
+            packageID: "test.pet",
+            version: "2.0.0"
+        )
+        var packages = [first, second]
         let session = PetLibrarySession(
             builtInDefinition: builtInDefinition,
             installedPackagesProvider: { packages },
@@ -116,24 +136,59 @@ final class PetLibrarySessionTests: XCTestCase {
                 requestedModes.append(mode)
                 if mode == .rejectDuplicate {
                     throw PetLibraryError.duplicatePackage(
-                        packageID: "test.pet",
+                        metadata: incoming.package.metadata,
                         installationIDs: [self.firstID]
+                            + [self.secondID]
+                    )
+                }
+                let installed: InstalledPetPackage
+                switch mode {
+                case .rejectDuplicate:
+                    XCTFail("중복 거부 모드는 위에서 오류를 발생시켜야 합니다.")
+                    installed = incoming
+                case .installSeparately:
+                    installed = incoming
+                case let .replace(installationID):
+                    installed = self.makeInstalled(
+                        id: installationID,
+                        name: incoming.package.metadata.displayName,
+                        packageID: incoming.package.metadata.id,
+                        version: incoming.package.metadata.version
                     )
                 }
                 packages = [installed]
                 return installed
-            }
+            },
+            editablePackageProvider: { $0.installationID == self.firstID }
         )
+        _ = session.reload(preferredInstallationID: secondID)
 
         XCTAssertFalse(session.installPackage(from: sourceURL))
-        XCTAssertEqual(session.duplicateInstallRequest?.packageID, "test.pet")
+        guard let duplicateRequest = session.duplicateInstallRequest else {
+            return XCTFail("중복 설치 선택 요청이 필요합니다.")
+        }
+        XCTAssertEqual(duplicateRequest.packageID, "test.pet")
+        XCTAssertEqual(duplicateRequest.incomingMetadata.version, "2.0.0")
+        XCTAssertEqual(
+            duplicateRequest.candidates.map(\.installationID),
+            [secondID, firstID]
+        )
+        XCTAssertEqual(
+            duplicateRequest.preferredReplacementInstallationID,
+            secondID
+        )
+        XCTAssertEqual(
+            duplicateRequest.candidates.map(\.isEditable),
+            [false, true]
+        )
         session.installDuplicateSeparately()
         XCTAssertEqual(requestedModes, [.rejectDuplicate, .installSeparately])
         XCTAssertNil(session.duplicateInstallRequest)
 
-        packages = []
+        packages = [first, second]
+        _ = session.reload(preferredInstallationID: secondID)
         XCTAssertFalse(session.installPackage(from: sourceURL))
-        session.replaceDuplicateInstallation()
+        session.replaceDuplicateInstallation(firstID)
         XCTAssertEqual(
             requestedModes,
             [
@@ -143,6 +198,7 @@ final class PetLibrarySessionTests: XCTestCase {
                 .replace(installationID: firstID)
             ]
         )
+        XCTAssertEqual(session.selection, .installed(firstID))
     }
 
     func testCreatingUserPetReloadsSelectsAndMarksEditableItem() {
@@ -480,7 +536,9 @@ final class PetLibrarySessionTests: XCTestCase {
         id: UUID,
         name: String,
         motionIDs: [String] = ["idle"],
-        defaultMotionID: String = "idle"
+        defaultMotionID: String = "idle",
+        packageID: String? = nil,
+        version: String = "1.0.0"
     ) -> InstalledPetPackage {
         let rootURL = URL(fileURLWithPath: "/tmp/\(id.uuidString)", isDirectory: true)
         let frame = MotionFrame(
@@ -489,7 +547,7 @@ final class PetLibrarySessionTests: XCTestCase {
             duration: .milliseconds(120)
         )
         let definition = PetDefinition(
-            id: "test.\(id.uuidString)",
+            id: packageID ?? "test.\(id.uuidString)",
             displayName: name,
             defaultMotionID: defaultMotionID,
             motions: motionIDs.map {
@@ -501,7 +559,7 @@ final class PetLibrarySessionTests: XCTestCase {
             metadata: PetPackageMetadata(
                 id: definition.id,
                 displayName: name,
-                version: "1.0.0",
+                version: version,
                 author: "Tester",
                 license: "Test",
                 description: nil
