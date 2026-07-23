@@ -43,6 +43,7 @@ xcodebuild -project MonglePet.xcodeproj \
 - 현재 펫 기본 참조와 누락된 애니메이션의 선언된 기본 애니메이션 대체
 - 설치 UUID별 행동 모드·수동 선택·루틴·자동 규칙의 독립 저장과 전환 복원
 - 같은 설치 교체·별도 사본·명시적 삭제·연결이 끊긴 행동 설정의 생명주기
+- 공유 `.monglepet`의 정규화 manifest·참조 자산 선별·marker 제외·ZIP 왕복과 원자적 저장
 - 패키지 경로, 크기, 이미지와 manifest 검증
 - Codex legacy v1 8×9 및 v2 8×11 WebP atlas 매핑
 - 정적 WebP와 animated WebP 판별 및 미지원 형식 거부
