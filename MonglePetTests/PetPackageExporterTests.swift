@@ -55,6 +55,9 @@ final class PetPackageExporterTests: XCTestCase {
             ) as? [String: Any]
         )
         XCTAssertNil(manifestObject["privateLocalField"])
+        XCTAssertNil(manifestObject["installationID"])
+        XCTAssertNil(manifestObject["behaviorProfiles"])
+        XCTAssertNil(manifestObject["automaticRules"])
 
         let roundTrippedPackage = try PetPackageLoader().loadPackage(
             at: extractedRootURL
@@ -66,6 +69,76 @@ final class PetPackageExporterTests: XCTestCase {
         XCTAssertEqual(
             roundTrippedPackage.definition,
             installedPackage.package.definition
+        )
+    }
+
+    func testConfirmedSharedArchiveInstallsIntoFreshLibraryAsReadOnlyPackage() throws {
+        let sourceInstallation = try makeInstalledPackage(license: "CC-BY-4.0")
+        let sharingService = PetPackageSharingService(exporter: makeExporter())
+        let review = try sharingService.review(sourceInstallation)
+        let sharedArchiveURL = temporaryDirectoryURL.appendingPathComponent(
+            review.suggestedFileName,
+            isDirectory: false
+        )
+        try sharingService.export(
+            sourceInstallation,
+            reviewed: review,
+            isConfirmed: true,
+            to: sharedArchiveURL
+        )
+
+        let importedInstallationID = UUID(
+            uuidString: "22222222-2222-2222-2222-222222222222"
+        )!
+        let freshLibraryURL = temporaryDirectoryURL.appendingPathComponent(
+            "FreshLibrary",
+            isDirectory: true
+        )
+        let freshStore = PetLibraryStore(
+            libraryRootURL: freshLibraryURL,
+            installationIDGenerator: { importedInstallationID }
+        )
+        let importedInstallation = try PetPackageInstaller(
+            libraryStore: freshStore,
+            temporaryDirectoryURL: temporaryDirectoryURL
+        ).install(from: sharedArchiveURL)
+
+        XCTAssertEqual(importedInstallation.installationID, importedInstallationID)
+        XCTAssertNotEqual(
+            importedInstallation.installationID,
+            sourceInstallation.installationID
+        )
+        XCTAssertEqual(
+            importedInstallation.package.metadata,
+            sourceInstallation.package.metadata
+        )
+        XCTAssertEqual(
+            importedInstallation.package.definition,
+            sourceInstallation.package.definition
+        )
+        XCTAssertEqual(
+            try regularFilePaths(in: importedInstallation.rootURL),
+            ["assets/spritesheet.png", "pet.json", "preview.png"]
+        )
+        XCTAssertEqual(
+            try Data(contentsOf: importedInstallation.package.previewURL),
+            try Data(contentsOf: sourceInstallation.package.previewURL)
+        )
+        XCTAssertEqual(
+            try Data(contentsOf: importedInstallation.package.atlases[0].fileURL),
+            try Data(contentsOf: sourceInstallation.package.atlases[0].fileURL)
+        )
+        XCTAssertFalse(
+            UserPetPackageEditor(store: freshStore).isEditable(importedInstallation)
+        )
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: sourceInstallation.rootURL.appendingPathComponent(
+                    UserPetPackageEditor.markerFileName,
+                    isDirectory: false
+                ).path
+            ),
+            "공유와 가져오기가 원본 사용자 펫의 편집 marker를 변경하면 안 됩니다."
         )
     }
 

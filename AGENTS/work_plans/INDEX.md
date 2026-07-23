@@ -8,7 +8,6 @@
 
 | 상태 | 작업명 | 파일 | 마지막 갱신 |
 | --- | --- | --- | --- |
-| in_progress | Phase 8 로컬 펫 공유 | `tasks/2026-07-22-phase-8-local-pet-sharing.md` | 2026-07-23 |
 
 ## 계획됨
 
@@ -25,6 +24,7 @@
 
 | 상태 | 작업명 | 파일 | 완료일 |
 | --- | --- | --- | --- |
+| completed | Phase 8 로컬 펫 공유 | `tasks/2026-07-22-phase-8-local-pet-sharing.md` | 2026-07-23 |
 | completed | Phase 7 애니메이션·행동 모델 v2와 펫별 설정 | `tasks/2026-07-22-phase-7-animation-behavior-v2.md` | 2026-07-23 |
 | completed | Phase 6 펫 스튜디오와 메타데이터 편집 | `tasks/2026-07-22-phase-6-pet-studio.md` | 2026-07-22 |
 | completed | 사용자 자유 행동 기본값 전환 | `tasks/2026-07-22-custom-behavior-defaults.md` | 2026-07-22 |
