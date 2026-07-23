@@ -98,6 +98,123 @@ final class PetMovementGeometryTests: XCTestCase {
         XCTAssertEqual(target, point(880, 350))
     }
 
+    func testCursorRouteUsesStableGatewayBetweenSideBySideScreens() throws {
+        let route = try XCTUnwrap(
+            PetMovementGeometry.cursorFollowingRoute(
+                pointer: point(1_500, 300),
+                currentOrigin: point(800, 200),
+                petSize: size(100, 100),
+                cursorDistance: 0,
+                screenInset: 32,
+                screens: [
+                    screen("main", 0, 0, 1_000, 800),
+                    screen("right", 1_000, 100, 800, 600)
+                ]
+            )
+        )
+
+        XCTAssertEqual(route.targetOrigin, point(1_450, 250))
+        XCTAssertEqual(
+            route.transition,
+            PetMovementScreenTransition(
+                sourceScreenID: "main",
+                targetScreenID: "right",
+                exitOrigin: point(900, 200),
+                entryOrigin: point(1_000, 200)
+            )
+        )
+    }
+
+    func testCursorRouteUsesNearestCornersAcrossDisplayGap() throws {
+        let route = try XCTUnwrap(
+            PetMovementGeometry.cursorFollowingRoute(
+                pointer: point(1_500, 1_100),
+                currentOrigin: point(800, 600),
+                petSize: size(100, 100),
+                cursorDistance: 0,
+                screenInset: 32,
+                screens: [
+                    screen("main", 0, 0, 1_000, 800),
+                    screen("upperRight", 1_200, 900, 800, 600)
+                ]
+            )
+        )
+
+        XCTAssertEqual(
+            route.transition,
+            PetMovementScreenTransition(
+                sourceScreenID: "main",
+                targetScreenID: "upperRight",
+                exitOrigin: point(900, 700),
+                entryOrigin: point(1_200, 900)
+            )
+        )
+    }
+
+    func testCursorRouteSupportsLeftAndUpperScreenTransitions() throws {
+        let leftRoute = try XCTUnwrap(
+            PetMovementGeometry.cursorFollowingRoute(
+                pointer: point(500, 250),
+                currentOrigin: point(1_200, 200),
+                petSize: size(100, 100),
+                cursorDistance: 0,
+                screenInset: 32,
+                screens: [
+                    screen("left", 0, 0, 1_000, 800),
+                    screen("right", 1_000, 0, 1_000, 800)
+                ]
+            )
+        )
+        XCTAssertEqual(
+            leftRoute.transition,
+            PetMovementScreenTransition(
+                sourceScreenID: "right",
+                targetScreenID: "left",
+                exitOrigin: point(1_000, 200),
+                entryOrigin: point(900, 200)
+            )
+        )
+
+        let upperRoute = try XCTUnwrap(
+            PetMovementGeometry.cursorFollowingRoute(
+                pointer: point(500, 1_000),
+                currentOrigin: point(400, 650),
+                petSize: size(100, 100),
+                cursorDistance: 0,
+                screenInset: 32,
+                screens: [
+                    screen("lower", 0, 0, 1_000, 800),
+                    screen("upper", 0, 800, 1_000, 800)
+                ]
+            )
+        )
+        XCTAssertEqual(
+            upperRoute.transition,
+            PetMovementScreenTransition(
+                sourceScreenID: "lower",
+                targetScreenID: "upper",
+                exitOrigin: point(400, 700),
+                entryOrigin: point(400, 800)
+            )
+        )
+    }
+
+    func testCursorRouteOnSameScreenDoesNotCreateTransition() throws {
+        let route = try XCTUnwrap(
+            PetMovementGeometry.cursorFollowingRoute(
+                pointer: point(600, 400),
+                currentOrigin: point(100, 100),
+                petSize: size(100, 100),
+                cursorDistance: 0,
+                screenInset: 32,
+                screens: [screen("main", 0, 0, 1_000, 800)]
+            )
+        )
+
+        XCTAssertNil(route.transition)
+        XCTAssertEqual(route.targetOrigin, point(550, 350))
+    }
+
     func testFreeRoamingTargetPrefersIntersectingWindow() throws {
         let target = try XCTUnwrap(
             PetMovementGeometry.freeRoamingTargetOrigin(

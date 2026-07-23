@@ -182,6 +182,49 @@ schema-v2는 schema-v1의 최상위 전역 행동 필드를 펫별 `behaviorProf
 
 schema-v3의 행동 단계는 schema-v2와 동일하게 `motionID`와 `repeatCount`를 저장한다. schema-v1의 `durationMilliseconds`, `playbackSpeed`는 기록하지 않는다. v1 마이그레이션은 선택 펫 패키지에 저장된 프레임 시간으로 애니메이션 한 사이클을 계산하고, 기존 유지 시간에 가장 가까운 반복 횟수를 사용한다. 단계별 `playbackSpeed`는 패키지 프레임 시간을 단일 속도 원본으로 삼기 위해 변환에 반영하지 않는다. 참조 애니메이션을 찾지 못하면 현재 펫 기본 애니메이션과 반복 1회로 복구한다.
 
+## Phase 9B 계획: schema-v4 로컬 표시 환경
+
+현재 구현과 저장 파일의 스키마는 v3다. Phase 9B에서 전역 overlay에 이동 범위와 투명도 설정을 추가할 때 schema-v4로 순차 마이그레이션한다.
+
+```json
+{
+  "schemaVersion": 4,
+  "selectedPetInstallationID": null,
+  "lastUserPresentation": "awake",
+  "overlay": {
+    "screenIdentifier": null,
+    "originX": 0,
+    "originY": 0,
+    "width": 192,
+    "clickThrough": false,
+    "opacity": 1.0,
+    "pointerOverlapFadeEnabled": false,
+    "pointerOverlapOpacity": 0.2,
+    "movementBoundary": {
+      "mode": "allDisplays",
+      "screenIdentifier": null,
+      "normalizedRect": null
+    }
+  },
+  "behaviorProfiles": []
+}
+```
+
+계획 필드 규칙:
+
+- `overlay.opacity`: 평상시 패널 투명도이며 `0.10...1.00`, 기본값 `1.00`이다.
+- `overlay.pointerOverlapFadeEnabled`: 클릭 통과 중 마우스가 실제 표시 픽셀과 겹칠 때 투명도를 바꿀지 나타내며 기본값은 `false`다.
+- `overlay.pointerOverlapOpacity`: 겹침 상태 투명도이며 `0.05...1.00`, 기본값 `0.20`이다. 실제 적용 값은 `opacity`보다 커지지 않는다.
+- `overlay.movementBoundary.mode`: `allDisplays`, `selectedDisplay`, `customArea` 중 하나이며 기본값은 `allDisplays`다.
+- `selectedDisplay`와 `customArea`에는 디스플레이 UUID 기반 `screenIdentifier`가 필요하다.
+- `customArea.normalizedRect`는 선택한 화면의 현재 visible frame을 기준으로 한 `x`, `y`, `width`, `height`의 `0...1` 정규화 사각형이다.
+- 사용자 지정 영역은 펫 전체가 들어갈 수 있는 실제 원점 범위로 축소해 사용한다. 너무 작은 영역은 중앙의 한 원점으로 안전하게 축소한다.
+- 저장된 화면을 찾지 못하면 실행 중에는 모든 사용 가능 화면으로 폴백하되 저장된 화면과 영역 선택을 자동 삭제하지 않는다.
+- 위치 고정에는 `movementBoundary`를 적용하지 않는다. 마우스 따라가기와 자유 이동의 목표 좌표에만 적용한다.
+- 이동 범위와 투명도는 기기별 전역 표시 환경이며 `BehaviorProfile`, `.monglepet`과 `recommended-profile.json`에 포함하지 않는다.
+
+schema-v3에서 v4로 마이그레이션할 때 기존 overlay 값과 모든 펫 프로필을 그대로 유지하고 위 계획 필드의 기본값만 추가한다. 변환과 원자적 저장이 모두 성공한 경우에만 v4 파일로 교체한다.
+
 ## 자동 규칙 조건
 
 앱 조건:
@@ -228,6 +271,8 @@ schema-v3의 행동 단계는 schema-v2와 동일하게 `motionID`와 `repeatCou
 4. 버전 `1`은 당시 선택된 펫의 정의를 먼저 불러와 v2 행동 프로필로 변환한 뒤 v3 기본 이동 설정을 추가한다. 전체 변환과 저장이 성공한 경우에만 v3로 원자적 교체하며, 필요한 펫 정의를 얻지 못하거나 저장에 실패하면 v1 원본과 쓰기 차단 상태를 유지한다.
 5. 현재 앱보다 새로운 버전은 원본을 이동하거나 덮어쓰지 않고 기본값으로 실행하며 저장을 거부한다.
 6. 향후 마이그레이션은 버전별 순차 변환과 fixture 기반 단위 테스트를 함께 추가한다.
+
+Phase 9B 구현이 완료되면 현재 버전을 `4`로 올리고 위 목록에 v3 → v4 순차 변환을 추가한다. 계획 단계에서는 v3 로더와 저장 동작을 변경하지 않는다.
 
 ---
 

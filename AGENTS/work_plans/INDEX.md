@@ -8,6 +8,7 @@
 
 | 상태 | 작업명 | 파일 | 마지막 갱신 |
 | --- | --- | --- | --- |
+| in_progress | Phase 9B 다중 모니터·표시·호환성 보완 | `tasks/2026-07-23-phase-9b-display-and-compatibility.md` | 2026-07-23 |
 
 ## 계획됨
 

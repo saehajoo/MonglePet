@@ -123,6 +123,18 @@ nonisolated struct PetMovementAdvance: Equatable, Sendable {
     let hasArrived: Bool
 }
 
+nonisolated struct PetMovementScreenTransition: Equatable, Sendable {
+    let sourceScreenID: String
+    let targetScreenID: String
+    let exitOrigin: PetMovementPoint
+    let entryOrigin: PetMovementPoint
+}
+
+nonisolated struct PetMovementCursorRoute: Equatable, Sendable {
+    let targetOrigin: PetMovementPoint
+    let transition: PetMovementScreenTransition?
+}
+
 nonisolated enum PetMovementGeometry {
     static func safeOriginBounds(
         in visibleFrame: PetMovementRect,
@@ -157,11 +169,32 @@ nonisolated enum PetMovementGeometry {
         screenInset: Double,
         screens: [PetMovementScreen]
     ) -> PetMovementPoint? {
+        cursorFollowingRoute(
+            pointer: pointer,
+            currentOrigin: currentOrigin,
+            petSize: petSize,
+            cursorDistance: cursorDistance,
+            screenInset: screenInset,
+            screens: screens
+        )?.targetOrigin
+    }
+
+    static func cursorFollowingRoute(
+        pointer: PetMovementPoint,
+        currentOrigin: PetMovementPoint,
+        petSize: PetMovementSize,
+        cursorDistance: Double,
+        screenInset: Double,
+        screens: [PetMovementScreen]
+    ) -> PetMovementCursorRoute? {
         guard pointer.isFinite, currentOrigin.isFinite, petSize.isValid,
               cursorDistance.isFinite, cursorDistance >= 0,
-              let screen = screen(containingOrNearestTo: pointer, in: screens),
+              let targetScreen = screen(
+                  containingOrNearestTo: pointer,
+                  in: screens
+              ),
               let bounds = safeOriginBounds(
-                  in: screen.visibleFrame,
+                  in: targetScreen.visibleFrame,
                   petSize: petSize,
                   inset: screenInset
               ) else {
@@ -186,10 +219,62 @@ nonisolated enum PetMovementGeometry {
             targetCenter = pointer
         }
 
-        return bounds.clamped(
+        let targetOrigin = bounds.clamped(
             PetMovementPoint(
                 x: targetCenter.x - (petSize.width / 2),
                 y: targetCenter.y - (petSize.height / 2)
+            )
+        )
+        guard
+            let sourceScreen = screen(
+                containingOrNearestTo: currentCenter,
+                in: screens
+            ),
+            sourceScreen.id != targetScreen.id,
+            let sourceBounds = safeOriginBounds(
+                in: sourceScreen.visibleFrame,
+                petSize: petSize,
+                inset: 0
+            ),
+            let targetBounds = safeOriginBounds(
+                in: targetScreen.visibleFrame,
+                petSize: petSize,
+                inset: 0
+            )
+        else {
+            return PetMovementCursorRoute(
+                targetOrigin: targetOrigin,
+                transition: nil
+            )
+        }
+
+        let horizontalTransition = closestTransitionCoordinates(
+            sourceMinimum: sourceBounds.minX,
+            sourceMaximum: sourceBounds.maxX,
+            targetMinimum: targetBounds.minX,
+            targetMaximum: targetBounds.maxX,
+            preferred: currentOrigin.x
+        )
+        let verticalTransition = closestTransitionCoordinates(
+            sourceMinimum: sourceBounds.minY,
+            sourceMaximum: sourceBounds.maxY,
+            targetMinimum: targetBounds.minY,
+            targetMaximum: targetBounds.maxY,
+            preferred: currentOrigin.y
+        )
+        return PetMovementCursorRoute(
+            targetOrigin: targetOrigin,
+            transition: PetMovementScreenTransition(
+                sourceScreenID: sourceScreen.id,
+                targetScreenID: targetScreen.id,
+                exitOrigin: PetMovementPoint(
+                    x: horizontalTransition.source,
+                    y: verticalTransition.source
+                ),
+                entryOrigin: PetMovementPoint(
+                    x: horizontalTransition.target,
+                    y: verticalTransition.target
+                )
             )
         )
     }
@@ -342,6 +427,29 @@ nonisolated enum PetMovementGeometry {
         }
         let normalized = min(max(value, 0), 1)
         return min(Int(normalized * Double(count)), count - 1)
+    }
+
+    private static func closestTransitionCoordinates(
+        sourceMinimum: Double,
+        sourceMaximum: Double,
+        targetMinimum: Double,
+        targetMaximum: Double,
+        preferred: Double
+    ) -> (source: Double, target: Double) {
+        if sourceMaximum < targetMinimum {
+            return (sourceMaximum, targetMinimum)
+        }
+        if targetMaximum < sourceMinimum {
+            return (sourceMinimum, targetMaximum)
+        }
+
+        let sharedMinimum = max(sourceMinimum, targetMinimum)
+        let sharedMaximum = min(sourceMaximum, targetMaximum)
+        let sharedCoordinate = min(
+            max(preferred, sharedMinimum),
+            sharedMaximum
+        )
+        return (sharedCoordinate, sharedCoordinate)
     }
 
     private static func squaredDistance(

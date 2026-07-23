@@ -90,6 +90,8 @@ final class PetMovementController: PetMovementControlling {
     static let defaultStopHysteresis: Duration = .milliseconds(150)
     static let defaultRetryInterval: Duration = .seconds(1)
     static let defaultScreenInset = 32.0
+    static let movementComparisonTolerance = 0.000_1
+    static let transitionAcceptanceTolerance = 1.0
 
     private let clock: any PetMovementClock
     private let tickScheduler: any PetMovementTickScheduling
@@ -248,7 +250,7 @@ final class PetMovementController: PetMovementControlling {
         guard let origin = originProvider(),
               let petSize = petSizeProvider(),
               let pointer = pointerProvider(),
-              let target = PetMovementGeometry.cursorFollowingTargetOrigin(
+              let route = PetMovementGeometry.cursorFollowingRoute(
                   pointer: pointer,
                   currentOrigin: origin,
                   petSize: petSize,
@@ -261,10 +263,42 @@ final class PetMovementController: PetMovementControlling {
             return
         }
 
-        targetOrigin = target
+        targetOrigin = route.targetOrigin
+        if let transition = route.transition {
+            let exitAdvance = PetMovementGeometry.advance(
+                from: origin,
+                toward: transition.exitOrigin,
+                speed: settings.speed,
+                elapsedSeconds: elapsedSeconds,
+                stopRadius: 0
+            )
+            if exitAdvance.didMove {
+                let didMove = apply(exitAdvance, at: now)
+                if !didMove {
+                    applyCursorTransition(
+                        transition,
+                        finalTarget: route.targetOrigin,
+                        from: origin,
+                        at: now
+                    )
+                }
+            } else if exitAdvance.hasArrived {
+                applyCursorTransition(
+                    transition,
+                    finalTarget: route.targetOrigin,
+                    from: origin,
+                    at: now
+                )
+            } else {
+                updateStationaryActivityIfNeeded(at: now)
+            }
+            scheduleTick(after: tickInterval)
+            return
+        }
+
         let advance = PetMovementGeometry.advance(
             from: origin,
-            toward: target,
+            toward: route.targetOrigin,
             speed: settings.speed,
             elapsedSeconds: elapsedSeconds,
             stopRadius: settings.stopRadius
@@ -355,12 +389,27 @@ final class PetMovementController: PetMovementControlling {
         }
     }
 
+    @discardableResult
     private func apply(
         _ advance: PetMovementAdvance,
         at now: ContinuousClock.Instant
-    ) {
+    ) -> Bool {
         if advance.didMove {
+            let originBeforeRequest = originProvider()
             applyOrigin(advance.origin)
+            let actualOrigin = originProvider() ?? advance.origin
+            guard
+                originBeforeRequest.map({
+                    !originsAreNear(
+                        $0,
+                        actualOrigin,
+                        tolerance: Self.movementComparisonTolerance
+                    )
+                }) ?? true
+            else {
+                updateStationaryActivityIfNeeded(at: now)
+                return false
+            }
             lastMovedAt = now
             emit(
                 activity: PetMovementActivity(
@@ -368,9 +417,54 @@ final class PetMovementController: PetMovementControlling {
                     motionID: movementMotionID
                 )
             )
+            return true
         } else {
             updateStationaryActivityIfNeeded(at: now)
+            return false
         }
+    }
+
+    private func applyCursorTransition(
+        _ transition: PetMovementScreenTransition,
+        finalTarget: PetMovementPoint,
+        from origin: PetMovementPoint,
+        at now: ContinuousClock.Instant
+    ) {
+        applyOrigin(transition.entryOrigin)
+        var actualOrigin = originProvider() ?? transition.entryOrigin
+        if !originsAreNear(
+            actualOrigin,
+            transition.entryOrigin,
+            tolerance: Self.transitionAcceptanceTolerance
+        ) {
+            applyOrigin(finalTarget)
+            actualOrigin = originProvider() ?? finalTarget
+        }
+
+        guard !originsAreNear(
+            origin,
+            actualOrigin,
+            tolerance: Self.movementComparisonTolerance
+        ) else {
+            updateStationaryActivityIfNeeded(at: now)
+            return
+        }
+        lastMovedAt = now
+        emit(
+            activity: PetMovementActivity(
+                isMoving: true,
+                motionID: movementMotionID
+            )
+        )
+    }
+
+    private func originsAreNear(
+        _ lhs: PetMovementPoint,
+        _ rhs: PetMovementPoint,
+        tolerance: Double
+    ) -> Bool {
+        hypot(lhs.x - rhs.x, lhs.y - rhs.y)
+            <= tolerance
     }
 
     private func updateStationaryActivityIfNeeded(

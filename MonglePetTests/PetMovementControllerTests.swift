@@ -65,6 +65,29 @@ final class PetMovementControllerTests: XCTestCase {
         XCTAssertNil(fixture.controller.activity.motionID)
     }
 
+    func testSubpointLowSpeedTickStillReportsActualMovement() {
+        let fixture = Fixture()
+        fixture.origin = point(100, 100)
+        fixture.pointer = point(600, 150)
+        fixture.controller.update(
+            settings: fixture.settings(
+                mode: .cursorFollowing,
+                speed: 20,
+                cursorDistance: 100,
+                stopRadius: 10,
+                cursorMotionID: "run"
+            ),
+            isMovementAllowed: true
+        )
+
+        fixture.clock.advance(by: .milliseconds(33))
+        fixture.scheduler.fire()
+
+        XCTAssertEqual(fixture.origin.x, 100.66, accuracy: 0.000_001)
+        XCTAssertEqual(fixture.origin.y, 100, accuracy: 0.000_001)
+        XCTAssertEqual(fixture.controller.activity, movement("run"))
+    }
+
     func testCursorFollowingStopsAnimationAfterActualMovementHysteresis() {
         let fixture = Fixture()
         fixture.origin = point(100, 100)
@@ -94,6 +117,73 @@ final class PetMovementControllerTests: XCTestCase {
         XCTAssertEqual(fixture.controller.activity, .stationary)
         XCTAssertEqual(fixture.activities, [movement("run"), .stationary])
         XCTAssertEqual(fixture.scheduler.scheduledDelay, .milliseconds(100))
+    }
+
+    func testCursorFollowingCrossesToPointerDisplayAtLowSpeed() {
+        let fixture = Fixture()
+        fixture.origin = point(895, 200)
+        fixture.pointer = point(1_500, 250)
+        fixture.screens = [
+            screen("main", 0, 0, 1_000, 800),
+            screen("right", 1_000, 0, 1_000, 800)
+        ]
+        fixture.controller.update(
+            settings: fixture.settings(
+                mode: .cursorFollowing,
+                speed: 20,
+                cursorDistance: 0,
+                stopRadius: 10,
+                cursorMotionID: "run"
+            ),
+            isMovementAllowed: true
+        )
+
+        fixture.clock.advance(by: .seconds(1))
+        fixture.scheduler.fire()
+        XCTAssertEqual(fixture.origin, point(900, 200))
+
+        fixture.clock.advance(by: .milliseconds(33))
+        fixture.scheduler.fire()
+
+        XCTAssertEqual(fixture.origin, point(1_000, 200))
+        XCTAssertEqual(fixture.controller.activity, movement("run"))
+        XCTAssertEqual(fixture.activities, [movement("run")])
+        XCTAssertEqual(fixture.scheduler.scheduledDelay, .milliseconds(33))
+    }
+
+    func testRejectedDisplayEntryFallsBackToSafeFinalTarget() {
+        let fixture = Fixture()
+        fixture.origin = point(900, 200)
+        fixture.pointer = point(1_500, 250)
+        fixture.screens = [
+            screen("main", 0, 0, 1_000, 800),
+            screen("right", 1_000, 0, 1_000, 800)
+        ]
+        fixture.originTransform = { requested in
+            requested.x == 1_000
+                ? point(900, requested.y)
+                : requested
+        }
+        fixture.controller.update(
+            settings: fixture.settings(
+                mode: .cursorFollowing,
+                speed: 20,
+                cursorDistance: 0,
+                stopRadius: 10,
+                cursorMotionID: "run"
+            ),
+            isMovementAllowed: true
+        )
+
+        fixture.clock.advance(by: .milliseconds(33))
+        fixture.scheduler.fire()
+
+        XCTAssertEqual(
+            fixture.requestedOrigins,
+            [point(1_000, 200), point(1_450, 200)]
+        )
+        XCTAssertEqual(fixture.origin, point(1_450, 200))
+        XCTAssertEqual(fixture.controller.activity, movement("run"))
     }
 
     func testFreeRoamingUsesPreferredWindowThenSettlesAndDwells() {
@@ -265,14 +355,21 @@ private final class Fixture {
     var pointer = point(500, 150)
     var randomSamples = [sample(0, 0.5, 0.5)]
     var pointerReadCount = 0
+    var originTransform: ((PetMovementPoint) -> PetMovementPoint)?
+    var requestedOrigins: [PetMovementPoint] = []
     var appliedOrigins: [PetMovementPoint] = []
     var activities: [PetMovementActivity] = []
     lazy var controller = PetMovementController(
         originProvider: { [weak self] in self?.origin },
         petSizeProvider: { [weak self] in self?.petSize },
         applyOrigin: { [weak self] origin in
-            self?.origin = origin
-            self?.appliedOrigins.append(origin)
+            guard let self else {
+                return
+            }
+            requestedOrigins.append(origin)
+            let appliedOrigin = originTransform?(origin) ?? origin
+            self.origin = appliedOrigin
+            appliedOrigins.append(appliedOrigin)
         },
         clock: clock,
         tickScheduler: scheduler,
