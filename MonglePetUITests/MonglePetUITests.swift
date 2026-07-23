@@ -63,7 +63,7 @@ final class MonglePetUITests: XCTestCase {
         app.launchArguments.append("--ui-testing-open-settings")
         app.launch()
 
-        let movementTab = app.buttons["이동"]
+        let movementTab = app.radioButtons["이동"]
         XCTAssertTrue(movementTab.waitForExistence(timeout: 5))
         movementTab.click()
 
