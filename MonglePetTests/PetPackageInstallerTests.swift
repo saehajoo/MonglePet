@@ -7,6 +7,133 @@ import ZIPFoundation
 @testable import MonglePet
 
 final class PetPackageInstallerTests: XCTestCase {
+    func testReviewsAndInstallsAvailableRecommendedProfile() throws {
+        let environment = try makeEnvironment()
+        let packageURL = try makePackage(in: environment.temporaryURL)
+        let definition = try PetPackageLoader()
+            .loadPackage(at: packageURL)
+            .definition
+        let profile = makeRecommendedProfile(speed: 180)
+        try RecommendedPetProfileCodec.encode(profile, for: definition)
+            .write(
+                to: packageURL.appendingPathComponent(
+                    "recommended-profile.json",
+                    isDirectory: false
+                )
+            )
+        let installer = makeInstaller(environment: environment)
+
+        let review = try installer.review(from: packageURL)
+        let result = try installer.installReviewed(
+            from: packageURL,
+            mode: .rejectDuplicate,
+            expectedReview: review
+        )
+
+        XCTAssertTrue(review.containsRecommendedProfile)
+        XCTAssertEqual(review.recommendedProfile, profile)
+        XCTAssertNil(review.recommendedProfileIssue)
+        XCTAssertEqual(result.importReview, review)
+        XCTAssertEqual(result.installedPackage.package.metadata.id, review.metadata.id)
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: result.installedPackage.rootURL
+                    .appendingPathComponent("recommended-profile.json")
+                    .path
+            )
+        )
+        XCTAssertTrue(try visibleChildren(of: environment.importsURL).isEmpty)
+    }
+
+    func testInvalidRecommendedProfileDoesNotBlockPetInstallation() throws {
+        let environment = try makeEnvironment()
+        let packageURL = try makePackage(in: environment.temporaryURL)
+        try Data(#"{"schemaVersion":999}"#.utf8).write(
+            to: packageURL.appendingPathComponent("recommended-profile.json")
+        )
+        let installer = makeInstaller(environment: environment)
+
+        let review = try installer.review(from: packageURL)
+        let result = try installer.installReviewed(
+            from: packageURL,
+            mode: .rejectDuplicate,
+            expectedReview: review
+        )
+
+        XCTAssertTrue(review.containsRecommendedProfile)
+        XCTAssertNil(review.recommendedProfile)
+        XCTAssertEqual(
+            review.recommendedProfileIssue,
+            .unsupportedSchemaVersion(999)
+        )
+        XCTAssertEqual(
+            result.installedPackage.package.metadata.id,
+            "com.example.installable"
+        )
+    }
+
+    func testOversizedRecommendedProfileRejectsWholeImport() throws {
+        let environment = try makeEnvironment()
+        let packageURL = try makePackage(in: environment.temporaryURL)
+        try Data(
+            repeating: 0x20,
+            count: RecommendedPetProfileCodec.maximumFileSize + 1
+        ).write(
+            to: packageURL.appendingPathComponent("recommended-profile.json")
+        )
+        let installer = makeInstaller(environment: environment)
+
+        XCTAssertThrowsError(try installer.review(from: packageURL)) { error in
+            XCTAssertEqual(
+                error as? PetPackageImportError,
+                .recommendedProfileFileTooLarge
+            )
+        }
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: environment.libraryURL.path)
+        )
+        XCTAssertTrue(try visibleChildren(of: environment.importsURL).isEmpty)
+    }
+
+    func testInstallRejectsPackageChangedAfterReview() throws {
+        let environment = try makeEnvironment()
+        let packageURL = try makePackage(in: environment.temporaryURL)
+        let definition = try PetPackageLoader()
+            .loadPackage(at: packageURL)
+            .definition
+        try RecommendedPetProfileCodec.encode(
+            makeRecommendedProfile(speed: 160),
+            for: definition
+        ).write(
+            to: packageURL.appendingPathComponent("recommended-profile.json")
+        )
+        let installer = makeInstaller(environment: environment)
+        let review = try installer.review(from: packageURL)
+        try RecommendedPetProfileCodec.encode(
+            makeRecommendedProfile(speed: 320),
+            for: definition
+        ).write(
+            to: packageURL.appendingPathComponent("recommended-profile.json")
+        )
+
+        XCTAssertThrowsError(
+            try installer.installReviewed(
+                from: packageURL,
+                mode: .rejectDuplicate,
+                expectedReview: review
+            )
+        ) { error in
+            XCTAssertEqual(
+                error as? PetPackageImportError,
+                .reviewedContentChanged
+            )
+        }
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: environment.libraryURL.path)
+        )
+        XCTAssertTrue(try visibleChildren(of: environment.importsURL).isEmpty)
+    }
+
     func testInstallsValidatedArchiveAndBalancesSecurityScopedAccess() throws {
         let environment = try makeEnvironment()
         let packageURL = try makePackage(in: environment.temporaryURL)
@@ -448,6 +575,37 @@ final class PetPackageInstallerTests: XCTestCase {
             temporaryURL: temporaryURL,
             libraryURL: libraryURL,
             importsURL: importsURL
+        )
+    }
+
+    private func makeRecommendedProfile(speed: Double) -> RecommendedPetProfile {
+        RecommendedPetProfile(
+            mode: .manual,
+            manualSequenceID: "기본",
+            sequences: [
+                BehaviorSequence(
+                    id: "기본",
+                    steps: [
+                        BehaviorStep(
+                            motionID: PetMotionReference.currentPetDefault,
+                            repeatCount: 2
+                        )
+                    ],
+                    repeats: true
+                )
+            ],
+            automaticRules: [],
+            movement: PetMovementSettings(
+                mode: .freeRoaming,
+                speed: speed,
+                cursorDistance: 96,
+                stopRadius: 16,
+                freeRoamingDwellMilliseconds: 6_000,
+                prefersFrontmostWindow: true,
+                cursorFollowingMotionID: nil,
+                freeRoamingMotionID: "idle"
+            ),
+            pettingMotionID: "idle"
         )
     }
 

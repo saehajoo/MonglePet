@@ -115,6 +115,25 @@ final class AppSettingsSession: ObservableObject {
     }
 
     @discardableResult
+    func applyRecommendedProfile(
+        _ profile: RecommendedPetProfile,
+        to installationID: UUID
+    ) -> Bool {
+        guard
+            isWritingEnabled,
+            settings.selectedPetInstallationID == installationID
+        else {
+            return false
+        }
+
+        behaviorEditErrorMessage = nil
+        updateActiveProfile(
+            profile.behaviorProfile(for: .installed(installationID))
+        )
+        return true
+    }
+
+    @discardableResult
     func removeBehaviorProfile(forInstallationID installationID: UUID) -> Bool {
         let retainedProfiles = settings.behaviorProfiles.filter {
             $0.petKey != .installed(installationID)

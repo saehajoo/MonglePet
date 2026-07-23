@@ -57,6 +57,8 @@ private struct GeneralSettingsView: View {
     @State private var userPetEditorMode: UserPetEditorMode?
     @State private var editingAnimation: PetMotion?
     @State private var previewMotionID: String?
+    @State private var importReview: PetPackageImportReview?
+    @State private var pendingImportAction: PetImportAction?
     @State private var shareReview: PetPackageShareReview?
     @State private var pendingSharingFollowUp: PetSharingFollowUp?
     @State private var petPackageExportDocument: MonglePetPackageDocument?
@@ -312,6 +314,22 @@ private struct GeneralSettingsView: View {
             .disabled(!settingsSession.isWritingEnabled)
         }
         .formStyle(.grouped)
+        .sheet(
+            item: $importReview,
+            onDismiss: performPendingImportAction
+        ) { review in
+            PetPackageImportReviewView(
+                review: review,
+                allowsRecommendedProfileApplication:
+                    settingsSession.isWritingEnabled,
+                onInstall: { appliesRecommendedProfile in
+                    pendingImportAction = PetImportAction(
+                        review: review,
+                        appliesRecommendedProfile: appliesRecommendedProfile
+                    )
+                }
+            )
+        }
         .sheet(item: duplicateInstallRequestBinding) { request in
             DuplicatePetInstallView(
                 request: request,
@@ -581,7 +599,18 @@ private struct GeneralSettingsView: View {
         guard panel.runModal() == .OK, let sourceURL = panel.url else {
             return
         }
-        _ = petLibrarySession.installPackage(from: sourceURL)
+        importReview = petLibrarySession.reviewPackageForImport(from: sourceURL)
+    }
+
+    private func performPendingImportAction() {
+        guard let action = pendingImportAction else {
+            return
+        }
+        pendingImportAction = nil
+        _ = petLibrarySession.installReviewedPackage(
+            action.review,
+            appliesRecommendedProfile: action.appliesRecommendedProfile
+        )
     }
 
     private func preparePetPackageExport(
@@ -704,6 +733,195 @@ private enum PetSharingFollowUp {
     case createEditableCopy
 }
 
+private struct PetImportAction {
+    let review: PetPackageImportReview
+    let appliesRecommendedProfile: Bool
+}
+
+private struct PetPackageImportReviewView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let review: PetPackageImportReview
+    let allowsRecommendedProfileApplication: Bool
+    let onInstall: (Bool) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("가져오기 내용 확인")
+                            .font(.title2.weight(.semibold))
+                        Text("펫 정보와 함께 제공된 권장 설정을 확인합니다.")
+                            .foregroundStyle(.secondary)
+                    }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("펫 정보")
+                            .font(.headline)
+                        Grid(
+                            alignment: .leading,
+                            horizontalSpacing: 20,
+                            verticalSpacing: 8
+                        ) {
+                            informationRow("펫 이름", value: review.metadata.displayName)
+                            informationRow("버전", value: review.metadata.version)
+                            informationRow("제작자", value: review.metadata.author)
+                            informationRow("라이선스", value: review.metadata.license)
+                            informationRow("애니메이션", value: "\(review.definition.motions.count)개")
+                        }
+                        .padding(12)
+                        .background(
+                            .quaternary.opacity(0.35),
+                            in: RoundedRectangle(cornerRadius: 10)
+                        )
+                    }
+
+                    recommendedProfileSection
+
+                    Text(
+                        "권장 설정을 적용해도 설치 후 행동 루틴, 자동 규칙과 이동 설정을 자유롭게 수정할 수 있습니다."
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+                .padding(20)
+            }
+
+            Divider()
+
+            HStack {
+                Button("취소", role: .cancel) {
+                    dismiss()
+                }
+                Spacer()
+                Button("펫만 설치") {
+                    onInstall(false)
+                    dismiss()
+                }
+                .accessibilityIdentifier("monglepet.import.petOnly")
+                if review.recommendedProfile != nil,
+                   allowsRecommendedProfileApplication {
+                    Button("권장 설정 적용 후 설치") {
+                        onInstall(true)
+                        dismiss()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .accessibilityIdentifier(
+                        "monglepet.import.applyRecommendedProfile"
+                    )
+                }
+            }
+            .padding(16)
+        }
+        .frame(width: 560)
+        .frame(minHeight: 440, maxHeight: 680)
+        .accessibilityIdentifier("monglepet.import.review")
+    }
+
+    @ViewBuilder
+    private var recommendedProfileSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("펫별 행동·이동 권장 설정")
+                .font(.headline)
+
+            if let profile = review.recommendedProfile {
+                Grid(
+                    alignment: .leading,
+                    horizontalSpacing: 20,
+                    verticalSpacing: 8
+                ) {
+                    informationRow(
+                        "행동 모드",
+                        value: profile.mode == .automatic ? "자동" : "수동"
+                    )
+                    informationRow(
+                        "행동 루틴",
+                        value: "\(profile.sequences.count)개"
+                    )
+                    informationRow(
+                        "자동 규칙",
+                        value: "\(profile.automaticRules.count)개"
+                    )
+                    informationRow(
+                        "이동 방식",
+                        value: movementModeName(profile.movement.mode)
+                    )
+                    informationRow(
+                        "쓰다듬기",
+                        value: profile.pettingMotionID ?? "지정 안 함"
+                    )
+                }
+                .padding(12)
+                .background(
+                    .quaternary.opacity(0.35),
+                    in: RoundedRectangle(cornerRadius: 10)
+                )
+
+                if !review.applicationBundleIdentifiers.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("포함된 앱별 자동 규칙")
+                            .font(.subheadline.weight(.medium))
+                        ForEach(review.applicationBundleIdentifiers, id: \.self) {
+                            bundleIdentifier in
+                            Text(bundleIdentifier)
+                                .font(.caption.monospaced())
+                                .textSelection(.enabled)
+                        }
+                    }
+                }
+
+                if !allowsRecommendedProfileApplication {
+                    Label(
+                        "현재 설정 파일을 보호하기 위해 권장 설정 적용이 비활성화되어 있습니다.",
+                        systemImage: "lock.fill"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                }
+            } else if let issue = review.recommendedProfileIssue {
+                Label(
+                    "권장 설정을 적용할 수 없습니다. 펫 자체는 설치할 수 있습니다.",
+                    systemImage: "exclamationmark.triangle.fill"
+                )
+                .foregroundStyle(.orange)
+                Text(issue.localizedDescription)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                Label(
+                    "이 패키지에는 별도의 권장 설정이 없습니다.",
+                    systemImage: "info.circle"
+                )
+                .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func informationRow(
+        _ label: String,
+        value: String
+    ) -> some View {
+        GridRow {
+            Text(label)
+                .foregroundStyle(.secondary)
+            Text(value)
+                .textSelection(.enabled)
+        }
+    }
+
+    private func movementModeName(_ mode: PetMovementMode) -> String {
+        switch mode {
+        case .fixed:
+            "위치 고정"
+        case .cursorFollowing:
+            "마우스 따라가기"
+        case .freeRoaming:
+            "자유 이동"
+        }
+    }
+}
+
 private struct DuplicatePetInstallView: View {
     @Environment(\.dismiss) private var dismiss
 
@@ -778,7 +996,7 @@ private struct DuplicatePetInstallView: View {
 
             VStack(alignment: .leading, spacing: 6) {
                 Label(
-                    "새 설치는 새 설치 ID와 독립된 행동 루틴·자동 규칙을 사용하며 읽기 전용으로 등록됩니다.",
+                    newInstallationDescription,
                     systemImage: "plus.square.on.square"
                 )
                 Label(
@@ -842,6 +1060,14 @@ private struct DuplicatePetInstallView: View {
             return "교체하면 선택한 펫 파일과 편집 가능 상태가 읽기 전용 패키지로 바뀝니다. 기존 행동 루틴·자동 규칙은 유지됩니다."
         }
         return "교체하면 선택한 설치 ID의 펫 파일만 바뀌고 기존 행동 루틴·자동 규칙은 유지됩니다."
+    }
+
+    private var newInstallationDescription: String {
+        if request.appliesRecommendedProfileToNewInstallation,
+           request.importReview?.recommendedProfile != nil {
+            return "새 설치는 새 설치 ID를 사용하며 확인한 행동·이동 권장 설정을 적용합니다."
+        }
+        return "새 설치는 새 설치 ID와 독립된 기본 행동·이동 설정을 사용합니다."
     }
 
     @ViewBuilder

@@ -88,6 +88,13 @@ final class AppCoordinator: NSObject {
         petLibrarySession.onAnimationReferenceChange = { [weak self] change in
             self?.petAnimationReferencesDidChange(change)
         }
+        petLibrarySession.onRecommendedProfileApplied = {
+            [weak settingsSession] installationID, profile in
+            _ = settingsSession?.applyRecommendedProfile(
+                profile,
+                to: installationID
+            )
+        }
         petWindowController.onOverlayGeometryDidChange = { [weak self] in
             self?.persistCurrentOverlayGeometry()
         }

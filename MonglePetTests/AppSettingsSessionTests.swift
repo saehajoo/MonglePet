@@ -85,6 +85,60 @@ final class AppSettingsSessionTests: XCTestCase {
     }
 
     @MainActor
+    func testRecommendedProfileReplacesNewInstallationDefaultAndPersists() {
+        let installationID = UUID(
+            uuidString: "11111111-1111-1111-1111-111111111113"
+        )!
+        let sequence = BehaviorSequence(
+            id: "creator-default",
+            steps: [
+                BehaviorStep(motionID: "idle", repeatCount: 3)
+            ],
+            repeats: true
+        )
+        let profile = RecommendedPetProfile(
+            mode: .manual,
+            manualSequenceID: sequence.id,
+            sequences: [sequence],
+            automaticRules: [],
+            movement: PetMovementSettings(
+                mode: .freeRoaming,
+                speed: 220,
+                cursorDistance: 84,
+                stopRadius: 18,
+                freeRoamingDwellMilliseconds: 7_500,
+                prefersFrontmostWindow: false,
+                cursorFollowingMotionID: nil,
+                freeRoamingMotionID: "idle"
+            ),
+            pettingMotionID: "idle"
+        )
+        let session = AppSettingsSession(
+            store: AppSettingsStore(settingsURL: settingsURL)
+        )
+        _ = session.load()
+        session.setSelectedPetInstallationID(installationID)
+
+        XCTAssertTrue(
+            session.applyRecommendedProfile(profile, to: installationID)
+        )
+        XCTAssertEqual(
+            session.settings.activeBehaviorProfile,
+            profile.behaviorProfile(for: .installed(installationID))
+        )
+        XCTAssertNil(session.saveErrorMessage)
+
+        let reloaded = AppSettingsSession(
+            store: AppSettingsStore(settingsURL: settingsURL)
+        )
+        XCTAssertEqual(reloaded.load().source, .file)
+        XCTAssertEqual(
+            reloaded.settings.activeBehaviorProfile,
+            profile.behaviorProfile(for: .installed(installationID))
+        )
+    }
+
+    @MainActor
     func testBehaviorProfilesStayIndependentAcrossPetSwitchesAndRelaunch() throws {
         let installedID = UUID(
             uuidString: "11111111-1111-1111-1111-111111111112"

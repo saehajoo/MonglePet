@@ -63,6 +63,8 @@ nonisolated struct DuplicatePetInstallRequest: Equatable, Identifiable, Sendable
     let sourceURL: URL
     let incomingMetadata: PetPackageMetadata
     let candidates: [DuplicatePetInstallationCandidate]
+    let importReview: PetPackageImportReview?
+    let appliesRecommendedProfileToNewInstallation: Bool
 
     var id: URL {
         sourceURL
@@ -95,12 +97,19 @@ final class PetLibrarySession: ObservableObject {
     var onSelectionChange: ((PetLibraryItem) -> Void)?
     var onInstallationRemoved: ((UUID) -> Void)?
     var onAnimationReferenceChange: ((PetAnimationReferenceChange) -> Void)?
+    var onRecommendedProfileApplied: ((UUID, RecommendedPetProfile) -> Void)?
 
     private let builtInItem: PetLibraryItem
     private let installedPackagesProvider: () -> [InstalledPetPackage]
     private let installationRemover: (UUID) throws -> Void
     private let packageInstaller: (URL, PetPackageInstallationMode) throws
         -> InstalledPetPackage
+    private let packageImportReviewer: (URL) throws -> PetPackageImportReview
+    private let reviewedPackageInstaller: (
+        URL,
+        PetPackageInstallationMode,
+        PetPackageImportReview?
+    ) throws -> PetPackageInstallationResult
     private let editablePackageProvider: (InstalledPetPackage) -> Bool
     private let userPetCreator: (UserPetCreationRequest) throws -> InstalledPetPackage
     private let editableCopyCreator: (
@@ -141,11 +150,14 @@ final class PetLibrarySession: ObservableObject {
     ) {
         let editor = UserPetPackageEditor(store: store)
         let sharingService = PetPackageSharingService()
+        let packageInstaller = PetPackageInstaller(libraryStore: store)
         self.init(
             builtInDefinition: builtInDefinition,
             installedPackagesProvider: store.installedPackages,
             installationRemover: store.removeInstallation,
-            packageInstaller: PetPackageInstaller(libraryStore: store).install,
+            packageInstaller: packageInstaller.install,
+            packageImportReviewer: packageInstaller.review,
+            reviewedPackageInstaller: packageInstaller.installReviewed,
             editablePackageProvider: editor.isEditable,
             userPetCreator: editor.createPet,
             editableCopyCreator: editor.createEditableCopy,
@@ -166,6 +178,17 @@ final class PetLibrarySession: ObservableObject {
             URL,
             PetPackageInstallationMode
         ) throws -> InstalledPetPackage = { _, _ in
+            throw PetLibraryError.fileOperationFailed
+        },
+        packageImportReviewer: @escaping (URL) throws
+            -> PetPackageImportReview = { _ in
+                throw PetLibraryError.fileOperationFailed
+            },
+        reviewedPackageInstaller: @escaping (
+            URL,
+            PetPackageInstallationMode,
+            PetPackageImportReview?
+        ) throws -> PetPackageInstallationResult = { _, _, _ in
             throw PetLibraryError.fileOperationFailed
         },
         editablePackageProvider: @escaping (InstalledPetPackage) -> Bool = { _ in false },
@@ -237,6 +260,8 @@ final class PetLibrarySession: ObservableObject {
         self.installedPackagesProvider = installedPackagesProvider
         self.installationRemover = installationRemover
         self.packageInstaller = packageInstaller
+        self.packageImportReviewer = packageImportReviewer
+        self.reviewedPackageInstaller = reviewedPackageInstaller
         self.editablePackageProvider = editablePackageProvider
         self.userPetCreator = userPetCreator
         self.editableCopyCreator = editableCopyCreator
@@ -296,6 +321,57 @@ final class PetLibrarySession: ObservableObject {
         from sourceURL: URL,
         mode: PetPackageInstallationMode = .rejectDuplicate
     ) -> Bool {
+        performPackageInstallation(
+            from: sourceURL,
+            mode: mode,
+            reviewedImport: nil,
+            appliesRecommendedProfile: false
+        )
+    }
+
+    func reviewPackageForImport(from sourceURL: URL) -> PetPackageImportReview? {
+        guard !isImporting, !isExporting else {
+            return nil
+        }
+        isImporting = true
+        defer { isImporting = false }
+
+        do {
+            let review = try packageImportReviewer(sourceURL)
+            errorMessage = nil
+            return review
+        } catch {
+            errorMessage = error.localizedDescription
+            return nil
+        }
+    }
+
+    @discardableResult
+    func installReviewedPackage(
+        _ review: PetPackageImportReview,
+        appliesRecommendedProfile: Bool
+    ) -> Bool {
+        if appliesRecommendedProfile, review.recommendedProfile == nil {
+            errorMessage = PetPackageImportError
+                .recommendedProfileUnavailable
+                .localizedDescription
+            return false
+        }
+        return performPackageInstallation(
+            from: review.sourceURL,
+            mode: .rejectDuplicate,
+            reviewedImport: review,
+            appliesRecommendedProfile: appliesRecommendedProfile
+        )
+    }
+
+    @discardableResult
+    private func performPackageInstallation(
+        from sourceURL: URL,
+        mode: PetPackageInstallationMode,
+        reviewedImport: PetPackageImportReview?,
+        appliesRecommendedProfile: Bool
+    ) -> Bool {
         guard !isImporting else {
             return false
         }
@@ -303,11 +379,28 @@ final class PetLibrarySession: ObservableObject {
         defer { isImporting = false }
 
         do {
-            let installed = try packageInstaller(sourceURL, mode)
+            let result: PetPackageInstallationResult?
+            let installed: InstalledPetPackage
+            if let reviewedImport {
+                let reviewedResult = try reviewedPackageInstaller(
+                    sourceURL,
+                    mode,
+                    reviewedImport
+                )
+                result = reviewedResult
+                installed = reviewedResult.installedPackage
+            } else {
+                result = nil
+                installed = try packageInstaller(sourceURL, mode)
+            }
             duplicateInstallRequest = nil
             errorMessage = nil
             _ = reload(preferredInstallationID: installed.installationID)
             onSelectionChange?(selectedItem)
+            if appliesRecommendedProfile,
+               let profile = result?.importReview.recommendedProfile {
+                onRecommendedProfileApplied?(installed.installationID, profile)
+            }
             return true
         } catch let error as PetLibraryError {
             if case let .duplicatePackage(incomingMetadata, installationIDs) = error {
@@ -335,7 +428,10 @@ final class PetLibrarySession: ObservableObject {
                 duplicateInstallRequest = DuplicatePetInstallRequest(
                     sourceURL: sourceURL,
                     incomingMetadata: incomingMetadata,
-                    candidates: candidates
+                    candidates: candidates,
+                    importReview: reviewedImport,
+                    appliesRecommendedProfileToNewInstallation:
+                        appliesRecommendedProfile
                 )
                 errorMessage = nil
             } else {
@@ -352,7 +448,13 @@ final class PetLibrarySession: ObservableObject {
         guard let request = duplicateInstallRequest else {
             return
         }
-        _ = installPackage(from: request.sourceURL, mode: .installSeparately)
+        _ = performPackageInstallation(
+            from: request.sourceURL,
+            mode: .installSeparately,
+            reviewedImport: request.importReview,
+            appliesRecommendedProfile:
+                request.appliesRecommendedProfileToNewInstallation
+        )
     }
 
     func replaceDuplicateInstallation(_ installationID: UUID) {
@@ -362,9 +464,11 @@ final class PetLibrarySession: ObservableObject {
         else {
             return
         }
-        _ = installPackage(
+        _ = performPackageInstallation(
             from: request.sourceURL,
-            mode: .replace(installationID: installationID)
+            mode: .replace(installationID: installationID),
+            reviewedImport: request.importReview,
+            appliesRecommendedProfile: false
         )
     }
 
