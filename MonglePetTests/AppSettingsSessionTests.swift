@@ -315,6 +315,38 @@ final class AppSettingsSessionTests: XCTestCase {
     }
 
     @MainActor
+    func testMovementPreviewWaitsForExplicitPersistence() {
+        let session = AppSettingsSession(
+            store: AppSettingsStore(settingsURL: settingsURL)
+        )
+        _ = session.load()
+        let movement = PetMovementSettings(
+            mode: .cursorFollowing,
+            speed: 280,
+            cursorDistance: 144,
+            stopRadius: 24,
+            freeRoamingDwellMilliseconds: 8_000,
+            prefersFrontmostWindow: false,
+            cursorFollowingMotionID: "run"
+        )
+
+        session.setMovementSettings(movement, persist: false)
+
+        XCTAssertEqual(session.settings.movementSettings, movement)
+        XCTAssertEqual(
+            AppSettingsStore(settingsURL: settingsURL).load().source,
+            .defaults
+        )
+
+        session.persistCurrentSettings()
+        XCTAssertEqual(
+            AppSettingsStore(settingsURL: settingsURL).load()
+                .settings.movementSettings,
+            movement
+        )
+    }
+
+    @MainActor
     func testSynchronizedRuntimeGeometryIsIncludedInNextSavedChange() {
         let session = AppSettingsSession(
             store: AppSettingsStore(settingsURL: settingsURL)

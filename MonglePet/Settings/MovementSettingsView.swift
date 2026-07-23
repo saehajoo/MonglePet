@@ -1,0 +1,280 @@
+import Foundation
+import SwiftUI
+
+struct MovementSettingsView: View {
+    @ObservedObject var settingsSession: AppSettingsSession
+    let petDisplayName: String
+
+    var body: some View {
+        Form {
+            Section {
+                LabeledContent("설정 대상 펫", value: petDisplayName)
+                    .accessibilityIdentifier(
+                        "monglepet.settings.movementPetName"
+                    )
+            }
+
+            Section("이동 방식") {
+                Picker("이동 방식", selection: movementModeBinding) {
+                    Text("위치 고정").tag(PetMovementMode.fixed)
+                    Text("마우스 따라가기").tag(PetMovementMode.cursorFollowing)
+                    Text("자유 이동").tag(PetMovementMode.freeRoaming)
+                }
+                .pickerStyle(.segmented)
+                .accessibilityIdentifier("monglepet.settings.movementMode")
+
+                Text(modeDescription)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if movement.mode != .fixed {
+                Section("이동 감각") {
+                    movementSlider(
+                        title: "이동 속도",
+                        value: movementSpeedBinding,
+                        range: AppSettingsLimits.minimumMovementSpeed
+                            ... AppSettingsLimits.maximumMovementSpeed,
+                        step: 10,
+                        valueText: "\(Int(movement.speed.rounded())) pt/s",
+                        accessibilityIdentifier: "monglepet.settings.movementSpeed"
+                    )
+                    movementSlider(
+                        title: "정지 반경",
+                        value: movementStopRadiusBinding,
+                        range: AppSettingsLimits.minimumMovementStopRadius
+                            ... AppSettingsLimits.maximumMovementStopRadius,
+                        step: 4,
+                        valueText: "\(Int(movement.stopRadius.rounded())) pt",
+                        accessibilityIdentifier: "monglepet.settings.movementStopRadius"
+                    )
+                }
+            }
+
+            switch movement.mode {
+            case .fixed:
+                Section {
+                    Text(
+                        settingsSession.settings.overlay.clickThrough
+                            ? "클릭 통과가 켜져 있어 펫을 드래그할 수 없습니다. 일반 탭에서 클릭 통과를 끄면 위치를 옮길 수 있습니다."
+                            : "펫을 직접 드래그한 위치에 그대로 둡니다."
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+            case .cursorFollowing:
+                Section("마우스 따라가기") {
+                    movementSlider(
+                        title: "마우스와 거리",
+                        value: cursorDistanceBinding,
+                        range: AppSettingsLimits.minimumCursorDistance
+                            ... AppSettingsLimits.maximumCursorDistance,
+                        step: 8,
+                        valueText: "\(Int(movement.cursorDistance.rounded())) pt",
+                        accessibilityIdentifier: "monglepet.settings.cursorDistance"
+                    )
+
+                    Text("마우스 포인터와 지정한 거리를 유지하며 화면 안에서 따라갑니다.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            case .freeRoaming:
+                Section("자유 이동") {
+                    movementSlider(
+                        title: "머무는 시간",
+                        value: freeRoamingDwellSecondsBinding,
+                        range: freeRoamingDwellSecondsRange,
+                        step: 0.5,
+                        valueText: dwellTimeText,
+                        accessibilityIdentifier: "monglepet.settings.freeRoamingDwell"
+                    )
+
+                    Toggle(
+                        "현재 사용 중인 앱의 창 근처를 우선",
+                        isOn: prefersFrontmostWindowBinding
+                    )
+                    .accessibilityIdentifier(
+                        "monglepet.settings.prefersFrontmostWindow"
+                    )
+
+                    Text("창 정보를 얻을 수 없거나 전체 화면이면 현재 화면 안에서 안전한 위치를 선택합니다.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Section {
+                Text("이동 방식은 자동·수동 행동 모드와 별개이며 현재 펫에만 저장됩니다. 마우스 위치와 앱 창 위치는 저장하지 않습니다.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+        .disabled(!settingsSession.isWritingEnabled)
+        .accessibilityIdentifier("monglepet.settings.movementRoot")
+    }
+
+    private var movement: PetMovementSettings {
+        settingsSession.settings.movementSettings
+    }
+
+    private var movementModeBinding: Binding<PetMovementMode> {
+        Binding(
+            get: { movement.mode },
+            set: { apply(.mode($0)) }
+        )
+    }
+
+    private var movementSpeedBinding: Binding<Double> {
+        Binding(
+            get: { movement.speed },
+            set: { apply(.speed($0), persist: false) }
+        )
+    }
+
+    private var movementStopRadiusBinding: Binding<Double> {
+        Binding(
+            get: { movement.stopRadius },
+            set: { apply(.stopRadius($0), persist: false) }
+        )
+    }
+
+    private var cursorDistanceBinding: Binding<Double> {
+        Binding(
+            get: { movement.cursorDistance },
+            set: { apply(.cursorDistance($0), persist: false) }
+        )
+    }
+
+    private var freeRoamingDwellSecondsBinding: Binding<Double> {
+        Binding(
+            get: {
+                Double(movement.freeRoamingDwellMilliseconds) / 1_000
+            },
+            set: {
+                apply(
+                    .freeRoamingDwellMilliseconds(
+                        Int64(($0 * 1_000).rounded())
+                    ),
+                    persist: false
+                )
+            }
+        )
+    }
+
+    private var prefersFrontmostWindowBinding: Binding<Bool> {
+        Binding(
+            get: { movement.prefersFrontmostWindow },
+            set: { apply(.prefersFrontmostWindow($0)) }
+        )
+    }
+
+    private var modeDescription: String {
+        switch movement.mode {
+        case .fixed:
+            "사용자가 옮긴 위치를 유지하며 자동으로 움직이지 않습니다."
+        case .cursorFollowing:
+            "마우스 포인터를 부드럽게 따라가며 설정한 거리에서 멈춥니다."
+        case .freeRoaming:
+            "화면 안의 안전한 목표를 골라 이동하고 잠시 머문 뒤 다시 움직입니다."
+        }
+    }
+
+    private var dwellTimeText: String {
+        let seconds = Double(movement.freeRoamingDwellMilliseconds) / 1_000
+        if seconds.rounded() == seconds {
+            return "\(Int(seconds))초"
+        }
+        return String(format: "%.1f초", seconds)
+    }
+
+    private var freeRoamingDwellSecondsRange: ClosedRange<Double> {
+        Double(AppSettingsLimits.minimumFreeRoamingDwellMilliseconds) / 1_000
+            ... Double(
+                AppSettingsLimits.maximumFreeRoamingDwellMilliseconds
+            ) / 1_000
+    }
+
+    private func movementSlider(
+        title: String,
+        value: Binding<Double>,
+        range: ClosedRange<Double>,
+        step: Double,
+        valueText: String,
+        accessibilityIdentifier: String
+    ) -> some View {
+        HStack {
+            Text(title)
+            Slider(
+                value: value,
+                in: range,
+                step: step,
+                onEditingChanged: persistSliderWhenEditingEnds
+            )
+            .accessibilityIdentifier(accessibilityIdentifier)
+            Text(valueText)
+                .monospacedDigit()
+                .frame(width: 72, alignment: .trailing)
+        }
+    }
+
+    private func persistSliderWhenEditingEnds(_ isEditing: Bool) {
+        if !isEditing {
+            settingsSession.persistCurrentSettings()
+        }
+    }
+
+    private func apply(
+        _ edit: MovementEdit,
+        persist: Bool = true
+    ) {
+        let current = movement
+        var mode = current.mode
+        var speed = current.speed
+        var cursorDistance = current.cursorDistance
+        var stopRadius = current.stopRadius
+        var freeRoamingDwellMilliseconds =
+            current.freeRoamingDwellMilliseconds
+        var prefersFrontmostWindow = current.prefersFrontmostWindow
+
+        switch edit {
+        case let .mode(value):
+            mode = value
+        case let .speed(value):
+            speed = value
+        case let .cursorDistance(value):
+            cursorDistance = value
+        case let .stopRadius(value):
+            stopRadius = value
+        case let .freeRoamingDwellMilliseconds(value):
+            freeRoamingDwellMilliseconds = value
+        case let .prefersFrontmostWindow(value):
+            prefersFrontmostWindow = value
+        }
+
+        settingsSession.setMovementSettings(
+            PetMovementSettings(
+                mode: mode,
+                speed: speed,
+                cursorDistance: cursorDistance,
+                stopRadius: stopRadius,
+                freeRoamingDwellMilliseconds:
+                    freeRoamingDwellMilliseconds,
+                prefersFrontmostWindow: prefersFrontmostWindow,
+                cursorFollowingMotionID:
+                    current.cursorFollowingMotionID,
+                freeRoamingMotionID: current.freeRoamingMotionID
+            ),
+            persist: persist
+        )
+    }
+}
+
+private enum MovementEdit {
+    case mode(PetMovementMode)
+    case speed(Double)
+    case cursorDistance(Double)
+    case stopRadius(Double)
+    case freeRoamingDwellMilliseconds(Int64)
+    case prefersFrontmostWindow(Bool)
+}

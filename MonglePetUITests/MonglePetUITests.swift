@@ -55,6 +55,26 @@ final class MonglePetUITests: XCTestCase {
     }
 
     @MainActor
+    func testMovementSettingsTabShowsCurrentPetAndMode() throws {
+        let app = XCUIApplication()
+        app.launchArguments.append("--ui-testing-open-settings")
+        app.launch()
+
+        let movementTab = app.buttons["이동"]
+        XCTAssertTrue(movementTab.waitForExistence(timeout: 5))
+        movementTab.click()
+
+        XCTAssertTrue(
+            app.descendants(matching: .any)["monglepet.settings.movementPetName"]
+                .waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)["monglepet.settings.movementMode"]
+                .exists
+        )
+    }
+
+    @MainActor
     func testNewPetSheetIncludesMetadataFields() throws {
         let app = XCUIApplication()
         app.launchArguments.append("--ui-testing-open-settings")

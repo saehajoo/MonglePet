@@ -60,7 +60,10 @@ final class AppSettingsSession: ObservableObject {
         )
     }
 
-    func setMovementSettings(_ movement: PetMovementSettings) {
+    func setMovementSettings(
+        _ movement: PetMovementSettings,
+        persist: Bool = true
+    ) {
         guard movement.isValid else {
             return
         }
@@ -72,7 +75,8 @@ final class AppSettingsSession: ObservableObject {
                 sequences: settings.sequences,
                 automaticRules: settings.automaticRules,
                 movement: movement
-            )
+            ),
+            persist: persist
         )
     }
 
@@ -360,8 +364,14 @@ final class AppSettingsSession: ObservableObject {
         )
     }
 
-    private func updateActiveProfile(_ profile: BehaviorProfile) {
-        update(settings.replacingActiveBehaviorProfile(profile))
+    private func updateActiveProfile(
+        _ profile: BehaviorProfile,
+        persist: Bool = true
+    ) {
+        update(
+            settings.replacingActiveBehaviorProfile(profile),
+            persist: persist
+        )
     }
 
     private func update(_ newSettings: AppSettings, persist shouldPersist: Bool = true) {

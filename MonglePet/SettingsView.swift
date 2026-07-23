@@ -16,6 +16,14 @@ struct SettingsView: View {
                     Label("일반", systemImage: "gearshape")
                 }
 
+            MovementSettingsView(
+                settingsSession: settingsSession,
+                petDisplayName: petLibrarySession.selectedItem.metadata.displayName
+            )
+                .tabItem {
+                    Label("이동", systemImage: "location")
+                }
+
             BehaviorSequencesSettingsView(
                 settingsSession: settingsSession,
                 petDefinition: petLibrarySession.selectedItem.definition,

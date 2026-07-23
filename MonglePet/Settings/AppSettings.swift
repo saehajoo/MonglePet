@@ -28,7 +28,7 @@ nonisolated enum AppSettingsLimits {
     static let maximumFreeRoamingDwellMilliseconds: Int64 = 300_000
 }
 
-nonisolated enum PetMovementMode: Equatable, Sendable {
+nonisolated enum PetMovementMode: Hashable, Sendable {
     case fixed
     case cursorFollowing
     case freeRoaming
