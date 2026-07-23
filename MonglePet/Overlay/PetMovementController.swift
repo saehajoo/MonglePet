@@ -99,6 +99,7 @@ final class PetMovementController: PetMovementControlling {
     private let originProvider: () -> PetMovementPoint?
     private let petSizeProvider: () -> PetMovementSize?
     private let screensProvider: () -> [PetMovementScreen]
+    private let movementBoundaryProvider: () -> MovementBoundarySettings
     private let pointerProvider: () -> PetMovementPoint?
     private let randomSampleProvider: () -> PetMovementRandomSample
     private let applyOrigin: (PetMovementPoint) -> Void
@@ -125,6 +126,9 @@ final class PetMovementController: PetMovementControlling {
         frontmostWindowProvider: any FrontmostWindowProviding = FrontmostWindowProvider(),
         screensProvider: @escaping () -> [PetMovementScreen] = {
             AppKitDisplayLayoutReader.currentMovementScreens()
+        },
+        movementBoundaryProvider: @escaping () -> MovementBoundarySettings = {
+            .default
         },
         pointerProvider: @escaping () -> PetMovementPoint? = {
             let location = NSEvent.mouseLocation
@@ -154,6 +158,7 @@ final class PetMovementController: PetMovementControlling {
         self.tickScheduler = tickScheduler
         self.frontmostWindowProvider = frontmostWindowProvider
         self.screensProvider = screensProvider
+        self.movementBoundaryProvider = movementBoundaryProvider
         self.pointerProvider = pointerProvider
         self.randomSampleProvider = randomSampleProvider
         self.tickInterval = max(tickInterval, .milliseconds(1))
@@ -256,7 +261,8 @@ final class PetMovementController: PetMovementControlling {
                   petSize: petSize,
                   cursorDistance: settings.cursorDistance,
                   screenInset: screenInset,
-                  screens: screensProvider()
+                  screens: screensProvider(),
+                  boundary: movementBoundaryProvider()
               ) else {
             updateStationaryActivityIfNeeded(at: now)
             scheduleTick(after: retryInterval)
@@ -275,7 +281,7 @@ final class PetMovementController: PetMovementControlling {
             if exitAdvance.didMove {
                 let didMove = apply(exitAdvance, at: now)
                 if !didMove {
-                    applyCursorTransition(
+                    applyScreenTransition(
                         transition,
                         finalTarget: route.targetOrigin,
                         from: origin,
@@ -283,7 +289,7 @@ final class PetMovementController: PetMovementControlling {
                     )
                 }
             } else if exitAdvance.hasArrived {
-                applyCursorTransition(
+                applyScreenTransition(
                     transition,
                     finalTarget: route.targetOrigin,
                     from: origin,
@@ -315,8 +321,47 @@ final class PetMovementController: PetMovementControlling {
         let now = clock.now
         let elapsedSeconds = elapsedSeconds(to: now)
         guard let origin = originProvider(),
-              let targetOrigin else {
+              let targetOrigin,
+              let petSize = petSizeProvider() else {
             prepareFreeRoamingTargetAndSchedule()
+            return
+        }
+
+        if let transition = PetMovementGeometry.screenTransition(
+            from: origin,
+            toward: targetOrigin,
+            petSize: petSize,
+            screens: screensProvider()
+        ) {
+            let exitAdvance = PetMovementGeometry.advance(
+                from: origin,
+                toward: transition.exitOrigin,
+                speed: settings.speed,
+                elapsedSeconds: elapsedSeconds,
+                stopRadius: 0
+            )
+            if exitAdvance.didMove {
+                let didMove = apply(exitAdvance, at: now)
+                if !didMove {
+                    applyScreenTransition(
+                        transition,
+                        finalTarget: targetOrigin,
+                        from: origin,
+                        at: now
+                    )
+                }
+            } else if exitAdvance.hasArrived {
+                applyScreenTransition(
+                    transition,
+                    finalTarget: targetOrigin,
+                    from: origin,
+                    at: now
+                )
+            } else {
+                updateStationaryActivityIfNeeded(at: now)
+            }
+            state = .freeRoamingMoving
+            scheduleTick(after: tickInterval)
             return
         }
 
@@ -357,7 +402,8 @@ final class PetMovementController: PetMovementControlling {
             petSize: petSize,
             screenInset: screenInset,
             preferredWindow: preferredWindow,
-            sample: randomSampleProvider()
+            sample: randomSampleProvider(),
+            boundary: movementBoundaryProvider()
         )
         lastTickAt = clock.now
         guard targetOrigin != nil else {
@@ -424,7 +470,7 @@ final class PetMovementController: PetMovementControlling {
         }
     }
 
-    private func applyCursorTransition(
+    private func applyScreenTransition(
         _ transition: PetMovementScreenTransition,
         finalTarget: PetMovementPoint,
         from origin: PetMovementPoint,

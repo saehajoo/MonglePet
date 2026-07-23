@@ -186,6 +186,34 @@ final class PetMovementControllerTests: XCTestCase {
         XCTAssertEqual(fixture.controller.activity, movement("run"))
     }
 
+    func testCursorFollowingUsesCurrentMovementBoundary() {
+        let fixture = Fixture()
+        fixture.origin = point(100, 100)
+        fixture.pointer = point(1_500, 700)
+        fixture.screens = [
+            screen("main", 0, 0, 1_000, 800),
+            screen("right", 1_000, 0, 1_000, 800)
+        ]
+        fixture.movementBoundary = MovementBoundarySettings(
+            mode: .selectedDisplay,
+            screenIdentifier: "main",
+            normalizedRect: nil
+        )
+        fixture.controller.update(
+            settings: fixture.settings(
+                mode: .cursorFollowing,
+                cursorDistance: 0
+            ),
+            isMovementAllowed: true
+        )
+
+        fixture.clock.advance(by: .milliseconds(33))
+        fixture.scheduler.fire()
+
+        XCTAssertEqual(fixture.controller.targetOrigin, point(868, 650))
+        XCTAssertLessThan(fixture.origin.x, 132)
+    }
+
     func testFreeRoamingUsesPreferredWindowThenSettlesAndDwells() {
         let fixture = Fixture()
         fixture.origin = point(0, 0)
@@ -219,6 +247,38 @@ final class PetMovementControllerTests: XCTestCase {
         XCTAssertEqual(fixture.controller.activity, .stationary)
         XCTAssertEqual(fixture.scheduler.scheduledDelay, .milliseconds(6_000))
         XCTAssertEqual(fixture.frontmostWindow.readCount, 1)
+    }
+
+    func testFreeRoamingCrossesIntoSelectedDisplayAtLowSpeed() {
+        let fixture = Fixture()
+        fixture.origin = point(895, 200)
+        fixture.screens = [
+            screen("main", 0, 0, 1_000, 800),
+            screen("right", 1_000, 0, 1_000, 800)
+        ]
+        fixture.movementBoundary = MovementBoundarySettings(
+            mode: .selectedDisplay,
+            screenIdentifier: "right",
+            normalizedRect: nil
+        )
+        fixture.controller.update(
+            settings: fixture.settings(
+                mode: .freeRoaming,
+                speed: 20,
+                stopRadius: 10
+            ),
+            isMovementAllowed: true
+        )
+
+        fixture.clock.advance(by: .seconds(1))
+        fixture.scheduler.fire()
+        XCTAssertEqual(fixture.origin, point(900, 200))
+
+        fixture.clock.advance(by: .milliseconds(33))
+        fixture.scheduler.fire()
+
+        XCTAssertEqual(fixture.origin, point(1_000, 200))
+        XCTAssertEqual(fixture.controller.activity, movement(nil))
     }
 
     func testFreeRoamingDwellCreatesANewTarget() {
@@ -355,6 +415,7 @@ private final class Fixture {
     var pointer = point(500, 150)
     var randomSamples = [sample(0, 0.5, 0.5)]
     var pointerReadCount = 0
+    var movementBoundary = MovementBoundarySettings.default
     var originTransform: ((PetMovementPoint) -> PetMovementPoint)?
     var requestedOrigins: [PetMovementPoint] = []
     var appliedOrigins: [PetMovementPoint] = []
@@ -375,6 +436,9 @@ private final class Fixture {
         tickScheduler: scheduler,
         frontmostWindowProvider: frontmostWindow,
         screensProvider: { [weak self] in self?.screens ?? [] },
+        movementBoundaryProvider: { [weak self] in
+            self?.movementBoundary ?? .default
+        },
         pointerProvider: { [weak self] in
             self?.pointerReadCount += 1
             return self?.pointer

@@ -43,6 +43,9 @@ final class AppCoordinator: NSObject {
             },
             applyOrigin: { [weak petWindowController] origin in
                 petWindowController?.setMovementOrigin(origin)
+            },
+            movementBoundaryProvider: { [weak settingsSession] in
+                settingsSession?.settings.overlay.movementBoundary ?? .default
             }
         )
         self.settingsSession = settingsSession

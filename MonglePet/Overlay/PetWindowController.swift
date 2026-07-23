@@ -86,6 +86,7 @@ final class PetWindowController: NSWindowController {
     private var hasPositionedPanel = false
     private(set) var petDefinition: PetDefinition
     private(set) var activeInstallationID: UUID?
+    private var appliedOverlaySettings: OverlaySettings = .default
     private let framePlayer: FramePlayer
     private let petOverlayView: PetOverlayView
     private let builtInAtlases: [PetAtlasImage]
@@ -325,6 +326,7 @@ final class PetWindowController: NSWindowController {
         _ settings: OverlaySettings,
         restorePosition: Bool
     ) {
+        appliedOverlaySettings = settings
         guard let panel else {
             return
         }
@@ -369,7 +371,13 @@ final class PetWindowController: NSWindowController {
             originX: panel.frame.minX,
             originY: panel.frame.minY,
             width: panel.frame.width,
-            clickThrough: panel.ignoresMouseEvents
+            clickThrough: panel.ignoresMouseEvents,
+            opacity: appliedOverlaySettings.opacity,
+            pointerOverlapFadeEnabled:
+                appliedOverlaySettings.pointerOverlapFadeEnabled,
+            pointerOverlapOpacity:
+                appliedOverlaySettings.pointerOverlapOpacity,
+            movementBoundary: appliedOverlaySettings.movementBoundary
         )
     }
 

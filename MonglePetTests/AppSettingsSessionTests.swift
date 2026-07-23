@@ -467,6 +467,38 @@ final class AppSettingsSessionTests: XCTestCase {
     }
 
     @MainActor
+    func testMovementBoundaryPersistsWithoutChangingPetMovementProfile() {
+        let session = AppSettingsSession(
+            store: AppSettingsStore(settingsURL: settingsURL)
+        )
+        _ = session.load()
+        let originalMovement = session.settings.movementSettings
+        let boundary = MovementBoundarySettings(
+            mode: .customArea,
+            screenIdentifier: "display-personal",
+            normalizedRect: NormalizedMovementRect(
+                x: 0.1,
+                y: 0.2,
+                width: 0.7,
+                height: 0.6
+            )
+        )
+
+        session.setMovementBoundary(boundary)
+
+        XCTAssertEqual(
+            session.settings.overlay.movementBoundary,
+            boundary
+        )
+        XCTAssertEqual(session.settings.movementSettings, originalMovement)
+        XCTAssertEqual(
+            AppSettingsStore(settingsURL: settingsURL).load()
+                .settings.overlay.movementBoundary,
+            boundary
+        )
+    }
+
+    @MainActor
     func testPettingMotionSelectionPersistsWithActivePetProfile() {
         let session = AppSettingsSession(
             store: AppSettingsStore(settingsURL: settingsURL)

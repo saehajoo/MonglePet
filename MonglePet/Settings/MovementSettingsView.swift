@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import SwiftUI
 
@@ -5,6 +6,7 @@ struct MovementSettingsView: View {
     @ObservedObject var settingsSession: AppSettingsSession
     let petDefinition: PetDefinition
     let petDisplayName: String
+    @State private var displayOptions: [PetMovementDisplayOption] = []
 
     var body: some View {
         Form {
@@ -50,6 +52,8 @@ struct MovementSettingsView: View {
                         accessibilityIdentifier: "monglepet.settings.movementStopRadius"
                     )
                 }
+
+                movementBoundarySection
             }
 
             switch movement.mode {
@@ -140,7 +144,7 @@ struct MovementSettingsView: View {
             }
 
             Section {
-                Text("이동 방식은 자동·수동 행동 모드와 별개이며 현재 펫에만 저장됩니다. 마우스 위치와 앱 창 위치는 저장하지 않습니다.")
+                Text("이동 방식은 현재 펫에 저장되고 이동 범위는 이 Mac의 모든 펫에 공통으로 적용됩니다. 마우스 위치와 앱 창 위치는 저장하지 않습니다.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -148,10 +152,96 @@ struct MovementSettingsView: View {
         .formStyle(.grouped)
         .disabled(!settingsSession.isWritingEnabled)
         .accessibilityIdentifier("monglepet.settings.movementRoot")
+        .onAppear(perform: reloadDisplayOptions)
+        .onReceive(
+            NotificationCenter.default.publisher(
+                for: NSApplication.didChangeScreenParametersNotification
+            )
+        ) { _ in
+            reloadDisplayOptions()
+        }
     }
 
     private var movement: PetMovementSettings {
         settingsSession.settings.movementSettings
+    }
+
+    private var movementBoundary: MovementBoundarySettings {
+        settingsSession.settings.overlay.movementBoundary
+    }
+
+    @ViewBuilder
+    private var movementBoundarySection: some View {
+        Section("이동 범위") {
+            Picker("이동 범위", selection: movementBoundaryModeBinding) {
+                Text("모든 화면").tag(MovementBoundaryMode.allDisplays)
+                Text("선택 모니터").tag(MovementBoundaryMode.selectedDisplay)
+                Text("사용자 지정").tag(MovementBoundaryMode.customArea)
+            }
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("monglepet.settings.movementBoundaryMode")
+
+            if movementBoundary.mode != .allDisplays {
+                if displayOptions.isEmpty {
+                    Text("사용 가능한 모니터를 찾을 수 없어 모든 화면을 사용합니다.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Picker(
+                        "대상 모니터",
+                        selection: movementBoundaryDisplayBinding
+                    ) {
+                        ForEach(displayOptions) { option in
+                            Text(option.name).tag(option.id)
+                        }
+                        if let missingIdentifier =
+                            missingBoundaryScreenIdentifier {
+                            Text("연결되지 않은 모니터")
+                                .tag(missingIdentifier)
+                        }
+                    }
+                    .accessibilityIdentifier(
+                        "monglepet.settings.movementBoundaryDisplay"
+                    )
+                }
+            }
+
+            if movementBoundary.mode == .customArea {
+                let rect = movementBoundary.normalizedRect ?? .recommended
+                percentageSlider(
+                    title: "왼쪽 여백",
+                    value: customAreaXBinding,
+                    range: 0...max(0, 1 - rect.width),
+                    accessibilityIdentifier:
+                        "monglepet.settings.movementBoundaryX"
+                )
+                percentageSlider(
+                    title: "아래쪽 여백",
+                    value: customAreaYBinding,
+                    range: 0...max(0, 1 - rect.height),
+                    accessibilityIdentifier:
+                        "monglepet.settings.movementBoundaryY"
+                )
+                percentageSlider(
+                    title: "영역 너비",
+                    value: customAreaWidthBinding,
+                    range: min(0.05, 1 - rect.x)...(1 - rect.x),
+                    accessibilityIdentifier:
+                        "monglepet.settings.movementBoundaryWidth"
+                )
+                percentageSlider(
+                    title: "영역 높이",
+                    value: customAreaHeightBinding,
+                    range: min(0.05, 1 - rect.y)...(1 - rect.y),
+                    accessibilityIdentifier:
+                        "monglepet.settings.movementBoundaryHeight"
+                )
+            }
+
+            Text(boundaryDescription)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
     }
 
     private var movementModeBinding: Binding<PetMovementMode> {
@@ -159,6 +249,70 @@ struct MovementSettingsView: View {
             get: { movement.mode },
             set: { apply(.mode($0)) }
         )
+    }
+
+    private var movementBoundaryModeBinding: Binding<MovementBoundaryMode> {
+        Binding(
+            get: { movementBoundary.mode },
+            set: { mode in
+                let selectedScreenIdentifier =
+                    validBoundaryScreenIdentifier
+                        ?? displayOptions.first?.id
+                guard mode == .allDisplays
+                    || selectedScreenIdentifier != nil else {
+                    return
+                }
+                settingsSession.setMovementBoundary(
+                    MovementBoundarySettings(
+                        mode: mode,
+                        screenIdentifier: selectedScreenIdentifier,
+                        normalizedRect: mode == .customArea
+                            ? movementBoundary.normalizedRect ?? .recommended
+                            : movementBoundary.normalizedRect
+                    )
+                )
+            }
+        )
+    }
+
+    private var movementBoundaryDisplayBinding: Binding<String> {
+        Binding(
+            get: {
+                movementBoundary.screenIdentifier
+                    ?? displayOptions.first?.id
+                    ?? ""
+            },
+            set: { screenIdentifier in
+                guard !screenIdentifier.isEmpty else {
+                    return
+                }
+                settingsSession.setMovementBoundary(
+                    MovementBoundarySettings(
+                        mode: movementBoundary.mode,
+                        screenIdentifier: screenIdentifier,
+                        normalizedRect: movementBoundary.mode == .customArea
+                            ? movementBoundary.normalizedRect ?? .recommended
+                            : movementBoundary.normalizedRect
+                    )
+                )
+            }
+        )
+    }
+
+    private var customAreaXBinding: Binding<Double> {
+        customAreaBinding(.x)
+    }
+
+    private var customAreaYBinding: Binding<Double> {
+        customAreaBinding(.y)
+    }
+
+    private var customAreaWidthBinding: Binding<Double> {
+        customAreaBinding(.width)
+    }
+
+    private var customAreaHeightBinding: Binding<Double> {
+        customAreaBinding(.height)
     }
 
     private var movementSpeedBinding: Binding<Double> {
@@ -249,6 +403,40 @@ struct MovementSettingsView: View {
         }
     }
 
+    private var boundaryDescription: String {
+        switch movementBoundary.mode {
+        case .allDisplays:
+            "연결된 모든 모니터 안에서 이동합니다."
+        case .selectedDisplay:
+            missingBoundaryScreenIdentifier == nil
+                ? "선택한 모니터 안에서만 이동합니다."
+                : "저장된 모니터가 연결되지 않아 현재는 모든 화면을 사용합니다."
+        case .customArea:
+            missingBoundaryScreenIdentifier == nil
+                ? "선택한 모니터의 지정 영역 안에서만 이동합니다."
+                : "저장된 모니터가 연결되지 않아 현재는 모든 화면을 사용합니다."
+        }
+    }
+
+    private var validBoundaryScreenIdentifier: String? {
+        guard
+            let screenIdentifier = movementBoundary.screenIdentifier,
+            displayOptions.contains(where: { $0.id == screenIdentifier })
+        else {
+            return nil
+        }
+        return screenIdentifier
+    }
+
+    private var missingBoundaryScreenIdentifier: String? {
+        guard let screenIdentifier = movementBoundary.screenIdentifier,
+              !displayOptions.contains(where: { $0.id == screenIdentifier })
+        else {
+            return nil
+        }
+        return screenIdentifier
+    }
+
     private var dwellTimeText: String {
         let seconds = Double(movement.freeRoamingDwellMilliseconds) / 1_000
         if seconds.rounded() == seconds {
@@ -287,6 +475,27 @@ struct MovementSettingsView: View {
         }
     }
 
+    private func percentageSlider(
+        title: String,
+        value: Binding<Double>,
+        range: ClosedRange<Double>,
+        accessibilityIdentifier: String
+    ) -> some View {
+        HStack {
+            Text(title)
+            Slider(
+                value: value,
+                in: range,
+                step: 0.05,
+                onEditingChanged: persistSliderWhenEditingEnds
+            )
+            .accessibilityIdentifier(accessibilityIdentifier)
+            Text("\(Int((value.wrappedValue * 100).rounded()))%")
+                .monospacedDigit()
+                .frame(width: 48, alignment: .trailing)
+        }
+    }
+
     private func motionPicker(
         title: String,
         selection: Binding<String>,
@@ -322,6 +531,77 @@ struct MovementSettingsView: View {
         if !isEditing {
             settingsSession.persistCurrentSettings()
         }
+    }
+
+    private func customAreaBinding(
+        _ field: CustomAreaField
+    ) -> Binding<Double> {
+        Binding(
+            get: {
+                let rect = movementBoundary.normalizedRect ?? .recommended
+                return switch field {
+                case .x:
+                    rect.x
+                case .y:
+                    rect.y
+                case .width:
+                    rect.width
+                case .height:
+                    rect.height
+                }
+            },
+            set: { newValue in
+                let current = movementBoundary.normalizedRect ?? .recommended
+                let rect: NormalizedMovementRect
+                switch field {
+                case .x:
+                    rect = NormalizedMovementRect(
+                        x: min(max(newValue, 0), 1 - current.width),
+                        y: current.y,
+                        width: current.width,
+                        height: current.height
+                    )
+                case .y:
+                    rect = NormalizedMovementRect(
+                        x: current.x,
+                        y: min(max(newValue, 0), 1 - current.height),
+                        width: current.width,
+                        height: current.height
+                    )
+                case .width:
+                    rect = NormalizedMovementRect(
+                        x: current.x,
+                        y: current.y,
+                        width: min(max(newValue, 0.01), 1 - current.x),
+                        height: current.height
+                    )
+                case .height:
+                    rect = NormalizedMovementRect(
+                        x: current.x,
+                        y: current.y,
+                        width: current.width,
+                        height: min(max(newValue, 0.01), 1 - current.y)
+                    )
+                }
+                guard let screenIdentifier =
+                    movementBoundary.screenIdentifier
+                        ?? displayOptions.first?.id else {
+                    return
+                }
+                settingsSession.setMovementBoundary(
+                    MovementBoundarySettings(
+                        mode: .customArea,
+                        screenIdentifier: screenIdentifier,
+                        normalizedRect: rect
+                    ),
+                    persist: false
+                )
+            }
+        )
+    }
+
+    private func reloadDisplayOptions() {
+        displayOptions = AppKitDisplayLayoutReader.currentDisplayOptions()
     }
 
     private func apply(
@@ -384,4 +664,11 @@ private enum MovementEdit {
     case prefersFrontmostWindow(Bool)
     case cursorFollowingMotionID(String?)
     case freeRoamingMotionID(String?)
+}
+
+private enum CustomAreaField {
+    case x
+    case y
+    case width
+    case height
 }

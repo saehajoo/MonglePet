@@ -125,9 +125,17 @@ nonisolated final class AppSettingsStore {
                 let migratedV3 = try AppSettingsV2ToV3Migrator.migrate(
                     migratedV2.settings
                 )
-                try write(migratedV3.settings)
-                let mapped = AppSettingsV3Mapper.domainSettings(from: migratedV3.settings)
-                let issues = migratedV2.issues + migratedV3.issues + mapped.issues
+                let migratedV4 = try AppSettingsV3ToV4Migrator.migrate(
+                    migratedV3.settings
+                )
+                try write(migratedV4.settings)
+                let mapped = AppSettingsV4Mapper.domainSettings(
+                    from: migratedV4.settings
+                )
+                let issues = migratedV2.issues
+                    + migratedV3.issues
+                    + migratedV4.issues
+                    + mapped.issues
                 isWritingEnabled = true
                 return AppSettingsLoadResult(
                     settings: mapped.settings,
@@ -154,9 +162,52 @@ nonisolated final class AppSettingsStore {
                 return recoverCorruptFile()
             }
             do {
-                let migrated = try AppSettingsV2ToV3Migrator.migrate(storedSettings)
+                let migratedV3 = try AppSettingsV2ToV3Migrator.migrate(
+                    storedSettings
+                )
+                let migratedV4 = try AppSettingsV3ToV4Migrator.migrate(
+                    migratedV3.settings
+                )
+                try write(migratedV4.settings)
+                let mapped = AppSettingsV4Mapper.domainSettings(
+                    from: migratedV4.settings
+                )
+                let issues = migratedV3.issues
+                    + migratedV4.issues
+                    + mapped.issues
+                isWritingEnabled = true
+                return AppSettingsLoadResult(
+                    settings: mapped.settings,
+                    issues: issues,
+                    source: issues.isEmpty ? .file : .recovered,
+                    isWritingEnabled: true
+                )
+            } catch {
+                isWritingEnabled = false
+                return AppSettingsLoadResult(
+                    settings: .default,
+                    issues: [.invalidField("settingsMigration")],
+                    source: .recovered,
+                    isWritingEnabled: false
+                )
+            }
+        }
+
+        if envelope.schemaVersion == 3 {
+            guard let storedSettings = try? decoder.decode(
+                StoredAppSettingsV3.self,
+                from: data
+            ) else {
+                return recoverCorruptFile()
+            }
+            do {
+                let migrated = try AppSettingsV3ToV4Migrator.migrate(
+                    storedSettings
+                )
                 try write(migrated.settings)
-                let mapped = AppSettingsV3Mapper.domainSettings(from: migrated.settings)
+                let mapped = AppSettingsV4Mapper.domainSettings(
+                    from: migrated.settings
+                )
                 let issues = migrated.issues + mapped.issues
                 isWritingEnabled = true
                 return AppSettingsLoadResult(
@@ -177,12 +228,15 @@ nonisolated final class AppSettingsStore {
         }
 
         guard envelope.schemaVersion == AppSettingsLimits.schemaVersion,
-              let storedSettings = try? decoder.decode(StoredAppSettingsV3.self, from: data)
+              let storedSettings = try? decoder.decode(
+                  StoredAppSettingsV4.self,
+                  from: data
+              )
         else {
             return recoverCorruptFile()
         }
 
-        let mapped = AppSettingsV3Mapper.domainSettings(from: storedSettings)
+        let mapped = AppSettingsV4Mapper.domainSettings(from: storedSettings)
         isWritingEnabled = true
         return AppSettingsLoadResult(
             settings: mapped.settings,
@@ -197,9 +251,11 @@ nonisolated final class AppSettingsStore {
             throw AppSettingsStoreError.writingDisabledForNewerSchema
         }
 
-        let storedSettings: StoredAppSettingsV3
+        let storedSettings: StoredAppSettingsV4
         do {
-            storedSettings = try AppSettingsV3Mapper.storedSettings(from: settings)
+            storedSettings = try AppSettingsV4Mapper.storedSettings(
+                from: settings
+            )
         } catch let error as AppSettingsMappingError {
             switch error {
             case let .invalidSettings(field):

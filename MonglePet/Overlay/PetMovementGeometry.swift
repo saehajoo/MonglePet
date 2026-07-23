@@ -167,7 +167,8 @@ nonisolated enum PetMovementGeometry {
         petSize: PetMovementSize,
         cursorDistance: Double,
         screenInset: Double,
-        screens: [PetMovementScreen]
+        screens: [PetMovementScreen],
+        boundary: MovementBoundarySettings = .default
     ) -> PetMovementPoint? {
         cursorFollowingRoute(
             pointer: pointer,
@@ -175,7 +176,8 @@ nonisolated enum PetMovementGeometry {
             petSize: petSize,
             cursorDistance: cursorDistance,
             screenInset: screenInset,
-            screens: screens
+            screens: screens,
+            boundary: boundary
         )?.targetOrigin
     }
 
@@ -185,13 +187,18 @@ nonisolated enum PetMovementGeometry {
         petSize: PetMovementSize,
         cursorDistance: Double,
         screenInset: Double,
-        screens: [PetMovementScreen]
+        screens: [PetMovementScreen],
+        boundary: MovementBoundarySettings = .default
     ) -> PetMovementCursorRoute? {
+        let availableScreens = movementScreens(
+            constrainedBy: boundary,
+            screens: screens
+        )
         guard pointer.isFinite, currentOrigin.isFinite, petSize.isValid,
               cursorDistance.isFinite, cursorDistance >= 0,
               let targetScreen = screen(
                   containingOrNearestTo: pointer,
-                  in: screens
+                  in: availableScreens
               ),
               let bounds = safeOriginBounds(
                   in: targetScreen.visibleFrame,
@@ -225,56 +232,13 @@ nonisolated enum PetMovementGeometry {
                 y: targetCenter.y - (petSize.height / 2)
             )
         )
-        guard
-            let sourceScreen = screen(
-                containingOrNearestTo: currentCenter,
-                in: screens
-            ),
-            sourceScreen.id != targetScreen.id,
-            let sourceBounds = safeOriginBounds(
-                in: sourceScreen.visibleFrame,
-                petSize: petSize,
-                inset: 0
-            ),
-            let targetBounds = safeOriginBounds(
-                in: targetScreen.visibleFrame,
-                petSize: petSize,
-                inset: 0
-            )
-        else {
-            return PetMovementCursorRoute(
-                targetOrigin: targetOrigin,
-                transition: nil
-            )
-        }
-
-        let horizontalTransition = closestTransitionCoordinates(
-            sourceMinimum: sourceBounds.minX,
-            sourceMaximum: sourceBounds.maxX,
-            targetMinimum: targetBounds.minX,
-            targetMaximum: targetBounds.maxX,
-            preferred: currentOrigin.x
-        )
-        let verticalTransition = closestTransitionCoordinates(
-            sourceMinimum: sourceBounds.minY,
-            sourceMaximum: sourceBounds.maxY,
-            targetMinimum: targetBounds.minY,
-            targetMaximum: targetBounds.maxY,
-            preferred: currentOrigin.y
-        )
         return PetMovementCursorRoute(
             targetOrigin: targetOrigin,
-            transition: PetMovementScreenTransition(
-                sourceScreenID: sourceScreen.id,
-                targetScreenID: targetScreen.id,
-                exitOrigin: PetMovementPoint(
-                    x: horizontalTransition.source,
-                    y: verticalTransition.source
-                ),
-                entryOrigin: PetMovementPoint(
-                    x: horizontalTransition.target,
-                    y: verticalTransition.target
-                )
+            transition: screenTransition(
+                from: currentOrigin,
+                toScreenID: targetScreen.id,
+                petSize: petSize,
+                screens: screens
             )
         )
     }
@@ -284,9 +248,13 @@ nonisolated enum PetMovementGeometry {
         petSize: PetMovementSize,
         screenInset: Double,
         preferredWindow: PetMovementWindow?,
-        sample: PetMovementRandomSample
+        sample: PetMovementRandomSample,
+        boundary: MovementBoundarySettings = .default
     ) -> PetMovementPoint? {
-        let validScreens = screens.filter { $0.visibleFrame.isValid }
+        let validScreens = movementScreens(
+            constrainedBy: boundary,
+            screens: screens
+        )
         guard !validScreens.isEmpty, petSize.isValid else {
             return nil
         }
@@ -316,6 +284,80 @@ nonisolated enum PetMovementGeometry {
             horizontal: sample.horizontal,
             vertical: sample.vertical
         )
+    }
+
+    static func screenTransition(
+        from currentOrigin: PetMovementPoint,
+        toward targetOrigin: PetMovementPoint,
+        petSize: PetMovementSize,
+        screens: [PetMovementScreen]
+    ) -> PetMovementScreenTransition? {
+        let targetCenter = PetMovementPoint(
+            x: targetOrigin.x + (petSize.width / 2),
+            y: targetOrigin.y + (petSize.height / 2)
+        )
+        guard let targetScreen = screen(
+            containingOrNearestTo: targetCenter,
+            in: screens
+        ) else {
+            return nil
+        }
+        return screenTransition(
+            from: currentOrigin,
+            toScreenID: targetScreen.id,
+            petSize: petSize,
+            screens: screens
+        )
+    }
+
+    static func movementScreens(
+        constrainedBy boundary: MovementBoundarySettings,
+        screens: [PetMovementScreen]
+    ) -> [PetMovementScreen] {
+        let validScreens = screens.filter { $0.visibleFrame.isValid }
+        guard boundary.isValid else {
+            return validScreens
+        }
+        switch boundary.mode {
+        case .allDisplays:
+            return validScreens
+        case .selectedDisplay:
+            guard
+                let screenIdentifier = boundary.screenIdentifier,
+                let selectedScreen = validScreens.first(where: {
+                    $0.id == screenIdentifier
+                })
+            else {
+                return validScreens
+            }
+            return [selectedScreen]
+        case .customArea:
+            guard
+                let screenIdentifier = boundary.screenIdentifier,
+                let normalizedRect = boundary.normalizedRect,
+                let selectedScreen = validScreens.first(where: {
+                    $0.id == screenIdentifier
+                })
+            else {
+                return validScreens
+            }
+            let visibleFrame = selectedScreen.visibleFrame
+            return [
+                PetMovementScreen(
+                    id: selectedScreen.id,
+                    visibleFrame: PetMovementRect(
+                        x: visibleFrame.minX
+                            + (visibleFrame.size.width * normalizedRect.x),
+                        y: visibleFrame.minY
+                            + (visibleFrame.size.height * normalizedRect.y),
+                        width: visibleFrame.size.width
+                            * normalizedRect.width,
+                        height: visibleFrame.size.height
+                            * normalizedRect.height
+                    )
+                )
+            ]
+        }
     }
 
     static func advance(
@@ -373,6 +415,67 @@ nonisolated enum PetMovementGeometry {
             origin: nextOrigin,
             didMove: true,
             hasArrived: (distance - travelDistance) <= stopRadius
+        )
+    }
+
+    private static func screenTransition(
+        from currentOrigin: PetMovementPoint,
+        toScreenID targetScreenID: String,
+        petSize: PetMovementSize,
+        screens: [PetMovementScreen]
+    ) -> PetMovementScreenTransition? {
+        let currentCenter = PetMovementPoint(
+            x: currentOrigin.x + (petSize.width / 2),
+            y: currentOrigin.y + (petSize.height / 2)
+        )
+        guard
+            let sourceScreen = screen(
+                containingOrNearestTo: currentCenter,
+                in: screens
+            ),
+            sourceScreen.id != targetScreenID,
+            let targetScreen = screens.first(where: {
+                $0.id == targetScreenID && $0.visibleFrame.isValid
+            }),
+            let sourceBounds = safeOriginBounds(
+                in: sourceScreen.visibleFrame,
+                petSize: petSize,
+                inset: 0
+            ),
+            let targetBounds = safeOriginBounds(
+                in: targetScreen.visibleFrame,
+                petSize: petSize,
+                inset: 0
+            )
+        else {
+            return nil
+        }
+
+        let horizontalTransition = closestTransitionCoordinates(
+            sourceMinimum: sourceBounds.minX,
+            sourceMaximum: sourceBounds.maxX,
+            targetMinimum: targetBounds.minX,
+            targetMaximum: targetBounds.maxX,
+            preferred: currentOrigin.x
+        )
+        let verticalTransition = closestTransitionCoordinates(
+            sourceMinimum: sourceBounds.minY,
+            sourceMaximum: sourceBounds.maxY,
+            targetMinimum: targetBounds.minY,
+            targetMaximum: targetBounds.maxY,
+            preferred: currentOrigin.y
+        )
+        return PetMovementScreenTransition(
+            sourceScreenID: sourceScreen.id,
+            targetScreenID: targetScreen.id,
+            exitOrigin: PetMovementPoint(
+                x: horizontalTransition.source,
+                y: verticalTransition.source
+            ),
+            entryOrigin: PetMovementPoint(
+                x: horizontalTransition.target,
+                y: verticalTransition.target
+            )
         )
     }
 

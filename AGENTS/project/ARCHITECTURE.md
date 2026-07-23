@@ -125,9 +125,9 @@ MonglePetApp
 
 ### Settings
 
-- `AppSettings` Domain 모델과 현재 schema-v3 `StoredAppSettingsV3`, 마이그레이션 전용 schema-v1·v2 DTO를 분리한다.
-- `AppSettingsV3Mapper`가 명시적 행동·이동 enum 문자열, 펫 키 discriminator와 반복 횟수를 변환하고 프로필·항목 단위 복구 결과를 만든다.
-- v1 마이그레이터는 선택 펫의 실제 프레임 사이클을 사용해 유지 시간을 반복 횟수로 변환하고, v2 마이그레이터는 각 펫 프로필에 기본 위치 고정 이동 설정을 추가한다. 전체 순차 변환이 성공한 v3 결과만 원자적으로 기록한다.
+- `AppSettings` Domain 모델과 현재 schema-v4 `StoredAppSettingsV4`, 마이그레이션 전용 schema-v1·v2·v3 DTO를 분리한다.
+- `AppSettingsV4Mapper`가 v3 행동·이동 프로필 변환 위에 로컬 이동 범위와 표시 환경을 검증하고 항목 단위 복구 결과를 만든다.
+- v1 마이그레이터는 선택 펫의 실제 프레임 사이클을 사용해 유지 시간을 반복 횟수로 변환하고, v2 마이그레이터는 각 펫 프로필에 기본 위치 고정 이동 설정을 추가하며, v3 마이그레이터는 이동 범위·투명도 기본값을 추가한다. 전체 순차 변환이 성공한 v4 결과만 원자적으로 기록한다.
 - `AppSettingsStore`는 5MiB 상한, 같은 디렉터리 임시 파일과 원자적 교체를 책임진다.
 - `AppSettingsSession`은 저장소의 로드·복구·쓰기 상태를 SwiftUI와 `AppCoordinator`에 전달하고 유효한 Domain 설정 변경만 저장한다.
 - 손상 파일은 격리하고 기본값으로 복구하며, 미래 스키마 파일은 원본을 보존하고 쓰기를 차단한다.
@@ -144,7 +144,7 @@ MonglePetApp
 - 일반 설정은 내장 펫을 내보내기 대상에서 제외하고, 설치 펫의 공유 검토를 통과한 뒤 검증된 아카이브를 메모리 `FileDocument`로 전환해 SwiftUI `fileExporter`에 전달한다. 명령형 AppKit 저장 패널을 직접 생성하지 않는다.
 - 공유 권장 프로필은 로컬 `BehaviorProfile`을 그대로 복사하지 않는다. 설치 UUID, 화면 좌표와 현재 상태를 제거하고 패키지 모션 참조를 다시 검증한 별도 DTO를 사용한다.
 - 가져오기에서는 펫 설치와 권장 프로필 적용을 분리한다. 새 설치는 사용자가 적용을 선택할 때 편집 가능한 로컬 프로필 사본을 만들고, 기존 설치 교체는 기본적으로 현재 로컬 프로필을 유지한다.
-- Phase 9B의 schema-v4는 schema-v3 overlay에 기본 투명도, 마우스 겹침 투명도와 이동 범위를 추가한다. 이동 범위의 디스플레이 UUID와 정규화 영역은 로컬 전용이며 공유 권장 프로필로 변환하지 않는다.
+- schema-v4는 schema-v3 overlay에 기본 투명도, 마우스 겹침 투명도와 이동 범위를 추가한다. 이동 범위의 디스플레이 UUID와 정규화 영역은 로컬 전용이며 공유 권장 프로필로 변환하지 않는다.
 
 ### MenuBar
 

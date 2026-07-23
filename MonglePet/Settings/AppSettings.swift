@@ -1,7 +1,7 @@
 import Foundation
 
 nonisolated enum AppSettingsLimits {
-    static let schemaVersion = 3
+    static let schemaVersion = 4
     static let maximumFileSize = 5 * 1_024 * 1_024
     static let defaultOverlayWidth = 192.0
     static let minimumOverlayWidth = 96.0
@@ -26,6 +26,70 @@ nonisolated enum AppSettingsLimits {
     static let defaultFreeRoamingDwellMilliseconds: Int64 = 6_000
     static let minimumFreeRoamingDwellMilliseconds: Int64 = 500
     static let maximumFreeRoamingDwellMilliseconds: Int64 = 300_000
+    static let defaultOverlayOpacity = 1.0
+    static let minimumOverlayOpacity = 0.1
+    static let maximumOverlayOpacity = 1.0
+    static let defaultPointerOverlapOpacity = 0.2
+    static let minimumPointerOverlapOpacity = 0.05
+    static let maximumPointerOverlapOpacity = 1.0
+}
+
+nonisolated enum MovementBoundaryMode: Hashable, Sendable {
+    case allDisplays
+    case selectedDisplay
+    case customArea
+}
+
+nonisolated struct NormalizedMovementRect: Equatable, Sendable {
+    let x: Double
+    let y: Double
+    let width: Double
+    let height: Double
+
+    static let recommended = NormalizedMovementRect(
+        x: 0.1,
+        y: 0.1,
+        width: 0.8,
+        height: 0.8
+    )
+
+    var isValid: Bool {
+        x.isFinite && y.isFinite && width.isFinite && height.isFinite
+            && x >= 0 && y >= 0
+            && width > 0 && height > 0
+            && x + width <= 1
+            && y + height <= 1
+    }
+}
+
+nonisolated struct MovementBoundarySettings: Equatable, Sendable {
+    let mode: MovementBoundaryMode
+    let screenIdentifier: String?
+    let normalizedRect: NormalizedMovementRect?
+
+    static let `default` = MovementBoundarySettings(
+        mode: .allDisplays,
+        screenIdentifier: nil,
+        normalizedRect: nil
+    )
+
+    var isValid: Bool {
+        let hasValidScreenIdentifier = screenIdentifier.map {
+            let trimmed = $0.trimmingCharacters(in: .whitespacesAndNewlines)
+            return !trimmed.isEmpty && trimmed == $0
+        } ?? false
+        switch mode {
+        case .allDisplays:
+            return (screenIdentifier == nil || hasValidScreenIdentifier)
+                && (normalizedRect?.isValid ?? true)
+        case .selectedDisplay:
+            return hasValidScreenIdentifier
+                && (normalizedRect?.isValid ?? true)
+        case .customArea:
+            return hasValidScreenIdentifier
+                && normalizedRect?.isValid == true
+        }
+    }
 }
 
 nonisolated enum PetMovementMode: Hashable, Sendable {
@@ -153,13 +217,44 @@ nonisolated struct OverlaySettings: Equatable, Sendable {
     let originY: Double
     let width: Double
     let clickThrough: Bool
+    let opacity: Double
+    let pointerOverlapFadeEnabled: Bool
+    let pointerOverlapOpacity: Double
+    let movementBoundary: MovementBoundarySettings
+
+    init(
+        screenIdentifier: String?,
+        originX: Double,
+        originY: Double,
+        width: Double,
+        clickThrough: Bool,
+        opacity: Double = AppSettingsLimits.defaultOverlayOpacity,
+        pointerOverlapFadeEnabled: Bool = false,
+        pointerOverlapOpacity: Double =
+            AppSettingsLimits.defaultPointerOverlapOpacity,
+        movementBoundary: MovementBoundarySettings = .default
+    ) {
+        self.screenIdentifier = screenIdentifier
+        self.originX = originX
+        self.originY = originY
+        self.width = width
+        self.clickThrough = clickThrough
+        self.opacity = opacity
+        self.pointerOverlapFadeEnabled = pointerOverlapFadeEnabled
+        self.pointerOverlapOpacity = pointerOverlapOpacity
+        self.movementBoundary = movementBoundary
+    }
 
     static let `default` = OverlaySettings(
         screenIdentifier: nil,
         originX: 0,
         originY: 0,
         width: AppSettingsLimits.defaultOverlayWidth,
-        clickThrough: false
+        clickThrough: false,
+        opacity: AppSettingsLimits.defaultOverlayOpacity,
+        pointerOverlapFadeEnabled: false,
+        pointerOverlapOpacity: AppSettingsLimits.defaultPointerOverlapOpacity,
+        movementBoundary: .default
     )
 }
 

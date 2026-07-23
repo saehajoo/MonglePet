@@ -14,6 +14,11 @@ nonisolated struct PetMovementDisplayLayout: Equatable, Sendable {
     let mainScreenMaxY: Double
 }
 
+nonisolated struct PetMovementDisplayOption: Equatable, Identifiable, Sendable {
+    let id: String
+    let name: String
+}
+
 nonisolated enum FrontmostWindowResolver {
     static let minimumWindowDimension = 64.0
     static let fullScreenCoverageThreshold = 0.98
@@ -260,13 +265,22 @@ enum AppKitDisplayLayoutReader {
         movementScreens(from: NSScreen.screens)
     }
 
+    static func currentDisplayOptions() -> [PetMovementDisplayOption] {
+        NSScreen.screens.enumerated().map { index, screen in
+            PetMovementDisplayOption(
+                id: screenIdentifier(for: screen, fallbackIndex: index),
+                name: "디스플레이 \(index + 1) · \(screen.localizedName)"
+            )
+        }
+    }
+
     private static func movementScreens(
         from appKitScreens: [NSScreen]
     ) -> [PetMovementScreen] {
         appKitScreens.enumerated().map { index, screen in
             let visibleFrame = screen.visibleFrame
             return PetMovementScreen(
-                id: "screen-\(index)",
+                id: screenIdentifier(for: screen, fallbackIndex: index),
                 visibleFrame: PetMovementRect(
                     x: Double(visibleFrame.minX),
                     y: Double(visibleFrame.minY),
@@ -275,5 +289,13 @@ enum AppKitDisplayLayoutReader {
                 )
             )
         }
+    }
+
+    private static func screenIdentifier(
+        for screen: NSScreen,
+        fallbackIndex: Int
+    ) -> String {
+        PetWindowController.screenIdentifier(for: screen)
+            ?? "screen-\(fallbackIndex)"
     }
 }

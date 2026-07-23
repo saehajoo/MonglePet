@@ -264,6 +264,144 @@ final class PetMovementGeometryTests: XCTestCase {
         XCTAssertEqual(target, point(1_020, 580))
     }
 
+    func testSelectedDisplayBoundaryRestrictsAvailableScreens() {
+        let screens = [
+            screen("main", 0, 0, 1_000, 800),
+            screen("right", 1_000, 100, 800, 600)
+        ]
+
+        let constrained = PetMovementGeometry.movementScreens(
+            constrainedBy: MovementBoundarySettings(
+                mode: .selectedDisplay,
+                screenIdentifier: "right",
+                normalizedRect: nil
+            ),
+            screens: screens
+        )
+
+        XCTAssertEqual(constrained, [screens[1]])
+    }
+
+    func testMissingSelectedDisplayFallsBackWithoutChangingBoundary() {
+        let screens = [
+            screen("main", 0, 0, 1_000, 800),
+            screen("right", 1_000, 100, 800, 600)
+        ]
+        let boundary = MovementBoundarySettings(
+            mode: .selectedDisplay,
+            screenIdentifier: "disconnected",
+            normalizedRect: nil
+        )
+
+        XCTAssertEqual(
+            PetMovementGeometry.movementScreens(
+                constrainedBy: boundary,
+                screens: screens
+            ),
+            screens
+        )
+        XCTAssertEqual(boundary.screenIdentifier, "disconnected")
+    }
+
+    func testCustomAreaBoundaryConvertsNormalizedRect() {
+        let constrained = PetMovementGeometry.movementScreens(
+            constrainedBy: MovementBoundarySettings(
+                mode: .customArea,
+                screenIdentifier: "main",
+                normalizedRect: NormalizedMovementRect(
+                    x: 0.25,
+                    y: 0.25,
+                    width: 0.5,
+                    height: 0.5
+                )
+            ),
+            screens: [screen("main", 0, 0, 1_000, 800)]
+        )
+
+        XCTAssertEqual(
+            constrained,
+            [screen("main", 250, 200, 500, 400)]
+        )
+    }
+
+    func testCursorTargetClampsToSelectedDisplayBoundary() throws {
+        let target = try XCTUnwrap(
+            PetMovementGeometry.cursorFollowingTargetOrigin(
+                pointer: point(1_500, 700),
+                currentOrigin: point(100, 100),
+                petSize: size(100, 100),
+                cursorDistance: 0,
+                screenInset: 20,
+                screens: [
+                    screen("main", 0, 0, 1_000, 800),
+                    screen("right", 1_000, 0, 1_000, 800)
+                ],
+                boundary: MovementBoundarySettings(
+                    mode: .selectedDisplay,
+                    screenIdentifier: "main",
+                    normalizedRect: nil
+                )
+            )
+        )
+
+        XCTAssertEqual(target, point(880, 650))
+    }
+
+    func testSelectedDisplayBoundaryKeepsPhysicalSourceTransition() throws {
+        let route = try XCTUnwrap(
+            PetMovementGeometry.cursorFollowingRoute(
+                pointer: point(1_500, 300),
+                currentOrigin: point(800, 200),
+                petSize: size(100, 100),
+                cursorDistance: 0,
+                screenInset: 20,
+                screens: [
+                    screen("main", 0, 0, 1_000, 800),
+                    screen("right", 1_000, 0, 1_000, 800)
+                ],
+                boundary: MovementBoundarySettings(
+                    mode: .selectedDisplay,
+                    screenIdentifier: "right",
+                    normalizedRect: nil
+                )
+            )
+        )
+
+        XCTAssertEqual(
+            route.transition,
+            PetMovementScreenTransition(
+                sourceScreenID: "main",
+                targetScreenID: "right",
+                exitOrigin: point(900, 200),
+                entryOrigin: point(1_000, 200)
+            )
+        )
+    }
+
+    func testFreeRoamingTargetStaysInsideCustomArea() throws {
+        let target = try XCTUnwrap(
+            PetMovementGeometry.freeRoamingTargetOrigin(
+                screens: [screen("main", 0, 0, 1_000, 800)],
+                petSize: size(100, 100),
+                screenInset: 20,
+                preferredWindow: nil,
+                sample: sample(screen: 0, horizontal: 1, vertical: 1),
+                boundary: MovementBoundarySettings(
+                    mode: .customArea,
+                    screenIdentifier: "main",
+                    normalizedRect: NormalizedMovementRect(
+                        x: 0.25,
+                        y: 0.25,
+                        width: 0.5,
+                        height: 0.5
+                    )
+                )
+            )
+        )
+
+        XCTAssertEqual(target, point(630, 480))
+    }
+
     func testAdvanceMovesAtConfiguredPointsPerSecond() {
         let result = PetMovementGeometry.advance(
             from: point(0, 0),

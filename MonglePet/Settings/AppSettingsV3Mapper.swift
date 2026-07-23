@@ -94,7 +94,7 @@ nonisolated enum AppSettingsV3Mapper {
             }
 
         return StoredAppSettingsV3(
-            schemaVersion: AppSettingsLimits.schemaVersion,
+            schemaVersion: 3,
             selectedPetInstallationID: storedV2.selectedPetInstallationID,
             lastUserPresentation: storedV2.lastUserPresentation,
             overlay: storedV2.overlay,

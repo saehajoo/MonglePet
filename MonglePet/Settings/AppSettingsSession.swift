@@ -340,7 +340,13 @@ final class AppSettingsSession: ObservableObject {
                 originX: settings.overlay.originX,
                 originY: settings.overlay.originY,
                 width: normalizedWidth,
-                clickThrough: settings.overlay.clickThrough
+                clickThrough: settings.overlay.clickThrough,
+                opacity: settings.overlay.opacity,
+                pointerOverlapFadeEnabled:
+                    settings.overlay.pointerOverlapFadeEnabled,
+                pointerOverlapOpacity:
+                    settings.overlay.pointerOverlapOpacity,
+                movementBoundary: settings.overlay.movementBoundary
             ),
             persist: persist
         )
@@ -353,8 +359,39 @@ final class AppSettingsSession: ObservableObject {
                 originX: settings.overlay.originX,
                 originY: settings.overlay.originY,
                 width: settings.overlay.width,
-                clickThrough: clickThrough
+                clickThrough: clickThrough,
+                opacity: settings.overlay.opacity,
+                pointerOverlapFadeEnabled:
+                    settings.overlay.pointerOverlapFadeEnabled,
+                pointerOverlapOpacity:
+                    settings.overlay.pointerOverlapOpacity,
+                movementBoundary: settings.overlay.movementBoundary
             )
+        )
+    }
+
+    func setMovementBoundary(
+        _ movementBoundary: MovementBoundarySettings,
+        persist: Bool = true
+    ) {
+        guard movementBoundary.isValid else {
+            return
+        }
+        replaceOverlay(
+            OverlaySettings(
+                screenIdentifier: settings.overlay.screenIdentifier,
+                originX: settings.overlay.originX,
+                originY: settings.overlay.originY,
+                width: settings.overlay.width,
+                clickThrough: settings.overlay.clickThrough,
+                opacity: settings.overlay.opacity,
+                pointerOverlapFadeEnabled:
+                    settings.overlay.pointerOverlapFadeEnabled,
+                pointerOverlapOpacity:
+                    settings.overlay.pointerOverlapOpacity,
+                movementBoundary: movementBoundary
+            ),
+            persist: persist
         )
     }
 
