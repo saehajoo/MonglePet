@@ -139,6 +139,67 @@ final class AppSettingsSessionTests: XCTestCase {
     }
 
     @MainActor
+    func testRecommendedProfileReplacementChangesOnlyTargetInstallation() {
+        let firstID = UUID(
+            uuidString: "11111111-1111-1111-1111-111111111114"
+        )!
+        let secondID = UUID(
+            uuidString: "22222222-2222-2222-2222-222222222224"
+        )!
+        let session = AppSettingsSession(
+            store: AppSettingsStore(settingsURL: settingsURL)
+        )
+        _ = session.load()
+        session.setSelectedPetInstallationID(firstID)
+        XCTAssertTrue(session.addBehaviorSequence(named: "첫 번째 로컬 설정"))
+        let originalFirstProfile = session.settings.activeBehaviorProfile
+
+        session.setSelectedPetInstallationID(secondID)
+        XCTAssertTrue(session.addBehaviorSequence(named: "두 번째 로컬 설정"))
+        let secondProfile = session.settings.activeBehaviorProfile
+
+        session.setSelectedPetInstallationID(firstID)
+        let recommended = RecommendedPetProfile(
+            mode: .manual,
+            manualSequenceID: "shared",
+            sequences: [
+                BehaviorSequence(
+                    id: "shared",
+                    steps: [
+                        BehaviorStep(motionID: "idle", repeatCount: 4)
+                    ],
+                    repeats: false
+                )
+            ],
+            automaticRules: [],
+            movement: PetMovementSettings(
+                mode: .cursorFollowing,
+                speed: 260,
+                cursorDistance: 72,
+                stopRadius: 12,
+                freeRoamingDwellMilliseconds: 8_000,
+                prefersFrontmostWindow: true,
+                cursorFollowingMotionID: "idle",
+                freeRoamingMotionID: nil
+            ),
+            pettingMotionID: "idle"
+        )
+
+        XCTAssertTrue(
+            session.applyRecommendedProfile(recommended, to: firstID)
+        )
+        XCTAssertNotEqual(session.settings.activeBehaviorProfile, originalFirstProfile)
+        XCTAssertEqual(
+            session.settings.activeBehaviorProfile,
+            recommended.behaviorProfile(for: .installed(firstID))
+        )
+        XCTAssertEqual(
+            session.settings.behaviorProfile(for: .installed(secondID)),
+            secondProfile
+        )
+    }
+
+    @MainActor
     func testBehaviorProfilesStayIndependentAcrossPetSwitchesAndRelaunch() throws {
         let installedID = UUID(
             uuidString: "11111111-1111-1111-1111-111111111112"

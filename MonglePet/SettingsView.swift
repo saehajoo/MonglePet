@@ -333,7 +333,9 @@ private struct GeneralSettingsView: View {
         .sheet(item: duplicateInstallRequestBinding) { request in
             DuplicatePetInstallView(
                 request: request,
-                petLibrarySession: petLibrarySession
+                petLibrarySession: petLibrarySession,
+                allowsRecommendedProfileApplication:
+                    settingsSession.isWritingEnabled
             )
         }
         .alert("선택한 펫을 삭제할까요?", isPresented: $isConfirmingRemoval) {
@@ -922,102 +924,125 @@ private struct PetPackageImportReviewView: View {
     }
 }
 
+private enum DuplicateReplacementProfileChoice: Hashable {
+    case preserveLocal
+    case applyRecommended
+}
+
 private struct DuplicatePetInstallView: View {
     @Environment(\.dismiss) private var dismiss
 
     let request: DuplicatePetInstallRequest
     @ObservedObject var petLibrarySession: PetLibrarySession
+    let allowsRecommendedProfileApplication: Bool
 
     @State private var selectedInstallationID: UUID?
+    @State private var replacementProfileChoice:
+        DuplicateReplacementProfileChoice = .preserveLocal
 
     init(
         request: DuplicatePetInstallRequest,
-        petLibrarySession: PetLibrarySession
+        petLibrarySession: PetLibrarySession,
+        allowsRecommendedProfileApplication: Bool
     ) {
         self.request = request
         self.petLibrarySession = petLibrarySession
+        self.allowsRecommendedProfileApplication =
+            allowsRecommendedProfileApplication
         _selectedInstallationID = State(
             initialValue: request.preferredReplacementInstallationID
         )
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("같은 펫 패키지가 이미 있습니다")
-                    .font(.title2.weight(.semibold))
-                Text("새 설치로 추가하거나, 아래 설치 중 하나를 선택해 교체할 수 있습니다.")
-                    .foregroundStyle(.secondary)
-            }
+        VStack(alignment: .leading, spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("같은 펫 패키지가 이미 있습니다")
+                            .font(.title2.weight(.semibold))
+                        Text(
+                            "새 설치로 추가하거나, 아래 설치 중 하나를 선택해 교체할 수 있습니다."
+                        )
+                        .foregroundStyle(.secondary)
+                    }
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text("가져올 펫")
-                    .font(.headline)
-                packageInformation(request.incomingMetadata)
-            }
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("가져올 펫")
+                            .font(.headline)
+                        packageInformation(request.incomingMetadata)
+                    }
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text("교체할 기존 설치")
-                    .font(.headline)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("교체할 기존 설치")
+                            .font(.headline)
 
-                if request.candidates.isEmpty {
-                    Label(
-                        "기존 설치 정보를 다시 불러오지 못했습니다. 취소 후 다시 시도해 주세요.",
-                        systemImage: "exclamationmark.triangle.fill"
-                    )
-                    .foregroundStyle(.orange)
-                } else {
-                    ScrollView {
-                        LazyVStack(spacing: 0) {
-                            ForEach(request.candidates) { candidate in
-                                Button {
-                                    selectedInstallationID = candidate.installationID
-                                } label: {
-                                    candidateRow(candidate)
-                                }
-                                .buttonStyle(.plain)
-                                .accessibilityIdentifier(
-                                    "monglepet.import.candidate.\(candidate.installationID.uuidString)"
-                                )
+                        if request.candidates.isEmpty {
+                            Label(
+                                "기존 설치 정보를 다시 불러오지 못했습니다. 취소 후 다시 시도해 주세요.",
+                                systemImage: "exclamationmark.triangle.fill"
+                            )
+                            .foregroundStyle(.orange)
+                        } else {
+                            LazyVStack(spacing: 0) {
+                                ForEach(request.candidates) { candidate in
+                                    Button {
+                                        selectedInstallationID =
+                                            candidate.installationID
+                                    } label: {
+                                        candidateRow(candidate)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityIdentifier(
+                                        "monglepet.import.candidate."
+                                            + candidate.installationID.uuidString
+                                    )
 
-                                if candidate.id != request.candidates.last?.id {
-                                    Divider()
+                                    if candidate.id != request.candidates.last?.id {
+                                        Divider()
+                                    }
                                 }
                             }
+                            .background(
+                                .quaternary.opacity(0.35),
+                                in: RoundedRectangle(cornerRadius: 10)
+                            )
                         }
                     }
-                    .frame(maxHeight: 220)
-                    .background(
-                        .quaternary.opacity(0.35),
-                        in: RoundedRectangle(cornerRadius: 10)
-                    )
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Label(
+                            newInstallationDescription,
+                            systemImage: "plus.square.on.square"
+                        )
+                        Label(
+                            replacementDescription,
+                            systemImage: selectedCandidate?.isEditable == true
+                                ? "exclamationmark.triangle.fill"
+                                : "arrow.triangle.2.circlepath"
+                        )
+                        .foregroundStyle(
+                            selectedCandidate?.isEditable == true
+                                ? Color.orange
+                                : Color.secondary
+                        )
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                    replacementProfileSection
+
+                    if let errorMessage = petLibrarySession.errorMessage {
+                        Label(errorMessage, systemImage: "xmark.circle.fill")
+                            .foregroundStyle(.orange)
+                            .font(.callout)
+                            .accessibilityIdentifier("monglepet.import.error")
+                    }
                 }
+                .padding(20)
             }
 
-            VStack(alignment: .leading, spacing: 6) {
-                Label(
-                    newInstallationDescription,
-                    systemImage: "plus.square.on.square"
-                )
-                Label(
-                    replacementDescription,
-                    systemImage: selectedCandidate?.isEditable == true
-                        ? "exclamationmark.triangle.fill"
-                        : "arrow.triangle.2.circlepath"
-                )
-                .foregroundStyle(
-                    selectedCandidate?.isEditable == true ? Color.orange : Color.secondary
-                )
-            }
-            .font(.caption)
-            .foregroundStyle(.secondary)
-
-            if let errorMessage = petLibrarySession.errorMessage {
-                Label(errorMessage, systemImage: "xmark.circle.fill")
-                    .foregroundStyle(.orange)
-                    .font(.callout)
-                    .accessibilityIdentifier("monglepet.import.error")
-            }
+            Divider()
 
             HStack {
                 Spacer()
@@ -1035,7 +1060,9 @@ private struct DuplicatePetInstallView: View {
                         return
                     }
                     petLibrarySession.replaceDuplicateInstallation(
-                        selectedInstallationID
+                        selectedInstallationID,
+                        appliesRecommendedProfile:
+                            replacementProfileChoice == .applyRecommended
                     )
                 }
                 .disabled(
@@ -1043,10 +1070,78 @@ private struct DuplicatePetInstallView: View {
                 )
                 .accessibilityIdentifier("monglepet.import.replaceSelected")
             }
+            .padding(16)
         }
-        .padding(20)
-        .frame(width: 560)
+        .frame(width: 580)
+        .frame(minHeight: 520, maxHeight: 720)
         .accessibilityIdentifier("monglepet.import.duplicateReview")
+    }
+
+    @ViewBuilder
+    private var replacementProfileSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("교체 후 행동·이동 설정")
+                .font(.headline)
+
+            if request.importReview?.recommendedProfile != nil,
+               allowsRecommendedProfileApplication {
+                Picker(
+                    "교체 후 행동·이동 설정",
+                    selection: $replacementProfileChoice
+                ) {
+                    Text("현재 설정 유지")
+                        .tag(DuplicateReplacementProfileChoice.preserveLocal)
+                    Text("권장 설정으로 전체 교체")
+                        .tag(DuplicateReplacementProfileChoice.applyRecommended)
+                }
+                .labelsHidden()
+                .pickerStyle(.radioGroup)
+                .accessibilityIdentifier(
+                    "monglepet.import.replacementProfileChoice"
+                )
+
+                Text(replacementProfileChoiceDescription)
+                    .font(.caption)
+                    .foregroundStyle(
+                        replacementProfileChoice == .applyRecommended
+                            ? Color.orange
+                            : Color.secondary
+                    )
+            } else {
+                Label(
+                    replacementProfileUnavailableDescription,
+                    systemImage: allowsRecommendedProfileApplication
+                        ? "checkmark.shield"
+                        : "lock.fill"
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+        }
+        .padding(12)
+        .background(
+            .quaternary.opacity(0.35),
+            in: RoundedRectangle(cornerRadius: 10)
+        )
+    }
+
+    private var replacementProfileChoiceDescription: String {
+        switch replacementProfileChoice {
+        case .preserveLocal:
+            "현재 설치의 행동 모드, 루틴, 자동 규칙, 이동과 쓰다듬기 설정을 그대로 유지합니다."
+        case .applyRecommended:
+            "현재 펫별 행동·이동 설정 전체를 패키지의 권장 설정으로 바꿉니다. 부분 병합은 제공하지 않습니다."
+        }
+    }
+
+    private var replacementProfileUnavailableDescription: String {
+        if !allowsRecommendedProfileApplication {
+            return "현재 설정 파일을 보호하기 위해 로컬 설정을 유지합니다."
+        }
+        if request.importReview?.containsRecommendedProfile == true {
+            return "이 패키지의 권장 설정을 적용할 수 없어 현재 로컬 설정을 유지합니다."
+        }
+        return "패키지에 권장 설정이 없어 현재 로컬 설정을 유지합니다."
     }
 
     private var selectedCandidate: DuplicatePetInstallationCandidate? {
@@ -1057,9 +1152,9 @@ private struct DuplicatePetInstallView: View {
 
     private var replacementDescription: String {
         if selectedCandidate?.isEditable == true {
-            return "교체하면 선택한 펫 파일과 편집 가능 상태가 읽기 전용 패키지로 바뀝니다. 기존 행동 루틴·자동 규칙은 유지됩니다."
+            return "교체하면 선택한 펫 파일과 편집 가능 상태가 읽기 전용 패키지로 바뀝니다. 아래에서 행동·이동 설정 처리 방식을 선택하세요."
         }
-        return "교체하면 선택한 설치 ID의 펫 파일만 바뀌고 기존 행동 루틴·자동 규칙은 유지됩니다."
+        return "교체하면 선택한 설치 ID의 펫 파일이 바뀝니다. 아래에서 행동·이동 설정 처리 방식을 선택하세요."
     }
 
     private var newInstallationDescription: String {

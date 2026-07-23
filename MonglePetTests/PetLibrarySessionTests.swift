@@ -257,6 +257,86 @@ final class PetLibrarySessionTests: XCTestCase {
         XCTAssertEqual(appliedProfiles.map(\.1), [profile])
     }
 
+    func testDuplicateReplacementPreservesByDefaultAndCanExplicitlyApplyProfile() {
+        let sourceURL = URL(fileURLWithPath: "/tmp/replacement-profile.monglepet")
+        let existing = makeInstalled(
+            id: firstID,
+            name: "기존 펫",
+            packageID: "test.replacement",
+            version: "1.0.0"
+        )
+        let replacement = makeInstalled(
+            id: firstID,
+            name: "교체 펫",
+            packageID: "test.replacement",
+            version: "2.0.0"
+        )
+        let profile = makeRecommendedProfile()
+        let review = makeImportReview(
+            sourceURL: sourceURL,
+            installed: replacement,
+            profile: profile
+        )
+        var packages = [existing]
+        var requestedModes: [PetPackageInstallationMode] = []
+        var appliedProfiles: [(UUID, RecommendedPetProfile)] = []
+        let session = PetLibrarySession(
+            builtInDefinition: builtInDefinition,
+            installedPackagesProvider: { packages },
+            installationRemover: { _ in },
+            reviewedPackageInstaller: { _, mode, _ in
+                requestedModes.append(mode)
+                if mode == .rejectDuplicate {
+                    throw PetLibraryError.duplicatePackage(
+                        metadata: review.metadata,
+                        installationIDs: [self.firstID]
+                    )
+                }
+                packages = [replacement]
+                return PetPackageInstallationResult(
+                    installedPackage: replacement,
+                    importReview: review
+                )
+            }
+        )
+        session.onRecommendedProfileApplied = {
+            appliedProfiles.append(($0, $1))
+        }
+
+        XCTAssertFalse(
+            session.installReviewedPackage(
+                review,
+                appliesRecommendedProfile: false
+            )
+        )
+        session.replaceDuplicateInstallation(firstID)
+        XCTAssertTrue(appliedProfiles.isEmpty)
+
+        packages = [existing]
+        XCTAssertFalse(
+            session.installReviewedPackage(
+                review,
+                appliesRecommendedProfile: false
+            )
+        )
+        session.replaceDuplicateInstallation(
+            firstID,
+            appliesRecommendedProfile: true
+        )
+
+        XCTAssertEqual(
+            requestedModes,
+            [
+                .rejectDuplicate,
+                .replace(installationID: firstID),
+                .rejectDuplicate,
+                .replace(installationID: firstID)
+            ]
+        )
+        XCTAssertEqual(appliedProfiles.map(\.0), [firstID])
+        XCTAssertEqual(appliedProfiles.map(\.1), [profile])
+    }
+
     func testDuplicateInstallCanRetryAsSeparateCopyOrReplacement() {
         let sourceURL = URL(fileURLWithPath: "/tmp/test.monglepet")
         let thirdID = UUID(

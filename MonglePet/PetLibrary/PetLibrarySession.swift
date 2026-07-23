@@ -457,18 +457,28 @@ final class PetLibrarySession: ObservableObject {
         )
     }
 
-    func replaceDuplicateInstallation(_ installationID: UUID) {
+    func replaceDuplicateInstallation(
+        _ installationID: UUID,
+        appliesRecommendedProfile: Bool = false
+    ) {
         guard
             let request = duplicateInstallRequest,
             request.candidates.contains(where: { $0.installationID == installationID })
         else {
             return
         }
+        if appliesRecommendedProfile,
+           request.importReview?.recommendedProfile == nil {
+            errorMessage = PetPackageImportError
+                .recommendedProfileUnavailable
+                .localizedDescription
+            return
+        }
         _ = performPackageInstallation(
             from: request.sourceURL,
             mode: .replace(installationID: installationID),
             reviewedImport: request.importReview,
-            appliesRecommendedProfile: false
+            appliesRecommendedProfile: appliesRecommendedProfile
         )
     }
 
