@@ -355,6 +355,113 @@ final class PetLibrarySessionTests: XCTestCase {
         )
     }
 
+    func testBuiltInPetCannotStartSharingReview() {
+        var reviewCallCount = 0
+        let session = PetLibrarySession(
+            builtInDefinition: builtInDefinition,
+            installedPackagesProvider: { [] },
+            installationRemover: { _ in },
+            packageShareReviewer: { _ in
+                reviewCallCount += 1
+                throw PetLibraryError.fileOperationFailed
+            }
+        )
+
+        XCTAssertNil(session.reviewSelectedPetForSharing())
+        XCTAssertEqual(reviewCallCount, 0)
+        XCTAssertNil(session.errorMessage)
+    }
+
+    func testSharingReviewUsesSelectedInstalledPet() {
+        let installed = makeInstalled(id: firstID, name: "공유 펫")
+        let expectedReview = PetPackageSharingPolicy.review(
+            metadata: installed.package.metadata
+        )
+        var reviewedPackages: [InstalledPetPackage] = []
+        let session = PetLibrarySession(
+            builtInDefinition: builtInDefinition,
+            installedPackagesProvider: { [installed] },
+            installationRemover: { _ in },
+            packageShareReviewer: { receivedPackage in
+                reviewedPackages.append(receivedPackage)
+                return expectedReview
+            }
+        )
+        _ = session.reload(preferredInstallationID: firstID)
+
+        XCTAssertEqual(session.reviewSelectedPetForSharing(), expectedReview)
+        XCTAssertEqual(reviewedPackages, [installed])
+        XCTAssertNil(session.errorMessage)
+    }
+
+    func testExportingSelectedPetForwardsConfirmedReviewAndTracksBusyState() {
+        let installed = makeInstalled(id: firstID, name: "공유 펫")
+        let review = PetPackageSharingPolicy.review(
+            metadata: installed.package.metadata
+        )
+        let destinationURL = URL(fileURLWithPath: "/tmp/shared.monglepet")
+        var receivedConfirmation = false
+        var session: PetLibrarySession!
+        session = PetLibrarySession(
+            builtInDefinition: builtInDefinition,
+            installedPackagesProvider: { [installed] },
+            installationRemover: { _ in },
+            packageShareExporter: {
+                receivedPackage,
+                receivedReview,
+                isConfirmed,
+                receivedDestinationURL in
+                XCTAssertTrue(session.isExporting)
+                XCTAssertEqual(receivedPackage, installed)
+                XCTAssertEqual(receivedReview, review)
+                XCTAssertEqual(receivedDestinationURL, destinationURL)
+                receivedConfirmation = isConfirmed
+                return receivedDestinationURL
+            }
+        )
+        _ = session.reload(preferredInstallationID: firstID)
+
+        XCTAssertTrue(
+            session.exportSelectedPet(
+                reviewed: review,
+                isConfirmed: true,
+                to: destinationURL
+            )
+        )
+        XCTAssertTrue(receivedConfirmation)
+        XCTAssertFalse(session.isExporting)
+        XCTAssertNil(session.errorMessage)
+    }
+
+    func testExportingSelectedPetPublishesSharingError() {
+        let installed = makeInstalled(id: firstID, name: "공유 펫")
+        let review = PetPackageSharingPolicy.review(
+            metadata: installed.package.metadata
+        )
+        let session = PetLibrarySession(
+            builtInDefinition: builtInDefinition,
+            installedPackagesProvider: { [installed] },
+            installationRemover: { _ in },
+            packageShareExporter: { _, _, _, _ in
+                throw PetPackageSharingError.confirmationRequired
+            }
+        )
+        _ = session.reload(preferredInstallationID: firstID)
+
+        XCTAssertFalse(
+            session.exportSelectedPet(
+                reviewed: review,
+                isConfirmed: false,
+                to: URL(fileURLWithPath: "/tmp/shared.monglepet")
+            )
+        )
+        XCTAssertFalse(session.isExporting)
+        XCTAssertEqual(
+            session.errorMessage,
+            PetPackageSharingError.confirmationRequired.localizedDescription
+        )
+    }
+
     private var builtInDefinition: PetDefinition {
         BuiltInPet.mongleDefinition(
             atlasPixelSize: PixelSize(width: 192, height: 208)

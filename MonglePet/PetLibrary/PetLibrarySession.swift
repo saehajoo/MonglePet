@@ -74,6 +74,7 @@ final class PetLibrarySession: ObservableObject {
     @Published private(set) var errorMessage: String?
     @Published private(set) var duplicateInstallRequest: DuplicatePetInstallRequest?
     @Published private(set) var isImporting = false
+    @Published private(set) var isExporting = false
 
     var onSelectionChange: ((PetLibraryItem) -> Void)?
     var onInstallationRemoved: ((UUID) -> Void)?
@@ -106,12 +107,22 @@ final class PetLibrarySession: ObservableObject {
         String,
         InstalledPetPackage
     ) throws -> InstalledPetPackage
+    private let packageShareReviewer: (
+        InstalledPetPackage
+    ) throws -> PetPackageShareReview
+    private let packageShareExporter: (
+        InstalledPetPackage,
+        PetPackageShareReview,
+        Bool,
+        URL
+    ) throws -> URL
 
     convenience init(
         store: PetLibraryStore,
         builtInDefinition: PetDefinition
     ) {
         let editor = UserPetPackageEditor(store: store)
+        let sharingService = PetPackageSharingService()
         self.init(
             builtInDefinition: builtInDefinition,
             installedPackagesProvider: store.installedPackages,
@@ -123,7 +134,9 @@ final class PetLibrarySession: ObservableObject {
             animationAdder: editor.addAnimation,
             detailsUpdater: editor.updateDetails,
             animationUpdater: editor.updateAnimation,
-            animationRemover: editor.removeAnimation
+            animationRemover: editor.removeAnimation,
+            packageShareReviewer: sharingService.review,
+            packageShareExporter: sharingService.export
         )
     }
 
@@ -171,6 +184,19 @@ final class PetLibrarySession: ObservableObject {
             InstalledPetPackage
         ) throws -> InstalledPetPackage = { _, _ in
             throw PetLibraryError.fileOperationFailed
+        },
+        packageShareReviewer: @escaping (
+            InstalledPetPackage
+        ) throws -> PetPackageShareReview = { _ in
+            throw PetLibraryError.fileOperationFailed
+        },
+        packageShareExporter: @escaping (
+            InstalledPetPackage,
+            PetPackageShareReview,
+            Bool,
+            URL
+        ) throws -> URL = { _, _, _, _ in
+            throw PetLibraryError.fileOperationFailed
         }
     ) {
         let builtInItem = PetLibraryItem(
@@ -198,6 +224,8 @@ final class PetLibrarySession: ObservableObject {
         self.detailsUpdater = detailsUpdater
         self.animationUpdater = animationUpdater
         self.animationRemover = animationRemover
+        self.packageShareReviewer = packageShareReviewer
+        self.packageShareExporter = packageShareExporter
         items = [builtInItem]
     }
 
@@ -309,6 +337,54 @@ final class PetLibrarySession: ObservableObject {
         duplicateInstallRequest = nil
     }
 
+    func reviewSelectedPetForSharing() -> PetPackageShareReview? {
+        guard let installedPackage = selectedItem.installedPackage else {
+            return nil
+        }
+        guard !isImporting, !isExporting else {
+            return nil
+        }
+
+        do {
+            let review = try packageShareReviewer(installedPackage)
+            errorMessage = nil
+            return review
+        } catch {
+            errorMessage = error.localizedDescription
+            return nil
+        }
+    }
+
+    @discardableResult
+    func exportSelectedPet(
+        reviewed review: PetPackageShareReview,
+        isConfirmed: Bool,
+        to destinationURL: URL
+    ) -> Bool {
+        guard let installedPackage = selectedItem.installedPackage else {
+            return false
+        }
+        guard !isImporting, !isExporting else {
+            return false
+        }
+        isExporting = true
+        defer { isExporting = false }
+
+        do {
+            _ = try packageShareExporter(
+                installedPackage,
+                review,
+                isConfirmed,
+                destinationURL
+            )
+            errorMessage = nil
+            return true
+        } catch {
+            errorMessage = error.localizedDescription
+            return false
+        }
+    }
+
     @discardableResult
     func removeSelectedInstallation() -> Bool {
         guard let installationID = selectedInstallationID else {
@@ -414,7 +490,7 @@ final class PetLibrarySession: ObservableObject {
     private func performUserPetChange(
         _ operation: () throws -> InstalledPetPackage
     ) -> Bool {
-        guard !isImporting else {
+        guard !isImporting, !isExporting else {
             return false
         }
         isImporting = true

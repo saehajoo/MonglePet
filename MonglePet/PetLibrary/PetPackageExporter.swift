@@ -75,7 +75,8 @@ nonisolated struct PetPackageExporter {
 
             let sourcePackage = try loadPackage(at: installedPackage.rootURL)
             guard
-                sourcePackage.metadata.id == installedPackage.package.metadata.id
+                sourcePackage.metadata == installedPackage.package.metadata,
+                sourcePackage.definition == installedPackage.package.definition
             else {
                 throw PetPackageExportError.sourcePackageChanged
             }

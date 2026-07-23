@@ -48,6 +48,13 @@ private struct GeneralSettingsView: View {
     @State private var userPetEditorMode: UserPetEditorMode?
     @State private var editingAnimation: PetMotion?
     @State private var previewMotionID: String?
+    @State private var shareReview: PetPackageShareReview?
+    @State private var pendingSharingFollowUp: PetSharingFollowUp?
+    @State private var petPackageExportDocument: MonglePetPackageDocument?
+    @State private var petPackageExportFileName = "MonglePet.monglepet"
+    @State private var isPresentingPetPackageExporter = false
+    @State private var petPackageExportErrorMessage: String?
+    @State private var exportedPackageFileName: String?
 
     var body: some View {
         Form {
@@ -59,6 +66,12 @@ private struct GeneralSettingsView: View {
             }
             if let libraryErrorMessage = petLibrarySession.errorMessage {
                 noticeLabel(libraryErrorMessage, systemImage: "xmark.circle.fill")
+            }
+            if let petPackageExportErrorMessage {
+                noticeLabel(
+                    petPackageExportErrorMessage,
+                    systemImage: "xmark.circle.fill"
+                )
             }
 
             Section("펫 라이브러리") {
@@ -189,13 +202,21 @@ private struct GeneralSettingsView: View {
                     Button("MonglePet 패키지 가져오기…") {
                         choosePetPackage()
                     }
-                    .disabled(petLibrarySession.isImporting)
+                    .disabled(isPetLibraryBusy)
                     .accessibilityIdentifier("monglepet.settings.importPackage")
 
                     if !petLibrarySession.selectedItem.isBuiltIn {
+                        Button("선택한 펫 내보내기…") {
+                            shareReview = petLibrarySession
+                                .reviewSelectedPetForSharing()
+                        }
+                        .disabled(isPetLibraryBusy)
+                        .accessibilityIdentifier("monglepet.settings.exportPackage")
+
                         Button("선택한 펫 삭제…", role: .destructive) {
                             isConfirmingRemoval = true
                         }
+                        .disabled(isPetLibraryBusy)
                         .accessibilityIdentifier("monglepet.settings.removePet")
                     }
                 }
@@ -316,6 +337,14 @@ private struct GeneralSettingsView: View {
         } message: {
             Text("이 애니메이션을 사용하던 행동 단계는 현재 펫의 기본 애니메이션으로 복구됩니다.")
         }
+        .alert(
+            "펫 내보내기 완료",
+            isPresented: exportSuccessAlertBinding
+        ) {
+            Button("확인", role: .cancel) {}
+        } message: {
+            Text("\(exportedPackageFileName ?? "펫 패키지") 파일을 저장했습니다.")
+        }
         .sheet(item: $userPetEditorMode) { mode in
             UserPetAnimationEditorView(
                 mode: mode,
@@ -344,9 +373,38 @@ private struct GeneralSettingsView: View {
                 }
             )
         }
+        .sheet(
+            item: $shareReview,
+            onDismiss: performPendingSharingFollowUp
+        ) { review in
+            PetPackageShareReviewView(
+                review: review,
+                blockedActionTitle: blockedSharingActionTitle,
+                onBlockedAction: {
+                    pendingSharingFollowUp = petLibrarySession.selectedItem.isEditable
+                        ? .editDetails
+                        : .createEditableCopy
+                },
+                onExport: {
+                    pendingSharingFollowUp = .export(review)
+                }
+            )
+        }
+        .fileExporter(
+            isPresented: $isPresentingPetPackageExporter,
+            document: petPackageExportDocument,
+            contentType: MonglePetPackageDocument.contentType,
+            defaultFilename: petPackageExportFileName,
+            onCompletion: handlePetPackageExportResult
+        )
         .onAppear(perform: synchronizePreviewMotion)
         .onChange(of: petLibrarySession.selection) {
             synchronizePreviewMotion()
+        }
+        .onChange(of: isPresentingPetPackageExporter) {
+            if !isPresentingPetPackageExporter {
+                petPackageExportDocument = nil
+            }
         }
     }
 
@@ -360,6 +418,19 @@ private struct GeneralSettingsView: View {
 
     private var selectedPreviewMotion: PetMotion? {
         petLibrarySession.selectedItem.definition.motion(id: effectivePreviewMotionID)
+    }
+
+    private var isPetLibraryBusy: Bool {
+        petLibrarySession.isImporting || petLibrarySession.isExporting
+    }
+
+    private var blockedSharingActionTitle: String? {
+        guard !petLibrarySession.selectedItem.isBuiltIn else {
+            return nil
+        }
+        return petLibrarySession.selectedItem.isEditable
+            ? "펫 정보 수정…"
+            : "편집 가능한 사본 만들기…"
     }
 
     private var canDeleteSelectedAnimation: Bool {
@@ -481,6 +552,17 @@ private struct GeneralSettingsView: View {
         )
     }
 
+    private var exportSuccessAlertBinding: Binding<Bool> {
+        Binding(
+            get: { exportedPackageFileName != nil },
+            set: { isPresented in
+                if !isPresented {
+                    exportedPackageFileName = nil
+                }
+            }
+        )
+    }
+
     private var duplicateInstallMessage: String {
         guard let request = petLibrarySession.duplicateInstallRequest else {
             return ""
@@ -509,12 +591,215 @@ private struct GeneralSettingsView: View {
         _ = petLibrarySession.installPackage(from: sourceURL)
     }
 
+    private func preparePetPackageExport(
+        for review: PetPackageShareReview
+    ) {
+        let workspaceURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(
+                "MonglePetShareUI-\(UUID().uuidString)",
+                isDirectory: true
+            )
+        let archiveURL = workspaceURL.appendingPathComponent(
+            review.suggestedFileName,
+            isDirectory: false
+        )
+
+        do {
+            try FileManager.default.createDirectory(
+                at: workspaceURL,
+                withIntermediateDirectories: false
+            )
+        } catch {
+            petPackageExportErrorMessage = "펫 공유 파일을 준비하지 못했습니다."
+            return
+        }
+        defer { try? FileManager.default.removeItem(at: workspaceURL) }
+
+        guard petLibrarySession.exportSelectedPet(
+            reviewed: review,
+            isConfirmed: true,
+            to: archiveURL
+        ) else {
+            return
+        }
+
+        do {
+            petPackageExportDocument = MonglePetPackageDocument(
+                data: try Data(contentsOf: archiveURL)
+            )
+            petPackageExportFileName = review.suggestedFileName
+            petPackageExportErrorMessage = nil
+            isPresentingPetPackageExporter = true
+        } catch {
+            petPackageExportDocument = nil
+            petPackageExportErrorMessage = "펫 공유 파일을 준비하지 못했습니다."
+        }
+    }
+
+    private func handlePetPackageExportResult(
+        _ result: Result<URL, Error>
+    ) {
+        switch result {
+        case let .success(destinationURL):
+            petPackageExportErrorMessage = nil
+            exportedPackageFileName = destinationURL.lastPathComponent
+        case let .failure(error):
+            if (error as? CocoaError)?.code != .userCancelled {
+                petPackageExportErrorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    private func performPendingSharingFollowUp() {
+        guard let followUp = pendingSharingFollowUp else {
+            return
+        }
+        pendingSharingFollowUp = nil
+
+        switch followUp {
+        case let .export(review):
+            preparePetPackageExport(for: review)
+        case .editDetails:
+            isEditingPetDetails = true
+        case .createEditableCopy:
+            isCreatingEditableCopy = true
+        }
+    }
+
     @ViewBuilder
     private func noticeLabel(_ message: String, systemImage: String) -> some View {
         Label(message, systemImage: systemImage)
             .foregroundStyle(.orange)
             .font(.callout)
             .accessibilityIdentifier("monglepet.settings.notice")
+    }
+}
+
+nonisolated struct MonglePetPackageDocument: FileDocument {
+    static let contentType = UTType(
+        filenameExtension: "monglepet",
+        conformingTo: .zip
+    ) ?? .zip
+
+    static var readableContentTypes: [UTType] {
+        [contentType]
+    }
+
+    let data: Data
+
+    init(data: Data) {
+        self.data = data
+    }
+
+    init(configuration: ReadConfiguration) throws {
+        guard let data = configuration.file.regularFileContents else {
+            throw CocoaError(.fileReadCorruptFile)
+        }
+        self.data = data
+    }
+
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        FileWrapper(regularFileWithContents: data)
+    }
+}
+
+private enum PetSharingFollowUp {
+    case export(PetPackageShareReview)
+    case editDetails
+    case createEditableCopy
+}
+
+private struct PetPackageShareReviewView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let review: PetPackageShareReview
+    let blockedActionTitle: String?
+    let onBlockedAction: () -> Void
+    let onExport: () -> Void
+
+    @State private var isSharingRightsConfirmed = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("펫 공유 정보 확인")
+                    .font(.title2.weight(.semibold))
+                Text("저장할 패키지에 포함되는 제작자와 라이선스 정보입니다.")
+                    .foregroundStyle(.secondary)
+            }
+
+            Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 10) {
+                shareInformationRow("펫 이름", value: review.displayName)
+                shareInformationRow("버전", value: review.version)
+                shareInformationRow("제작자", value: review.author)
+                shareInformationRow("라이선스", value: review.license)
+            }
+            .padding(12)
+            .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 10))
+
+            if let blockingReason = review.blockingReason {
+                Label(blockingReason.message, systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                    .accessibilityIdentifier("monglepet.share.blockedReason")
+
+                Text(
+                    "편집 가능한 펫은 라이선스 정보를 수정할 수 있습니다. "
+                        + "가져온 읽기 전용 펫은 먼저 편집 가능한 사본을 만들어 주세요."
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            } else {
+                Toggle(
+                    "이 펫과 이미지 자산을 다른 사용자에게 공유할 권한이 있음을 확인합니다.",
+                    isOn: $isSharingRightsConfirmed
+                )
+                .accessibilityIdentifier("monglepet.share.rightsConfirmation")
+            }
+
+            Text(
+                "MonglePet은 입력된 라이선스의 법적 유효성이나 실제 공유 권한을 보증하지 않습니다."
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+
+            HStack {
+                Spacer()
+                Button("취소", role: .cancel) {
+                    dismiss()
+                }
+
+                if review.canExport {
+                    Button("저장 위치 선택…") {
+                        onExport()
+                        dismiss()
+                    }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(!isSharingRightsConfirmed)
+                    .accessibilityIdentifier("monglepet.share.chooseDestination")
+                } else if let blockedActionTitle {
+                    Button(blockedActionTitle) {
+                        onBlockedAction()
+                        dismiss()
+                    }
+                    .accessibilityIdentifier("monglepet.share.resolveBlock")
+                }
+            }
+        }
+        .padding(20)
+        .frame(width: 500)
+        .accessibilityIdentifier("monglepet.share.review")
+    }
+
+    private func shareInformationRow(
+        _ label: String,
+        value: String
+    ) -> some View {
+        GridRow {
+            Text(label)
+                .foregroundStyle(.secondary)
+            Text(value)
+                .textSelection(.enabled)
+        }
     }
 }
 

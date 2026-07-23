@@ -132,11 +132,140 @@ final class PetPackageExporterTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: destinationURL.path))
     }
 
+    func testSharingPolicyBlocksKnownNonDistributableLicenses() {
+        let expectations: [(String, PetPackageSharingBlockReason)] = [
+            (" Private-Use ", .privateOrPersonalUse),
+            ("personal_use_only", .privateOrPersonalUse),
+            ("ALL RIGHTS RESERVED", .allRightsReserved),
+            ("Unknown", .unknownLicense),
+            ("No License", .unknownLicense)
+        ]
+
+        for (license, expectedReason) in expectations {
+            let review = PetPackageSharingPolicy.review(
+                metadata: makeMetadata(license: license)
+            )
+            XCTAssertFalse(review.canExport)
+            XCTAssertEqual(review.blockingReason, expectedReason)
+        }
+
+        let shareableReview = PetPackageSharingPolicy.review(
+            metadata: makeMetadata(
+                displayName: "몽글이/친구:테스트",
+                license: "CC-BY-4.0"
+            )
+        )
+        XCTAssertTrue(shareableReview.canExport)
+        XCTAssertNil(shareableReview.blockingReason)
+        XCTAssertEqual(
+            shareableReview.suggestedFileName,
+            "몽글이-친구-테스트.monglepet"
+        )
+    }
+
+    func testSharingRequiresMetadataConfirmationBeforeExport() throws {
+        let installedPackage = try makeInstalledPackage(license: "CC-BY-4.0")
+        let service = PetPackageSharingService(
+            exporter: makeExporter()
+        )
+        let review = try service.review(installedPackage)
+        let destinationURL = temporaryDirectoryURL.appendingPathComponent(
+            review.suggestedFileName
+        )
+
+        XCTAssertEqual(review.author, "Tester")
+        XCTAssertEqual(review.version, "1.2.3")
+        XCTAssertEqual(review.license, "CC-BY-4.0")
+        XCTAssertThrowsError(
+            try service.export(
+                installedPackage,
+                reviewed: review,
+                isConfirmed: false,
+                to: destinationURL
+            )
+        ) { error in
+            XCTAssertEqual(
+                error as? PetPackageSharingError,
+                .confirmationRequired
+            )
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: destinationURL.path))
+
+        try service.export(
+            installedPackage,
+            reviewed: review,
+            isConfirmed: true,
+            to: destinationURL
+        )
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: destinationURL.path))
+    }
+
+    func testSharingCannotOverrideBlockedLicenseWithConfirmation() throws {
+        let installedPackage = try makeInstalledPackage(license: "Private Use")
+        let service = PetPackageSharingService(exporter: makeExporter())
+        let review = try service.review(installedPackage)
+        let destinationURL = temporaryDirectoryURL.appendingPathComponent(
+            "Blocked.monglepet"
+        )
+
+        XCTAssertThrowsError(
+            try service.export(
+                installedPackage,
+                reviewed: review,
+                isConfirmed: true,
+                to: destinationURL
+            )
+        ) { error in
+            XCTAssertEqual(
+                error as? PetPackageSharingError,
+                .blocked(.privateOrPersonalUse)
+            )
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: destinationURL.path))
+    }
+
+    func testSharingRequiresNewReviewAfterMetadataChanges() throws {
+        let installedPackage = try makeInstalledPackage(license: "CC-BY-4.0")
+        let service = PetPackageSharingService(exporter: makeExporter())
+        let review = try service.review(installedPackage)
+        try replaceLicense(
+            with: "MIT",
+            in: installedPackage.rootURL
+        )
+        let reloadedPackage = try PetPackageLoader().loadPackage(
+            at: installedPackage.rootURL
+        )
+        let refreshedInstallation = InstalledPetPackage(
+            installationID: installedPackage.installationID,
+            rootURL: installedPackage.rootURL,
+            package: reloadedPackage
+        )
+
+        XCTAssertThrowsError(
+            try service.export(
+                refreshedInstallation,
+                reviewed: review,
+                isConfirmed: true,
+                to: temporaryDirectoryURL.appendingPathComponent(
+                    "Outdated.monglepet"
+                )
+            )
+        ) { error in
+            XCTAssertEqual(
+                error as? PetPackageSharingError,
+                .reviewOutdated
+            )
+        }
+    }
+
     private func makeExporter() -> PetPackageExporter {
         PetPackageExporter(temporaryDirectoryURL: temporaryDirectoryURL)
     }
 
-    private func makeInstalledPackage() throws -> InstalledPetPackage {
+    private func makeInstalledPackage(
+        license: String = "CC-BY-4.0"
+    ) throws -> InstalledPetPackage {
         let packageRootURL = temporaryDirectoryURL.appendingPathComponent(
             "Installed.monglepet",
             isDirectory: true
@@ -175,7 +304,7 @@ final class PetPackageExporterTests: XCTestCase {
             "displayName": "공유 테스트 펫",
             "version": "1.2.3",
             "author": "Tester",
-            "license": "CC-BY-4.0",
+            "license": license,
             "description": "공유 왕복 테스트",
             "previewPath": "preview.png",
             "defaultMotion": "idle",
@@ -215,6 +344,37 @@ final class PetPackageExporterTests: XCTestCase {
             rootURL: packageRootURL,
             package: loadedPackage
         )
+    }
+
+    private func makeMetadata(
+        displayName: String = "공유 테스트 펫",
+        license: String
+    ) -> PetPackageMetadata {
+        PetPackageMetadata(
+            id: "com.example.shareable",
+            displayName: displayName,
+            version: "1.2.3",
+            author: "Tester",
+            license: license,
+            description: nil
+        )
+    }
+
+    private func replaceLicense(
+        with license: String,
+        in packageRootURL: URL
+    ) throws {
+        let manifestURL = packageRootURL.appendingPathComponent("pet.json")
+        var manifest = try XCTUnwrap(
+            JSONSerialization.jsonObject(
+                with: Data(contentsOf: manifestURL)
+            ) as? [String: Any]
+        )
+        manifest["license"] = license
+        try JSONSerialization.data(
+            withJSONObject: manifest,
+            options: [.sortedKeys]
+        ).write(to: manifestURL, options: .atomic)
     }
 
     private func extract(_ archiveURL: URL) throws -> URL {
