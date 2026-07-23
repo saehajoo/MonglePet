@@ -42,6 +42,9 @@ final class AppCoordinator {
         petLibrarySession.onSelectionChange = { [weak self] item in
             self?.selectedPetDidChange(item)
         }
+        petLibrarySession.onInstallationRemoved = { [weak self] installationID in
+            self?.installedPetDidRemove(installationID)
+        }
         petLibrarySession.onAnimationReferenceChange = { [weak self] change in
             self?.petAnimationReferencesDidChange(change)
         }
@@ -167,7 +170,19 @@ final class AppCoordinator {
             _ = petLibrarySession.select(.builtIn)
             return
         }
+        guard
+            settingsSession.settings.selectedPetInstallationID
+                != item.selection.installationID
+        else {
+            return
+        }
         settingsSession.setSelectedPetInstallationID(item.selection.installationID)
+    }
+
+    private func installedPetDidRemove(_ installationID: UUID) {
+        _ = settingsSession.removeBehaviorProfile(
+            forInstallationID: installationID
+        )
     }
 
     private func petAnimationReferencesDidChange(

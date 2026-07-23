@@ -296,7 +296,10 @@ private struct GeneralSettingsView: View {
             }
             Button("취소", role: .cancel) {}
         } message: {
-            Text("라이브러리에서 패키지 파일을 삭제하고 내장 몽글이로 전환합니다.")
+            Text(
+                "라이브러리의 패키지 파일과 이 펫의 행동 루틴·자동 규칙 설정을 "
+                    + "함께 삭제하고 내장 몽글이로 전환합니다."
+            )
         }
         .alert(
             "선택한 애니메이션을 삭제할까요?",

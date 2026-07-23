@@ -312,6 +312,16 @@ final class ActivityMonitoringTests: XCTestCase {
 
         XCTAssertNil(coordinator.currentSettings.selectedPetInstallationID)
         XCTAssertNil(store.load().settings.selectedPetInstallationID)
+        XCTAssertNotNil(
+            coordinator.currentSettings.behaviorProfile(
+                for: .installed(missingInstallationID)
+            )
+        )
+        XCTAssertNotNil(
+            store.load().settings.behaviorProfile(
+                for: .installed(missingInstallationID)
+            )
+        )
     }
 }
 

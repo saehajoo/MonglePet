@@ -76,6 +76,7 @@ final class PetLibrarySession: ObservableObject {
     @Published private(set) var isImporting = false
 
     var onSelectionChange: ((PetLibraryItem) -> Void)?
+    var onInstallationRemoved: ((UUID) -> Void)?
     var onAnimationReferenceChange: ((PetAnimationReferenceChange) -> Void)?
 
     private let builtInItem: PetLibraryItem
@@ -317,6 +318,7 @@ final class PetLibrarySession: ObservableObject {
         do {
             try installationRemover(installationID)
             _ = reload(preferredInstallationID: nil)
+            onInstallationRemoved?(installationID)
             onSelectionChange?(builtInItem)
             return true
         } catch {

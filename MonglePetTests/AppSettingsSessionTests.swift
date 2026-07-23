@@ -138,6 +138,91 @@ final class AppSettingsSessionTests: XCTestCase {
     }
 
     @MainActor
+    func testSeparateInstalledPetsReceiveIndependentDefaultProfiles() {
+        let firstInstallationID = UUID(
+            uuidString: "11111111-1111-1111-1111-111111111113"
+        )!
+        let secondInstallationID = UUID(
+            uuidString: "11111111-1111-1111-1111-111111111114"
+        )!
+        let session = AppSettingsSession(
+            store: AppSettingsStore(settingsURL: settingsURL)
+        )
+        _ = session.load()
+
+        session.setSelectedPetInstallationID(firstInstallationID)
+        XCTAssertTrue(session.addBehaviorSequence(named: "first-custom"))
+
+        session.setSelectedPetInstallationID(secondInstallationID)
+        XCTAssertEqual(
+            session.settings.sequences.map(\.id),
+            [BuiltInBehaviorPresets.defaultSequenceID]
+        )
+        XCTAssertFalse(
+            session.settings.sequences.contains { $0.id == "first-custom" }
+        )
+
+        session.setSelectedPetInstallationID(firstInstallationID)
+        XCTAssertTrue(
+            session.settings.sequences.contains { $0.id == "first-custom" }
+        )
+        XCTAssertEqual(session.settings.behaviorProfiles.count, 2)
+    }
+
+    @MainActor
+    func testReselectingSameInstallationRetainsCustomizedProfile() throws {
+        let installationID = UUID(
+            uuidString: "11111111-1111-1111-1111-111111111115"
+        )!
+        let session = AppSettingsSession(
+            store: AppSettingsStore(settingsURL: settingsURL)
+        )
+        _ = session.load()
+        session.setSelectedPetInstallationID(installationID)
+        XCTAssertTrue(session.addBehaviorSequence(named: "kept-after-edit"))
+        let profileBeforeReselection = try XCTUnwrap(
+            session.settings.behaviorProfile(for: .installed(installationID))
+        )
+
+        session.setSelectedPetInstallationID(installationID)
+
+        XCTAssertEqual(
+            session.settings.behaviorProfile(for: .installed(installationID)),
+            profileBeforeReselection
+        )
+    }
+
+    @MainActor
+    func testRemovingSelectedInstallationProfileSelectsBuiltInAndPersists() {
+        let installationID = UUID(
+            uuidString: "11111111-1111-1111-1111-111111111116"
+        )!
+        let session = AppSettingsSession(
+            store: AppSettingsStore(settingsURL: settingsURL)
+        )
+        _ = session.load()
+        session.setSelectedPetInstallationID(installationID)
+        XCTAssertTrue(session.addBehaviorSequence(named: "removed-with-pet"))
+
+        XCTAssertTrue(
+            session.removeBehaviorProfile(forInstallationID: installationID)
+        )
+
+        XCTAssertNil(session.settings.selectedPetInstallationID)
+        XCTAssertNil(
+            session.settings.behaviorProfile(for: .installed(installationID))
+        )
+        XCTAssertNotNil(session.settings.behaviorProfile(for: .builtIn))
+        let persistedSettings = AppSettingsStore(settingsURL: settingsURL)
+            .load().settings
+        XCTAssertNil(persistedSettings.selectedPetInstallationID)
+        XCTAssertNil(
+            persistedSettings.behaviorProfile(for: .installed(installationID))
+        )
+        XCTAssertNotNil(persistedSettings.behaviorProfile(for: .builtIn))
+    }
+
+    @MainActor
     func testOverlayWidthPreviewWaitsForExplicitPersistence() {
         let session = AppSettingsSession(
             store: AppSettingsStore(settingsURL: settingsURL)

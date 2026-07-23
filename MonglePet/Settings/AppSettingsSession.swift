@@ -71,6 +71,31 @@ final class AppSettingsSession: ObservableObject {
         )
     }
 
+    @discardableResult
+    func removeBehaviorProfile(forInstallationID installationID: UUID) -> Bool {
+        let retainedProfiles = settings.behaviorProfiles.filter {
+            $0.petKey != .installed(installationID)
+        }
+        let selectedInstallationID =
+            settings.selectedPetInstallationID == installationID
+            ? nil
+            : settings.selectedPetInstallationID
+        let updatedSettings = AppSettings(
+            selectedPetInstallationID: selectedInstallationID,
+            lastUserPresentation: settings.lastUserPresentation,
+            overlay: settings.overlay,
+            behaviorProfiles: retainedProfiles
+        )
+        let normalizedSettings = BuiltInBehaviorPresets.normalizedDefaults(
+            in: updatedSettings
+        )
+        guard normalizedSettings != settings else {
+            return false
+        }
+        update(normalizedSettings)
+        return true
+    }
+
     func ensureSystemDefaultBehavior() {
         settings = BuiltInBehaviorPresets.normalizedDefaults(in: settings)
     }

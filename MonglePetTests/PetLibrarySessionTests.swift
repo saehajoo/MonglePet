@@ -65,10 +65,13 @@ final class PetLibrarySessionTests: XCTestCase {
         )
         _ = session.reload(preferredInstallationID: firstID)
         var selections: [PetLibrarySelection] = []
+        var removedInstallationIDs: [UUID] = []
         session.onSelectionChange = { selections.append($0.selection) }
+        session.onInstallationRemoved = { removedInstallationIDs.append($0) }
 
         XCTAssertTrue(session.removeSelectedInstallation())
         XCTAssertEqual(removedIDs, [firstID])
+        XCTAssertEqual(removedInstallationIDs, [firstID])
         XCTAssertEqual(selections, [.builtIn])
         XCTAssertEqual(session.items.map(\.selection), [.builtIn])
         XCTAssertEqual(session.selection, .builtIn)
