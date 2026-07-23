@@ -33,6 +33,9 @@ final class MonglePetUITests: XCTestCase {
             app.descendants(matching: .any)["monglepet.settings.clickThrough"].exists
         )
         XCTAssertTrue(
+            app.descendants(matching: .any)["monglepet.settings.appVersion"].exists
+        )
+        XCTAssertTrue(
             app.images["monglepet.settings.petPreview"].exists
         )
         XCTAssertTrue(

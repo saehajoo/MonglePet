@@ -351,6 +351,14 @@ final class PetLibrarySession: ObservableObject {
         _ review: PetPackageImportReview,
         appliesRecommendedProfile: Bool
     ) -> Bool {
+        if case let .requiresNewerVersion(requiredVersion)
+            = review.compatibilityAssessment {
+            errorMessage = PetPackageImportError.minimumAppVersionRequired(
+                required: requiredVersion,
+                current: review.currentMonglePetVersion
+            ).localizedDescription
+            return false
+        }
         if appliesRecommendedProfile, review.recommendedProfile == nil {
             errorMessage = PetPackageImportError
                 .recommendedProfileUnavailable

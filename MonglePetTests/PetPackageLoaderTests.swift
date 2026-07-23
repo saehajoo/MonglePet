@@ -34,6 +34,73 @@ final class PetPackageLoaderTests: XCTestCase {
         XCTAssertEqual(package.definition.defaultMotionID, "idle")
     }
 
+    func testLoadsCompleteAndPartialCompatibilityMetadata() throws {
+        var completeManifest = validManifest()
+        completeManifest["compatibility"] = [
+            "createdWithMonglePetVersion": "0.10.0",
+            "minimumMonglePetVersion": "0.2.0"
+        ]
+        let completeFixture = try makePackage(manifest: completeManifest)
+
+        XCTAssertEqual(
+            try PetPackageLoader().loadPackage(at: completeFixture.packageURL)
+                .compatibility,
+            PetPackageCompatibility(
+                createdWithMonglePetVersion: try XCTUnwrap(
+                    SemanticVersion("0.10.0")
+                ),
+                minimumMonglePetVersion: try XCTUnwrap(
+                    SemanticVersion("0.2.0")
+                )
+            )
+        )
+
+        var partialManifest = validManifest()
+        partialManifest["compatibility"] = [
+            "minimumMonglePetVersion": "0.1.0"
+        ]
+        let partialFixture = try makePackage(manifest: partialManifest)
+        let partialCompatibility = try XCTUnwrap(
+            try PetPackageLoader().loadPackage(at: partialFixture.packageURL)
+                .compatibility
+        )
+
+        XCTAssertNil(partialCompatibility.createdWithMonglePetVersion)
+        XCTAssertEqual(
+            partialCompatibility.minimumMonglePetVersion,
+            try XCTUnwrap(SemanticVersion("0.1.0"))
+        )
+    }
+
+    func testPackageWithoutCompatibilityKeepsLegacyLoadingBehavior() throws {
+        let fixture = try makePackage()
+
+        XCTAssertNil(
+            try PetPackageLoader().loadPackage(at: fixture.packageURL)
+                .compatibility
+        )
+    }
+
+    func testRejectsMalformedCompatibilityVersion() throws {
+        var manifest = validManifest()
+        manifest["compatibility"] = [
+            "createdWithMonglePetVersion": "0.1-beta"
+        ]
+        let fixture = try makePackage(manifest: manifest)
+
+        XCTAssertThrowsError(
+            try PetPackageLoader().loadPackage(at: fixture.packageURL)
+        ) { error in
+            XCTAssertEqual(
+                error as? PetPackageLoadingError,
+                .invalidCompatibilityVersion(
+                    field: "createdWithMonglePetVersion",
+                    value: "0.1-beta"
+                )
+            )
+        }
+    }
+
     func testRejectsUnsupportedManifestVersion() throws {
         var manifest = validManifest()
         manifest["formatVersion"] = 2

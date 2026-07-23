@@ -77,7 +77,7 @@ mongle.monglepet/
 - `defaultMotion`: 존재하는 모션 ID여야 하며, 없으면 `idle`을 사용한다.
 - Phase 9B부터 선택적 `compatibility`는 펫 자체 `version`과 분리된 MonglePet 앱 호환 정보를 기록한다. 필드가 없는 기존 패키지는 계속 허용한다.
 
-### Phase 9B 계획: 앱 호환 버전
+### Phase 9B: 앱 호환 버전
 
 `formatVersion: 1`의 기존 구조를 유지하면서 다음 선택 객체를 추가한다.
 

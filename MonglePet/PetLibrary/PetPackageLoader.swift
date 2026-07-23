@@ -136,6 +136,7 @@ nonisolated struct PetPackageLoader {
         try requireText(manifest.author, field: "author")
         try requireText(manifest.license, field: "license")
         try requireText(manifest.previewPath, field: "previewPath")
+        let compatibility = try validateCompatibility(manifest.compatibility)
 
         guard !manifest.atlases.isEmpty else {
             throw PetPackageLoadingError.limitExceeded("atlas가 없습니다")
@@ -247,8 +248,46 @@ nonisolated struct PetPackageLoader {
                 displayName: manifest.displayName,
                 defaultMotionID: defaultMotionID,
                 motions: motions
-            )
+            ),
+            compatibility: compatibility
         )
+    }
+
+    private func validateCompatibility(
+        _ compatibility: PetPackageManifest.Compatibility?
+    ) throws -> PetPackageCompatibility? {
+        guard let compatibility else {
+            return nil
+        }
+
+        let createdWithVersion = try parseCompatibilityVersion(
+            compatibility.createdWithMonglePetVersion,
+            field: "createdWithMonglePetVersion"
+        )
+        let minimumVersion = try parseCompatibilityVersion(
+            compatibility.minimumMonglePetVersion,
+            field: "minimumMonglePetVersion"
+        )
+        return PetPackageCompatibility(
+            createdWithMonglePetVersion: createdWithVersion,
+            minimumMonglePetVersion: minimumVersion
+        )
+    }
+
+    private func parseCompatibilityVersion(
+        _ value: String?,
+        field: String
+    ) throws -> SemanticVersion? {
+        guard let value else {
+            return nil
+        }
+        guard let version = SemanticVersion(value) else {
+            throw PetPackageLoadingError.invalidCompatibilityVersion(
+                field: field,
+                value: value
+            )
+        }
+        return version
     }
 
     private func validateMotions(

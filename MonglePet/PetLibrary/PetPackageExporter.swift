@@ -39,13 +39,15 @@ nonisolated struct PetPackageExporter {
     private let securityScopedAccess: SecurityScopedResourceAccess
     private let fileManager: FileManager
     private let temporaryDirectoryURL: URL
+    private let currentAppVersion: SemanticVersion
 
     init(
         loader: PetPackageLoader = PetPackageLoader(),
         archiveLimits: PetPackageArchiveLimits = .standard,
         securityScopedAccess: SecurityScopedResourceAccess = SecurityScopedResourceAccess(),
         fileManager: FileManager = .default,
-        temporaryDirectoryURL: URL? = nil
+        temporaryDirectoryURL: URL? = nil,
+        currentAppVersion: SemanticVersion = MonglePetAppVersion.current.semanticVersion
     ) {
         self.loader = loader
         self.archiveLimits = archiveLimits
@@ -57,6 +59,7 @@ nonisolated struct PetPackageExporter {
         self.fileManager = fileManager
         self.temporaryDirectoryURL = temporaryDirectoryURL
             ?? fileManager.temporaryDirectory
+        self.currentAppVersion = currentAppVersion
     }
 
     @discardableResult
@@ -80,7 +83,8 @@ nonisolated struct PetPackageExporter {
             let sourcePackage = try loadPackage(at: installedPackage.rootURL)
             guard
                 sourcePackage.metadata == installedPackage.package.metadata,
-                sourcePackage.definition == installedPackage.package.definition
+                sourcePackage.definition == installedPackage.package.definition,
+                sourcePackage.compatibility == installedPackage.package.compatibility
             else {
                 throw PetPackageExportError.sourcePackageChanged
             }
@@ -99,7 +103,11 @@ nonisolated struct PetPackageExporter {
             let sanitizedPackage = try loadPackage(at: payloadURL)
             guard
                 sanitizedPackage.metadata == sourcePackage.metadata,
-                sanitizedPackage.definition == sourcePackage.definition
+                sanitizedPackage.definition == sourcePackage.definition,
+                sanitizedPackage.compatibility == PetPackageCompatibility(
+                    createdWithMonglePetVersion: currentAppVersion,
+                    minimumMonglePetVersion: currentAppVersion
+                )
             else {
                 throw PetPackageExportError.sourcePackageChanged
             }
@@ -160,7 +168,9 @@ nonisolated struct PetPackageExporter {
                 .sortedKeys,
                 .withoutEscapingSlashes
             ]
-            manifestData = try encoder.encode(manifest)
+            manifestData = try encoder.encode(
+                manifest.recordingCompatibility(with: currentAppVersion)
+            )
         } catch {
             throw PetPackageExportError.fileOperationFailed
         }
@@ -236,7 +246,8 @@ nonisolated struct PetPackageExporter {
         let roundTrippedPackage = try loadPackage(at: extractedRootURL)
         guard
             roundTrippedPackage.metadata == expectedPackage.metadata,
-            roundTrippedPackage.definition == expectedPackage.definition
+            roundTrippedPackage.definition == expectedPackage.definition,
+            roundTrippedPackage.compatibility == expectedPackage.compatibility
         else {
             throw PetPackageExportError.sourcePackageChanged
         }

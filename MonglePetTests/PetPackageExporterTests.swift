@@ -58,6 +58,13 @@ final class PetPackageExporterTests: XCTestCase {
         XCTAssertNil(manifestObject["installationID"])
         XCTAssertNil(manifestObject["behaviorProfiles"])
         XCTAssertNil(manifestObject["automaticRules"])
+        XCTAssertEqual(
+            manifestObject["compatibility"] as? [String: String],
+            [
+                "createdWithMonglePetVersion": "0.1.0",
+                "minimumMonglePetVersion": "0.1.0"
+            ]
+        )
 
         let roundTrippedPackage = try PetPackageLoader().loadPackage(
             at: extractedRootURL
@@ -69,6 +76,17 @@ final class PetPackageExporterTests: XCTestCase {
         XCTAssertEqual(
             roundTrippedPackage.definition,
             installedPackage.package.definition
+        )
+        XCTAssertEqual(
+            roundTrippedPackage.compatibility,
+            PetPackageCompatibility(
+                createdWithMonglePetVersion: try XCTUnwrap(
+                    SemanticVersion("0.1.0")
+                ),
+                minimumMonglePetVersion: try XCTUnwrap(
+                    SemanticVersion("0.1.0")
+                )
+            )
         )
     }
 
@@ -682,7 +700,14 @@ final class PetPackageExporterTests: XCTestCase {
     }
 
     private func makeExporter() -> PetPackageExporter {
-        PetPackageExporter(temporaryDirectoryURL: temporaryDirectoryURL)
+        PetPackageExporter(
+            temporaryDirectoryURL: temporaryDirectoryURL,
+            currentAppVersion: SemanticVersion(
+                major: 0,
+                minor: 1,
+                patch: 0
+            )
+        )
     }
 
     private func makeInstalledPackage(

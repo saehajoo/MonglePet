@@ -124,6 +124,94 @@ final class PetPackageInstallerTests: XCTestCase {
         )
     }
 
+    func testMinimumAppVersionCanBeReviewedButBlocksInstallation() throws {
+        let environment = try makeEnvironment()
+        let packageURL = try makePackage(
+            in: environment.temporaryURL,
+            compatibility: [
+                "createdWithMonglePetVersion": "0.3.0",
+                "minimumMonglePetVersion": "0.2.0"
+            ]
+        )
+        let currentVersion = try XCTUnwrap(SemanticVersion("0.1.0"))
+        let requiredVersion = try XCTUnwrap(SemanticVersion("0.2.0"))
+        let installer = makeInstaller(
+            environment: environment,
+            currentAppVersion: currentVersion
+        )
+
+        let review = try installer.review(from: packageURL)
+
+        XCTAssertEqual(
+            review.compatibilityAssessment,
+            .requiresNewerVersion(requiredVersion)
+        )
+        XCTAssertFalse(review.canInstall)
+        XCTAssertThrowsError(
+            try installer.installReviewed(
+                from: packageURL,
+                mode: .rejectDuplicate,
+                expectedReview: review
+            )
+        ) { error in
+            XCTAssertEqual(
+                error as? PetPackageImportError,
+                .minimumAppVersionRequired(
+                    required: requiredVersion,
+                    current: currentVersion
+                )
+            )
+        }
+        XCTAssertThrowsError(
+            try installer.install(from: packageURL)
+        ) { error in
+            XCTAssertEqual(
+                error as? PetPackageImportError,
+                .minimumAppVersionRequired(
+                    required: requiredVersion,
+                    current: currentVersion
+                )
+            )
+        }
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: environment.libraryURL.path)
+        )
+    }
+
+    func testNewerCreatorVersionWarnsButAllowsInstallation() throws {
+        let environment = try makeEnvironment()
+        let packageURL = try makePackage(
+            in: environment.temporaryURL,
+            compatibility: [
+                "createdWithMonglePetVersion": "0.3.0",
+                "minimumMonglePetVersion": "0.1.0"
+            ]
+        )
+        let currentVersion = try XCTUnwrap(SemanticVersion("0.1.0"))
+        let createdWithVersion = try XCTUnwrap(SemanticVersion("0.3.0"))
+        let installer = makeInstaller(
+            environment: environment,
+            currentAppVersion: currentVersion
+        )
+
+        let review = try installer.review(from: packageURL)
+        let result = try installer.installReviewed(
+            from: packageURL,
+            mode: .rejectDuplicate,
+            expectedReview: review
+        )
+
+        XCTAssertEqual(
+            review.compatibilityAssessment,
+            .createdWithNewerVersion(createdWithVersion)
+        )
+        XCTAssertTrue(review.canInstall)
+        XCTAssertEqual(
+            result.installedPackage.package.compatibility,
+            review.compatibility
+        )
+    }
+
     func testOversizedRecommendedProfileRejectsWholeImport() throws {
         let environment = try makeEnvironment()
         let packageURL = try makePackage(in: environment.temporaryURL)
@@ -665,7 +753,8 @@ final class PetPackageInstallerTests: XCTestCase {
         in temporaryURL: URL,
         directoryName: String = "source.monglepet",
         packageID: String = "com.example.installable",
-        version: String = "1.0.0"
+        version: String = "1.0.0",
+        compatibility: [String: String]? = nil
     ) throws -> URL {
         let packageURL = temporaryURL.appendingPathComponent(directoryName, isDirectory: true)
         try FileManager.default.createDirectory(
@@ -678,7 +767,7 @@ final class PetPackageInstallerTests: XCTestCase {
             width: 4,
             height: 4
         )
-        let manifest: [String: Any] = [
+        var manifest: [String: Any] = [
             "formatVersion": 1,
             "id": packageID,
             "displayName": "설치 테스트 펫",
@@ -706,6 +795,9 @@ final class PetPackageInstallerTests: XCTestCase {
                 ]]
             ]]
         ]
+        if let compatibility {
+            manifest["compatibility"] = compatibility
+        }
         let manifestData = try JSONSerialization.data(withJSONObject: manifest, options: [.sortedKeys])
         try manifestData.write(to: packageURL.appendingPathComponent("pet.json"))
         return packageURL
@@ -749,7 +841,8 @@ final class PetPackageInstallerTests: XCTestCase {
         environment: InstallerTestEnvironment,
         installationIDs: [UUID] = [UUID(uuidString: "11111111-1111-1111-1111-111111111111")!],
         store: PetLibraryStore? = nil,
-        securityAccessor: RecordingSecurityScopedAccess = RecordingSecurityScopedAccess()
+        securityAccessor: RecordingSecurityScopedAccess = RecordingSecurityScopedAccess(),
+        currentAppVersion: SemanticVersion = MonglePetAppVersion.current.semanticVersion
     ) -> PetPackageInstaller {
         let resolvedStore = store ?? makeStore(
             environment: environment,
@@ -758,7 +851,8 @@ final class PetPackageInstallerTests: XCTestCase {
         return PetPackageInstaller(
             libraryStore: resolvedStore,
             securityScopedAccess: SecurityScopedResourceAccess(accessor: securityAccessor),
-            temporaryDirectoryURL: environment.importsURL
+            temporaryDirectoryURL: environment.importsURL,
+            currentAppVersion: currentAppVersion
         )
     }
 

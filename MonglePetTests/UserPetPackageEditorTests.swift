@@ -32,6 +32,13 @@ final class UserPetPackageEditorTests: XCTestCase {
         XCTAssertEqual(created.installationID, firstID)
         XCTAssertTrue(editor.isEditable(created))
         XCTAssertEqual(created.package.definition.defaultMotionID, "기본")
+        XCTAssertEqual(
+            created.package.compatibility,
+            PetPackageCompatibility(
+                createdWithMonglePetVersion: MonglePetAppVersion.current.semanticVersion,
+                minimumMonglePetVersion: MonglePetAppVersion.current.semanticVersion
+            )
+        )
         let baseMotion = try XCTUnwrap(created.package.definition.motion(id: "기본"))
         XCTAssertEqual(baseMotion.frames.count, 2)
         XCTAssertEqual(baseMotion.frames.map(\.duration), [.milliseconds(140), .milliseconds(140)])
@@ -55,6 +62,7 @@ final class UserPetPackageEditorTests: XCTestCase {
 
         XCTAssertEqual(added.installationID, firstID)
         XCTAssertTrue(editor.isEditable(added))
+        XCTAssertEqual(added.package.compatibility, created.package.compatibility)
         XCTAssertEqual(added.package.definition.motions.map(\.id), ["기본", "집중"])
         XCTAssertEqual(added.package.atlases.count, 2)
         let focusMotion = try XCTUnwrap(added.package.definition.motion(id: "집중"))

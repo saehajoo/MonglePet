@@ -22,6 +22,13 @@ final class SimpleAnimationPetPackageAdapterTests: XCTestCase {
         )
 
         let idle = try XCTUnwrap(package.definition.motion(id: "idle"))
+        XCTAssertEqual(
+            package.compatibility,
+            PetPackageCompatibility(
+                createdWithMonglePetVersion: MonglePetAppVersion.current.semanticVersion,
+                minimumMonglePetVersion: MonglePetAppVersion.current.semanticVersion
+            )
+        )
         XCTAssertEqual(idle.frames.count, 3)
         XCTAssertEqual(
             idle.frames.map(\.duration),

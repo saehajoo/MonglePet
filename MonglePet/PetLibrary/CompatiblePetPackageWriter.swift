@@ -31,13 +31,16 @@ extension CompatiblePetPackageWritingError: LocalizedError {
 nonisolated struct CompatiblePetPackageWriter {
     private let loader: PetPackageLoader
     private let fileManager: FileManager
+    private let currentAppVersion: SemanticVersion
 
     init(
         loader: PetPackageLoader = PetPackageLoader(),
-        fileManager: FileManager = .default
+        fileManager: FileManager = .default,
+        currentAppVersion: SemanticVersion = MonglePetAppVersion.current.semanticVersion
     ) {
         self.loader = loader
         self.fileManager = fileManager
+        self.currentAppVersion = currentAppVersion
     }
 
     func writeCopiedAtlasPackage(
@@ -138,7 +141,9 @@ nonisolated struct CompatiblePetPackageWriter {
         do {
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-            let data = try encoder.encode(manifest)
+            let data = try encoder.encode(
+                manifest.recordingCompatibility(with: currentAppVersion)
+            )
             try data.write(
                 to: packageURL.appendingPathComponent("pet.json", isDirectory: false),
                 options: .atomic

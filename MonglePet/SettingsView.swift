@@ -247,6 +247,18 @@ private struct GeneralSettingsView: View {
                 .foregroundStyle(.secondary)
             }
 
+            Section("앱 정보") {
+                LabeledContent(
+                    "버전",
+                    value: MonglePetAppVersion.current.displayText
+                )
+                .accessibilityIdentifier("monglepet.settings.appVersion")
+
+                Text("펫 패키지 호환성은 이 앱 버전을 기준으로 확인합니다.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Section("펫 표시") {
                 Toggle("펫 깨우기", isOn: awakeBinding)
                     .accessibilityIdentifier("monglepet.settings.awake")
@@ -888,6 +900,7 @@ private struct PetPackageImportReviewView: View {
                         )
                     }
 
+                    compatibilitySection
                     recommendedProfileSection
 
                     Text(
@@ -910,6 +923,7 @@ private struct PetPackageImportReviewView: View {
                     onInstall(false)
                     dismiss()
                 }
+                .disabled(!review.canInstall)
                 .accessibilityIdentifier("monglepet.import.petOnly")
                 if review.recommendedProfile != nil,
                    allowsRecommendedProfileApplication {
@@ -918,6 +932,7 @@ private struct PetPackageImportReviewView: View {
                         dismiss()
                     }
                     .buttonStyle(.borderedProminent)
+                    .disabled(!review.canInstall)
                     .accessibilityIdentifier(
                         "monglepet.import.applyRecommendedProfile"
                     )
@@ -928,6 +943,72 @@ private struct PetPackageImportReviewView: View {
         .frame(width: 560)
         .frame(minHeight: 440, maxHeight: 680)
         .accessibilityIdentifier("monglepet.import.review")
+    }
+
+    @ViewBuilder
+    private var compatibilitySection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("MonglePet 호환성")
+                .font(.headline)
+
+            if let compatibility = review.compatibility {
+                Grid(
+                    alignment: .leading,
+                    horizontalSpacing: 20,
+                    verticalSpacing: 8
+                ) {
+                    informationRow(
+                        "현재 앱",
+                        value: review.currentMonglePetVersion.description
+                    )
+                    informationRow(
+                        "제작 앱",
+                        value: compatibility.createdWithMonglePetVersion?.description
+                            ?? "정보 없음"
+                    )
+                    informationRow(
+                        "최소 앱",
+                        value: compatibility.minimumMonglePetVersion?.description
+                            ?? "정보 없음"
+                    )
+                }
+                .padding(12)
+                .background(
+                    .quaternary.opacity(0.35),
+                    in: RoundedRectangle(cornerRadius: 10)
+                )
+            } else {
+                Label(
+                    "이전 형식의 패키지로 앱 호환 버전 정보가 없습니다.",
+                    systemImage: "info.circle"
+                )
+                .foregroundStyle(.secondary)
+            }
+
+            switch review.compatibilityAssessment {
+            case .compatible:
+                if review.compatibility != nil {
+                    Label(
+                        "현재 MonglePet 버전에서 설치할 수 있습니다.",
+                        systemImage: "checkmark.circle.fill"
+                    )
+                    .foregroundStyle(.green)
+                }
+            case let .createdWithNewerVersion(createdWithVersion):
+                Label(
+                    "MonglePet \(createdWithVersion.description)에서 만든 펫입니다. 일부 표현이 다를 수 있지만 설치할 수 있습니다.",
+                    systemImage: "exclamationmark.triangle.fill"
+                )
+                .foregroundStyle(.orange)
+            case let .requiresNewerVersion(requiredVersion):
+                Label(
+                    "설치하려면 MonglePet \(requiredVersion.description) 이상이 필요합니다. 현재 버전에서는 설치할 수 없습니다.",
+                    systemImage: "xmark.octagon.fill"
+                )
+                .foregroundStyle(.red)
+                .accessibilityIdentifier("monglepet.import.incompatibleVersion")
+            }
+        }
     }
 
     @ViewBuilder

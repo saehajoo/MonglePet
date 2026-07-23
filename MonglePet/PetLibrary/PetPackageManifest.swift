@@ -12,6 +12,40 @@ nonisolated struct PetPackageManifest: Codable, Equatable, Sendable {
     let defaultMotion: String?
     let atlases: [Atlas]
     let motions: [Motion]
+    let compatibility: Compatibility?
+
+    init(
+        formatVersion: Int,
+        id: String,
+        displayName: String,
+        version: String,
+        author: String,
+        license: String,
+        description: String?,
+        previewPath: String,
+        defaultMotion: String?,
+        atlases: [Atlas],
+        motions: [Motion],
+        compatibility: Compatibility? = nil
+    ) {
+        self.formatVersion = formatVersion
+        self.id = id
+        self.displayName = displayName
+        self.version = version
+        self.author = author
+        self.license = license
+        self.description = description
+        self.previewPath = previewPath
+        self.defaultMotion = defaultMotion
+        self.atlases = atlases
+        self.motions = motions
+        self.compatibility = compatibility
+    }
+
+    nonisolated struct Compatibility: Codable, Equatable, Sendable {
+        let createdWithMonglePetVersion: String?
+        let minimumMonglePetVersion: String?
+    }
 
     nonisolated struct Atlas: Codable, Equatable, Sendable {
         let id: String
@@ -33,6 +67,28 @@ nonisolated struct PetPackageManifest: Codable, Equatable, Sendable {
         let width: Int
         let height: Int
         let durationMs: Int
+    }
+
+    func recordingCompatibility(
+        with version: SemanticVersion
+    ) -> PetPackageManifest {
+        PetPackageManifest(
+            formatVersion: formatVersion,
+            id: id,
+            displayName: displayName,
+            version: self.version,
+            author: author,
+            license: license,
+            description: description,
+            previewPath: previewPath,
+            defaultMotion: defaultMotion,
+            atlases: atlases,
+            motions: motions,
+            compatibility: Compatibility(
+                createdWithMonglePetVersion: version.description,
+                minimumMonglePetVersion: version.description
+            )
+        )
     }
 }
 
@@ -63,6 +119,23 @@ nonisolated struct LoadedPetPackage: Equatable, Sendable {
     let previewURL: URL
     let atlases: [PetAtlasResource]
     let definition: PetDefinition
+    let compatibility: PetPackageCompatibility?
+
+    init(
+        packageRootURL: URL,
+        metadata: PetPackageMetadata,
+        previewURL: URL,
+        atlases: [PetAtlasResource],
+        definition: PetDefinition,
+        compatibility: PetPackageCompatibility? = nil
+    ) {
+        self.packageRootURL = packageRootURL
+        self.metadata = metadata
+        self.previewURL = previewURL
+        self.atlases = atlases
+        self.definition = definition
+        self.compatibility = compatibility
+    }
 }
 
 nonisolated struct PetPackageLimits: Equatable, Sendable {
@@ -86,6 +159,7 @@ nonisolated enum PetPackageLoadingError: Error, Equatable, Sendable {
     case missingManifest
     case unreadableManifest
     case invalidManifest
+    case invalidCompatibilityVersion(field: String, value: String)
     case unsupportedFormatVersion(Int)
     case emptyRequiredField(String)
     case invalidRelativePath(String)
@@ -118,6 +192,8 @@ extension PetPackageLoadingError: LocalizedError {
             "pet.json을 읽을 수 없습니다."
         case .invalidManifest:
             "pet.json 형식이 올바르지 않습니다."
+        case let .invalidCompatibilityVersion(field, value):
+            "앱 호환 버전 형식이 올바르지 않습니다: \(field) = \(value)"
         case let .unsupportedFormatVersion(version):
             "지원하지 않는 패키지 스키마 버전입니다: \(version)"
         case let .emptyRequiredField(field):

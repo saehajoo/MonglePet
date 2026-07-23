@@ -834,7 +834,11 @@ nonisolated struct UserPetPackageEditor {
         do {
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-            let data = try encoder.encode(manifest)
+            let data = try encoder.encode(
+                manifest.recordingCompatibility(
+                    with: MonglePetAppVersion.current.semanticVersion
+                )
+            )
             try data.write(
                 to: packageURL.appendingPathComponent("pet.json", isDirectory: false),
                 options: .atomic
