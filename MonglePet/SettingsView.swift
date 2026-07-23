@@ -18,13 +18,17 @@ struct SettingsView: View {
 
             BehaviorSequencesSettingsView(
                 settingsSession: settingsSession,
-                petDefinition: petLibrarySession.selectedItem.definition
+                petDefinition: petLibrarySession.selectedItem.definition,
+                petDisplayName: petLibrarySession.selectedItem.metadata.displayName
             )
                 .tabItem {
                     Label("행동 루틴", systemImage: "list.bullet.rectangle")
                 }
 
-            AutomaticRulesSettingsView(settingsSession: settingsSession)
+            AutomaticRulesSettingsView(
+                settingsSession: settingsSession,
+                petDisplayName: petLibrarySession.selectedItem.metadata.displayName
+            )
                 .tabItem {
                     Label("자동 규칙", systemImage: "bolt.badge.clock")
                 }

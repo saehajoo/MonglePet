@@ -19,12 +19,20 @@ nonisolated enum BehaviorMotionCatalog {
 struct BehaviorSequencesSettingsView: View {
     @ObservedObject var settingsSession: AppSettingsSession
     let petDefinition: PetDefinition
+    let petDisplayName: String
     @State private var selectedSequenceID = BuiltInBehaviorPresets.defaultSequenceID
     @State private var newSequenceName = ""
 
     var body: some View {
         Form {
             editNotice
+
+            Section {
+                LabeledContent("설정 대상 펫", value: petDisplayName)
+                    .accessibilityIdentifier(
+                        "monglepet.settings.behaviorPetName"
+                    )
+            }
 
             Section("행동 루틴") {
                 HStack {
@@ -258,6 +266,7 @@ private struct BehaviorStepEditorRow: View {
 
 struct AutomaticRulesSettingsView: View {
     @ObservedObject var settingsSession: AppSettingsSession
+    let petDisplayName: String
     @State private var bundleIdentifier = ""
     @State private var applicationSequenceID = BuiltInBehaviorPresets.defaultSequenceID
     @State private var idleMinutes = 1
@@ -270,6 +279,13 @@ struct AutomaticRulesSettingsView: View {
                     .foregroundStyle(.orange)
                     .font(.callout)
                     .accessibilityIdentifier("monglepet.settings.behaviorEditError")
+            }
+
+            Section {
+                LabeledContent("설정 대상 펫", value: petDisplayName)
+                    .accessibilityIdentifier(
+                        "monglepet.settings.automaticRulesPetName"
+                    )
             }
 
             Section("앱 사용 규칙 추가") {

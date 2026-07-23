@@ -98,6 +98,12 @@ final class AppSettingsSessionTests: XCTestCase {
         XCTAssertTrue(session.addBehaviorSequence(named: "built-in-custom"))
         session.setManualSequenceID("built-in-custom")
         session.setBehaviorMode(.manual)
+        XCTAssertTrue(
+            session.addApplicationRule(
+                bundleIdentifier: "com.example.BuiltIn",
+                sequenceID: "built-in-custom"
+            )
+        )
 
         session.setSelectedPetInstallationID(installedID)
         XCTAssertEqual(
@@ -105,6 +111,7 @@ final class AppSettingsSessionTests: XCTestCase {
             [BuiltInBehaviorPresets.defaultSequenceID]
         )
         XCTAssertEqual(session.settings.behaviorMode, .automatic)
+        XCTAssertTrue(session.settings.automaticRules.isEmpty)
         XCTAssertTrue(session.addBehaviorSequence(named: "installed-custom"))
         XCTAssertTrue(
             session.updateBehaviorStep(
@@ -114,12 +121,23 @@ final class AppSettingsSessionTests: XCTestCase {
                 repeatCount: 5
             )
         )
+        XCTAssertTrue(
+            session.addIdleRule(
+                minutes: 5,
+                sequenceID: "installed-custom"
+            )
+        )
 
         session.setSelectedPetInstallationID(nil)
         XCTAssertEqual(session.settings.behaviorMode, .manual)
         XCTAssertEqual(session.settings.manualSequenceID, "built-in-custom")
         XCTAssertTrue(session.settings.sequences.contains { $0.id == "built-in-custom" })
         XCTAssertFalse(session.settings.sequences.contains { $0.id == "installed-custom" })
+        XCTAssertEqual(session.settings.automaticRules.count, 1)
+        XCTAssertEqual(
+            session.settings.automaticRules.first?.condition,
+            .application(bundleIdentifier: "com.example.BuiltIn")
+        )
 
         let reloaded = AppSettingsSession(
             store: AppSettingsStore(settingsURL: settingsURL)
@@ -135,6 +153,11 @@ final class AppSettingsSessionTests: XCTestCase {
         )
         XCTAssertEqual(installedStep.motionID, "coding")
         XCTAssertEqual(installedStep.repeatCount, 5)
+        XCTAssertEqual(reloaded.settings.automaticRules.count, 1)
+        XCTAssertEqual(
+            reloaded.settings.automaticRules.first?.condition,
+            .idleAtLeast(milliseconds: 300_000)
+        )
     }
 
     @MainActor
