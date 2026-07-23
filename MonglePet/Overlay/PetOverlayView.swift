@@ -10,7 +10,8 @@ struct PetAtlasImage {
 @MainActor
 final class PetOverlayView: NSView {
     var onDragBegan: (() -> Void)?
-    var onDragEnded: (() -> Void)?
+    var onDragEnded: ((Bool) -> Void)?
+    var onPetting: (() -> Void)?
     var allowsWindowDragging = true
 
     private var atlases: [String: PetAtlasImage]
@@ -105,8 +106,36 @@ final class PetOverlayView: NSView {
         guard allowsWindowDragging else {
             return
         }
+        let initialOrigin = window?.frame.origin
         onDragBegan?()
-        defer { onDragEnded?() }
         window?.performDrag(with: event)
+        let finalOrigin = window?.frame.origin
+        let didMove = Self.didMove(
+            from: initialOrigin,
+            to: finalOrigin
+        )
+        onDragEnded?(didMove)
+        if !didMove {
+            onPetting?()
+        }
+    }
+
+    nonisolated static func didMove(
+        from initialOrigin: NSPoint?,
+        to finalOrigin: NSPoint?,
+        threshold: CGFloat = 3
+    ) -> Bool {
+        guard
+            let initialOrigin,
+            let finalOrigin,
+            threshold.isFinite,
+            threshold >= 0
+        else {
+            return false
+        }
+        return hypot(
+            finalOrigin.x - initialOrigin.x,
+            finalOrigin.y - initialOrigin.y
+        ) >= threshold
     }
 }

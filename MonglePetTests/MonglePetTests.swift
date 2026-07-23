@@ -330,6 +330,48 @@ final class MonglePetTests: XCTestCase {
     }
 
     @MainActor
+    func testPetWindowClickDoesNotPersistGeometryAndRequestsPetting() {
+        let controller = PetWindowController()
+        var events: [String] = []
+        controller.onUserDragStateDidChange = {
+            events.append("drag:\($0)")
+        }
+        controller.onOverlayGeometryDidChange = {
+            events.append("geometry")
+        }
+        controller.onPettingRequested = {
+            events.append("petting")
+        }
+
+        controller.wake()
+        controller.userDragDidBegin()
+        controller.userDragDidEnd(didMove: false)
+        controller.pettingDidRequest()
+        controller.sleep()
+
+        XCTAssertEqual(events, ["drag:true", "drag:false", "petting"])
+    }
+
+    @MainActor
+    func testPetOverlayDistinguishesClickFromWindowDrag() {
+        let origin = NSPoint(x: 100, y: 200)
+
+        XCTAssertFalse(PetOverlayView.didMove(from: origin, to: origin))
+        XCTAssertFalse(
+            PetOverlayView.didMove(
+                from: origin,
+                to: NSPoint(x: 102, y: 200)
+            )
+        )
+        XCTAssertTrue(
+            PetOverlayView.didMove(
+                from: origin,
+                to: NSPoint(x: 104, y: 200)
+            )
+        )
+    }
+
+    @MainActor
     func testPetWindowDefaultOriginUsesBottomRightInset() {
         let visibleFrame = NSRect(x: 100, y: 50, width: 1_200, height: 800)
 

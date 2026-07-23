@@ -225,10 +225,14 @@ final class PetMovementControllerTests: XCTestCase {
             isMovementAllowed: true
         )
         XCTAssertNotNil(fixture.controller.targetOrigin)
+        fixture.clock.advance(by: .seconds(1))
+        fixture.scheduler.fire()
+        XCTAssertTrue(fixture.controller.activity.isMoving)
 
         fixture.controller.invalidateEnvironment()
 
         XCTAssertNil(fixture.controller.targetOrigin)
+        XCTAssertEqual(fixture.controller.activity, .stationary)
         XCTAssertEqual(fixture.frontmostWindow.invalidateCount, 1)
         XCTAssertEqual(fixture.controller.state, .freeRoamingMoving)
         XCTAssertEqual(fixture.scheduler.scheduledDelay, .milliseconds(33))

@@ -356,12 +356,18 @@ nonisolated enum BehaviorSettingsEditor {
                 replacementMotionID: movementReplacementMotionID
             )
         )
+        let pettingMotionID = replacingMotionID(
+            settings.pettingMotionID,
+            oldMotionID: oldMotionID,
+            replacementMotionID: movementReplacementMotionID
+        )
         return replacing(
             settings,
             sequences: sequences,
             manualSequenceID: settings.manualSequenceID,
             automaticRules: settings.automaticRules,
-            movement: movement
+            movement: movement,
+            pettingMotionUpdate: .replacing(pettingMotionID)
         )
     }
 
@@ -472,17 +478,30 @@ nonisolated enum BehaviorSettingsEditor {
         sequences: [BehaviorSequence],
         manualSequenceID: String?,
         automaticRules: [AutomaticRule],
-        movement: PetMovementSettings? = nil
+        movement: PetMovementSettings? = nil,
+        pettingMotionUpdate: PettingMotionUpdate = .preserving
     ) -> AppSettings {
-        settings.replacingActiveBehaviorProfile(
+        let pettingMotionID = switch pettingMotionUpdate {
+        case .preserving:
+            settings.pettingMotionID
+        case let .replacing(motionID):
+            motionID
+        }
+        return settings.replacingActiveBehaviorProfile(
             BehaviorProfile(
                 petKey: settings.selectedPetKey,
                 mode: settings.behaviorMode,
                 manualSequenceID: manualSequenceID,
                 sequences: sequences,
                 automaticRules: automaticRules,
-                movement: movement ?? settings.movementSettings
+                movement: movement ?? settings.movementSettings,
+                pettingMotionID: pettingMotionID
             )
         )
+    }
+
+    private enum PettingMotionUpdate {
+        case preserving
+        case replacing(String?)
     }
 }

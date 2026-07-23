@@ -15,6 +15,25 @@ nonisolated struct StoredPetProfileV3: Codable, Equatable, Sendable {
     let sequences: [StoredBehaviorSequenceV2]
     let automaticRules: [StoredAutomaticRule]
     let movement: StoredPetMovementSettingsV3
+    let pettingMotionID: String?
+
+    init(
+        petKey: StoredPetBehaviorKeyV2,
+        mode: String,
+        manualSequenceID: String?,
+        sequences: [StoredBehaviorSequenceV2],
+        automaticRules: [StoredAutomaticRule],
+        movement: StoredPetMovementSettingsV3,
+        pettingMotionID: String? = nil
+    ) {
+        self.petKey = petKey
+        self.mode = mode
+        self.manualSequenceID = manualSequenceID
+        self.sequences = sequences
+        self.automaticRules = automaticRules
+        self.movement = movement
+        self.pettingMotionID = pettingMotionID
+    }
 }
 
 nonisolated struct StoredPetMovementSettingsV3: Codable, Equatable, Sendable {

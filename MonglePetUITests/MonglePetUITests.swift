@@ -72,6 +72,10 @@ final class MonglePetUITests: XCTestCase {
             app.descendants(matching: .any)["monglepet.settings.movementMode"]
                 .exists
         )
+        XCTAssertTrue(
+            app.descendants(matching: .any)["monglepet.settings.pettingMotion"]
+                .exists
+        )
     }
 
     @MainActor

@@ -60,6 +60,7 @@ final class AppSettingsStoreTests: XCTestCase {
         XCTAssertEqual(movement["prefersFrontmostWindow"] as? Bool, false)
         XCTAssertEqual(movement["cursorFollowingMotionID"] as? String, "run")
         XCTAssertEqual(movement["freeRoamingMotionID"] as? String, "walk")
+        XCTAssertEqual(profiles.first?["pettingMotionID"] as? String, "petting")
         let sequences = try XCTUnwrap(profiles.first?["sequences"] as? [[String: Any]])
         let steps = try XCTUnwrap(sequences.first?["steps"] as? [[String: Any]])
         XCTAssertEqual(steps.first?["repeatCount"] as? Int, 2)
@@ -423,6 +424,7 @@ final class AppSettingsStoreTests: XCTestCase {
                 cursorFollowingMotionID: "run",
                 freeRoamingMotionID: "walk"
             ),
+            pettingMotionID: "petting",
             manualSequenceID: focusSequence.id,
             sequences: [idleSequence, focusSequence],
             automaticRules: [

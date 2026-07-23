@@ -46,6 +46,11 @@ nonisolated enum AppSettingsV3Mapper {
                     from: storedMovement,
                     fieldPath: "behaviorProfiles.\(index).movement",
                     issues: &issues
+                ),
+                pettingMotionID: normalizedOptionalMotionID(
+                    stored.behaviorProfiles[index].pettingMotionID,
+                    field: "behaviorProfiles.\(index).pettingMotionID",
+                    issues: &issues
                 )
             )
         }
@@ -72,13 +77,19 @@ nonisolated enum AppSettingsV3Mapper {
                         "behaviorProfiles.\(index).movement"
                     )
                 }
+                guard isValidOptionalMotionID(profile.pettingMotionID) else {
+                    throw AppSettingsMappingError.invalidSettings(
+                        "behaviorProfiles.\(index).pettingMotionID"
+                    )
+                }
                 return StoredPetProfileV3(
                     petKey: storedProfile.petKey,
                     mode: storedProfile.mode,
                     manualSequenceID: storedProfile.manualSequenceID,
                     sequences: storedProfile.sequences,
                     automaticRules: storedProfile.automaticRules,
-                    movement: storedMovement(from: profile.movement)
+                    movement: storedMovement(from: profile.movement),
+                    pettingMotionID: profile.pettingMotionID
                 )
             }
 
@@ -199,6 +210,14 @@ nonisolated enum AppSettingsV3Mapper {
             return nil
         }
         return value
+    }
+
+    private static func isValidOptionalMotionID(_ value: String?) -> Bool {
+        guard let value else {
+            return true
+        }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return !trimmed.isEmpty && trimmed == value
     }
 
     private static func storedMovement(

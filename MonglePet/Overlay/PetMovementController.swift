@@ -214,6 +214,8 @@ final class PetMovementController: PetMovementControlling {
     func invalidateEnvironment() {
         frontmostWindowProvider.invalidate()
         targetOrigin = nil
+        lastMovedAt = nil
+        emit(activity: .stationary)
         guard state != .inactive else {
             return
         }

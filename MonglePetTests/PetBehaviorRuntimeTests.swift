@@ -173,6 +173,48 @@ final class PetBehaviorRuntimeTests: XCTestCase {
         XCTAssertEqual(receivedMotionIDs, ["focus", "idle"])
     }
 
+    func testPettingInteractionRestoresBaseCycleRemainingTime() {
+        let clock = ManualBehaviorRuntimeClock()
+        let tickScheduler = ManualBehaviorTickScheduler()
+        var receivedMotionIDs: [String?] = []
+        let runtime = PetBehaviorRuntime(
+            petDefinition: makePet(),
+            clock: clock,
+            tickScheduler: tickScheduler
+        ) { receivedMotionIDs.append($0?.motion.id) }
+        let sequence = BehaviorSequence(
+            id: "base",
+            steps: [BehaviorStep(motionID: "idle", repeatCount: 1)],
+            repeats: true
+        )
+        let settings = AppSettings(
+            selectedPetInstallationID: nil,
+            lastUserPresentation: .awake,
+            behaviorMode: .manual,
+            overlay: .default,
+            manualSequenceID: sequence.id,
+            sequences: [sequence],
+            automaticRules: []
+        )
+
+        runtime.update(settings: settings, snapshot: snapshot())
+        clock.advance(by: .milliseconds(40))
+
+        XCTAssertTrue(runtime.triggerInteraction(motionID: "petting"))
+        XCTAssertFalse(runtime.triggerInteraction(motionID: "petting"))
+        XCTAssertEqual(runtime.currentPlayback?.motion.id, "petting")
+        XCTAssertTrue(runtime.currentPlayback?.isInteraction == true)
+        XCTAssertEqual(tickScheduler.scheduledDelay, .milliseconds(100))
+
+        clock.advance(by: .milliseconds(100))
+        tickScheduler.fire()
+
+        XCTAssertEqual(runtime.currentPlayback?.motion.id, "idle")
+        XCTAssertFalse(runtime.currentPlayback?.isInteraction == true)
+        XCTAssertEqual(tickScheduler.scheduledDelay, .milliseconds(60))
+        XCTAssertEqual(receivedMotionIDs, ["idle", "petting", "idle"])
+    }
+
     private func makeSettings(
         mode: BehaviorMode,
         manualSequenceID: String? = nil
@@ -193,7 +235,7 @@ final class PetBehaviorRuntimeTests: XCTestCase {
             id: "test.pet",
             displayName: "Test Pet",
             defaultMotionID: "idle",
-            motions: ["idle", "focus", "rest", "sleep"].map { motionID in
+            motions: ["idle", "focus", "rest", "sleep", "petting"].map { motionID in
                 PetMotion(
                     id: motionID,
                     loops: true,

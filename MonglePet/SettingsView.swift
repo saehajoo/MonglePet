@@ -18,6 +18,7 @@ struct SettingsView: View {
 
             MovementSettingsView(
                 settingsSession: settingsSession,
+                petDefinition: petLibrarySession.selectedItem.definition,
                 petDisplayName: petLibrarySession.selectedItem.metadata.displayName
             )
                 .tabItem {

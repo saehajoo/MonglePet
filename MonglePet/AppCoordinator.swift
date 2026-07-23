@@ -6,6 +6,7 @@ final class AppCoordinator: NSObject {
     private let petLibrarySession: PetLibrarySession
     private let settingsWindowController: SettingsWindowController
     private let petWindowController: PetWindowController
+    private let playbackCoordinator: PetPlaybackCoordinator
     private let behaviorRuntime: PetBehaviorRuntime
     private let movementController: PetMovementController
     private let movementLifecycle: PetMovementLifecycle
@@ -51,10 +52,16 @@ final class AppCoordinator: NSObject {
             petLibrarySession: petLibrarySession
         )
         self.petWindowController = petWindowController
-        behaviorRuntime = PetBehaviorRuntime(
+        let playbackCoordinator = PetPlaybackCoordinator(
             petDefinition: petWindowController.petDefinition
         ) { [weak petWindowController] playback in
             petWindowController?.setScheduledMotion(playback)
+        }
+        self.playbackCoordinator = playbackCoordinator
+        behaviorRuntime = PetBehaviorRuntime(
+            petDefinition: petWindowController.petDefinition
+        ) { [weak playbackCoordinator] playback in
+            playbackCoordinator?.setBehaviorPlayback(playback)
         }
         self.movementController = movementController
         movementLifecycle = PetMovementLifecycle(controller: movementController)
@@ -66,6 +73,7 @@ final class AppCoordinator: NSObject {
 
         movementController.setActivityChangeHandler { [weak self] activity in
             self?.latestMovementActivity = activity
+            self?.playbackCoordinator.setMovementActivity(activity)
         }
 
         settingsSession.onChange = { [weak self] settings in
@@ -88,6 +96,9 @@ final class AppCoordinator: NSObject {
         }
         petWindowController.onMovementEnvironmentDidChange = { [weak self] in
             self?.movementEnvironmentDidChange()
+        }
+        petWindowController.onPettingRequested = { [weak self] in
+            self?.pettingDidRequest()
         }
     }
 
@@ -260,10 +271,21 @@ final class AppCoordinator: NSObject {
         }
     }
 
+    private func pettingDidRequest() {
+        guard
+            let motionID = settingsSession.settings.pettingMotionID,
+            petLibrarySession.selectedItem.definition.motion(id: motionID) != nil
+        else {
+            return
+        }
+        behaviorRuntime.triggerInteraction(motionID: motionID)
+    }
+
     @discardableResult
     private func applySelectedPet(_ item: PetLibraryItem) -> Bool {
         do {
             try petWindowController.applyPet(item)
+            playbackCoordinator.replacePetDefinition(item.definition)
             behaviorRuntime.replacePetDefinition(item.definition)
             if let latestActivitySnapshot {
                 behaviorRuntime.update(

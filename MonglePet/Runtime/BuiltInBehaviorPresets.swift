@@ -142,7 +142,8 @@ nonisolated enum BuiltInBehaviorPresets {
                 manualSequenceID: manualSequenceID,
                 sequences: sequences,
                 automaticRules: automaticRules,
-                movement: settings.movementSettings
+                movement: settings.movementSettings,
+                pettingMotionID: settings.pettingMotionID
             )
         )
     }

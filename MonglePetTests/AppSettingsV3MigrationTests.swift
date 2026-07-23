@@ -23,7 +23,8 @@ final class AppSettingsV3MigrationTests: XCTestCase {
         )
         let installed = makeProfile(
             key: .installed(installationID),
-            movement: installedMovement
+            movement: installedMovement,
+            pettingMotionID: "petting"
         )
         let settings = AppSettings(
             selectedPetInstallationID: installationID,
@@ -39,6 +40,7 @@ final class AppSettingsV3MigrationTests: XCTestCase {
         XCTAssertEqual(mapped.settings, settings)
         XCTAssertTrue(mapped.issues.isEmpty)
         XCTAssertEqual(mapped.settings.movementSettings, installedMovement)
+        XCTAssertEqual(mapped.settings.pettingMotionID, "petting")
     }
 
     func testV3MapperRecoversInvalidMovementFieldsIndependently() {
@@ -124,6 +126,12 @@ final class AppSettingsV3MigrationTests: XCTestCase {
                 prefersFrontmostWindow: true
             )
         )
+        let encoded = try JSONEncoder().encode(migrated.settings)
+        let decoded = try JSONDecoder().decode(
+            StoredAppSettingsV3.self,
+            from: encoded
+        )
+        XCTAssertNil(decoded.behaviorProfiles.first?.pettingMotionID)
     }
 
     func testV2MigrationRejectsOtherSchema() {
@@ -177,6 +185,30 @@ final class AppSettingsV3MigrationTests: XCTestCase {
         }
     }
 
+    func testV3MapperRecoversInvalidPettingMotionReference() {
+        let stored = makeStoredSettings(
+            movement: StoredPetMovementSettingsV3(
+                mode: "fixed",
+                speed: AppSettingsLimits.defaultMovementSpeed,
+                cursorDistance: AppSettingsLimits.defaultCursorDistance,
+                stopRadius: AppSettingsLimits.defaultMovementStopRadius,
+                freeRoamingDwellMilliseconds:
+                    AppSettingsLimits.defaultFreeRoamingDwellMilliseconds,
+                prefersFrontmostWindow: true
+            ),
+            pettingMotionID: "  "
+        )
+
+        let mapped = AppSettingsV3Mapper.domainSettings(from: stored)
+
+        XCTAssertNil(mapped.settings.pettingMotionID)
+        XCTAssertTrue(
+            mapped.issues.contains(
+                .invalidField("behaviorProfiles.0.pettingMotionID")
+            )
+        )
+    }
+
     private var storedSequence: StoredBehaviorSequenceV2 {
         StoredBehaviorSequenceV2(
             id: "default",
@@ -187,7 +219,8 @@ final class AppSettingsV3MigrationTests: XCTestCase {
 
     private func makeProfile(
         key: PetBehaviorKey,
-        movement: PetMovementSettings
+        movement: PetMovementSettings,
+        pettingMotionID: String? = nil
     ) -> BehaviorProfile {
         BehaviorProfile(
             petKey: key,
@@ -201,12 +234,14 @@ final class AppSettingsV3MigrationTests: XCTestCase {
                 )
             ],
             automaticRules: [],
-            movement: movement
+            movement: movement,
+            pettingMotionID: pettingMotionID
         )
     }
 
     private func makeStoredSettings(
-        movement: StoredPetMovementSettingsV3
+        movement: StoredPetMovementSettingsV3,
+        pettingMotionID: String? = nil
     ) -> StoredAppSettingsV3 {
         StoredAppSettingsV3(
             schemaVersion: 3,
@@ -226,7 +261,8 @@ final class AppSettingsV3MigrationTests: XCTestCase {
                     manualSequenceID: "default",
                     sequences: [storedSequence],
                     automaticRules: [],
-                    movement: movement
+                    movement: movement,
+                    pettingMotionID: pettingMotionID
                 )
             ]
         )

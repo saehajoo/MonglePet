@@ -187,6 +187,7 @@ final class AppSettingsSessionTests: XCTestCase {
         _ = session.load()
         session.ensureSystemDefaultBehavior()
         session.setMovementSettings(builtInMovement)
+        session.setPettingMotionID("built-in-petting")
         session.setBehaviorMode(.manual)
         XCTAssertTrue(session.addBehaviorSequence(named: "movement-preserved"))
         XCTAssertEqual(session.settings.movementSettings, builtInMovement)
@@ -194,17 +195,21 @@ final class AppSettingsSessionTests: XCTestCase {
         session.setSelectedPetInstallationID(installationID)
         XCTAssertEqual(session.settings.movementSettings, .default)
         session.setMovementSettings(installedMovement)
+        session.setPettingMotionID("installed-petting")
 
         session.setSelectedPetInstallationID(nil)
         XCTAssertEqual(session.settings.movementSettings, builtInMovement)
+        XCTAssertEqual(session.settings.pettingMotionID, "built-in-petting")
 
         let reloaded = AppSettingsSession(
             store: AppSettingsStore(settingsURL: settingsURL)
         )
         XCTAssertEqual(reloaded.load().source, .file)
         XCTAssertEqual(reloaded.settings.movementSettings, builtInMovement)
+        XCTAssertEqual(reloaded.settings.pettingMotionID, "built-in-petting")
         reloaded.setSelectedPetInstallationID(installationID)
         XCTAssertEqual(reloaded.settings.movementSettings, installedMovement)
+        XCTAssertEqual(reloaded.settings.pettingMotionID, "installed-petting")
     }
 
     @MainActor
@@ -347,6 +352,28 @@ final class AppSettingsSessionTests: XCTestCase {
     }
 
     @MainActor
+    func testPettingMotionSelectionPersistsWithActivePetProfile() {
+        let session = AppSettingsSession(
+            store: AppSettingsStore(settingsURL: settingsURL)
+        )
+        _ = session.load()
+        session.ensureSystemDefaultBehavior()
+
+        session.setPettingMotionID("petting")
+
+        XCTAssertEqual(session.settings.pettingMotionID, "petting")
+        XCTAssertEqual(
+            AppSettingsStore(settingsURL: settingsURL).load()
+                .settings.pettingMotionID,
+            "petting"
+        )
+
+        session.setPettingMotionID(nil)
+
+        XCTAssertNil(session.settings.pettingMotionID)
+    }
+
+    @MainActor
     func testSynchronizedRuntimeGeometryIsIncludedInNextSavedChange() {
         let session = AppSettingsSession(
             store: AppSettingsStore(settingsURL: settingsURL)
@@ -457,7 +484,7 @@ final class AppSettingsSessionTests: XCTestCase {
     }
 
     @MainActor
-    func testRenamingAndRemovingMotionReferencesUpdatesBehaviorAndMovement() throws {
+    func testRenamingAndRemovingMotionReferencesUpdatesBehaviorMovementAndPetting() throws {
         let session = AppSettingsSession(
             store: AppSettingsStore(settingsURL: settingsURL)
         )
@@ -485,6 +512,7 @@ final class AppSettingsSessionTests: XCTestCase {
                 freeRoamingMotionID: "wave"
             )
         )
+        session.setPettingMotionID("wave")
         var changes: [AppSettings] = []
         session.onChange = { changes.append($0) }
 
@@ -501,6 +529,7 @@ final class AppSettingsSessionTests: XCTestCase {
         XCTAssertEqual(currentStep.motionID, "hello")
         XCTAssertEqual(session.settings.movementSettings.cursorFollowingMotionID, "hello")
         XCTAssertEqual(session.settings.movementSettings.freeRoamingMotionID, "hello")
+        XCTAssertEqual(session.settings.pettingMotionID, "hello")
 
         XCTAssertTrue(session.removeMotionReferences("hello"))
         let removedStep = try XCTUnwrap(
@@ -509,6 +538,7 @@ final class AppSettingsSessionTests: XCTestCase {
         XCTAssertEqual(removedStep.motionID, PetMotionReference.currentPetDefault)
         XCTAssertNil(session.settings.movementSettings.cursorFollowingMotionID)
         XCTAssertNil(session.settings.movementSettings.freeRoamingMotionID)
+        XCTAssertNil(session.settings.pettingMotionID)
         XCTAssertEqual(changes.last, session.settings)
         let reloaded = AppSettingsStore(settingsURL: settingsURL).load().settings
         XCTAssertEqual(
@@ -517,6 +547,7 @@ final class AppSettingsSessionTests: XCTestCase {
         )
         XCTAssertNil(reloaded.movementSettings.cursorFollowingMotionID)
         XCTAssertNil(reloaded.movementSettings.freeRoamingMotionID)
+        XCTAssertNil(reloaded.pettingMotionID)
     }
 
     @MainActor

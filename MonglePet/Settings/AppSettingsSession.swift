@@ -55,7 +55,8 @@ final class AppSettingsSession: ObservableObject {
                 manualSequenceID: settings.manualSequenceID,
                 sequences: settings.sequences,
                 automaticRules: settings.automaticRules,
-                movement: settings.movementSettings
+                movement: settings.movementSettings,
+                pettingMotionID: settings.pettingMotionID
             )
         )
     }
@@ -74,9 +75,30 @@ final class AppSettingsSession: ObservableObject {
                 manualSequenceID: settings.manualSequenceID,
                 sequences: settings.sequences,
                 automaticRules: settings.automaticRules,
-                movement: movement
+                movement: movement,
+                pettingMotionID: settings.pettingMotionID
             ),
             persist: persist
+        )
+    }
+
+    func setPettingMotionID(_ motionID: String?) {
+        if let motionID {
+            let trimmed = motionID.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, trimmed == motionID else {
+                return
+            }
+        }
+        updateActiveProfile(
+            BehaviorProfile(
+                petKey: settings.selectedPetKey,
+                mode: settings.behaviorMode,
+                manualSequenceID: settings.manualSequenceID,
+                sequences: settings.sequences,
+                automaticRules: settings.automaticRules,
+                movement: settings.movementSettings,
+                pettingMotionID: motionID
+            )
         )
     }
 
@@ -133,7 +155,8 @@ final class AppSettingsSession: ObservableObject {
                 manualSequenceID: sequenceID,
                 sequences: settings.sequences,
                 automaticRules: settings.automaticRules,
-                movement: settings.movementSettings
+                movement: settings.movementSettings,
+                pettingMotionID: settings.pettingMotionID
             )
         )
     }

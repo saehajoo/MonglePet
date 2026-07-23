@@ -81,6 +81,7 @@ final class PetWindowController: NSWindowController {
     var onOverlayGeometryDidChange: (() -> Void)?
     var onUserDragStateDidChange: ((Bool) -> Void)?
     var onMovementEnvironmentDidChange: (() -> Void)?
+    var onPettingRequested: (() -> Void)?
 
     private var hasPositionedPanel = false
     private(set) var petDefinition: PetDefinition
@@ -141,8 +142,11 @@ final class PetWindowController: NSWindowController {
         petOverlayView.onDragBegan = { [weak self] in
             self?.userDragDidBegin()
         }
-        petOverlayView.onDragEnded = { [weak self] in
-            self?.userDragDidEnd()
+        petOverlayView.onDragEnded = { [weak self] didMove in
+            self?.userDragDidEnd(didMove: didMove)
+        }
+        petOverlayView.onPetting = { [weak self] in
+            self?.pettingDidRequest()
         }
         framePlayer.play(defaultMotion)
         framePlayer.pause()
@@ -207,13 +211,22 @@ final class PetWindowController: NSWindowController {
         onUserDragStateDidChange?(true)
     }
 
-    func userDragDidEnd() {
+    func userDragDidEnd(didMove: Bool = true) {
         guard isUserDragging else {
             return
         }
         isUserDragging = false
         onUserDragStateDidChange?(false)
-        onOverlayGeometryDidChange?()
+        if didMove {
+            onOverlayGeometryDidChange?()
+        }
+    }
+
+    func pettingDidRequest() {
+        guard isAwake, !isSystemSuspended, !isUserDragging else {
+            return
+        }
+        onPettingRequested?()
     }
 
     func applyPet(_ item: PetLibraryItem) throws {

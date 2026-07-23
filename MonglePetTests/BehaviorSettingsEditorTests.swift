@@ -200,6 +200,27 @@ final class BehaviorSettingsEditorTests: XCTestCase {
             ),
             settings: settings
         )
+        settings = settings.replacingActiveBehaviorProfile(
+            BehaviorProfile(
+                petKey: settings.selectedPetKey,
+                mode: settings.behaviorMode,
+                manualSequenceID: settings.manualSequenceID,
+                sequences: settings.sequences,
+                automaticRules: settings.automaticRules,
+                movement: PetMovementSettings(
+                    mode: .cursorFollowing,
+                    speed: AppSettingsLimits.defaultMovementSpeed,
+                    cursorDistance: AppSettingsLimits.defaultCursorDistance,
+                    stopRadius: AppSettingsLimits.defaultMovementStopRadius,
+                    freeRoamingDwellMilliseconds:
+                        AppSettingsLimits.defaultFreeRoamingDwellMilliseconds,
+                    prefersFrontmostWindow: true,
+                    cursorFollowingMotionID: "waving",
+                    freeRoamingMotionID: "waving"
+                ),
+                pettingMotionID: "waving"
+            )
+        )
 
         settings = try BehaviorSettingsEditor.replacingMotionReferences(
             from: "waving",
@@ -212,6 +233,12 @@ final class BehaviorSettingsEditorTests: XCTestCase {
         )
         XCTAssertEqual(step.motionID, "hello")
         XCTAssertEqual(step.repeatCount, 7)
+        XCTAssertEqual(
+            settings.movementSettings.cursorFollowingMotionID,
+            "hello"
+        )
+        XCTAssertEqual(settings.movementSettings.freeRoamingMotionID, "hello")
+        XCTAssertEqual(settings.pettingMotionID, "hello")
 
         settings = try BehaviorSettingsEditor.replacingMotionReferences(
             from: "hello",
@@ -224,6 +251,9 @@ final class BehaviorSettingsEditorTests: XCTestCase {
         )
         XCTAssertEqual(step.motionID, PetMotionReference.currentPetDefault)
         XCTAssertEqual(step.repeatCount, 7)
+        XCTAssertNil(settings.movementSettings.cursorFollowingMotionID)
+        XCTAssertNil(settings.movementSettings.freeRoamingMotionID)
+        XCTAssertNil(settings.pettingMotionID)
     }
 
     private func makeSettings(

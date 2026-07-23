@@ -82,6 +82,40 @@ final class PetBehaviorRuntime {
         motionScheduler.isPaused
     }
 
+    @discardableResult
+    func triggerInteraction(motionID: String) -> Bool {
+        guard
+            !motionScheduler.isPaused,
+            !motionID.isEmpty
+        else {
+            return false
+        }
+        guard case .playing = motionScheduler.status else {
+            return false
+        }
+
+        let now = clock.now
+        advance(to: now)
+        let sequence = BehaviorSequence(
+            id: "__monglepet_petting__",
+            steps: [
+                BehaviorStep(
+                    motionID: motionID,
+                    repeatCount: 1
+                )
+            ],
+            repeats: false
+        )
+        guard motionScheduler.triggerInteraction(sequence) else {
+            return false
+        }
+
+        lastAdvancedAt = now
+        emitCurrentPlaybackIfNeeded()
+        scheduleNextBoundary()
+        return true
+    }
+
     func replacePetDefinition(_ petDefinition: PetDefinition) {
         tickScheduler.cancel()
         motionScheduler.stop()

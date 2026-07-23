@@ -3,6 +3,7 @@ import SwiftUI
 
 struct MovementSettingsView: View {
     @ObservedObject var settingsSession: AppSettingsSession
+    let petDefinition: PetDefinition
     let petDisplayName: String
 
     var body: some View {
@@ -74,6 +75,14 @@ struct MovementSettingsView: View {
                         accessibilityIdentifier: "monglepet.settings.cursorDistance"
                     )
 
+                    motionPicker(
+                        title: "이동 중 애니메이션",
+                        selection: cursorFollowingMotionBinding,
+                        noneLabel: "기존 행동 유지",
+                        accessibilityIdentifier:
+                            "monglepet.settings.cursorFollowingMotion"
+                    )
+
                     Text("마우스 포인터와 지정한 거리를 유지하며 화면 안에서 따라갑니다.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -97,7 +106,34 @@ struct MovementSettingsView: View {
                         "monglepet.settings.prefersFrontmostWindow"
                     )
 
+                    motionPicker(
+                        title: "이동 중 애니메이션",
+                        selection: freeRoamingMotionBinding,
+                        noneLabel: "기존 행동 유지",
+                        accessibilityIdentifier:
+                            "monglepet.settings.freeRoamingMotion"
+                    )
+
                     Text("창 정보를 얻을 수 없거나 전체 화면이면 현재 화면 안에서 안전한 위치를 선택합니다.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Section("상호작용") {
+                motionPicker(
+                    title: "쓰다듬기 애니메이션",
+                    selection: pettingMotionBinding,
+                    noneLabel: "반응 없음",
+                    accessibilityIdentifier: "monglepet.settings.pettingMotion"
+                )
+
+                Text("펫을 클릭하면 선택한 애니메이션을 한 번 재생한 뒤 기존 행동으로 돌아갑니다. 드래그는 쓰다듬기로 처리하지 않습니다.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                if settingsSession.settings.overlay.clickThrough {
+                    Text("클릭 통과가 켜져 있습니다. 쓰다듬기를 사용하려면 일반 탭에서 클릭 통과를 꺼 주세요.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -169,6 +205,39 @@ struct MovementSettingsView: View {
         )
     }
 
+    private var cursorFollowingMotionBinding: Binding<String> {
+        Binding(
+            get: { movement.cursorFollowingMotionID ?? "" },
+            set: {
+                apply(
+                    .cursorFollowingMotionID($0.isEmpty ? nil : $0)
+                )
+            }
+        )
+    }
+
+    private var freeRoamingMotionBinding: Binding<String> {
+        Binding(
+            get: { movement.freeRoamingMotionID ?? "" },
+            set: {
+                apply(
+                    .freeRoamingMotionID($0.isEmpty ? nil : $0)
+                )
+            }
+        )
+    }
+
+    private var pettingMotionBinding: Binding<String> {
+        Binding(
+            get: { settingsSession.settings.pettingMotionID ?? "" },
+            set: {
+                settingsSession.setPettingMotionID(
+                    $0.isEmpty ? nil : $0
+                )
+            }
+        )
+    }
+
     private var modeDescription: String {
         switch movement.mode {
         case .fixed:
@@ -218,6 +287,37 @@ struct MovementSettingsView: View {
         }
     }
 
+    private func motionPicker(
+        title: String,
+        selection: Binding<String>,
+        noneLabel: String,
+        accessibilityIdentifier: String
+    ) -> some View {
+        Picker(title, selection: selection) {
+            Text(noneLabel).tag("")
+            ForEach(motionIDs(for: selection.wrappedValue), id: \.self) {
+                motionID in
+                Text(motionLabel(for: motionID)).tag(motionID)
+            }
+        }
+        .accessibilityIdentifier(accessibilityIdentifier)
+    }
+
+    private func motionIDs(for selectedMotionID: String) -> [String] {
+        var motionIDs = petDefinition.motions.map(\.id)
+        if !selectedMotionID.isEmpty,
+           !motionIDs.contains(selectedMotionID) {
+            motionIDs.append(selectedMotionID)
+        }
+        return motionIDs
+    }
+
+    private func motionLabel(for motionID: String) -> String {
+        petDefinition.motion(id: motionID) == nil
+            ? "\(motionID) (찾을 수 없음)"
+            : motionID
+    }
+
     private func persistSliderWhenEditingEnds(_ isEditing: Bool) {
         if !isEditing {
             settingsSession.persistCurrentSettings()
@@ -236,6 +336,8 @@ struct MovementSettingsView: View {
         var freeRoamingDwellMilliseconds =
             current.freeRoamingDwellMilliseconds
         var prefersFrontmostWindow = current.prefersFrontmostWindow
+        var cursorFollowingMotionID = current.cursorFollowingMotionID
+        var freeRoamingMotionID = current.freeRoamingMotionID
 
         switch edit {
         case let .mode(value):
@@ -250,6 +352,10 @@ struct MovementSettingsView: View {
             freeRoamingDwellMilliseconds = value
         case let .prefersFrontmostWindow(value):
             prefersFrontmostWindow = value
+        case let .cursorFollowingMotionID(value):
+            cursorFollowingMotionID = value
+        case let .freeRoamingMotionID(value):
+            freeRoamingMotionID = value
         }
 
         settingsSession.setMovementSettings(
@@ -261,9 +367,8 @@ struct MovementSettingsView: View {
                 freeRoamingDwellMilliseconds:
                     freeRoamingDwellMilliseconds,
                 prefersFrontmostWindow: prefersFrontmostWindow,
-                cursorFollowingMotionID:
-                    current.cursorFollowingMotionID,
-                freeRoamingMotionID: current.freeRoamingMotionID
+                cursorFollowingMotionID: cursorFollowingMotionID,
+                freeRoamingMotionID: freeRoamingMotionID
             ),
             persist: persist
         )
@@ -277,4 +382,6 @@ private enum MovementEdit {
     case stopRadius(Double)
     case freeRoamingDwellMilliseconds(Int64)
     case prefersFrontmostWindow(Bool)
+    case cursorFollowingMotionID(String?)
+    case freeRoamingMotionID(String?)
 }

@@ -126,6 +126,7 @@ nonisolated struct BehaviorProfile: Equatable, Identifiable, Sendable {
     let sequences: [BehaviorSequence]
     let automaticRules: [AutomaticRule]
     let movement: PetMovementSettings
+    let pettingMotionID: String?
 
     init(
         petKey: PetBehaviorKey,
@@ -133,7 +134,8 @@ nonisolated struct BehaviorProfile: Equatable, Identifiable, Sendable {
         manualSequenceID: String?,
         sequences: [BehaviorSequence],
         automaticRules: [AutomaticRule],
-        movement: PetMovementSettings = .default
+        movement: PetMovementSettings = .default,
+        pettingMotionID: String? = nil
     ) {
         self.petKey = petKey
         self.mode = mode
@@ -141,6 +143,7 @@ nonisolated struct BehaviorProfile: Equatable, Identifiable, Sendable {
         self.sequences = sequences
         self.automaticRules = automaticRules
         self.movement = movement
+        self.pettingMotionID = pettingMotionID
     }
 }
 
@@ -184,6 +187,7 @@ nonisolated struct AppSettings: Equatable, Sendable {
         behaviorMode: BehaviorMode,
         overlay: OverlaySettings,
         movement: PetMovementSettings = .default,
+        pettingMotionID: String? = nil,
         manualSequenceID: String?,
         sequences: [BehaviorSequence],
         automaticRules: [AutomaticRule]
@@ -201,7 +205,8 @@ nonisolated struct AppSettings: Equatable, Sendable {
                     manualSequenceID: manualSequenceID,
                     sequences: sequences,
                     automaticRules: automaticRules,
-                    movement: movement
+                    movement: movement,
+                    pettingMotionID: pettingMotionID
                 )
             ]
         )
@@ -233,6 +238,10 @@ nonisolated struct AppSettings: Equatable, Sendable {
 
     var movementSettings: PetMovementSettings {
         activeBehaviorProfile?.movement ?? .default
+    }
+
+    var pettingMotionID: String? {
+        activeBehaviorProfile?.pettingMotionID
     }
 
     func behaviorProfile(for key: PetBehaviorKey) -> BehaviorProfile? {
