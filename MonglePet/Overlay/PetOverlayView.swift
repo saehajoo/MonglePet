@@ -9,6 +9,7 @@ struct PetAtlasImage {
 
 @MainActor
 final class PetOverlayView: NSView {
+    var onDragBegan: (() -> Void)?
     var onDragEnded: (() -> Void)?
     var allowsWindowDragging = true
 
@@ -104,7 +105,8 @@ final class PetOverlayView: NSView {
         guard allowsWindowDragging else {
             return
         }
+        onDragBegan?()
+        defer { onDragEnded?() }
         window?.performDrag(with: event)
-        onDragEnded?()
     }
 }

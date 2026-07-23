@@ -20,7 +20,7 @@
 
 - 기존 `pet.json`과 분리된 선택적·버전 지정 `recommended-profile.json`
 - 자동·수동 행동 모드, 수동 선택과 행동 루틴
-- 위치 좌표를 제외한 이동 모드, 속도, 거리, 정지 반경과 전면 앱 창 선호 설정
+- 위치 좌표를 제외한 이동 모드, 속도, 거리, 정지 반경, 전면 앱 창 선호와 모드별 이동 중 애니메이션 설정
 - 자동 앱 규칙의 별도 포함 선택과 bundle identifier·유휴 시간 검토
 - 내보내기 전 공유 프로필 요약·개인정보 검토
 - 가져오기에서 `펫만 설치`와 `권장 설정 적용` 선택
@@ -61,7 +61,9 @@
     "speed": 120,
     "cursorDistance": 80,
     "stopRadius": 24,
-    "prefersFrontmostWindow": true
+    "prefersFrontmostWindow": true,
+    "cursorFollowingMotionID": "run",
+    "freeRoamingMotionID": "walk"
   },
   "automaticRules": []
 }

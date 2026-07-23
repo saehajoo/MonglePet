@@ -1,7 +1,7 @@
 import Foundation
 
 nonisolated enum AppSettingsLimits {
-    static let schemaVersion = 2
+    static let schemaVersion = 3
     static let maximumFileSize = 5 * 1_024 * 1_024
     static let defaultOverlayWidth = 192.0
     static let minimumOverlayWidth = 96.0
@@ -14,6 +14,91 @@ nonisolated enum AppSettingsLimits {
     static let maximumBehaviorProfiles = 1_000
     static let maximumRepeatCount = 100_000
     static let maximumDurationMilliseconds: Int64 = 86_400_000
+    static let defaultMovementSpeed = 160.0
+    static let minimumMovementSpeed = 20.0
+    static let maximumMovementSpeed = 1_000.0
+    static let defaultCursorDistance = 96.0
+    static let minimumCursorDistance = 0.0
+    static let maximumCursorDistance = 512.0
+    static let defaultMovementStopRadius = 16.0
+    static let minimumMovementStopRadius = 0.0
+    static let maximumMovementStopRadius = 128.0
+    static let defaultFreeRoamingDwellMilliseconds: Int64 = 6_000
+    static let minimumFreeRoamingDwellMilliseconds: Int64 = 500
+    static let maximumFreeRoamingDwellMilliseconds: Int64 = 300_000
+}
+
+nonisolated enum PetMovementMode: Equatable, Sendable {
+    case fixed
+    case cursorFollowing
+    case freeRoaming
+}
+
+nonisolated struct PetMovementSettings: Equatable, Sendable {
+    let mode: PetMovementMode
+    let speed: Double
+    let cursorDistance: Double
+    let stopRadius: Double
+    let freeRoamingDwellMilliseconds: Int64
+    let prefersFrontmostWindow: Bool
+    let cursorFollowingMotionID: String?
+    let freeRoamingMotionID: String?
+
+    init(
+        mode: PetMovementMode,
+        speed: Double,
+        cursorDistance: Double,
+        stopRadius: Double,
+        freeRoamingDwellMilliseconds: Int64,
+        prefersFrontmostWindow: Bool,
+        cursorFollowingMotionID: String? = nil,
+        freeRoamingMotionID: String? = nil
+    ) {
+        self.mode = mode
+        self.speed = speed
+        self.cursorDistance = cursorDistance
+        self.stopRadius = stopRadius
+        self.freeRoamingDwellMilliseconds = freeRoamingDwellMilliseconds
+        self.prefersFrontmostWindow = prefersFrontmostWindow
+        self.cursorFollowingMotionID = cursorFollowingMotionID
+        self.freeRoamingMotionID = freeRoamingMotionID
+    }
+
+    static let `default` = PetMovementSettings(
+        mode: .fixed,
+        speed: AppSettingsLimits.defaultMovementSpeed,
+        cursorDistance: AppSettingsLimits.defaultCursorDistance,
+        stopRadius: AppSettingsLimits.defaultMovementStopRadius,
+        freeRoamingDwellMilliseconds: AppSettingsLimits.defaultFreeRoamingDwellMilliseconds,
+        prefersFrontmostWindow: true,
+        cursorFollowingMotionID: nil,
+        freeRoamingMotionID: nil
+    )
+
+    var isValid: Bool {
+        speed.isFinite
+            && (AppSettingsLimits.minimumMovementSpeed...AppSettingsLimits.maximumMovementSpeed)
+                .contains(speed)
+            && cursorDistance.isFinite
+            && (AppSettingsLimits.minimumCursorDistance...AppSettingsLimits.maximumCursorDistance)
+                .contains(cursorDistance)
+            && stopRadius.isFinite
+            && (AppSettingsLimits.minimumMovementStopRadius...AppSettingsLimits.maximumMovementStopRadius)
+                .contains(stopRadius)
+            && (AppSettingsLimits.minimumFreeRoamingDwellMilliseconds
+                ... AppSettingsLimits.maximumFreeRoamingDwellMilliseconds)
+                .contains(freeRoamingDwellMilliseconds)
+            && Self.isValidOptionalMotionID(cursorFollowingMotionID)
+            && Self.isValidOptionalMotionID(freeRoamingMotionID)
+    }
+
+    private static func isValidOptionalMotionID(_ motionID: String?) -> Bool {
+        guard let motionID else {
+            return true
+        }
+        let trimmed = motionID.trimmingCharacters(in: .whitespacesAndNewlines)
+        return !trimmed.isEmpty && trimmed == motionID
+    }
 }
 
 nonisolated enum PetBehaviorKey: Hashable, Sendable {
@@ -40,6 +125,23 @@ nonisolated struct BehaviorProfile: Equatable, Identifiable, Sendable {
     let manualSequenceID: String?
     let sequences: [BehaviorSequence]
     let automaticRules: [AutomaticRule]
+    let movement: PetMovementSettings
+
+    init(
+        petKey: PetBehaviorKey,
+        mode: BehaviorMode,
+        manualSequenceID: String?,
+        sequences: [BehaviorSequence],
+        automaticRules: [AutomaticRule],
+        movement: PetMovementSettings = .default
+    ) {
+        self.petKey = petKey
+        self.mode = mode
+        self.manualSequenceID = manualSequenceID
+        self.sequences = sequences
+        self.automaticRules = automaticRules
+        self.movement = movement
+    }
 }
 
 nonisolated struct OverlaySettings: Equatable, Sendable {
@@ -81,6 +183,7 @@ nonisolated struct AppSettings: Equatable, Sendable {
         lastUserPresentation: PetPresentation,
         behaviorMode: BehaviorMode,
         overlay: OverlaySettings,
+        movement: PetMovementSettings = .default,
         manualSequenceID: String?,
         sequences: [BehaviorSequence],
         automaticRules: [AutomaticRule]
@@ -97,7 +200,8 @@ nonisolated struct AppSettings: Equatable, Sendable {
                     mode: behaviorMode,
                     manualSequenceID: manualSequenceID,
                     sequences: sequences,
-                    automaticRules: automaticRules
+                    automaticRules: automaticRules,
+                    movement: movement
                 )
             ]
         )
@@ -125,6 +229,10 @@ nonisolated struct AppSettings: Equatable, Sendable {
 
     var automaticRules: [AutomaticRule] {
         activeBehaviorProfile?.automaticRules ?? []
+    }
+
+    var movementSettings: PetMovementSettings {
+        activeBehaviorProfile?.movement ?? .default
     }
 
     func behaviorProfile(for key: PetBehaviorKey) -> BehaviorProfile? {

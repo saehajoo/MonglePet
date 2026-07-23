@@ -54,7 +54,24 @@ final class AppSettingsSession: ObservableObject {
                 mode: mode,
                 manualSequenceID: settings.manualSequenceID,
                 sequences: settings.sequences,
-                automaticRules: settings.automaticRules
+                automaticRules: settings.automaticRules,
+                movement: settings.movementSettings
+            )
+        )
+    }
+
+    func setMovementSettings(_ movement: PetMovementSettings) {
+        guard movement.isValid else {
+            return
+        }
+        updateActiveProfile(
+            BehaviorProfile(
+                petKey: settings.selectedPetKey,
+                mode: settings.behaviorMode,
+                manualSequenceID: settings.manualSequenceID,
+                sequences: settings.sequences,
+                automaticRules: settings.automaticRules,
+                movement: movement
             )
         )
     }
@@ -111,7 +128,8 @@ final class AppSettingsSession: ObservableObject {
                 mode: settings.behaviorMode,
                 manualSequenceID: sequenceID,
                 sequences: settings.sequences,
-                automaticRules: settings.automaticRules
+                automaticRules: settings.automaticRules,
+                movement: settings.movementSettings
             )
         )
     }
@@ -235,14 +253,27 @@ final class AppSettingsSession: ObservableObject {
     }
 
     @discardableResult
-    func replaceBehaviorMotionReferences(
+    func renameMotionReferences(
         from oldMotionID: String,
-        with newMotionID: String
+        to newMotionID: String
     ) -> Bool {
         applyBehaviorEdit {
             try BehaviorSettingsEditor.replacingMotionReferences(
                 from: oldMotionID,
                 with: newMotionID,
+                movementReplacementMotionID: newMotionID,
+                in: settings
+            )
+        }
+    }
+
+    @discardableResult
+    func removeMotionReferences(_ motionID: String) -> Bool {
+        applyBehaviorEdit {
+            try BehaviorSettingsEditor.replacingMotionReferences(
+                from: motionID,
+                with: PetMotionReference.currentPetDefault,
+                movementReplacementMotionID: nil,
                 in: settings
             )
         }

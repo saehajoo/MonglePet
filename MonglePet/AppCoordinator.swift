@@ -1,26 +1,48 @@
 import AppKit
 
 @MainActor
-final class AppCoordinator {
+final class AppCoordinator: NSObject {
     private let settingsSession: AppSettingsSession
     private let petLibrarySession: PetLibrarySession
     private let settingsWindowController: SettingsWindowController
     private let petWindowController: PetWindowController
     private let behaviorRuntime: PetBehaviorRuntime
+    private let movementController: PetMovementController
+    private let movementLifecycle: PetMovementLifecycle
     private let activityMonitor: any ActivitySnapshotMonitoring
+    private let workspaceNotificationCenter: NotificationCenter
+    private let reduceMotionProvider: () -> Bool
     private var menuBarController: MenuBarController?
+    private var hasAppliedSettings = false
     private(set) var latestActivitySnapshot: ActivitySnapshot?
+    private(set) var latestMovementActivity = PetMovementActivity.stationary
 
     init(
         settingsStore: AppSettingsStore,
         petLibraryStore: PetLibraryStore,
-        activityMonitor: any ActivitySnapshotMonitoring = ActivitySnapshotMonitor()
+        activityMonitor: any ActivitySnapshotMonitoring = ActivitySnapshotMonitor(),
+        workspaceNotificationCenter: NotificationCenter =
+            NSWorkspace.shared.notificationCenter,
+        reduceMotionProvider: @escaping () -> Bool = {
+            NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        }
     ) {
         let settingsSession = AppSettingsSession(store: settingsStore)
         let petWindowController = PetWindowController()
         let petLibrarySession = PetLibrarySession(
             store: petLibraryStore,
             builtInDefinition: petWindowController.petDefinition
+        )
+        let movementController = PetMovementController(
+            originProvider: { [weak petWindowController] in
+                petWindowController?.movementOrigin
+            },
+            petSizeProvider: { [weak petWindowController] in
+                petWindowController?.movementSize
+            },
+            applyOrigin: { [weak petWindowController] origin in
+                petWindowController?.setMovementOrigin(origin)
+            }
         )
         self.settingsSession = settingsSession
         self.petLibrarySession = petLibrarySession
@@ -34,7 +56,17 @@ final class AppCoordinator {
         ) { [weak petWindowController] playback in
             petWindowController?.setScheduledMotion(playback)
         }
+        self.movementController = movementController
+        movementLifecycle = PetMovementLifecycle(controller: movementController)
         self.activityMonitor = activityMonitor
+        self.workspaceNotificationCenter = workspaceNotificationCenter
+        self.reduceMotionProvider = reduceMotionProvider
+
+        super.init()
+
+        movementController.setActivityChangeHandler { [weak self] activity in
+            self?.latestMovementActivity = activity
+        }
 
         settingsSession.onChange = { [weak self] settings in
             self?.settingsDidChange(settings)
@@ -51,6 +83,12 @@ final class AppCoordinator {
         petWindowController.onOverlayGeometryDidChange = { [weak self] in
             self?.persistCurrentOverlayGeometry()
         }
+        petWindowController.onUserDragStateDidChange = { [weak self] isDragging in
+            self?.movementLifecycle.setUserDragging(isDragging)
+        }
+        petWindowController.onMovementEnvironmentDidChange = { [weak self] in
+            self?.movementEnvironmentDidChange()
+        }
     }
 
     var currentSettings: AppSettings {
@@ -65,10 +103,22 @@ final class AppCoordinator {
         petWindowController.currentMotionID
     }
 
+    var isPetMovementAllowed: Bool {
+        movementLifecycle.isMovementAllowed
+    }
+
     func start(openSettingsOnLaunch: Bool = false) {
         guard menuBarController == nil else {
             return
         }
+
+        workspaceNotificationCenter.addObserver(
+            self,
+            selector: #selector(accessibilityDisplayOptionsDidChange),
+            name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification,
+            object: nil
+        )
+        movementLifecycle.setReduceMotion(reduceMotionProvider())
 
         let loadResult = settingsSession.load { [petLibrarySession] installationID in
             _ = petLibrarySession.reload(
@@ -115,8 +165,16 @@ final class AppCoordinator {
     }
 
     func stop() {
+        workspaceNotificationCenter.removeObserver(
+            self,
+            name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification,
+            object: nil
+        )
         activityMonitor.stop()
         behaviorRuntime.stop()
+        movementLifecycle.setAwake(false)
+        movementLifecycle.setSystemSuspended(true)
+        movementLifecycle.stop()
         menuBarController?.stop()
         menuBarController = nil
         petWindowController.sleep()
@@ -133,6 +191,9 @@ final class AppCoordinator {
     private func activitySnapshotDidChange(_ snapshot: ActivitySnapshot) {
         latestActivitySnapshot = snapshot
         petWindowController.setSystemSuspended(
+            snapshot.isScreenLocked || snapshot.isSystemSleeping
+        )
+        movementLifecycle.setSystemSuspended(
             snapshot.isScreenLocked || snapshot.isSystemSleeping
         )
         behaviorRuntime.update(
@@ -190,15 +251,12 @@ final class AppCoordinator {
     ) {
         switch change {
         case let .renamed(oldMotionID, newMotionID):
-            _ = settingsSession.replaceBehaviorMotionReferences(
+            _ = settingsSession.renameMotionReferences(
                 from: oldMotionID,
-                with: newMotionID
+                to: newMotionID
             )
         case let .removed(motionID):
-            _ = settingsSession.replaceBehaviorMotionReferences(
-                from: motionID,
-                with: PetMotionReference.currentPetDefault
-            )
+            _ = settingsSession.removeMotionReferences(motionID)
         }
     }
 
@@ -213,6 +271,7 @@ final class AppCoordinator {
                     snapshot: latestActivitySnapshot
                 )
             }
+            movementLifecycle.invalidateEnvironment()
             return true
         } catch {
             return false
@@ -220,10 +279,13 @@ final class AppCoordinator {
     }
 
     private func apply(settings: AppSettings, restorePosition: Bool) {
+        let shouldRestorePosition = restorePosition
+            && (!hasAppliedSettings || settings.movementSettings.mode == .fixed)
         petWindowController.applyOverlaySettings(
             settings.overlay,
-            restorePosition: restorePosition
+            restorePosition: shouldRestorePosition
         )
+        hasAppliedSettings = true
 
         switch settings.lastUserPresentation {
         case .awake:
@@ -237,7 +299,11 @@ final class AppCoordinator {
         case .suspended:
             break
         }
-        if let appliedOverlay = petWindowController.currentOverlaySettings() {
+        movementLifecycle.setSettings(settings.movementSettings)
+        movementLifecycle.setAwake(petWindowController.isAwake)
+        movementLifecycle.invalidateEnvironment()
+        if settings.movementSettings.mode == .fixed,
+           let appliedOverlay = petWindowController.currentOverlaySettings() {
             settingsSession.synchronizeOverlayGeometry(appliedOverlay)
         }
         menuBarController?.setPetAwake(petWindowController.isAwake)
@@ -248,5 +314,20 @@ final class AppCoordinator {
             return
         }
         settingsSession.setOverlayGeometry(overlay)
+    }
+
+    private func movementEnvironmentDidChange() {
+        movementLifecycle.invalidateEnvironment()
+        guard settingsSession.settings.movementSettings.mode == .fixed else {
+            return
+        }
+        persistCurrentOverlayGeometry()
+    }
+
+    @objc
+    private func accessibilityDisplayOptionsDidChange(
+        _ notification: Notification
+    ) {
+        movementLifecycle.setReduceMotion(reduceMotionProvider())
     }
 }

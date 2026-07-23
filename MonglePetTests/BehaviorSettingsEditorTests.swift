@@ -204,6 +204,7 @@ final class BehaviorSettingsEditorTests: XCTestCase {
         settings = try BehaviorSettingsEditor.replacingMotionReferences(
             from: "waving",
             with: "hello",
+            movementReplacementMotionID: "hello",
             in: settings
         )
         var step = try XCTUnwrap(
@@ -215,6 +216,7 @@ final class BehaviorSettingsEditorTests: XCTestCase {
         settings = try BehaviorSettingsEditor.replacingMotionReferences(
             from: "hello",
             with: PetMotionReference.currentPetDefault,
+            movementReplacementMotionID: nil,
             in: settings
         )
         step = try XCTUnwrap(

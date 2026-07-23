@@ -305,12 +305,18 @@ nonisolated enum BehaviorSettingsEditor {
     static func replacingMotionReferences(
         from oldMotionID: String,
         with newMotionID: String,
+        movementReplacementMotionID: String?,
         in settings: AppSettings
     ) throws -> AppSettings {
         guard
             let oldMotionID = normalizedIdentifier(oldMotionID),
             let newMotionID = normalizedIdentifier(newMotionID)
         else {
+            throw BehaviorSettingsEditError.invalidStep
+        }
+        if let movementReplacementMotionID,
+           normalizedIdentifier(movementReplacementMotionID)
+            != movementReplacementMotionID {
             throw BehaviorSettingsEditError.invalidStep
         }
         let sequences = settings.sequences.map { sequence in
@@ -331,11 +337,31 @@ nonisolated enum BehaviorSettingsEditor {
         guard sequences.allSatisfy(isValid) else {
             throw BehaviorSettingsEditError.invalidStep
         }
+        let movement = PetMovementSettings(
+            mode: settings.movementSettings.mode,
+            speed: settings.movementSettings.speed,
+            cursorDistance: settings.movementSettings.cursorDistance,
+            stopRadius: settings.movementSettings.stopRadius,
+            freeRoamingDwellMilliseconds:
+                settings.movementSettings.freeRoamingDwellMilliseconds,
+            prefersFrontmostWindow: settings.movementSettings.prefersFrontmostWindow,
+            cursorFollowingMotionID: replacingMotionID(
+                settings.movementSettings.cursorFollowingMotionID,
+                oldMotionID: oldMotionID,
+                replacementMotionID: movementReplacementMotionID
+            ),
+            freeRoamingMotionID: replacingMotionID(
+                settings.movementSettings.freeRoamingMotionID,
+                oldMotionID: oldMotionID,
+                replacementMotionID: movementReplacementMotionID
+            )
+        )
         return replacing(
             settings,
             sequences: sequences,
             manualSequenceID: settings.manualSequenceID,
-            automaticRules: settings.automaticRules
+            automaticRules: settings.automaticRules,
+            movement: movement
         )
     }
 
@@ -433,11 +459,20 @@ nonisolated enum BehaviorSettingsEditor {
         return trimmed.isEmpty ? nil : trimmed
     }
 
+    private static func replacingMotionID(
+        _ motionID: String?,
+        oldMotionID: String,
+        replacementMotionID: String?
+    ) -> String? {
+        motionID == oldMotionID ? replacementMotionID : motionID
+    }
+
     private static func replacing(
         _ settings: AppSettings,
         sequences: [BehaviorSequence],
         manualSequenceID: String?,
-        automaticRules: [AutomaticRule]
+        automaticRules: [AutomaticRule],
+        movement: PetMovementSettings? = nil
     ) -> AppSettings {
         settings.replacingActiveBehaviorProfile(
             BehaviorProfile(
@@ -445,7 +480,8 @@ nonisolated enum BehaviorSettingsEditor {
                 mode: settings.behaviorMode,
                 manualSequenceID: manualSequenceID,
                 sequences: sequences,
-                automaticRules: automaticRules
+                automaticRules: automaticRules,
+                movement: movement ?? settings.movementSettings
             )
         )
     }

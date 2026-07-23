@@ -161,6 +161,53 @@ final class AppSettingsSessionTests: XCTestCase {
     }
 
     @MainActor
+    func testMovementSettingsStayIndependentAcrossPetSwitchesAndRelaunch() {
+        let installationID = UUID(
+            uuidString: "11111111-1111-1111-1111-111111111117"
+        )!
+        let builtInMovement = PetMovementSettings(
+            mode: .cursorFollowing,
+            speed: 220,
+            cursorDistance: 100,
+            stopRadius: 18,
+            freeRoamingDwellMilliseconds: 7_000,
+            prefersFrontmostWindow: false
+        )
+        let installedMovement = PetMovementSettings(
+            mode: .freeRoaming,
+            speed: 300,
+            cursorDistance: 140,
+            stopRadius: 24,
+            freeRoamingDwellMilliseconds: 10_000,
+            prefersFrontmostWindow: true
+        )
+        let session = AppSettingsSession(
+            store: AppSettingsStore(settingsURL: settingsURL)
+        )
+        _ = session.load()
+        session.ensureSystemDefaultBehavior()
+        session.setMovementSettings(builtInMovement)
+        session.setBehaviorMode(.manual)
+        XCTAssertTrue(session.addBehaviorSequence(named: "movement-preserved"))
+        XCTAssertEqual(session.settings.movementSettings, builtInMovement)
+
+        session.setSelectedPetInstallationID(installationID)
+        XCTAssertEqual(session.settings.movementSettings, .default)
+        session.setMovementSettings(installedMovement)
+
+        session.setSelectedPetInstallationID(nil)
+        XCTAssertEqual(session.settings.movementSettings, builtInMovement)
+
+        let reloaded = AppSettingsSession(
+            store: AppSettingsStore(settingsURL: settingsURL)
+        )
+        XCTAssertEqual(reloaded.load().source, .file)
+        XCTAssertEqual(reloaded.settings.movementSettings, builtInMovement)
+        reloaded.setSelectedPetInstallationID(installationID)
+        XCTAssertEqual(reloaded.settings.movementSettings, installedMovement)
+    }
+
+    @MainActor
     func testSeparateInstalledPetsReceiveIndependentDefaultProfiles() {
         let firstInstallationID = UUID(
             uuidString: "11111111-1111-1111-1111-111111111113"
@@ -378,7 +425,7 @@ final class AppSettingsSessionTests: XCTestCase {
     }
 
     @MainActor
-    func testReplacingMotionReferencesAppliesImmediatelyAndPersists() throws {
+    func testRenamingAndRemovingMotionReferencesUpdatesBehaviorAndMovement() throws {
         let session = AppSettingsSession(
             store: AppSettingsStore(settingsURL: settingsURL)
         )
@@ -393,26 +440,51 @@ final class AppSettingsSessionTests: XCTestCase {
                 repeatCount: 4
             )
         )
+        session.setMovementSettings(
+            PetMovementSettings(
+                mode: .cursorFollowing,
+                speed: AppSettingsLimits.defaultMovementSpeed,
+                cursorDistance: AppSettingsLimits.defaultCursorDistance,
+                stopRadius: AppSettingsLimits.defaultMovementStopRadius,
+                freeRoamingDwellMilliseconds:
+                    AppSettingsLimits.defaultFreeRoamingDwellMilliseconds,
+                prefersFrontmostWindow: true,
+                cursorFollowingMotionID: "wave",
+                freeRoamingMotionID: "wave"
+            )
+        )
         var changes: [AppSettings] = []
         session.onChange = { changes.append($0) }
 
         XCTAssertTrue(
-            session.replaceBehaviorMotionReferences(
+            session.renameMotionReferences(
                 from: "wave",
-                with: PetMotionReference.currentPetDefault
+                to: "hello"
             )
         )
 
         let currentStep = try XCTUnwrap(
             session.settings.sequences.first { $0.id == "custom" }?.steps.first
         )
-        XCTAssertEqual(currentStep.motionID, PetMotionReference.currentPetDefault)
+        XCTAssertEqual(currentStep.motionID, "hello")
+        XCTAssertEqual(session.settings.movementSettings.cursorFollowingMotionID, "hello")
+        XCTAssertEqual(session.settings.movementSettings.freeRoamingMotionID, "hello")
+
+        XCTAssertTrue(session.removeMotionReferences("hello"))
+        let removedStep = try XCTUnwrap(
+            session.settings.sequences.first { $0.id == "custom" }?.steps.first
+        )
+        XCTAssertEqual(removedStep.motionID, PetMotionReference.currentPetDefault)
+        XCTAssertNil(session.settings.movementSettings.cursorFollowingMotionID)
+        XCTAssertNil(session.settings.movementSettings.freeRoamingMotionID)
         XCTAssertEqual(changes.last, session.settings)
         let reloaded = AppSettingsStore(settingsURL: settingsURL).load().settings
         XCTAssertEqual(
             reloaded.sequences.first { $0.id == "custom" }?.steps.first?.motionID,
             PetMotionReference.currentPetDefault
         )
+        XCTAssertNil(reloaded.movementSettings.cursorFollowingMotionID)
+        XCTAssertNil(reloaded.movementSettings.freeRoamingMotionID)
     }
 
     @MainActor

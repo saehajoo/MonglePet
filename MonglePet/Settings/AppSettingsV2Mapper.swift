@@ -131,7 +131,7 @@ nonisolated enum AppSettingsV2Mapper {
         }
 
         return StoredAppSettingsV2(
-            schemaVersion: AppSettingsLimits.schemaVersion,
+            schemaVersion: 2,
             selectedPetInstallationID: settings.selectedPetInstallationID?.uuidString,
             lastUserPresentation: settings.lastUserPresentation == .awake
                 ? "awake"

@@ -228,6 +228,88 @@ final class ActivityMonitoringTests: XCTestCase {
         XCTAssertFalse(activityMonitor.isRunning)
     }
 
+    func testAppCoordinatorGatesMovementForSystemStateAndReduceMotion() throws {
+        let activityMonitor = FakeActivitySnapshotMonitor()
+        let notificationCenter = NotificationCenter()
+        var shouldReduceMotion = false
+        let settingsDirectoryURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: settingsDirectoryURL) }
+        let store = AppSettingsStore(
+            settingsURL: settingsDirectoryURL.appendingPathComponent("settings.json")
+        )
+        try store.save(
+            AppSettings(
+                selectedPetInstallationID: nil,
+                lastUserPresentation: .awake,
+                behaviorMode: .automatic,
+                overlay: .default,
+                movement: PetMovementSettings(
+                    mode: .cursorFollowing,
+                    speed: 160,
+                    cursorDistance: 96,
+                    stopRadius: 16,
+                    freeRoamingDwellMilliseconds: 6_000,
+                    prefersFrontmostWindow: true
+                ),
+                manualSequenceID: nil,
+                sequences: [],
+                automaticRules: []
+            )
+        )
+        let coordinator = AppCoordinator(
+            settingsStore: store,
+            petLibraryStore: PetLibraryStore(
+                libraryRootURL: settingsDirectoryURL.appendingPathComponent("Library")
+            ),
+            activityMonitor: activityMonitor,
+            workspaceNotificationCenter: notificationCenter,
+            reduceMotionProvider: { shouldReduceMotion }
+        )
+        coordinator.start()
+
+        XCTAssertFalse(coordinator.isPetMovementAllowed)
+
+        activityMonitor.emit(
+            ActivitySnapshot(
+                capturedAt: ContinuousClock().now,
+                idleDuration: .zero,
+                frontmostApplicationID: "com.example.Editor",
+                isScreenLocked: false,
+                isSystemSleeping: false
+            )
+        )
+        XCTAssertTrue(coordinator.isPetMovementAllowed)
+
+        shouldReduceMotion = true
+        notificationCenter.post(
+            name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification,
+            object: nil
+        )
+        XCTAssertFalse(coordinator.isPetMovementAllowed)
+
+        shouldReduceMotion = false
+        notificationCenter.post(
+            name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification,
+            object: nil
+        )
+        XCTAssertTrue(coordinator.isPetMovementAllowed)
+
+        activityMonitor.emit(
+            ActivitySnapshot(
+                capturedAt: ContinuousClock().now,
+                idleDuration: .zero,
+                frontmostApplicationID: nil,
+                isScreenLocked: true,
+                isSystemSleeping: false
+            )
+        )
+        XCTAssertFalse(coordinator.isPetMovementAllowed)
+
+        coordinator.stop()
+        XCTAssertFalse(coordinator.isPetMovementAllowed)
+    }
+
     func testAppCoordinatorRestoresUserPresentationFromSettings() throws {
         let settingsDirectoryURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

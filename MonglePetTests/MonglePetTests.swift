@@ -288,6 +288,48 @@ final class MonglePetTests: XCTestCase {
     }
 
     @MainActor
+    func testPetWindowMovementAdapterDoesNotPersistAutomaticOrigin() throws {
+        let controller = PetWindowController()
+        let panel = try XCTUnwrap(controller.panel)
+        var geometryChangeCount = 0
+        controller.onOverlayGeometryDidChange = {
+            geometryChangeCount += 1
+        }
+
+        controller.setMovementOrigin(PetMovementPoint(x: 240, y: 180))
+
+        XCTAssertEqual(panel.frame.origin, NSPoint(x: 240, y: 180))
+        XCTAssertEqual(controller.movementOrigin, PetMovementPoint(x: 240, y: 180))
+        XCTAssertEqual(
+            controller.movementSize,
+            PetMovementSize(
+                width: Double(panel.frame.width),
+                height: Double(panel.frame.height)
+            )
+        )
+        XCTAssertEqual(geometryChangeCount, 0)
+    }
+
+    @MainActor
+    func testPetWindowUserDragPausesBeforePersistingGeometry() {
+        let controller = PetWindowController()
+        var events: [String] = []
+        controller.onUserDragStateDidChange = {
+            events.append("drag:\($0)")
+        }
+        controller.onOverlayGeometryDidChange = {
+            events.append("geometry")
+        }
+
+        controller.userDragDidBegin()
+        XCTAssertTrue(controller.isUserDragging)
+        controller.userDragDidEnd()
+
+        XCTAssertFalse(controller.isUserDragging)
+        XCTAssertEqual(events, ["drag:true", "drag:false", "geometry"])
+    }
+
+    @MainActor
     func testPetWindowDefaultOriginUsesBottomRightInset() {
         let visibleFrame = NSRect(x: 100, y: 50, width: 1_200, height: 800)
 

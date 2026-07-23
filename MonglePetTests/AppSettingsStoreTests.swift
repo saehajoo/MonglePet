@@ -45,12 +45,21 @@ final class AppSettingsStoreTests: XCTestCase {
             JSONSerialization.jsonObject(with: Data(contentsOf: settingsURL))
                 as? [String: Any]
         )
-        XCTAssertEqual(json["schemaVersion"] as? Int, 2)
+        XCTAssertEqual(json["schemaVersion"] as? Int, 3)
         XCTAssertEqual(json["lastUserPresentation"] as? String, "tuckedAway")
         XCTAssertNil(json["behaviorMode"])
 
         let profiles = try XCTUnwrap(json["behaviorProfiles"] as? [[String: Any]])
         XCTAssertEqual(profiles.first?["mode"] as? String, "manual")
+        let movement = try XCTUnwrap(profiles.first?["movement"] as? [String: Any])
+        XCTAssertEqual(movement["mode"] as? String, "cursorFollowing")
+        XCTAssertEqual(movement["speed"] as? Double, 240)
+        XCTAssertEqual(movement["cursorDistance"] as? Double, 120)
+        XCTAssertEqual(movement["stopRadius"] as? Double, 20)
+        XCTAssertEqual(movement["freeRoamingDwellMilliseconds"] as? Int, 9_000)
+        XCTAssertEqual(movement["prefersFrontmostWindow"] as? Bool, false)
+        XCTAssertEqual(movement["cursorFollowingMotionID"] as? String, "run")
+        XCTAssertEqual(movement["freeRoamingMotionID"] as? String, "walk")
         let sequences = try XCTUnwrap(profiles.first?["sequences"] as? [[String: Any]])
         let steps = try XCTUnwrap(sequences.first?["steps"] as? [[String: Any]])
         XCTAssertEqual(steps.first?["repeatCount"] as? Int, 2)
@@ -191,14 +200,14 @@ final class AppSettingsStoreTests: XCTestCase {
     }
 
     func testNewerSchemaIsPreservedAndDisablesWriting() throws {
-        let originalData = Data(#"{"schemaVersion":3,"futureValue":true}"#.utf8)
+        let originalData = Data(#"{"schemaVersion":4,"futureValue":true}"#.utf8)
         try originalData.write(to: settingsURL)
         let store = AppSettingsStore(settingsURL: settingsURL)
 
         let loaded = store.load()
 
-        XCTAssertEqual(loaded.source, .newerSchema(3))
-        XCTAssertEqual(loaded.issues, [.newerSchemaVersion(3)])
+        XCTAssertEqual(loaded.source, .newerSchema(4))
+        XCTAssertEqual(loaded.issues, [.newerSchemaVersion(4)])
         XCTAssertFalse(loaded.isWritingEnabled)
         XCTAssertEqual(try Data(contentsOf: settingsURL), originalData)
         XCTAssertThrowsError(try store.save(.default)) { error in
@@ -278,7 +287,7 @@ final class AppSettingsStoreTests: XCTestCase {
         XCTAssertEqual(children.map(\.lastPathComponent), ["settings.json"])
     }
 
-    func testV1LoadMigratesAndAtomicallyRewritesSettingsAsV2() throws {
+    func testV1LoadMigratesAndAtomicallyRewritesSettingsAsV3() throws {
         let stored = makeLegacySettings()
         try JSONEncoder().encode(stored).write(to: settingsURL)
         let store = AppSettingsStore(settingsURL: settingsURL)
@@ -293,15 +302,57 @@ final class AppSettingsStoreTests: XCTestCase {
             StoredSchemaEnvelope.self,
             from: migratedData
         )
-        XCTAssertEqual(envelope.schemaVersion, 2)
+        XCTAssertEqual(envelope.schemaVersion, 3)
         XCTAssertNoThrow(
-            try JSONDecoder().decode(StoredAppSettingsV2.self, from: migratedData)
+            try JSONDecoder().decode(StoredAppSettingsV3.self, from: migratedData)
         )
+        XCTAssertEqual(loaded.settings.movementSettings, .default)
         let children = try FileManager.default.contentsOfDirectory(
             at: temporaryDirectoryURL,
             includingPropertiesForKeys: nil
         )
         XCTAssertEqual(children.map(\.lastPathComponent), ["settings.json"])
+    }
+
+    func testV2LoadAddsDefaultMovementAndAtomicallyRewritesAsV3() throws {
+        let profile = StoredBehaviorProfileV2(
+            petKey: .builtIn,
+            mode: "manual",
+            manualSequenceID: "default",
+            sequences: [
+                StoredBehaviorSequenceV2(
+                    id: "default",
+                    steps: [StoredBehaviorStepV2(motionID: "idle", repeatCount: 1)],
+                    repeats: true
+                )
+            ],
+            automaticRules: []
+        )
+        let stored = StoredAppSettingsV2(
+            schemaVersion: 2,
+            selectedPetInstallationID: nil,
+            lastUserPresentation: "awake",
+            overlay: StoredOverlaySettings(
+                screenIdentifier: nil,
+                originX: 0,
+                originY: 0,
+                width: 192,
+                clickThrough: false
+            ),
+            behaviorProfiles: [profile]
+        )
+        try JSONEncoder().encode(stored).write(to: settingsURL)
+
+        let loaded = AppSettingsStore(settingsURL: settingsURL).load()
+
+        XCTAssertEqual(loaded.source, .file)
+        XCTAssertEqual(loaded.settings.movementSettings, .default)
+        let migrated = try JSONDecoder().decode(
+            StoredAppSettingsV3.self,
+            from: Data(contentsOf: settingsURL)
+        )
+        XCTAssertEqual(migrated.schemaVersion, 3)
+        XCTAssertEqual(migrated.behaviorProfiles.first?.movement.mode, "fixed")
     }
 
     func testV1LoadWithoutSelectedPetDefinitionPreservesOriginalFile() throws {
@@ -361,6 +412,16 @@ final class AppSettingsStoreTests: XCTestCase {
                 originY: 200,
                 width: 240,
                 clickThrough: true
+            ),
+            movement: PetMovementSettings(
+                mode: .cursorFollowing,
+                speed: 240,
+                cursorDistance: 120,
+                stopRadius: 20,
+                freeRoamingDwellMilliseconds: 9_000,
+                prefersFrontmostWindow: false,
+                cursorFollowingMotionID: "run",
+                freeRoamingMotionID: "walk"
             ),
             manualSequenceID: focusSequence.id,
             sequences: [idleSequence, focusSequence],

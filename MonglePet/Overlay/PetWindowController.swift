@@ -77,7 +77,10 @@ final class PetWindowController: NSWindowController {
 
     private(set) var isAwake = false
     private(set) var isSystemSuspended = false
+    private(set) var isUserDragging = false
     var onOverlayGeometryDidChange: (() -> Void)?
+    var onUserDragStateDidChange: ((Bool) -> Void)?
+    var onMovementEnvironmentDidChange: (() -> Void)?
 
     private var hasPositionedPanel = false
     private(set) var petDefinition: PetDefinition
@@ -135,8 +138,11 @@ final class PetWindowController: NSWindowController {
 
         super.init(window: panel)
         shouldCascadeWindows = false
+        petOverlayView.onDragBegan = { [weak self] in
+            self?.userDragDidBegin()
+        }
         petOverlayView.onDragEnded = { [weak self] in
-            self?.onOverlayGeometryDidChange?()
+            self?.userDragDidEnd()
         }
         framePlayer.play(defaultMotion)
         framePlayer.pause()
@@ -163,6 +169,51 @@ final class PetWindowController: NSWindowController {
 
     var currentMotionID: String? {
         scheduledMotion?.motion.id
+    }
+
+    var movementOrigin: PetMovementPoint? {
+        guard let panel else {
+            return nil
+        }
+        return PetMovementPoint(
+            x: Double(panel.frame.minX),
+            y: Double(panel.frame.minY)
+        )
+    }
+
+    var movementSize: PetMovementSize? {
+        guard let panel else {
+            return nil
+        }
+        return PetMovementSize(
+            width: Double(panel.frame.width),
+            height: Double(panel.frame.height)
+        )
+    }
+
+    func setMovementOrigin(_ origin: PetMovementPoint) {
+        guard let panel, origin.isFinite else {
+            return
+        }
+        panel.setFrameOrigin(NSPoint(x: origin.x, y: origin.y))
+        hasPositionedPanel = true
+    }
+
+    func userDragDidBegin() {
+        guard !isUserDragging else {
+            return
+        }
+        isUserDragging = true
+        onUserDragStateDidChange?(true)
+    }
+
+    func userDragDidEnd() {
+        guard isUserDragging else {
+            return
+        }
+        isUserDragging = false
+        onUserDragStateDidChange?(false)
+        onOverlayGeometryDidChange?()
     }
 
     func applyPet(_ item: PetLibraryItem) throws {
@@ -422,8 +473,6 @@ final class PetWindowController: NSWindowController {
     @objc
     private func screenParametersDidChange(_ notification: Notification) {
         correctPanelPosition()
-        if hasPositionedPanel {
-            onOverlayGeometryDidChange?()
-        }
+        onMovementEnvironmentDidChange?()
     }
 }

@@ -118,12 +118,45 @@ nonisolated final class AppSettingsStore {
                 )
             }
             do {
-                let migrated = try AppSettingsV1ToV2Migrator.migrate(
+                let migratedV2 = try AppSettingsV1ToV2Migrator.migrate(
                     storedSettings,
                     selectedPetDefinition: selectedPetDefinition
                 )
+                let migratedV3 = try AppSettingsV2ToV3Migrator.migrate(
+                    migratedV2.settings
+                )
+                try write(migratedV3.settings)
+                let mapped = AppSettingsV3Mapper.domainSettings(from: migratedV3.settings)
+                let issues = migratedV2.issues + migratedV3.issues + mapped.issues
+                isWritingEnabled = true
+                return AppSettingsLoadResult(
+                    settings: mapped.settings,
+                    issues: issues,
+                    source: issues.isEmpty ? .file : .recovered,
+                    isWritingEnabled: true
+                )
+            } catch {
+                isWritingEnabled = false
+                return AppSettingsLoadResult(
+                    settings: .default,
+                    issues: [.invalidField("settingsMigration")],
+                    source: .recovered,
+                    isWritingEnabled: false
+                )
+            }
+        }
+
+        if envelope.schemaVersion == 2 {
+            guard let storedSettings = try? decoder.decode(
+                StoredAppSettingsV2.self,
+                from: data
+            ) else {
+                return recoverCorruptFile()
+            }
+            do {
+                let migrated = try AppSettingsV2ToV3Migrator.migrate(storedSettings)
                 try write(migrated.settings)
-                let mapped = AppSettingsV2Mapper.domainSettings(from: migrated.settings)
+                let mapped = AppSettingsV3Mapper.domainSettings(from: migrated.settings)
                 let issues = migrated.issues + mapped.issues
                 isWritingEnabled = true
                 return AppSettingsLoadResult(
@@ -144,12 +177,12 @@ nonisolated final class AppSettingsStore {
         }
 
         guard envelope.schemaVersion == AppSettingsLimits.schemaVersion,
-              let storedSettings = try? decoder.decode(StoredAppSettingsV2.self, from: data)
+              let storedSettings = try? decoder.decode(StoredAppSettingsV3.self, from: data)
         else {
             return recoverCorruptFile()
         }
 
-        let mapped = AppSettingsV2Mapper.domainSettings(from: storedSettings)
+        let mapped = AppSettingsV3Mapper.domainSettings(from: storedSettings)
         isWritingEnabled = true
         return AppSettingsLoadResult(
             settings: mapped.settings,
@@ -164,9 +197,9 @@ nonisolated final class AppSettingsStore {
             throw AppSettingsStoreError.writingDisabledForNewerSchema
         }
 
-        let storedSettings: StoredAppSettingsV2
+        let storedSettings: StoredAppSettingsV3
         do {
-            storedSettings = try AppSettingsV2Mapper.storedSettings(from: settings)
+            storedSettings = try AppSettingsV3Mapper.storedSettings(from: settings)
         } catch let error as AppSettingsMappingError {
             switch error {
             case let .invalidSettings(field):
