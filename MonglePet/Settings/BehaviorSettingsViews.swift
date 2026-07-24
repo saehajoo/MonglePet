@@ -1,4 +1,6 @@
+import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 nonisolated enum BehaviorMotionCatalog {
     static func identifiers(
@@ -13,6 +15,366 @@ nonisolated enum BehaviorMotionCatalog {
             identifiers.append(currentMotionID)
         }
         return identifiers
+    }
+}
+
+private struct ApplicationRuleTargetPicker: View {
+    @Binding var bundleIdentifier: String
+    @ObservedObject var applicationCatalog: ApplicationCatalogSession
+    let accessibilityPrefix: String
+    let onCommit: (String) -> Void
+
+    @State private var selectedApplication: ApplicationChoice?
+    @State private var isChoosingApplication = false
+    @State private var isShowingDirectInput = false
+    @State private var directInputDraft = ""
+    @State private var errorMessage: String?
+
+    init(
+        bundleIdentifier: Binding<String>,
+        applicationCatalog: ApplicationCatalogSession,
+        accessibilityPrefix: String,
+        onCommit: @escaping (String) -> Void = { _ in }
+    ) {
+        _bundleIdentifier = bundleIdentifier
+        self.applicationCatalog = applicationCatalog
+        self.accessibilityPrefix = accessibilityPrefix
+        self.onCommit = onCommit
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("대상 앱")
+                .font(.subheadline.weight(.semibold))
+
+            GroupBox {
+                selectedApplicationView
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .frame(
+                        maxWidth: .infinity,
+                        minHeight: 44,
+                        alignment: .leading
+                    )
+            }
+
+            Menu {
+                Menu {
+                    if applicationCatalog.runningApplications.isEmpty {
+                        Text("선택할 수 있는 실행 중인 앱이 없습니다.")
+                    } else {
+                        ForEach(
+                            applicationCatalog.runningApplications
+                        ) { application in
+                            Button {
+                                select(application)
+                            } label: {
+                                applicationMenuLabel(for: application)
+                            }
+                        }
+                    }
+
+                    Divider()
+                    Button("목록 새로고침", action: refreshRunningApplications)
+                } label: {
+                    Label("열려 있는 앱", systemImage: "macwindow")
+                }
+
+                Button {
+                    isChoosingApplication = true
+                } label: {
+                    Label(
+                        "설치된 앱 파일 선택…",
+                        systemImage: "folder"
+                    )
+                }
+
+                Button {
+                    directInputDraft = normalizedBundleIdentifier
+                    isShowingDirectInput = true
+                } label: {
+                    Label(
+                        "Bundle Identifier 직접 입력…",
+                        systemImage: "keyboard"
+                    )
+                }
+            } label: {
+                Label("대상 앱 선택…", systemImage: "app.badge.checkmark")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .menuStyle(.button)
+            .controlSize(.large)
+            .accessibilityIdentifier(
+                "\(accessibilityPrefix).selectionMenu"
+            )
+
+            Text("열려 있는 앱, 설치된 .app 파일 또는 Bundle Identifier로 선택할 수 있습니다.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            if let errorMessage {
+                Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .accessibilityIdentifier(
+                        "\(accessibilityPrefix).applicationError"
+                    )
+            }
+        }
+        .fileImporter(
+            isPresented: $isChoosingApplication,
+            allowedContentTypes: [.applicationBundle],
+            allowsMultipleSelection: false,
+            onCompletion: handleApplicationSelection
+        )
+        .popover(isPresented: $isShowingDirectInput, arrowEdge: .bottom) {
+            directInputPopover
+        }
+        .onAppear(perform: synchronizeSelectedApplication)
+        .onChange(of: bundleIdentifier) {
+            synchronizeSelectedApplication()
+        }
+        .onChange(of: applicationCatalog.runningApplications) {
+            synchronizeSelectedApplication()
+        }
+    }
+
+    private var directInputPopover: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Bundle Identifier 직접 입력")
+                .font(.headline)
+
+            TextField(
+                "예: com.apple.dt.Xcode",
+                text: $directInputDraft
+            )
+            .textFieldStyle(.roundedBorder)
+            .fontDesign(.monospaced)
+            .onSubmit(commitDirectInput)
+            .accessibilityIdentifier(
+                "\(accessibilityPrefix).bundleIdentifier"
+            )
+
+            Text("목록에 없는 앱을 정확한 식별자로 등록할 때 사용합니다.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            HStack {
+                Spacer()
+
+                Button("취소", role: .cancel) {
+                    isShowingDirectInput = false
+                }
+
+                Button("적용") {
+                    commitDirectInput()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(normalizedDirectInputDraft.isEmpty)
+            }
+        }
+        .padding(16)
+        .frame(width: 360)
+    }
+
+    @ViewBuilder
+    private var selectedApplicationView: some View {
+        if let selectedApplication,
+           selectedApplication.bundleIdentifier == normalizedBundleIdentifier {
+            HStack(spacing: 10) {
+                applicationIcon(for: selectedApplication)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(selectedApplication.displayName)
+                        .font(.headline)
+                    Text(selectedApplication.bundleIdentifier)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier(
+                "\(accessibilityPrefix).selectedApplication"
+            )
+        } else if !normalizedBundleIdentifier.isEmpty {
+            LabeledContent(
+                "선택한 Bundle Identifier",
+                value: normalizedBundleIdentifier
+            )
+            .accessibilityIdentifier(
+                "\(accessibilityPrefix).selectedApplication"
+            )
+        } else {
+            Text("실행 중인 앱을 고르거나 설치된 .app 파일을 선택해 주세요.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private func applicationMenuLabel(
+        for application: ApplicationChoice
+    ) -> some View {
+        if let iconData = application.iconData,
+           let icon = NSImage(data: iconData) {
+            Label {
+                Text(
+                    "\(application.displayName) — "
+                        + application.bundleIdentifier
+                )
+            } icon: {
+                Image(nsImage: icon)
+            }
+        } else {
+            Text(
+                "\(application.displayName) — "
+                    + application.bundleIdentifier
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func applicationIcon(
+        for application: ApplicationChoice
+    ) -> some View {
+        if let iconData = application.iconData,
+           let icon = NSImage(data: iconData) {
+            Image(nsImage: icon)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 32, height: 32)
+        } else if let bundleURL = application.bundleURL {
+            Image(nsImage: NSWorkspace.shared.icon(forFile: bundleURL.path))
+                .resizable()
+                .scaledToFit()
+                .frame(width: 32, height: 32)
+        } else {
+            Image(systemName: "app")
+                .font(.title2)
+                .frame(width: 32, height: 32)
+        }
+    }
+
+    private var normalizedBundleIdentifier: String {
+        bundleIdentifier.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var normalizedDirectInputDraft: String {
+        directInputDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func refreshRunningApplications() {
+        applicationCatalog.refresh()
+        synchronizeSelectedApplication()
+    }
+
+    private func synchronizeSelectedApplication() {
+        guard selectedApplication?.bundleIdentifier
+                != normalizedBundleIdentifier else {
+            return
+        }
+        selectedApplication = applicationCatalog.runningApplications.first {
+            $0.bundleIdentifier == normalizedBundleIdentifier
+        }
+    }
+
+    private func select(_ application: ApplicationChoice) {
+        errorMessage = nil
+        selectedApplication = application
+        bundleIdentifier = application.bundleIdentifier
+        onCommit(application.bundleIdentifier)
+    }
+
+    private func commitDirectInput() {
+        let normalizedIdentifier = normalizedDirectInputDraft
+        guard !normalizedIdentifier.isEmpty else {
+            return
+        }
+        errorMessage = nil
+        bundleIdentifier = normalizedIdentifier
+        synchronizeSelectedApplication()
+        onCommit(normalizedIdentifier)
+        isShowingDirectInput = false
+    }
+
+    private func handleApplicationSelection(
+        _ result: Result<[URL], Error>
+    ) {
+        do {
+            guard let url = try result.get().first else {
+                return
+            }
+            select(try applicationCatalog.application(at: url))
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+}
+
+private struct HorizontalIntegerAdjuster: View {
+    let title: String
+    @Binding var value: Int
+    let range: ClosedRange<Int>
+    let suffix: String
+    let accessibilityPrefix: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(title)
+
+            Spacer()
+
+            Button {
+                value = max(value - 1, range.lowerBound)
+            } label: {
+                Image(systemName: "chevron.left")
+            }
+            .buttonStyle(.bordered)
+            .disabled(value <= range.lowerBound)
+            .help("\(title) 줄이기")
+            .accessibilityLabel("\(title) 줄이기")
+            .accessibilityIdentifier("\(accessibilityPrefix).decrement")
+
+            HStack(spacing: 3) {
+                TextField(
+                    title,
+                    value: clampedValue,
+                    format: .number
+                )
+                .labelsHidden()
+                .textFieldStyle(.roundedBorder)
+                .multilineTextAlignment(.center)
+                .monospacedDigit()
+                .frame(width: 72)
+                .accessibilityIdentifier("\(accessibilityPrefix).value")
+
+                if !suffix.isEmpty {
+                    Text(suffix)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Button {
+                value = min(value + 1, range.upperBound)
+            } label: {
+                Image(systemName: "chevron.right")
+            }
+            .buttonStyle(.bordered)
+            .disabled(value >= range.upperBound)
+            .help("\(title) 늘리기")
+            .accessibilityLabel("\(title) 늘리기")
+            .accessibilityIdentifier("\(accessibilityPrefix).increment")
+        }
+    }
+
+    private var clampedValue: Binding<Int> {
+        Binding(
+            get: { value },
+            set: {
+                value = min(max($0, range.lowerBound), range.upperBound)
+            }
+        )
     }
 }
 
@@ -267,6 +629,7 @@ private struct BehaviorStepEditorRow: View {
 struct AutomaticRulesSettingsView: View {
     @ObservedObject var settingsSession: AppSettingsSession
     let petDisplayName: String
+    @StateObject private var applicationCatalog = ApplicationCatalogSession()
     @State private var bundleIdentifier = ""
     @State private var applicationSequenceID = BuiltInBehaviorPresets.defaultSequenceID
     @State private var idleMinutes = 1
@@ -289,27 +652,35 @@ struct AutomaticRulesSettingsView: View {
             }
 
             Section("앱 사용 규칙 추가") {
-                TextField("Bundle identifier (예: com.apple.dt.Xcode)", text: $bundleIdentifier)
-                    .onSubmit(addApplicationRule)
-                    .accessibilityIdentifier("monglepet.settings.bundleIdentifier")
+                ApplicationRuleTargetPicker(
+                    bundleIdentifier: $bundleIdentifier,
+                    applicationCatalog: applicationCatalog,
+                    accessibilityPrefix: "monglepet.settings.newApplicationRule"
+                )
                 sequencePicker("행동 루틴", selection: $applicationSequenceID)
                 Button("앱 규칙 추가", action: addApplicationRule)
+                    .buttonStyle(.borderedProminent)
                     .disabled(bundleIdentifier.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     .accessibilityIdentifier("monglepet.settings.addApplicationRule")
             }
 
-            Section("유휴 규칙 추가") {
-                Stepper(value: $idleMinutes, in: 1...1_440) {
-                    Text("입력이 없었던 시간: \(idleMinutes)분")
-                        .monospacedDigit()
-                }
+            Section("입력 없음 규칙 추가") {
+                HorizontalIntegerAdjuster(
+                    title: "입력이 없었던 시간",
+                    value: $idleMinutes,
+                    range: 1...1_440,
+                    suffix: "분",
+                    accessibilityPrefix:
+                        "monglepet.settings.newIdleRule.idleMinutes"
+                )
                 sequencePicker("행동 루틴", selection: $idleSequenceID)
-                Button("유휴 규칙 추가") {
+                Button("입력 없음 규칙 추가") {
                     settingsSession.addIdleRule(
                         minutes: idleMinutes,
                         sequenceID: idleSequenceID
                     )
                 }
+                .buttonStyle(.borderedProminent)
                 .accessibilityIdentifier("monglepet.settings.addIdleRule")
             }
 
@@ -321,6 +692,7 @@ struct AutomaticRulesSettingsView: View {
                     ForEach(settingsSession.settings.automaticRules) { rule in
                         AutomaticRuleEditorRow(
                             settingsSession: settingsSession,
+                            applicationCatalog: applicationCatalog,
                             rule: rule
                         )
                     }
@@ -336,6 +708,7 @@ struct AutomaticRulesSettingsView: View {
         .formStyle(.grouped)
         .disabled(!settingsSession.isWritingEnabled)
         .onAppear(perform: selectAvailableSequences)
+        .onAppear(perform: applicationCatalog.refresh)
         .onChange(of: settingsSession.settings.sequences.map(\.id)) {
             selectAvailableSequences()
         }
@@ -376,11 +749,18 @@ struct AutomaticRulesSettingsView: View {
 
 private struct AutomaticRuleEditorRow: View {
     @ObservedObject var settingsSession: AppSettingsSession
+    @ObservedObject var applicationCatalog: ApplicationCatalogSession
     let rule: AutomaticRule
     @State private var bundleIdentifier: String
+    @State private var isExpanded = false
 
-    init(settingsSession: AppSettingsSession, rule: AutomaticRule) {
+    init(
+        settingsSession: AppSettingsSession,
+        applicationCatalog: ApplicationCatalogSession,
+        rule: AutomaticRule
+    ) {
         self.settingsSession = settingsSession
+        self.applicationCatalog = applicationCatalog
         self.rule = rule
         if case let .application(bundleIdentifier) = rule.condition {
             _bundleIdentifier = State(initialValue: bundleIdentifier)
@@ -390,49 +770,191 @@ private struct AutomaticRuleEditorRow: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Toggle("활성", isOn: enabledBinding)
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 10) {
+                Toggle("규칙 활성", isOn: enabledBinding)
+                    .labelsHidden()
+                    .help(rule.isEnabled ? "규칙 끄기" : "규칙 켜기")
                     .disabled(isUnsupported)
-                Spacer()
-                Button("삭제", role: .destructive) {
+
+                Button {
+                    isExpanded.toggle()
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: conditionSystemImage)
+                            .foregroundStyle(conditionTint)
+                            .frame(width: 22)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(conditionTitle)
+                                .font(.callout.weight(.semibold))
+                                .foregroundStyle(.primary)
+                                .lineLimit(1)
+                            Text(conditionSubtitle)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                        .layoutPriority(1)
+
+                        Spacer(minLength: 8)
+
+                        Text("우선순위 \(rule.priority)")
+                            .font(.caption)
+                            .foregroundStyle(.primary)
+                            .monospacedDigit()
+                            .fixedSize()
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(.quaternary, in: Capsule())
+
+                        Image(
+                            systemName:
+                                isExpanded ? "chevron.up" : "chevron.down"
+                        )
+                        .foregroundStyle(.secondary)
+                        .frame(width: 12)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .help(isExpanded ? "세부 설정 접기" : "세부 설정 펼치기")
+                .accessibilityLabel(
+                    "\(conditionTitle), "
+                        + (isExpanded ? "세부 설정 접기" : "세부 설정 펼치기")
+                )
+                .accessibilityIdentifier(
+                    "monglepet.settings.rule.\(rule.id.uuidString).expand"
+                )
+
+                Button(role: .destructive) {
                     settingsSession.removeAutomaticRule(id: rule.id)
+                } label: {
+                    Image(systemName: "trash")
                 }
+                .buttonStyle(.plain)
+                .help("규칙 삭제")
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
-            Stepper(value: priorityBinding, in: -10_000...10_000) {
-                Text("우선순위: \(rule.priority)")
-                    .monospacedDigit()
-            }
+            if isExpanded {
+                Divider()
+                    .padding(.vertical, 12)
 
-            Picker("행동 루틴", selection: sequenceIDBinding) {
-                ForEach(settingsSession.settings.sequences) { sequence in
-                    Text(BuiltInBehaviorPresets.displayName(for: sequence.id))
-                        .tag(sequence.id)
+                VStack(alignment: .leading, spacing: 12) {
+                    HorizontalIntegerAdjuster(
+                        title: "우선순위",
+                        value: priorityBinding,
+                        range: -10_000...10_000,
+                        suffix: "",
+                        accessibilityPrefix:
+                            "monglepet.settings.rule."
+                            + "\(rule.id.uuidString).priority"
+                    )
+
+                    Picker("행동 루틴", selection: sequenceIDBinding) {
+                        ForEach(
+                            settingsSession.settings.sequences
+                        ) { sequence in
+                            Text(
+                                BuiltInBehaviorPresets.displayName(
+                                    for: sequence.id
+                                )
+                            )
+                            .tag(sequence.id)
+                        }
+                    }
+
+                    conditionEditor
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-
-            conditionEditor
         }
-        .padding(.vertical, 6)
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(.separator.opacity(0.7), lineWidth: 1)
+        }
+        .padding(.vertical, 4)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("monglepet.settings.rule.\(rule.id.uuidString)")
+    }
+
+    private var conditionTitle: String {
+        switch rule.condition {
+        case let .application(bundleIdentifier):
+            return applicationCatalog.runningApplications.first {
+                $0.bundleIdentifier == bundleIdentifier
+            }?.displayName ?? bundleIdentifier
+        case let .idleAtLeast(milliseconds):
+            return "\(max(Int(milliseconds / 60_000), 1))분 동안 입력 없음"
+        case let .unsupported(type):
+            return "지원하지 않는 조건: \(type)"
+        }
+    }
+
+    private var conditionSubtitle: String {
+        let sequenceName = BuiltInBehaviorPresets.displayName(
+            for: rule.sequenceID
+        )
+
+        switch rule.condition {
+        case let .application(bundleIdentifier):
+            if applicationCatalog.runningApplications.contains(where: {
+                $0.bundleIdentifier == bundleIdentifier
+                    && $0.displayName != bundleIdentifier
+            }) {
+                return "\(bundleIdentifier) · 행동 루틴: \(sequenceName)"
+            }
+            return "행동 루틴: \(sequenceName)"
+        case .idleAtLeast:
+            return "행동 루틴: \(sequenceName)"
+        case .unsupported:
+            return "이 규칙은 실행되지 않습니다."
+        }
+    }
+
+    private var conditionSystemImage: String {
+        switch rule.condition {
+        case .application:
+            "app"
+        case .idleAtLeast:
+            "clock"
+        case .unsupported:
+            "exclamationmark.triangle"
+        }
+    }
+
+    private var conditionTint: Color {
+        if isUnsupported {
+            return .orange
+        }
+        return rule.isEnabled ? .accentColor : .secondary
     }
 
     @ViewBuilder
     private var conditionEditor: some View {
         switch rule.condition {
         case .application:
-            HStack {
-                TextField("Bundle identifier", text: $bundleIdentifier)
-                    .onSubmit(applyBundleIdentifier)
-                Button("적용", action: applyBundleIdentifier)
-            }
-        case let .idleAtLeast(milliseconds):
-            Stepper(value: idleMinutesBinding, in: 1...1_440) {
-                Text("입력이 없었던 시간: \(max(Int(milliseconds / 60_000), 1))분")
-                    .monospacedDigit()
-            }
+            ApplicationRuleTargetPicker(
+                bundleIdentifier: $bundleIdentifier,
+                applicationCatalog: applicationCatalog,
+                accessibilityPrefix:
+                    "monglepet.settings.rule.\(rule.id.uuidString).application",
+                onCommit: { applyBundleIdentifier($0) }
+            )
+        case .idleAtLeast:
+            HorizontalIntegerAdjuster(
+                title: "입력이 없었던 시간",
+                value: idleMinutesBinding,
+                range: 1...1_440,
+                suffix: "분",
+                accessibilityPrefix:
+                    "monglepet.settings.rule.\(rule.id.uuidString).idleMinutes"
+            )
         case let .unsupported(type):
             Text("지원하지 않는 조건: \(type)")
                 .foregroundStyle(.secondary)
@@ -481,10 +1003,10 @@ private struct AutomaticRuleEditorRow: View {
         )
     }
 
-    private func applyBundleIdentifier() {
+    private func applyBundleIdentifier(_ selectedIdentifier: String? = nil) {
         replace(
             condition: .application(
-                bundleIdentifier: bundleIdentifier
+                bundleIdentifier: (selectedIdentifier ?? bundleIdentifier)
                     .trimmingCharacters(in: .whitespacesAndNewlines)
             )
         )

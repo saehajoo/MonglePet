@@ -5,14 +5,17 @@ import SwiftUI
 final class SettingsWindowController {
     private let settingsSession: AppSettingsSession
     private let petLibrarySession: PetLibrarySession
+    private let loginLaunchSettings: LoginLaunchSettings
     private lazy var windowController = makeWindowController()
 
     init(
         settingsSession: AppSettingsSession,
-        petLibrarySession: PetLibrarySession
+        petLibrarySession: PetLibrarySession,
+        loginLaunchSettings: LoginLaunchSettings
     ) {
         self.settingsSession = settingsSession
         self.petLibrarySession = petLibrarySession
+        self.loginLaunchSettings = loginLaunchSettings
     }
 
     var window: NSWindow? {
@@ -20,6 +23,7 @@ final class SettingsWindowController {
     }
 
     func show() {
+        loginLaunchSettings.refresh()
         NSApplication.shared.activate(ignoringOtherApps: true)
         windowController.showWindow(nil)
         windowController.window?.makeKeyAndOrderFront(nil)
@@ -37,7 +41,8 @@ final class SettingsWindowController {
         window.contentViewController = NSHostingController(
             rootView: SettingsView(
                 settingsSession: settingsSession,
-                petLibrarySession: petLibrarySession
+                petLibrarySession: petLibrarySession,
+                loginLaunchSettings: loginLaunchSettings
             )
         )
         window.isReleasedWhenClosed = false

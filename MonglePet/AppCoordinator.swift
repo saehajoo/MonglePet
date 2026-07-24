@@ -4,6 +4,7 @@ import AppKit
 final class AppCoordinator: NSObject {
     private let settingsSession: AppSettingsSession
     private let petLibrarySession: PetLibrarySession
+    private let loginLaunchSettings: LoginLaunchSettings
     private let settingsWindowController: SettingsWindowController
     private let petWindowController: PetWindowController
     private let playbackCoordinator: PetPlaybackCoordinator
@@ -50,9 +51,12 @@ final class AppCoordinator: NSObject {
         )
         self.settingsSession = settingsSession
         self.petLibrarySession = petLibrarySession
+        let loginLaunchSettings = LoginLaunchSettings()
+        self.loginLaunchSettings = loginLaunchSettings
         settingsWindowController = SettingsWindowController(
             settingsSession: settingsSession,
-            petLibrarySession: petLibrarySession
+            petLibrarySession: petLibrarySession,
+            loginLaunchSettings: loginLaunchSettings
         )
         self.petWindowController = petWindowController
         let playbackCoordinator = PetPlaybackCoordinator(

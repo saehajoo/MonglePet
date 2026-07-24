@@ -121,6 +121,8 @@ struct AutomaticRule: Equatable, Sendable {
 - 저장 시 배열 순서를 보존하며 UI에서 순서를 바꾸면 `priority`를 다시 정규화한다.
 - 알 수 없는 조건 `type`은 `.unsupported(type:)`로 문자열을 보존하고 규칙 단위로 비활성화하며 설정 복구 결과에 남긴다.
 - 행동 결정기는 `.unsupported` 조건을 항상 무시한다.
+- 앱 규칙 UI는 실행 중인 일반 앱이나 사용자가 선택한 `.app`에서 bundle identifier를 채울 수 있다. 선택한 앱의 이름·아이콘·경로는 영구 저장하지 않으며 직접 입력은 고급 경로로 유지한다.
+- `.idleAtLeast` 도메인 타입과 `idleAtLeast` 저장 discriminator는 호환성을 위해 유지하되 사용자 화면에는 `입력 없음 규칙`으로 표시한다.
 
 ## 5. 결정 우선순위
 
@@ -237,4 +239,4 @@ schema-v1의 시간 기반 단계는 이전 설정 파일을 읽는 마이그레
 ---
 
 문서 상태: active
-마지막 갱신: 2026-07-22
+마지막 갱신: 2026-07-24

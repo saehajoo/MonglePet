@@ -73,7 +73,8 @@ final class MonglePetTests: XCTestCase {
                 ),
                 installedPackagesProvider: { [] },
                 installationRemover: { _ in }
-            )
+            ),
+            loginLaunchSettings: LoginLaunchSettings()
         )
 
         controller.show()

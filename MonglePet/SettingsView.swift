@@ -5,12 +5,14 @@ import UniformTypeIdentifiers
 struct SettingsView: View {
     @ObservedObject var settingsSession: AppSettingsSession
     @ObservedObject var petLibrarySession: PetLibrarySession
+    @ObservedObject var loginLaunchSettings: LoginLaunchSettings
 
     var body: some View {
         TabView {
             GeneralSettingsView(
                 settingsSession: settingsSession,
-                petLibrarySession: petLibrarySession
+                petLibrarySession: petLibrarySession,
+                loginLaunchSettings: loginLaunchSettings
             )
                 .tabItem {
                     Label("일반", systemImage: "gearshape")
@@ -50,6 +52,7 @@ struct SettingsView: View {
 private struct GeneralSettingsView: View {
     @ObservedObject var settingsSession: AppSettingsSession
     @ObservedObject var petLibrarySession: PetLibrarySession
+    @ObservedObject var loginLaunchSettings: LoginLaunchSettings
     @State private var isConfirmingRemoval = false
     @State private var isConfirmingAnimationRemoval = false
     @State private var isEditingPetDetails = false
@@ -247,18 +250,6 @@ private struct GeneralSettingsView: View {
                 .foregroundStyle(.secondary)
             }
 
-            Section("앱 정보") {
-                LabeledContent(
-                    "버전",
-                    value: MonglePetAppVersion.current.displayText
-                )
-                .accessibilityIdentifier("monglepet.settings.appVersion")
-
-                Text("펫 패키지 호환성은 이 앱 버전을 기준으로 확인합니다.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
             Section("펫 표시") {
                 Toggle("펫 깨우기", isOn: awakeBinding)
                     .accessibilityIdentifier("monglepet.settings.awake")
@@ -378,6 +369,46 @@ private struct GeneralSettingsView: View {
                 }
             }
             .disabled(!settingsSession.isWritingEnabled)
+
+            Section("앱 실행") {
+                Toggle(
+                    "로그인 시 MonglePet 자동 실행",
+                    isOn: loginLaunchBinding
+                )
+                .accessibilityIdentifier(
+                    "monglepet.settings.launchAtLogin"
+                )
+
+                loginLaunchStatusLabel
+
+                if loginLaunchSettings.requiresApproval {
+                    Button("로그인 항목 설정 열기") {
+                        loginLaunchSettings.openSystemSettings()
+                    }
+                    .accessibilityIdentifier(
+                        "monglepet.settings.openLoginItems"
+                    )
+                }
+
+                if let errorMessage = loginLaunchSettings.errorMessage {
+                    noticeLabel(
+                        errorMessage,
+                        systemImage: "xmark.circle.fill"
+                    )
+                }
+            }
+
+            Section("앱 정보") {
+                LabeledContent(
+                    "버전",
+                    value: MonglePetAppVersion.current.displayText
+                )
+                .accessibilityIdentifier("monglepet.settings.appVersion")
+
+                Text("펫 패키지 호환성은 이 앱 버전을 기준으로 확인합니다.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
         .formStyle(.grouped)
         .sheet(
@@ -487,6 +518,14 @@ private struct GeneralSettingsView: View {
             onCompletion: handlePetPackageExportResult
         )
         .onAppear(perform: synchronizePreviewMotion)
+        .onAppear(perform: loginLaunchSettings.refresh)
+        .onReceive(
+            NotificationCenter.default.publisher(
+                for: NSApplication.didBecomeActiveNotification
+            )
+        ) { _ in
+            loginLaunchSettings.refresh()
+        }
         .onChange(of: petLibrarySession.selection) {
             synchronizePreviewMotion()
         }
@@ -575,6 +614,50 @@ private struct GeneralSettingsView: View {
                 settingsSession.setUserPresentation($0 ? .awake : .tuckedAway)
             }
         )
+    }
+
+    private var loginLaunchBinding: Binding<Bool> {
+        Binding(
+            get: { loginLaunchSettings.isRequestedEnabled },
+            set: { loginLaunchSettings.setEnabled($0) }
+        )
+    }
+
+    @ViewBuilder
+    private var loginLaunchStatusLabel: some View {
+        switch loginLaunchSettings.status {
+        case .notRegistered:
+            Text("초기에는 꺼져 있으며 원할 때 직접 켤 수 있습니다.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        case .enabled:
+            Label(
+                "다음 로그인부터 MonglePet이 자동으로 실행됩니다.",
+                systemImage: "checkmark.circle.fill"
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        case .requiresApproval:
+            Label(
+                "macOS 승인이 필요합니다. 로그인 항목 설정에서 MonglePet을 허용해 주세요.",
+                systemImage: "exclamationmark.triangle.fill"
+            )
+            .font(.caption)
+            .foregroundStyle(.orange)
+            .accessibilityIdentifier(
+                "monglepet.settings.loginApprovalRequired"
+            )
+        case .notFound:
+            Label(
+                "아직 로그인 항목 등록 기록이 없습니다. 켜면 새로 등록합니다.",
+                systemImage: "info.circle"
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .accessibilityIdentifier(
+                "monglepet.settings.loginItemUnavailable"
+            )
+        }
     }
 
     private var petSelectionBinding: Binding<PetLibrarySelection> {
@@ -1608,7 +1691,7 @@ private struct PetPackageShareReviewView: View {
                     value: "\(profile.sequences.count)개"
                 )
                 shareInformationRow(
-                    "유휴 자동 규칙",
+                    "입력 없음 자동 규칙",
                     value: "\(profile.automaticRules.count)개"
                 )
                 shareInformationRow(
@@ -3057,6 +3140,20 @@ private struct TransparencyGridView: View {
             builtInDefinition: definition,
             installedPackagesProvider: { [] },
             installationRemover: { _ in }
+        ),
+        loginLaunchSettings: LoginLaunchSettings(
+            service: PreviewLoginLaunchService()
         )
     )
+}
+
+@MainActor
+private final class PreviewLoginLaunchService: LoginLaunchServicing {
+    var status: LoginLaunchStatus {
+        .notRegistered
+    }
+
+    func register() throws {}
+    func unregister() throws {}
+    func openSystemSettings() {}
 }

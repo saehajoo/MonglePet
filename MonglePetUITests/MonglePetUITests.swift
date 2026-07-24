@@ -36,6 +36,9 @@ final class MonglePetUITests: XCTestCase {
             app.descendants(matching: .any)["monglepet.settings.appVersion"].exists
         )
         XCTAssertTrue(
+            app.descendants(matching: .any)["monglepet.settings.launchAtLogin"].exists
+        )
+        XCTAssertTrue(
             app.images["monglepet.settings.petPreview"].exists
         )
         XCTAssertTrue(
@@ -78,6 +81,39 @@ final class MonglePetUITests: XCTestCase {
         XCTAssertTrue(
             app.descendants(matching: .any)["monglepet.settings.pettingMotion"]
                 .exists
+        )
+    }
+
+    @MainActor
+    func testAutomaticRulesOffersApplicationSelectionPaths() throws {
+        let app = XCUIApplication()
+        app.launchArguments.append("--ui-testing-open-settings")
+        app.launch()
+
+        let automaticRulesTab = app.radioButtons["자동 규칙"]
+        XCTAssertTrue(automaticRulesTab.waitForExistence(timeout: 5))
+        automaticRulesTab.click()
+
+        XCTAssertTrue(
+            app.descendants(matching: .any)[
+                "monglepet.settings.newApplicationRule.selectionMenu"
+            ]
+            .waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)[
+                "monglepet.settings.newIdleRule.idleMinutes.increment"
+            ]
+            .exists
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)[
+                "monglepet.settings.newIdleRule.idleMinutes.decrement"
+            ]
+            .exists
+        )
+        XCTAssertTrue(
+            app.buttons["monglepet.settings.addApplicationRule"].exists
         )
     }
 
