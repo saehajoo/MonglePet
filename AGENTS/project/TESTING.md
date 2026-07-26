@@ -98,6 +98,16 @@ UI 테스트는 앱 실행과 접근성 자동화가 가능한 macOS 세션에�
 - Phase 10에서는 독립 실행한 Release 빌드로 마우스 따라가기 2분·정지 1분·자유 이동 2분·대기 1분만 먼저 측정한다.
 - 이동 중 CPU 10% 이상 또는 정지·대기 중 CPU 1~2% 이상이 지속될 때만 Time Profiler 분석과 최적화를 진행한다.
 
+### Phase 10 개인 맥 도구 체인 기준선
+
+- 점검일: 2026-07-26
+- 저장소: `main`, `origin/main`과 동일한 커밋 `4cc9b0de46cecd0472fdd8711fd7d4a3a77abf25`
+- 도구 체인: Xcode 26.6(17F113), Swift 6.3.3, macOS 26.3.1
+- 순수 도메인 테스트는 통과했지만 `MainActor` 객체를 해제하는 XCTest에서 시스템 `libswift_Concurrency`의 `swift::TaskLocal::StopLookupScope` 잘못된 해제가 반복 재현됐다.
+- Address Sanitizer 호출 스택이 알려진 Swift isolated-deinit/task-local 런타임 결함과 일치함을 확인했다. 제품 코드와 테스트에 임시 빈 소멸자 또는 대규모 `Task.detached` 우회를 남기지 않았다.
+- `softwareupdate --list`에서 macOS Tahoe 26.5.2가 확인됐다. 시스템 업데이트와 재시작 후 전체 `MonglePetTests`를 직렬 재실행하고, 통과 전에는 Phase 10 Release·Preview 기준선으로 인정하지 않는다.
+- macOS 26.5.2(25F84) 업데이트 후 같은 Xcode 26.6 환경에서 전체 단위 XCTest 308개가 실행됐고 선택적 로컬 WebP fixture 1개만 건너뛴 채 실패 없이 통과했다. 이전 종료 오류가 재현되지 않아 개인 맥 Release·Preview 자동 검증 기준선으로 인정한다.
+
 ### Phase 1 기준선
 
 - 측정일: 2026-07-21
