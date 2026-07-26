@@ -10,6 +10,7 @@ xcuserdata/
 # Build output
 DerivedData/
 build/
+dist/
 *.xcresult
 
 # Swift Package Manager

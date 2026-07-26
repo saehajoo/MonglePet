@@ -79,10 +79,14 @@ shasum -a 256 MonglePet.dmg
 ## 진행 로그
 
 - 2026-07-26: 개인 Preview ZIP과 공증된 정식 DMG의 목적을 분리하고 Apple Developer Program 준비 전까지 보류하기로 했다.
+- 2026-07-26: 이 맥의 키체인에서 `security find-identity -v -p codesigning` 결과 유효한 코드서명 인증서가 0개임을 확인했다. 실제 Archive·공증은 Developer ID Application 인증서와 팀 준비까지 계속 보류한다.
+- 2026-07-26: Release 구성에 Hardened Runtime을 활성화하고, Developer ID Archive·앱 entitlement 검증·DMG 생성과 서명·`notarytool` 제출·스테이플·Gatekeeper·SHA-256 검증을 한 번에 수행하는 `Scripts/build-notarized-dmg.zsh`를 준비했다.
+- 2026-07-26: 공개 `DISTRIBUTION.md`에 자격 증명을 저장소에 두지 않는 키체인 프로필 방식, 실행 명령, 독립 설치 검증과 버전·빌드 번호 정책을 기록했다.
 
 ## 완료 결과
 
-- Apple Developer Program과 Developer ID Application 인증서 준비 대기
+- 저장소의 DMG 자동화와 Release 보안 설정 준비 완료
+- Apple Developer Program, Developer ID Application 인증서·개인 키, Team ID와 notarytool 키체인 프로필 준비 대기
 
 ## 남은 위험 / 후속 작업
 

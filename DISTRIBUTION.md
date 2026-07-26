@@ -1,0 +1,130 @@
+# MonglePet 배포 가이드
+
+이 문서는 Mac App Store 밖에서 MonglePet Preview를 배포하는 두 경로를
+구분합니다.
+
+- **Preview ZIP**: 미서명·미공증 제한 테스트 파일
+- **Developer ID DMG**: Developer ID로 서명하고 Apple 공증을 완료한 배포 파일
+
+DMG는 설치용 컨테이너일 뿐 앱의 신뢰를 만들지 않습니다. 일반 사용자에게
+DMG를 배포하려면 내부 앱과 최종 DMG의 올바른 서명, Hardened Runtime,
+Apple 공증과 티켓 부착이 모두 필요합니다.
+
+## 버전 정책
+
+- `MARKETING_VERSION`은 사용자에게 보이는 Preview 버전입니다.
+- `CURRENT_PROJECT_VERSION`은 같은 버전 안의 빌드 번호입니다.
+- 테스트나 검토로 코드·설정이 바뀐 새 배포 후보를 만들 때마다 빌드 번호를
+  올립니다.
+- 사용자에게 새 Preview를 게시할 때 변경 범위에 맞춰 SemVer
+  `major.minor.patch`를 올립니다.
+- 두 값이 바뀌면 `MonglePetVersionTests`의 기대값도 같은 커밋에서 갱신합니다.
+- `.monglepet` 패키지 스키마 버전은 앱 마케팅 버전과 별도로 관리합니다.
+
+현재 기준은 `0.1.0 (1)`입니다. 문서와 배포 자동화만 준비하는 동안에는 이
+값을 올리지 않습니다.
+
+## 공통 사전 검증
+
+1. 작업 트리가 깨끗하고 배포할 커밋이 원격 저장소에 푸시됐는지 확인합니다.
+2. 전체 단위 테스트, Debug·Release 빌드와 필요한 UI 테스트를 통과합니다.
+3. 앱의 버전·빌드 번호와 Git 커밋을 기록합니다.
+4. 공개 README, 소스 라이선스, 자산 라이선스와 제3자 고지를 검토합니다.
+
+## 미서명 Preview ZIP
+
+```sh
+Scripts/build-preview-zip.zsh
+```
+
+스크립트는 Release 앱을 코드서명 없이 빌드하고 `dist/`에 다음 파일을
+생성합니다.
+
+- `MonglePet-<version>-build.<build>-preview.zip`
+- 같은 이름의 `.sha256`
+- 버전, 커밋과 빌드 환경을 적은 `.manifest.txt`
+
+오프라인 검증에서 이미 받은 Swift Package 체크아웃을 재사용하려면
+`SOURCE_PACKAGES_DIR`에 Xcode의 `SourcePackages` 디렉터리를 지정할 수
+있습니다.
+
+최종 파일은 별도 위치에서 다시 압축 해제해 버전 표시, 앱 실행, 설정 열기,
+기본 펫 표시를 확인합니다. 미서명 파일은 정식 배포물로 표시하지 않습니다.
+
+## Developer ID DMG
+
+### 사전 조건
+
+- Apple Developer Program 가입
+- 개인 키가 함께 설치된 `Developer ID Application` 인증서
+- Apple Developer Team ID
+- `notarytool` 키체인 프로필
+
+현재 설치된 코드서명 인증서는 다음 명령으로 확인합니다.
+
+```sh
+security find-identity -v -p codesigning
+```
+
+공증 자격 증명은 비밀번호나 API 키를 저장소에 넣지 않고 macOS 키체인에
+저장합니다.
+
+```sh
+xcrun notarytool store-credentials "MonglePet-Notary"
+```
+
+### 생성
+
+```sh
+SIGNING_IDENTITY="Developer ID Application: 이름 (TEAMID)" \
+DEVELOPMENT_TEAM="TEAMID" \
+NOTARY_PROFILE="MonglePet-Notary" \
+Scripts/build-notarized-dmg.zsh
+```
+
+스크립트는 다음 순서로 실행됩니다.
+
+1. Release Archive를 Developer ID Application으로 서명
+2. Hardened Runtime, App Sandbox, 서명과 배포 entitlement 확인
+3. `MonglePet.app`과 `/Applications` 바로가기가 있는 압축 DMG 생성
+4. 최종 DMG 서명
+5. `notarytool submit --wait`로 최종 DMG 제출
+6. 승인된 DMG에 공증 티켓 부착
+7. 코드서명, 티켓, Gatekeeper, DMG 무결성과 SHA-256 확인
+
+완료된 파일과 공증 출력, entitlement 기록은 `dist/`에 남습니다.
+
+## 독립 설치 검증
+
+공증 성공은 실제 설치 흐름 검증을 대신하지 않습니다.
+
+1. GitHub Release 등에 DMG와 SHA-256을 올립니다.
+2. 다른 사용자 계정이나 별도 Mac에서 브라우저로 파일을 다시 받습니다.
+3. quarantine 상태를 유지한 채 DMG를 열고 앱을 `/Applications`로 복사합니다.
+4. 첫 실행, 완전 종료·재실행, 설정 열기, 펫 표시를 확인합니다.
+5. 로그인 시 실행을 켜고 끈 뒤 시스템 로그인 항목과 재로그인 동작을
+   확인합니다.
+
+Gatekeeper 비활성화나 `xattr`로 quarantine을 제거하는 절차는 검증 또는
+사용자 설치 안내에 포함하지 않습니다.
+
+## 수동 검증 명령
+
+```sh
+codesign --verify --deep --strict --verbose=2 MonglePet.app
+codesign -d --entitlements :- MonglePet.app
+spctl --assess --type execute --verbose=4 MonglePet.app
+hdiutil verify MonglePet.dmg
+xcrun stapler validate MonglePet.dmg
+spctl --assess --type open \
+  --context context:primary-signature \
+  --verbose=4 MonglePet.dmg
+shasum -a 256 MonglePet.dmg
+```
+
+공증이 실패하면 출력된 submission ID로 로그를 받아 원인을 확인합니다.
+
+```sh
+xcrun notarytool log <submission-id> \
+  --keychain-profile "MonglePet-Notary"
+```

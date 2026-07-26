@@ -2,7 +2,7 @@
 
 ## 상태
 
-- 상태: planned
+- 상태: in_progress
 - 생성일: 2026-07-24
 - 마지막 갱신: 2026-07-26
 
@@ -60,10 +60,11 @@
 - 2026-07-26: Xcode 26.6(17F113), Swift 6.3.3과 활성 개발자 디렉터리 `/Applications/Xcode.app/Contents/Developer`를 확인했다.
 - 2026-07-26: macOS 26.3.1의 시스템 Swift 런타임에서 알려진 isolated-deinit/task-local XCTest 종료 오류를 재현했다. 설치 가능한 macOS Tahoe 26.5.2로 업데이트한 뒤 전체 단위 테스트를 재실행해야 하므로 1단계는 아직 완료하지 않는다.
 - 2026-07-26: macOS 26.5.2(25F84) 업데이트 후 전체 단위 XCTest 308개가 실행됐고 선택적 로컬 WebP fixture 1개만 건너뛴 채 실패 없이 통과했다. Xcode 26.6 Debug 빌드와 저장소 기준선을 포함해 1단계를 완료했다.
+- 2026-07-26: `Scripts/build-preview-zip.zsh`로 Universal Release 앱을 코드서명 없이 빌드하고 `MonglePet-0.1.0-build.1-preview.zip`, SHA-256과 환경 manifest가 생성·재검증되는 것을 임시 경로에서 확인했다. 이 파일은 배포 준비 검증물이며 최종 공개 산출물은 아니다.
 
 ## 완료 결과
 
-- 계획됨
+- Release Preview ZIP 생성 절차 검증 완료, 최종 깨끗한 커밋과 수동 스모크 테스트 대기
 
 ## 남은 위험 / 후속 작업
 
