@@ -44,6 +44,9 @@ Scripts/build-preview-zip.zsh
 - 같은 이름의 `.sha256`
 - 버전, 커밋과 빌드 환경을 적은 `.manifest.txt`
 
+산출물과 manifest의 커밋이 항상 일치하도록 작업 트리가 깨끗하지 않으면
+스크립트가 중단되며 이를 우회하는 옵션은 제공하지 않습니다.
+
 오프라인 검증에서 이미 받은 Swift Package 체크아웃을 재사용하려면
 `SOURCE_PACKAGES_DIR`에 Xcode의 `SourcePackages` 디렉터리를 지정할 수
 있습니다.

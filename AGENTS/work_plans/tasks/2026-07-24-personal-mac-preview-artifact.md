@@ -37,6 +37,7 @@
 - SHA-256은 코드 서명이 아니라 최종 ZIP의 무결성 체크섬으로 취급한다.
 - 체크섬은 배포할 최종 ZIP이 생성된 뒤 같은 개인 맥에서 만들고, 파일을 다시 계산해 일치 여부를 확인한다.
 - DMG로 감싸는 것만으로 미서명 앱의 Gatekeeper 신뢰 문제가 해결되지는 않는다. 현재 Preview는 ZIP을 유지하고, 공증된 DMG는 Developer ID 준비 후 별도 계획에서 만든다.
+- Preview 생성 스크립트는 깨끗한 작업 트리에서만 실행하며 dirty 상태를 허용하는 우회 옵션을 두지 않는다.
 
 ## 작업 순서
 
@@ -61,6 +62,7 @@
 - 2026-07-26: macOS 26.3.1의 시스템 Swift 런타임에서 알려진 isolated-deinit/task-local XCTest 종료 오류를 재현했다. 설치 가능한 macOS Tahoe 26.5.2로 업데이트한 뒤 전체 단위 테스트를 재실행해야 하므로 1단계는 아직 완료하지 않는다.
 - 2026-07-26: macOS 26.5.2(25F84) 업데이트 후 전체 단위 XCTest 308개가 실행됐고 선택적 로컬 WebP fixture 1개만 건너뛴 채 실패 없이 통과했다. Xcode 26.6 Debug 빌드와 저장소 기준선을 포함해 1단계를 완료했다.
 - 2026-07-26: `Scripts/build-preview-zip.zsh`로 Universal Release 앱을 코드서명 없이 빌드하고 `MonglePet-0.1.0-build.1-preview.zip`, SHA-256과 환경 manifest가 생성·재검증되는 것을 임시 경로에서 확인했다. 이 파일은 배포 준비 검증물이며 최종 공개 산출물은 아니다.
+- 2026-07-27: 다른 맥에서 원격 변경을 별도 작업 트리로 검토해 전체 단위 XCTest 307개 통과·선택 fixture 1개 건너뜀과 Universal Preview ZIP·SHA-256·manifest 생성을 재현했다. dirty 작업 트리 예외는 산출물 출처를 모호하게 만들 수 있어 제거했다.
 
 ## 완료 결과
 

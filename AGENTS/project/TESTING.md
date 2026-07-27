@@ -107,6 +107,7 @@ UI 테스트는 앱 실행과 접근성 자동화가 가능한 macOS 세션에�
 - Address Sanitizer 호출 스택이 알려진 Swift isolated-deinit/task-local 런타임 결함과 일치함을 확인했다. 제품 코드와 테스트에 임시 빈 소멸자 또는 대규모 `Task.detached` 우회를 남기지 않았다.
 - `softwareupdate --list`에서 macOS Tahoe 26.5.2가 확인됐다. 시스템 업데이트와 재시작 후 전체 `MonglePetTests`를 직렬 재실행하고, 통과 전에는 Phase 10 Release·Preview 기준선으로 인정하지 않는다.
 - macOS 26.5.2(25F84) 업데이트 후 같은 Xcode 26.6 환경에서 전체 단위 XCTest 308개가 실행됐고 선택적 로컬 WebP fixture 1개만 건너뛴 채 실패 없이 통과했다. 이전 종료 오류가 재현되지 않아 개인 맥 Release·Preview 자동 검증 기준선으로 인정한다.
+- 2026-07-27 회사 맥의 별도 원격 작업 트리에서 전체 단위 XCTest 307개 통과·선택 fixture 1개 건너뜀, Universal Preview ZIP 생성과 SHA-256·manifest 재검증을 완료했다. Preview 스크립트는 dirty 작업 트리와 이전 `ALLOW_DIRTY=1` 지정 모두에서 빌드 전에 실패하도록 확인했다.
 
 ### Phase 1 기준선
 

@@ -14,10 +14,8 @@ for tool in git xcodebuild ditto shasum; do
     fi
 done
 
-if [[ "${ALLOW_DIRTY:-0}" != "1" ]] &&
-   [[ -n "$(git -C "$repo_root" status --porcelain)" ]]; then
+if [[ -n "$(git -C "$repo_root" status --porcelain)" ]]; then
     print -u2 "작업 트리가 깨끗하지 않습니다. 먼저 변경을 검토하고 커밋하세요."
-    print -u2 "검증 목적이라면 ALLOW_DIRTY=1을 명시할 수 있습니다."
     exit 1
 fi
 
