@@ -33,6 +33,7 @@ MonglePet의 사용자 설정은 SwiftData나 Core Data가 아닌 버전이 지�
     "opacity": 1.0,
     "pointerOverlapFadeEnabled": false,
     "pointerOverlapOpacity": 0.2,
+    "pixelArtRendering": false,
     "movementBoundary": {
       "mode": "allDisplays",
       "screenIdentifier": null,
@@ -87,6 +88,7 @@ MonglePet의 사용자 설정은 SwiftData나 Core Data가 아닌 버전이 지�
 - `opacity`: 평상시 패널 투명도이며 0.10–1.00, 기본값 1.00이다.
 - `pointerOverlapFadeEnabled`: 클릭 통과 중 마우스가 실제 표시 픽셀과 겹칠 때 투명도를 바꿀지 나타내며 기본값은 `false`다.
 - `pointerOverlapOpacity`: 마우스 겹침 상태 투명도이며 0.05–1.00, 기본값 0.20이다.
+- `pixelArtRendering`: 확대·축소 필터를 픽셀 아트에 맞는 nearest 방식으로 표시할지 나타내며 기본값은 `false`다.
 - `movementBoundary`: 모든 화면, 선택 모니터 또는 선택 모니터의 정규화 사용자 영역으로 자동 이동 목표를 제한한다.
 - `behaviorProfiles`: 내장 펫 예약 키 또는 설치 UUID별 행동 설정이며 최대 1,000개다. 같은 키는 한 번만 저장한다.
 - `behaviorProfiles[].mode`: `automatic` 또는 `manual`이다.
@@ -196,7 +198,7 @@ schema-v3의 행동 단계는 schema-v2와 동일하게 `motionID`와 `repeatCou
 
 ## schema-v4 로컬 표시 환경
 
-schema-v4는 전역 overlay에 이동 범위와 투명도 설정을 추가한다. 이동 범위는 설정 UI와 자동 이동에 적용하고, 투명도는 일반 설정 UI와 펫 패널 런타임에 즉시 적용한다.
+schema-v4는 전역 overlay에 이동 범위, 투명도와 선택형 픽셀 아트 표시 설정을 둔다. 이동 범위는 설정 UI와 자동 이동에 적용하고, 표시 설정은 일반 설정 UI와 펫 패널 런타임에 즉시 적용한다.
 
 ```json
 {
@@ -212,6 +214,7 @@ schema-v4는 전역 overlay에 이동 범위와 투명도 설정을 추가한다
     "opacity": 1.0,
     "pointerOverlapFadeEnabled": false,
     "pointerOverlapOpacity": 0.2,
+    "pixelArtRendering": false,
     "movementBoundary": {
       "mode": "allDisplays",
       "screenIdentifier": null,
@@ -227,6 +230,7 @@ schema-v4는 전역 overlay에 이동 범위와 투명도 설정을 추가한다
 - `overlay.opacity`: 평상시 패널 투명도이며 `0.10...1.00`, 기본값 `1.00`이다.
 - `overlay.pointerOverlapFadeEnabled`: 클릭 통과 중 마우스가 실제 표시 픽셀과 겹칠 때 투명도를 바꿀지 나타내며 기본값은 `false`다.
 - `overlay.pointerOverlapOpacity`: 겹침 상태 투명도이며 `0.05...1.00`, 기본값 `0.20`이다. 실제 적용 값은 `opacity`보다 커지지 않는다.
+- `overlay.pixelArtRendering`: `true`이면 nearest 보간으로 픽셀 경계를 선명하게 표시하고, `false`이면 일반 일러스트에 적합한 linear 보간을 사용한다. 기본값과 이전 schema-v4 파일에서 필드가 없을 때의 값은 `false`다.
 - 마우스 겹침 투명화는 클릭 통과, 펫 awake, 화면 사용 가능과 macOS 동작 줄이기 꺼짐 조건을 모두 만족할 때만 포인터를 확인한다. 나머지 상태에서는 감지 timer를 해제하고 기본 투명도를 적용한다.
 - 겹침 판정은 패널 전체가 아니라 현재 애니메이션 프레임의 실제 알파 표시 영역과 종횡비 여백을 기준으로 한다.
 - `overlay.movementBoundary.mode`: `allDisplays`, `selectedDisplay`, `customArea` 중 하나이며 기본값은 `allDisplays`다.
@@ -235,9 +239,9 @@ schema-v4는 전역 overlay에 이동 범위와 투명도 설정을 추가한다
 - 사용자 지정 영역은 펫 전체가 들어갈 수 있는 실제 원점 범위로 축소해 사용한다. 너무 작은 영역은 중앙의 한 원점으로 안전하게 축소한다.
 - 저장된 화면을 찾지 못하면 실행 중에는 모든 사용 가능 화면으로 폴백하되 저장된 화면과 영역 선택을 자동 삭제하지 않는다.
 - 위치 고정에는 `movementBoundary`를 적용하지 않는다. 마우스 따라가기와 자유 이동의 목표 좌표에만 적용한다.
-- 이동 범위와 투명도는 기기별 전역 표시 환경이며 `BehaviorProfile`, `.monglepet`과 `recommended-profile.json`에 포함하지 않는다.
+- 이동 범위, 투명도와 픽셀 아트 표시는 기기별 전역 표시 환경이며 `BehaviorProfile`, `.monglepet`과 `recommended-profile.json`에 포함하지 않는다.
 
-schema-v3에서 v4로 마이그레이션할 때 기존 overlay 값과 모든 펫 프로필을 그대로 유지하고 위 필드의 기본값만 추가한다. 변환과 원자적 저장이 모두 성공한 경우에만 v4 파일로 교체한다.
+schema-v3에서 v4로 마이그레이션할 때 기존 overlay 값과 모든 펫 프로필을 그대로 유지하고 위 필드의 기본값만 추가한다. 기존 schema-v4의 선택 필드 `pixelArtRendering`이 없으면 `false`로 읽고 다음 저장부터 명시한다. 변환과 원자적 저장이 모두 성공한 경우에만 v4 파일로 교체한다.
 
 ## 자동 규칙 조건
 

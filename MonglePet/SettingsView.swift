@@ -303,6 +303,20 @@ private struct GeneralSettingsView: View {
                         .frame(width: 52, alignment: .trailing)
                 }
 
+                Toggle(
+                    "픽셀 아트 선명하게",
+                    isOn: pixelArtRenderingBinding
+                )
+                .accessibilityIdentifier(
+                    "monglepet.settings.pixelArtRendering"
+                )
+
+                Text(
+                    "픽셀 아트의 확대 경계를 또렷하게 표시합니다. 일반 일러스트에서는 계단 현상이 보일 수 있습니다."
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
                 HStack {
                     Text("기본 투명도")
                     Slider(
@@ -692,6 +706,13 @@ private struct GeneralSettingsView: View {
             set: {
                 settingsSession.setOverlayOpacity($0, persist: false)
             }
+        )
+    }
+
+    private var pixelArtRenderingBinding: Binding<Bool> {
+        Binding(
+            get: { settingsSession.settings.overlay.pixelArtRendering },
+            set: { settingsSession.setPixelArtRendering($0) }
         )
     }
 

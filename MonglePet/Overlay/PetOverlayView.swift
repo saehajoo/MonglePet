@@ -61,6 +61,11 @@ final class PetOverlayView: NSView {
         fatalError("init(coder:) has not been implemented")
     }
 
+    func setPixelArtRendering(_ isEnabled: Bool) {
+        layer?.magnificationFilter = isEnabled ? .nearest : .linear
+        layer?.minificationFilter = isEnabled ? .nearest : .linear
+    }
+
     @discardableResult
     func display(_ frame: MotionFrame) -> Bool {
         guard

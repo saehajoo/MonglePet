@@ -48,6 +48,7 @@ nonisolated enum AppSettingsV4Mapper {
                 field: "overlay.pointerOverlapOpacity",
                 issues: &issues
             ),
+            pixelArtRendering: stored.overlay.pixelArtRendering ?? false,
             movementBoundary: movementBoundary
         )
         return (
@@ -100,6 +101,7 @@ nonisolated enum AppSettingsV4Mapper {
                 pointerOverlapFadeEnabled:
                     overlay.pointerOverlapFadeEnabled,
                 pointerOverlapOpacity: overlay.pointerOverlapOpacity,
+                pixelArtRendering: overlay.pixelArtRendering,
                 movementBoundary: storedMovementBoundary(
                     from: overlay.movementBoundary
                 )

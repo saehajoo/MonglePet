@@ -161,6 +161,33 @@ final class MonglePetTests: XCTestCase {
     }
 
     @MainActor
+    func testPetOverlayCanSelectPixelArtRenderingFilter() throws {
+        let image = try makeImage(width: 20, height: 10)
+        let view = try XCTUnwrap(
+            PetOverlayView(
+                atlasID: "main",
+                image: NSImage(
+                    cgImage: image,
+                    size: NSSize(width: 20, height: 10)
+                )
+            )
+        )
+
+        XCTAssertEqual(view.layer?.magnificationFilter, .linear)
+        XCTAssertEqual(view.layer?.minificationFilter, .linear)
+
+        view.setPixelArtRendering(true)
+
+        XCTAssertEqual(view.layer?.magnificationFilter, .nearest)
+        XCTAssertEqual(view.layer?.minificationFilter, .nearest)
+
+        view.setPixelArtRendering(false)
+
+        XCTAssertEqual(view.layer?.magnificationFilter, .linear)
+        XCTAssertEqual(view.layer?.minificationFilter, .linear)
+    }
+
+    @MainActor
     func testPetPresentationResourceLoaderProvidesBuiltInAtlasForPreview() throws {
         let definition = BuiltInPet.mongleDefinition(
             atlasPixelSize: PixelSize(width: 192, height: 208)
@@ -272,7 +299,8 @@ final class MonglePetTests: XCTestCase {
             clickThrough: true,
             opacity: 0.65,
             pointerOverlapFadeEnabled: true,
-            pointerOverlapOpacity: 0.15
+            pointerOverlapOpacity: 0.15,
+            pixelArtRendering: true
         )
 
         controller.applyOverlaySettings(settings, restorePosition: true)
@@ -295,6 +323,7 @@ final class MonglePetTests: XCTestCase {
             0.15,
             accuracy: 0.001
         )
+        XCTAssertTrue(captured.pixelArtRendering)
         XCTAssertEqual(captured.originX, panel.frame.minX, accuracy: 0.001)
         XCTAssertEqual(captured.originY, panel.frame.minY, accuracy: 0.001)
     }

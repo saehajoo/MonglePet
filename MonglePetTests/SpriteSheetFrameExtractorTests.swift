@@ -96,8 +96,13 @@ final class SpriteSheetFrameExtractorTests: XCTestCase {
         let extractor = SpriteSheetFrameExtractor()
         let document = try extractor.load(at: sourceURL)
         XCTAssertTrue(document.hasTransparentBackground)
-        XCTAssertEqual(document.suggestedRegions.count, 2)
-        XCTAssertLessThan(document.suggestedRegions[0].x, document.suggestedRegions[1].x)
+        XCTAssertEqual(
+            document.suggestedRegions,
+            [
+                PixelRect(x: 0, y: 0, width: 32, height: 32),
+                PixelRect(x: 32, y: 0, width: 32, height: 32)
+            ]
+        )
 
         let frames = try extractor.extractFrames(
             from: document,
@@ -131,9 +136,13 @@ final class SpriteSheetFrameExtractorTests: XCTestCase {
 
         let extractor = SpriteSheetFrameExtractor()
         let document = try extractor.load(at: sourceURL)
-        XCTAssertEqual(document.suggestedRegions.count, 2)
-        XCTAssertLessThan(document.suggestedRegions[0].y, 20)
-        XCTAssertGreaterThan(document.suggestedRegions[1].y, 20)
+        XCTAssertEqual(
+            document.suggestedRegions,
+            [
+                PixelRect(x: 0, y: 0, width: 32, height: 20),
+                PixelRect(x: 0, y: 20, width: 32, height: 20)
+            ]
+        )
 
         let frames = try extractor.extractFrames(
             from: document,
@@ -161,6 +170,53 @@ final class SpriteSheetFrameExtractorTests: XCTestCase {
         )
         XCTAssertGreaterThan(pixel(in: processed, x: 16, y: 10).red, 200)
         XCTAssertGreaterThan(pixel(in: processed, x: 16, y: 34).blue, 200)
+    }
+
+    func testAutomaticRegionsPreserveRegularGridCellsWithUnevenContent() throws {
+        let image = try makeImage(
+            width: 96,
+            height: 80,
+            background: .clear,
+            rectangles: [
+                (
+                    PixelRect(x: 5, y: 8, width: 18, height: 21),
+                    SpriteSheetColor(red: 255, green: 0, blue: 0, alpha: 255)
+                ),
+                (
+                    PixelRect(x: 39, y: 5, width: 13, height: 27),
+                    SpriteSheetColor(red: 0, green: 255, blue: 0, alpha: 255)
+                ),
+                (
+                    PixelRect(x: 70, y: 10, width: 20, height: 18),
+                    SpriteSheetColor(red: 0, green: 0, blue: 255, alpha: 255)
+                ),
+                (
+                    PixelRect(x: 7, y: 48, width: 16, height: 23),
+                    SpriteSheetColor(red: 255, green: 255, blue: 0, alpha: 255)
+                ),
+                (
+                    PixelRect(x: 36, y: 50, width: 20, height: 18),
+                    SpriteSheetColor(red: 0, green: 255, blue: 255, alpha: 255)
+                ),
+                (
+                    PixelRect(x: 72, y: 45, width: 15, height: 28),
+                    SpriteSheetColor(red: 255, green: 0, blue: 255, alpha: 255)
+                )
+            ]
+        )
+        let sourceURL = temporaryDirectory.appendingPathComponent("regular-grid.png")
+        try writePNG(image, to: sourceURL)
+
+        let document = try SpriteSheetFrameExtractor().load(at: sourceURL)
+
+        XCTAssertEqual(
+            document.suggestedRegions,
+            try SpriteSheetFrameExtractor().uniformGridRegions(
+                pixelSize: PixelSize(width: 96, height: 80),
+                rows: 2,
+                columns: 3
+            )
+        )
     }
 
     func testBackgroundRemovalIsOptionalAndDoesNotMutateDocument() throws {

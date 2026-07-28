@@ -71,6 +71,8 @@ final class AppSettingsSessionTests: XCTestCase {
         session.setClickThrough(true)
         session.setPointerOverlapFadeEnabled(true)
         session.setPointerOverlapOpacity(2, persist: false)
+        session.setPixelArtRendering(true)
+        session.setOverlayWidth(240, persist: false)
 
         XCTAssertEqual(
             session.settings.overlay.opacity,
@@ -82,6 +84,7 @@ final class AppSettingsSessionTests: XCTestCase {
             session.settings.overlay.pointerOverlapOpacity,
             AppSettingsLimits.maximumPointerOverlapOpacity
         )
+        XCTAssertTrue(session.settings.overlay.pixelArtRendering)
 
         session.persistCurrentSettings()
         let reloaded = AppSettingsStore(settingsURL: settingsURL)

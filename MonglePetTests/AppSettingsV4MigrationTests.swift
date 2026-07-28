@@ -9,6 +9,7 @@ final class AppSettingsV4MigrationTests: XCTestCase {
         )
 
         XCTAssertEqual(migrated.settings.schemaVersion, 4)
+        XCTAssertEqual(migrated.settings.overlay.pixelArtRendering, false)
         XCTAssertEqual(
             migrated.settings.overlay.movementBoundary,
             StoredMovementBoundarySettingsV4(
@@ -40,6 +41,7 @@ final class AppSettingsV4MigrationTests: XCTestCase {
                 originY: 20,
                 width: 192,
                 clickThrough: false,
+                pixelArtRendering: true,
                 movementBoundary: boundary
             ),
             behaviorProfiles: []
@@ -49,7 +51,46 @@ final class AppSettingsV4MigrationTests: XCTestCase {
         let mapped = AppSettingsV4Mapper.domainSettings(from: stored)
 
         XCTAssertEqual(stored.schemaVersion, 4)
+        XCTAssertEqual(stored.overlay.pixelArtRendering, true)
         XCTAssertEqual(mapped.settings, settings)
+        XCTAssertTrue(mapped.issues.isEmpty)
+    }
+
+    func testV4DecoderAcceptsSettingsWithoutPixelArtRendering() throws {
+        let data = try XCTUnwrap(
+            """
+            {
+              "schemaVersion": 4,
+              "selectedPetInstallationID": null,
+              "lastUserPresentation": "awake",
+              "overlay": {
+                "screenIdentifier": null,
+                "originX": 10,
+                "originY": 20,
+                "width": 192,
+                "clickThrough": false,
+                "opacity": 1,
+                "pointerOverlapFadeEnabled": false,
+                "pointerOverlapOpacity": 0.2,
+                "movementBoundary": {
+                  "mode": "allDisplays",
+                  "screenIdentifier": null,
+                  "normalizedRect": null
+                }
+              },
+              "behaviorProfiles": []
+            }
+            """.data(using: .utf8)
+        )
+
+        let stored = try JSONDecoder().decode(
+            StoredAppSettingsV4.self,
+            from: data
+        )
+        let mapped = AppSettingsV4Mapper.domainSettings(from: stored)
+
+        XCTAssertNil(stored.overlay.pixelArtRendering)
+        XCTAssertFalse(mapped.settings.overlay.pixelArtRendering)
         XCTAssertTrue(mapped.issues.isEmpty)
     }
 
@@ -67,6 +108,7 @@ final class AppSettingsV4MigrationTests: XCTestCase {
                 opacity: 1,
                 pointerOverlapFadeEnabled: false,
                 pointerOverlapOpacity: 0.2,
+                pixelArtRendering: nil,
                 movementBoundary: StoredMovementBoundarySettingsV4(
                     mode: "customArea",
                     screenIdentifier: "display-personal",
@@ -87,6 +129,7 @@ final class AppSettingsV4MigrationTests: XCTestCase {
         XCTAssertEqual(mapped.settings.overlay.originX, 10)
         XCTAssertEqual(mapped.settings.overlay.originY, 20)
         XCTAssertTrue(mapped.settings.overlay.clickThrough)
+        XCTAssertFalse(mapped.settings.overlay.pixelArtRendering)
         XCTAssertTrue(
             mapped.issues.contains(
                 .invalidField("overlay.movementBoundary.normalizedRect")
@@ -108,6 +151,7 @@ final class AppSettingsV4MigrationTests: XCTestCase {
                 opacity: 1,
                 pointerOverlapFadeEnabled: false,
                 pointerOverlapOpacity: 0.2,
+                pixelArtRendering: nil,
                 movementBoundary: StoredMovementBoundarySettingsV4(
                     mode: "selectedDisplay",
                     screenIdentifier: "display-disconnected",

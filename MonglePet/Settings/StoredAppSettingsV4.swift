@@ -17,6 +17,7 @@ nonisolated struct StoredOverlaySettingsV4: Codable, Equatable, Sendable {
     let opacity: Double
     let pointerOverlapFadeEnabled: Bool
     let pointerOverlapOpacity: Double
+    let pixelArtRendering: Bool?
     let movementBoundary: StoredMovementBoundarySettingsV4
 }
 
@@ -66,6 +67,7 @@ nonisolated enum AppSettingsV3ToV4Migrator {
                     pointerOverlapFadeEnabled: false,
                     pointerOverlapOpacity:
                         AppSettingsLimits.defaultPointerOverlapOpacity,
+                    pixelArtRendering: false,
                     movementBoundary: StoredMovementBoundarySettingsV4(
                         mode: "allDisplays",
                         screenIdentifier: nil,

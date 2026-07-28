@@ -220,6 +220,7 @@ nonisolated struct OverlaySettings: Equatable, Sendable {
     let opacity: Double
     let pointerOverlapFadeEnabled: Bool
     let pointerOverlapOpacity: Double
+    let pixelArtRendering: Bool
     let movementBoundary: MovementBoundarySettings
 
     init(
@@ -232,6 +233,7 @@ nonisolated struct OverlaySettings: Equatable, Sendable {
         pointerOverlapFadeEnabled: Bool = false,
         pointerOverlapOpacity: Double =
             AppSettingsLimits.defaultPointerOverlapOpacity,
+        pixelArtRendering: Bool = false,
         movementBoundary: MovementBoundarySettings = .default
     ) {
         self.screenIdentifier = screenIdentifier
@@ -242,6 +244,7 @@ nonisolated struct OverlaySettings: Equatable, Sendable {
         self.opacity = opacity
         self.pointerOverlapFadeEnabled = pointerOverlapFadeEnabled
         self.pointerOverlapOpacity = pointerOverlapOpacity
+        self.pixelArtRendering = pixelArtRendering
         self.movementBoundary = movementBoundary
     }
 
@@ -254,6 +257,7 @@ nonisolated struct OverlaySettings: Equatable, Sendable {
         opacity: AppSettingsLimits.defaultOverlayOpacity,
         pointerOverlapFadeEnabled: false,
         pointerOverlapOpacity: AppSettingsLimits.defaultPointerOverlapOpacity,
+        pixelArtRendering: false,
         movementBoundary: .default
     )
 }

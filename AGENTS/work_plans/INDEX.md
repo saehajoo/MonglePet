@@ -8,6 +8,7 @@
 
 | 상태 | 작업명 | 파일 | 마지막 갱신 |
 | --- | --- | --- | --- |
+| in_progress | 스프라이트 시트 애니메이션 가져오기 | `tasks/2026-07-27-sprite-sheet-animation-import.md` | 2026-07-28 |
 | in_progress | Phase 10 공개 준비와 이동 성능 보완 | `tasks/2026-07-24-phase-10-release-preparation.md` | 2026-07-26 |
 | in_progress | 개인 맥 Preview 배포 파일 생성 | `tasks/2026-07-24-personal-mac-preview-artifact.md` | 2026-07-26 |
 | in_progress | 자동 규칙 앱 선택기 | `tasks/2026-07-24-application-rule-picker.md` | 2026-07-24 |
@@ -27,7 +28,6 @@
 
 | 상태 | 작업명 | 파일 | 완료일 |
 | --- | --- | --- | --- |
-| completed | 스프라이트 시트 애니메이션 가져오기 | `tasks/2026-07-27-sprite-sheet-animation-import.md` | 2026-07-28 |
 | completed | Phase 9B 다중 모니터·표시·호환성 보완 | `tasks/2026-07-23-phase-9b-display-and-compatibility.md` | 2026-07-23 |
 | completed | Phase 9A 공유 권장 프로필 | `tasks/2026-07-23-phase-9a-shared-pet-profile.md` | 2026-07-23 |
 | completed | Phase 9 펫 이동 모드와 상호작용 | `tasks/2026-07-22-phase-9-cursor-following.md` | 2026-07-23 |

@@ -346,6 +346,7 @@ final class AppSettingsSession: ObservableObject {
                     settings.overlay.pointerOverlapFadeEnabled,
                 pointerOverlapOpacity:
                     settings.overlay.pointerOverlapOpacity,
+                pixelArtRendering: settings.overlay.pixelArtRendering,
                 movementBoundary: settings.overlay.movementBoundary
             ),
             persist: persist
@@ -365,6 +366,7 @@ final class AppSettingsSession: ObservableObject {
                     settings.overlay.pointerOverlapFadeEnabled,
                 pointerOverlapOpacity:
                     settings.overlay.pointerOverlapOpacity,
+                pixelArtRendering: settings.overlay.pixelArtRendering,
                 movementBoundary: settings.overlay.movementBoundary
             )
         )
@@ -387,6 +389,7 @@ final class AppSettingsSession: ObservableObject {
                     settings.overlay.pointerOverlapFadeEnabled,
                 pointerOverlapOpacity:
                     settings.overlay.pointerOverlapOpacity,
+                pixelArtRendering: settings.overlay.pixelArtRendering,
                 movementBoundary: settings.overlay.movementBoundary
             ),
             persist: persist
@@ -405,6 +408,7 @@ final class AppSettingsSession: ObservableObject {
                 pointerOverlapFadeEnabled: isEnabled,
                 pointerOverlapOpacity:
                     settings.overlay.pointerOverlapOpacity,
+                pixelArtRendering: settings.overlay.pixelArtRendering,
                 movementBoundary: settings.overlay.movementBoundary
             )
         )
@@ -429,6 +433,7 @@ final class AppSettingsSession: ObservableObject {
                 pointerOverlapFadeEnabled:
                     settings.overlay.pointerOverlapFadeEnabled,
                 pointerOverlapOpacity: normalizedOpacity,
+                pixelArtRendering: settings.overlay.pixelArtRendering,
                 movementBoundary: settings.overlay.movementBoundary
             ),
             persist: persist
@@ -454,6 +459,7 @@ final class AppSettingsSession: ObservableObject {
                     settings.overlay.pointerOverlapFadeEnabled,
                 pointerOverlapOpacity:
                     settings.overlay.pointerOverlapOpacity,
+                pixelArtRendering: settings.overlay.pixelArtRendering,
                 movementBoundary: movementBoundary
             ),
             persist: persist
@@ -462,6 +468,25 @@ final class AppSettingsSession: ObservableObject {
 
     func setOverlayGeometry(_ overlay: OverlaySettings) {
         replaceOverlay(overlay)
+    }
+
+    func setPixelArtRendering(_ isEnabled: Bool) {
+        replaceOverlay(
+            OverlaySettings(
+                screenIdentifier: settings.overlay.screenIdentifier,
+                originX: settings.overlay.originX,
+                originY: settings.overlay.originY,
+                width: settings.overlay.width,
+                clickThrough: settings.overlay.clickThrough,
+                opacity: settings.overlay.opacity,
+                pointerOverlapFadeEnabled:
+                    settings.overlay.pointerOverlapFadeEnabled,
+                pointerOverlapOpacity:
+                    settings.overlay.pointerOverlapOpacity,
+                pixelArtRendering: isEnabled,
+                movementBoundary: settings.overlay.movementBoundary
+            )
+        )
     }
 
     func synchronizeOverlayGeometry(_ overlay: OverlaySettings) {

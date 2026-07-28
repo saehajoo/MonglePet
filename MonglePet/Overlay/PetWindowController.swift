@@ -368,6 +368,7 @@ final class PetWindowController: NSWindowController {
             NSSize(width: width, height: width * contentAspectRatio)
         )
         panel.ignoresMouseEvents = settings.clickThrough
+        petOverlayView.setPixelArtRendering(settings.pixelArtRendering)
         pointerOverlapLifecycle.setSettings(settings)
 
         if restorePosition {
@@ -410,6 +411,7 @@ final class PetWindowController: NSWindowController {
                 appliedOverlaySettings.pointerOverlapFadeEnabled,
             pointerOverlapOpacity:
                 appliedOverlaySettings.pointerOverlapOpacity,
+            pixelArtRendering: appliedOverlaySettings.pixelArtRendering,
             movementBoundary: appliedOverlaySettings.movementBoundary
         )
     }

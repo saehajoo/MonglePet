@@ -303,10 +303,11 @@ nonisolated struct SpriteSheetFrameExtractor {
             threshold: max(1, width / 512),
             bridge: max(1, height / 256)
         )
-        let padding = max(1, min(width, height) / 128)
         let pixelSize = PixelSize(width: width, height: height)
-        let candidates = rows.flatMap { row in
-            columns.compactMap { column -> PixelRect? in
+        let columnCells = cellRanges(around: columns, length: width)
+        let rowCells = cellRanges(around: rows, length: height)
+        let candidates = rows.enumerated().flatMap { rowIndex, row in
+            columns.enumerated().compactMap { columnIndex, column -> PixelRect? in
                 let raw = PixelRect(
                     x: column.lowerBound,
                     y: row.lowerBound,
@@ -321,7 +322,15 @@ nonisolated struct SpriteSheetFrameExtractor {
                 guard foregroundCount >= max(1, raw.width * raw.height / 1_000) else {
                     return nil
                 }
-                return expanded(raw, by: padding, in: pixelSize)
+                let columnCell = columnCells[columnIndex]
+                let rowCell = rowCells[rowIndex]
+                let cell = PixelRect(
+                    x: columnCell.lowerBound,
+                    y: rowCell.lowerBound,
+                    width: columnCell.count,
+                    height: rowCell.count
+                )
+                return cell.isContained(in: pixelSize) ? cell : nil
             }
         }
         if candidates.count > 1, candidates.count <= limits.maximumFrameCount {
@@ -370,6 +379,54 @@ nonisolated struct SpriteSheetFrameExtractor {
         return result
     }
 
+    private func cellRanges(
+        around contentRuns: [Range<Int>],
+        length: Int
+    ) -> [Range<Int>] {
+        guard !contentRuns.isEmpty, length > 0 else {
+            return []
+        }
+        guard contentRuns.count > 1 else {
+            return [0..<length]
+        }
+
+        if contentRuns.enumerated().allSatisfy({ index, run in
+            let expectedCenter = Double(2 * index + 1) * Double(length)
+                / Double(contentRuns.count * 2)
+            let actualCenter = Double(run.lowerBound + run.upperBound) / 2
+            let cellLength = Double(length) / Double(contentRuns.count)
+            return abs(actualCenter - expectedCenter) <= cellLength * 0.25
+        }) {
+            return contentRuns.indices.map { index in
+                let lowerBound = length * index / contentRuns.count
+                let upperBound = length * (index + 1) / contentRuns.count
+                return lowerBound..<upperBound
+            }
+        }
+
+        var boundaries = [0]
+        for index in 0..<(contentRuns.count - 1) {
+            let leftCenter = Double(
+                contentRuns[index].lowerBound + contentRuns[index].upperBound
+            ) / 2
+            let rightCenter = Double(
+                contentRuns[index + 1].lowerBound
+                    + contentRuns[index + 1].upperBound
+            ) / 2
+            let boundary = Int(((leftCenter + rightCenter) / 2).rounded())
+            boundaries.append(
+                min(length, max(boundaries.last ?? 0, boundary))
+            )
+        }
+        boundaries.append(length)
+
+        return boundaries.indices.dropLast().compactMap { index in
+            let lowerBound = boundaries[index]
+            let upperBound = boundaries[index + 1]
+            return lowerBound < upperBound ? lowerBound..<upperBound : nil
+        }
+    }
+
     private func foregroundCount(
         mask: [Bool],
         imageWidth: Int,
@@ -384,22 +441,6 @@ nonisolated struct SpriteSheetFrameExtractor {
         return count
     }
 
-    private func expanded(
-        _ rect: PixelRect,
-        by padding: Int,
-        in pixelSize: PixelSize
-    ) -> PixelRect {
-        let left = max(0, rect.x - padding)
-        let top = max(0, rect.y - padding)
-        let right = min(pixelSize.width, rect.x + rect.width + padding)
-        let bottom = min(pixelSize.height, rect.y + rect.height + padding)
-        return PixelRect(
-            x: left,
-            y: top,
-            width: right - left,
-            height: bottom - top
-        )
-    }
 }
 
 private nonisolated struct PixelBuffer {

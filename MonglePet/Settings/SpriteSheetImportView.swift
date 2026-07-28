@@ -129,6 +129,7 @@ struct SpriteSheetImportView: View {
             GroupBox("배경") {
                 VStack(alignment: .leading, spacing: 10) {
                     Toggle("선택한 배경색 제거", isOn: $removesBackground)
+                        .disabled(document.hasTransparentBackground)
                         .onChange(of: removesBackground) {
                             refreshPreview()
                         }
@@ -138,7 +139,7 @@ struct SpriteSheetImportView: View {
                         selection: backgroundColorBinding,
                         supportsOpacity: false
                     )
-                    .disabled(!removesBackground)
+                    .disabled(!removesBackground || document.hasTransparentBackground)
 
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
@@ -158,14 +159,18 @@ struct SpriteSheetImportView: View {
                             }
                         )
                     }
-                    .disabled(!removesBackground)
+                    .disabled(!removesBackground || document.hasTransparentBackground)
 
                     Button("배경 미리보기 갱신") {
                         refreshPreview()
                     }
-                    .disabled(!removesBackground)
+                    .disabled(!removesBackground || document.hasTransparentBackground)
 
-                    Text("배경 제거는 원본을 바꾸지 않으며, 가져오는 프레임에만 적용됩니다.")
+                    Text(
+                        document.hasTransparentBackground
+                            ? "이미 투명한 입력은 원본 알파를 보존하며 추가 배경 제거를 적용하지 않습니다."
+                            : "배경 제거는 원본을 바꾸지 않으며, 가져오는 프레임에만 적용됩니다."
+                    )
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -173,7 +178,10 @@ struct SpriteSheetImportView: View {
             }
 
             if document.hasTransparentBackground {
-                Label("이미 투명 배경이 감지되었습니다.", systemImage: "checkmark.circle")
+                Label(
+                    "투명 배경을 감지해 원본 가장자리 픽셀을 보존합니다.",
+                    systemImage: "checkmark.circle"
+                )
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -280,7 +288,7 @@ struct SpriteSheetImportView: View {
     }
 
     private var backgroundRemoval: SpriteSheetBackgroundRemoval? {
-        guard removesBackground else {
+        guard removesBackground, !document.hasTransparentBackground else {
             return nil
         }
         return SpriteSheetBackgroundRemoval(
