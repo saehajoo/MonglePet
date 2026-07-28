@@ -20,32 +20,58 @@ final class MonglePetUITests: XCTestCase {
 
         XCTAssertTrue(app.windows["MonglePet 설정"].waitForExistence(timeout: 5))
         XCTAssertTrue(
+            app.images["monglepet.settings.petPreview"]
+                .waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)["monglepet.settings.petAnimations"]
+                .exists
+        )
+
+        scrollPetTab(in: app, by: -280)
+
+        XCTAssertTrue(
+            app.buttons["monglepet.settings.importPackage"]
+                .waitForExistence(timeout: 5)
+        )
+        XCTAssertEqual(
+            app.buttons["monglepet.settings.importPackage"].label,
+            "패키지 가져오기"
+        )
+        XCTAssertTrue(
+            app.buttons["monglepet.settings.createUserPet"].exists
+        )
+        XCTAssertFalse(
+            app.buttons["monglepet.settings.createEditablePetCopy"].exists
+        )
+
+        let generalTab = app.radioButtons["일반"]
+        XCTAssertTrue(generalTab.exists)
+        generalTab.click()
+
+        XCTAssertTrue(
             app.descendants(matching: .any)["monglepet.settings.awake"]
                 .waitForExistence(timeout: 5)
         )
         XCTAssertTrue(
-            app.descendants(matching: .any)["monglepet.settings.behaviorMode"].exists
+            app.descendants(matching: .any)["monglepet.settings.behaviorMode"]
+                .exists
         )
         XCTAssertTrue(
-            app.descendants(matching: .any)["monglepet.settings.overlayWidth"].exists
+            app.descendants(matching: .any)["monglepet.settings.overlayWidth"]
+                .exists
         )
         XCTAssertTrue(
-            app.descendants(matching: .any)["monglepet.settings.clickThrough"].exists
+            app.descendants(matching: .any)["monglepet.settings.clickThrough"]
+                .exists
         )
         XCTAssertTrue(
-            app.descendants(matching: .any)["monglepet.settings.appVersion"].exists
+            app.descendants(matching: .any)["monglepet.settings.appVersion"]
+                .exists
         )
         XCTAssertTrue(
-            app.descendants(matching: .any)["monglepet.settings.launchAtLogin"].exists
-        )
-        XCTAssertTrue(
-            app.images["monglepet.settings.petPreview"].exists
-        )
-        XCTAssertTrue(
-            app.descendants(matching: .any)["monglepet.settings.petAnimations"].exists
-        )
-        XCTAssertFalse(
-            app.buttons["monglepet.settings.createEditablePetCopy"].exists
+            app.descendants(matching: .any)["monglepet.settings.launchAtLogin"]
+                .exists
         )
     }
 
@@ -123,8 +149,11 @@ final class MonglePetUITests: XCTestCase {
         app.launchArguments.append("--ui-testing-open-settings")
         app.launch()
 
+        scrollPetTab(in: app, by: -280)
+
         let createButton = app.buttons["monglepet.settings.createUserPet"]
         XCTAssertTrue(createButton.waitForExistence(timeout: 5))
+        XCTAssertEqual(createButton.label, "새 펫 만들기")
         createButton.click()
 
         XCTAssertTrue(
@@ -136,10 +165,26 @@ final class MonglePetUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["monglepet.userPet.license"].exists)
         XCTAssertTrue(app.descendants(matching: .any)["monglepet.userPet.description"].exists)
 
-        let choosePNGsButton = app.buttons["monglepet.userPet.choosePNGs"]
-        XCTAssertTrue(choosePNGsButton.waitForExistence(timeout: 5))
-        XCTAssertEqual(choosePNGsButton.label, "PNG 선택…")
-        XCTAssertTrue(choosePNGsButton.isHittable)
+        let frameImportMenu = app.descendants(matching: .any)[
+            "monglepet.userPet.frameImportMenu"
+        ]
+        XCTAssertTrue(frameImportMenu.waitForExistence(timeout: 5))
+        frameImportMenu.click()
+
+        let choosePNGsMenuItem = app.menuItems["개별 PNG 추가…"]
+        XCTAssertTrue(choosePNGsMenuItem.waitForExistence(timeout: 5))
+        XCTAssertTrue(choosePNGsMenuItem.isHittable)
+        app.typeKey(.escape, modifierFlags: [])
         XCTAssertTrue(app.buttons["monglepet.userPet.save"].exists)
+    }
+
+    @MainActor
+    private func scrollPetTab(
+        in app: XCUIApplication,
+        by deltaY: CGFloat
+    ) {
+        let scrollView = app.scrollViews.firstMatch
+        XCTAssertTrue(scrollView.waitForExistence(timeout: 5))
+        scrollView.scroll(byDeltaX: 0, deltaY: deltaY)
     }
 }

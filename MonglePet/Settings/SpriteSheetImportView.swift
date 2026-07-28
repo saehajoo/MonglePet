@@ -83,9 +83,29 @@ struct SpriteSheetImportView: View {
                 Text("프레임 경계")
                     .font(.headline)
                 Spacer()
+                ControlGroup {
+                    Button("전체 선택") {
+                        setAllRegionsSelected(true)
+                    }
+                    .disabled(regions.allSatisfy(\.isSelected))
+                    .accessibilityIdentifier(
+                        "monglepet.spriteSheet.selectAll"
+                    )
+
+                    Button("전체 해제") {
+                        setAllRegionsSelected(false)
+                    }
+                    .disabled(regions.allSatisfy { !$0.isSelected })
+                    .accessibilityIdentifier(
+                        "monglepet.spriteSheet.deselectAll"
+                    )
+                }
+                .controlSize(.small)
+
                 Text("\(selectedRegions.count)개 선택")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .monospacedDigit()
             }
 
             SpriteSheetRegionPreview(
@@ -272,6 +292,12 @@ struct SpriteSheetImportView: View {
             errorMessage = nil
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+
+    private func setAllRegionsSelected(_ isSelected: Bool) {
+        for index in regions.indices {
+            regions[index].isSelected = isSelected
         }
     }
 

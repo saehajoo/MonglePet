@@ -9,9 +9,16 @@ struct SettingsView: View {
 
     var body: some View {
         TabView {
+            PetSettingsView(
+                settingsSession: settingsSession,
+                petLibrarySession: petLibrarySession
+            )
+                .tabItem {
+                    Label("펫", systemImage: "pawprint")
+                }
+
             GeneralSettingsView(
                 settingsSession: settingsSession,
-                petLibrarySession: petLibrarySession,
                 loginLaunchSettings: loginLaunchSettings
             )
                 .tabItem {
@@ -49,10 +56,9 @@ struct SettingsView: View {
     }
 }
 
-private struct GeneralSettingsView: View {
+private struct PetSettingsView: View {
     @ObservedObject var settingsSession: AppSettingsSession
     @ObservedObject var petLibrarySession: PetLibrarySession
-    @ObservedObject var loginLaunchSettings: LoginLaunchSettings
     @State private var isConfirmingRemoval = false
     @State private var isConfirmingAnimationRemoval = false
     @State private var isEditingPetDetails = false
@@ -88,7 +94,7 @@ private struct GeneralSettingsView: View {
                 )
             }
 
-            Section("펫 라이브러리") {
+            Section("현재 펫") {
                 Picker("현재 펫", selection: petSelectionBinding) {
                     ForEach(petLibrarySession.items) { item in
                         Text(item.metadata.displayName)
@@ -102,11 +108,19 @@ private struct GeneralSettingsView: View {
                         item: petLibrarySession.selectedItem,
                         motionID: effectivePreviewMotionID
                     )
-                    .frame(width: 176, height: 176)
-                    .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 12))
+                    .frame(width: 160, height: 160)
+                    .background(
+                        .quaternary.opacity(0.35),
+                        in: RoundedRectangle(cornerRadius: 12)
+                    )
                     .accessibilityLabel("현재 펫 애니메이션 미리보기")
 
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text(
+                            petLibrarySession.selectedItem.metadata.displayName
+                        )
+                        .font(.title3.weight(.semibold))
+
                         LabeledContent(
                             "버전",
                             value: petLibrarySession.selectedItem.metadata.version
@@ -122,306 +136,258 @@ private struct GeneralSettingsView: View {
                         if let description = petLibrarySession.selectedItem.metadata.description {
                             LabeledContent("설명", value: description)
                         }
-
-                        Text("등록된 애니메이션")
-                            .font(.headline)
-
-                        List(selection: $previewMotionID) {
-                            ForEach(petLibrarySession.selectedItem.definition.motions) { motion in
-                                HStack {
-                                    Text(motion.id)
-                                    Spacer()
-                                    if motion.id
-                                        == petLibrarySession.selectedItem.definition.defaultMotionID {
-                                        Text("기본")
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                }
-                                .tag(motion.id)
-                            }
-                        }
-                        .frame(minHeight: 96, maxHeight: 132)
-                        .accessibilityIdentifier("monglepet.settings.petAnimations")
-
-                        if let motion = selectedPreviewMotion {
-                            Text(motionSummary(motion))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .monospacedDigit()
-                                .accessibilityIdentifier(
-                                    "monglepet.settings.petAnimationSummary"
-                                )
-                        }
-
-                        if petLibrarySession.selectedItem.isEditable,
-                           let motion = selectedPreviewMotion {
-                            HStack {
-                                Button("애니메이션 수정…") {
-                                    editingAnimation = motion
-                                }
-                                .disabled(petLibrarySession.isImporting)
-                                .accessibilityIdentifier(
-                                    "monglepet.settings.editPetAnimation"
-                                )
-
-                                Button("애니메이션 삭제…", role: .destructive) {
-                                    isConfirmingAnimationRemoval = true
-                                }
-                                .disabled(
-                                    !canDeleteSelectedAnimation
-                                        || petLibrarySession.isImporting
-                                )
-                                .help(animationDeletionHelp)
-                                .accessibilityIdentifier(
-                                    "monglepet.settings.removePetAnimation"
-                                )
-                            }
-                        }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
+            }
 
-                HStack {
-                    Button("PNG로 새 펫 만들기…") {
-                        userPetEditorMode = .create
+            Section("애니메이션") {
+                List(selection: $previewMotionID) {
+                    ForEach(
+                        petLibrarySession.selectedItem.definition.motions
+                    ) { motion in
+                        HStack {
+                            Text(motion.id)
+                            Spacer()
+                            if motion.id
+                                == petLibrarySession.selectedItem.definition
+                                    .defaultMotionID {
+                                Text("기본")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .tag(motion.id)
                     }
-                    .disabled(petLibrarySession.isImporting)
-                    .accessibilityIdentifier("monglepet.settings.createUserPet")
+                }
+                .frame(minHeight: 112, maxHeight: 160)
+                .accessibilityIdentifier("monglepet.settings.petAnimations")
 
-                    if petLibrarySession.selectedItem.isEditable {
-                        Button("펫 정보 수정…") {
-                            isEditingPetDetails = true
-                        }
-                        .disabled(petLibrarySession.isImporting)
-                        .accessibilityIdentifier("monglepet.settings.editPetDetails")
-
-                        Button("펫 애니메이션 추가…") {
-                            userPetEditorMode = .addAnimation
-                        }
-                        .disabled(petLibrarySession.isImporting)
-                        .accessibilityIdentifier("monglepet.settings.addPetAnimation")
-                    } else if !petLibrarySession.selectedItem.isBuiltIn {
-                        Button("편집 가능한 사본 만들기…") {
-                            isCreatingEditableCopy = true
-                        }
-                        .disabled(petLibrarySession.isImporting)
-                        .accessibilityIdentifier(
-                            "monglepet.settings.createEditablePetCopy"
-                        )
+                if let motion = selectedPreviewMotion {
+                    LabeledContent("선택한 애니메이션") {
+                        Text(motionSummary(motion))
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                            .accessibilityIdentifier(
+                                "monglepet.settings.petAnimationSummary"
+                            )
                     }
                 }
 
-                HStack {
-                    Button("MonglePet 패키지 가져오기…") {
+                if petLibrarySession.selectedItem.isEditable {
+                    LazyVGrid(
+                        columns: [
+                            GridItem(.adaptive(minimum: 160), spacing: 8)
+                        ],
+                        alignment: .leading,
+                        spacing: 8
+                    ) {
+                        Button {
+                            userPetEditorMode = .addAnimation
+                        } label: {
+                            Label(
+                                "애니메이션 추가",
+                                systemImage: "photo.badge.plus"
+                            )
+                            .frame(
+                                maxWidth: .infinity,
+                                alignment: .leading
+                            )
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(petLibrarySession.isImporting)
+                        .accessibilityIdentifier(
+                            "monglepet.settings.addPetAnimation"
+                        )
+
+                        Button {
+                            editingAnimation = selectedPreviewMotion
+                        } label: {
+                            Label(
+                                "애니메이션 수정",
+                                systemImage: "slider.horizontal.3"
+                            )
+                            .frame(
+                                maxWidth: .infinity,
+                                alignment: .leading
+                            )
+                        }
+                        .disabled(
+                            selectedPreviewMotion == nil
+                                || petLibrarySession.isImporting
+                        )
+                        .accessibilityIdentifier(
+                            "monglepet.settings.editPetAnimation"
+                        )
+
+                        Button(role: .destructive) {
+                            isConfirmingAnimationRemoval = true
+                        } label: {
+                            Label(
+                                "애니메이션 삭제",
+                                systemImage: "trash"
+                            )
+                            .frame(
+                                maxWidth: .infinity,
+                                alignment: .leading
+                            )
+                        }
+                        .disabled(
+                            !canDeleteSelectedAnimation
+                                || petLibrarySession.isImporting
+                        )
+                        .help(animationDeletionHelp)
+                        .accessibilityIdentifier(
+                            "monglepet.settings.removePetAnimation"
+                        )
+                    }
+                } else {
+                    Label(
+                        petLibrarySession.selectedItem.isBuiltIn
+                            ? "내장 몽글이의 애니메이션은 직접 편집할 수 없습니다."
+                            : "가져온 펫을 편집하려면 편집 가능한 사본을 만들어야 합니다.",
+                        systemImage: "lock"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+            }
+
+            Section("MonglePet 패키지") {
+                Text(
+                    ".monglepet 형식으로 펫 정보와 애니메이션을 가져오거나 공유합니다."
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+                LazyVGrid(
+                    columns: [
+                        GridItem(.adaptive(minimum: 180), spacing: 8)
+                    ],
+                    alignment: .leading,
+                    spacing: 8
+                ) {
+                    Button {
                         choosePetPackage()
+                    } label: {
+                        Label(
+                            "패키지 가져오기",
+                            systemImage: "square.and.arrow.down"
+                        )
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .disabled(isPetLibraryBusy)
-                    .accessibilityIdentifier("monglepet.settings.importPackage")
+                    .accessibilityIdentifier(
+                        "monglepet.settings.importPackage"
+                    )
 
                     if !petLibrarySession.selectedItem.isBuiltIn {
-                        Button("선택한 펫 내보내기…") {
+                        Button {
                             shareReview = petLibrarySession
                                 .reviewSelectedPetForSharing(
                                     behaviorProfile:
                                         settingsSession.settings
                                             .activeBehaviorProfile
                                 )
-                        }
-                        .disabled(isPetLibraryBusy)
-                        .accessibilityIdentifier("monglepet.settings.exportPackage")
-
-                        Button("선택한 펫 삭제…", role: .destructive) {
-                            isConfirmingRemoval = true
-                        }
-                        .disabled(isPetLibraryBusy)
-                        .accessibilityIdentifier("monglepet.settings.removePet")
-                    }
-                }
-
-                Text(
-                    petLibrarySession.selectedItem.isBuiltIn
-                        ? "내장 몽글이는 삭제할 수 없으며 언제든 다시 선택할 수 있습니다."
-                        : petLibrarySession.selectedItem.isEditable
-                            ? "PNG 한 장은 정지 애니메이션, 여러 장은 지정한 순서대로 재생됩니다."
-                            : "가져온 패키지는 직접 바꾸지 않습니다. 새 ID의 편집 가능한 사본을 만들어 수정할 수 있습니다."
-                )
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            }
-
-            Section("펫 표시") {
-                Toggle("펫 깨우기", isOn: awakeBinding)
-                    .accessibilityIdentifier("monglepet.settings.awake")
-
-                Text("재워도 메뉴 막대에서 언제든 다시 깨울 수 있습니다.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Section("행동 모드") {
-                Picker("행동 모드", selection: behaviorModeBinding) {
-                    Text("자동").tag(BehaviorMode.automatic.rawValue)
-                    Text("수동").tag(BehaviorMode.manual.rawValue)
-                }
-                .pickerStyle(.segmented)
-                .accessibilityIdentifier("monglepet.settings.behaviorMode")
-
-                if settingsSession.settings.behaviorMode == .manual {
-                    Picker("수동 행동 루틴", selection: manualSequenceBinding) {
-                        ForEach(settingsSession.settings.sequences) { sequence in
-                            Text(BuiltInBehaviorPresets.displayName(for: sequence.id))
-                                .tag(sequence.id)
-                        }
-                    }
-                    .accessibilityIdentifier("monglepet.settings.manualSequence")
-                }
-
-                Text(modeDescription)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            .disabled(!settingsSession.isWritingEnabled)
-
-            Section("화면 표시") {
-                HStack {
-                    Text("펫 크기")
-                    Slider(
-                        value: overlayWidthBinding,
-                        in: AppSettingsLimits.minimumOverlayWidth
-                            ... AppSettingsLimits.maximumOverlayWidth,
-                        step: 8,
-                        onEditingChanged: { isEditing in
-                            if !isEditing {
-                                settingsSession.persistCurrentSettings()
-                            }
-                        }
-                    )
-                    .accessibilityIdentifier("monglepet.settings.overlayWidth")
-                    Text("\(Int(settingsSession.settings.overlay.width)) pt")
-                        .monospacedDigit()
-                        .frame(width: 52, alignment: .trailing)
-                }
-
-                Toggle(
-                    "픽셀 아트 선명하게",
-                    isOn: pixelArtRenderingBinding
-                )
-                .accessibilityIdentifier(
-                    "monglepet.settings.pixelArtRendering"
-                )
-
-                Text(
-                    "픽셀 아트의 확대 경계를 또렷하게 표시합니다. 일반 일러스트에서는 계단 현상이 보일 수 있습니다."
-                )
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-                HStack {
-                    Text("기본 투명도")
-                    Slider(
-                        value: overlayOpacityBinding,
-                        in: AppSettingsLimits.minimumOverlayOpacity
-                            ... AppSettingsLimits.maximumOverlayOpacity,
-                        step: 0.05,
-                        onEditingChanged: persistSliderWhenEditingEnds
-                    )
-                    .accessibilityIdentifier(
-                        "monglepet.settings.overlayOpacity"
-                    )
-                    Text(opacityText(settingsSession.settings.overlay.opacity))
-                        .monospacedDigit()
-                        .frame(width: 48, alignment: .trailing)
-                }
-
-                Toggle("클릭 통과", isOn: clickThroughBinding)
-                    .accessibilityIdentifier("monglepet.settings.clickThrough")
-
-                Text(
-                    settingsSession.settings.overlay.clickThrough
-                        ? "펫을 직접 드래그할 수 없습니다. 이 설정창에서 클릭 통과를 끌 수 있습니다."
-                        : "켜면 펫 아래의 앱을 바로 클릭할 수 있습니다."
-                )
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-                Toggle(
-                    "마우스가 펫과 겹치면 더 투명하게",
-                    isOn: pointerOverlapFadeBinding
-                )
-                .accessibilityIdentifier(
-                    "monglepet.settings.pointerOverlapFade"
-                )
-
-                if settingsSession.settings.overlay.pointerOverlapFadeEnabled {
-                    HStack {
-                        Text("겹침 투명도")
-                        Slider(
-                            value: pointerOverlapOpacityBinding,
-                            in:
-                                AppSettingsLimits.minimumPointerOverlapOpacity
-                                ... AppSettingsLimits.maximumPointerOverlapOpacity,
-                            step: 0.05,
-                            onEditingChanged: persistSliderWhenEditingEnds
-                        )
-                        .accessibilityIdentifier(
-                            "monglepet.settings.pointerOverlapOpacity"
-                        )
-                        Text(
-                            opacityText(
-                                settingsSession.settings.overlay
-                                    .pointerOverlapOpacity
+                        } label: {
+                            Label(
+                                "현재 펫 내보내기",
+                                systemImage: "square.and.arrow.up"
                             )
+                            .frame(
+                                maxWidth: .infinity,
+                                alignment: .leading
+                            )
+                        }
+                        .disabled(isPetLibraryBusy)
+                        .accessibilityIdentifier(
+                            "monglepet.settings.exportPackage"
                         )
-                        .monospacedDigit()
-                        .frame(width: 48, alignment: .trailing)
                     }
+                }
 
-                    Text(pointerOverlapDescription)
+                if petLibrarySession.selectedItem.isBuiltIn {
+                    Text("내장 몽글이는 패키지로 내보낼 수 없습니다.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
-            .disabled(!settingsSession.isWritingEnabled)
 
-            Section("앱 실행") {
-                Toggle(
-                    "로그인 시 MonglePet 자동 실행",
-                    isOn: loginLaunchBinding
-                )
-                .accessibilityIdentifier(
-                    "monglepet.settings.launchAtLogin"
-                )
-
-                loginLaunchStatusLabel
-
-                if loginLaunchSettings.requiresApproval {
-                    Button("로그인 항목 설정 열기") {
-                        loginLaunchSettings.openSystemSettings()
-                    }
-                    .accessibilityIdentifier(
-                        "monglepet.settings.openLoginItems"
-                    )
-                }
-
-                if let errorMessage = loginLaunchSettings.errorMessage {
-                    noticeLabel(
-                        errorMessage,
-                        systemImage: "xmark.circle.fill"
-                    )
-                }
-            }
-
-            Section("앱 정보") {
-                LabeledContent(
-                    "버전",
-                    value: MonglePetAppVersion.current.displayText
-                )
-                .accessibilityIdentifier("monglepet.settings.appVersion")
-
-                Text("펫 패키지 호환성은 이 앱 버전을 기준으로 확인합니다.")
+            Section("펫 관리") {
+                Text(petManagementDescription)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+
+                LazyVGrid(
+                    columns: [
+                        GridItem(.adaptive(minimum: 160), spacing: 8)
+                    ],
+                    alignment: .leading,
+                    spacing: 8
+                ) {
+                    Button {
+                        userPetEditorMode = .create
+                    } label: {
+                        Label("새 펫 만들기", systemImage: "plus")
+                            .frame(
+                                maxWidth: .infinity,
+                                alignment: .leading
+                            )
+                    }
+                    .disabled(petLibrarySession.isImporting)
+                    .accessibilityIdentifier(
+                        "monglepet.settings.createUserPet"
+                    )
+
+                    if petLibrarySession.selectedItem.isEditable {
+                        Button {
+                            isEditingPetDetails = true
+                        } label: {
+                            Label("펫 정보 수정", systemImage: "pencil")
+                                .frame(
+                                    maxWidth: .infinity,
+                                    alignment: .leading
+                                )
+                        }
+                        .disabled(petLibrarySession.isImporting)
+                        .accessibilityIdentifier(
+                            "monglepet.settings.editPetDetails"
+                        )
+                    } else if !petLibrarySession.selectedItem.isBuiltIn {
+                        Button {
+                            isCreatingEditableCopy = true
+                        } label: {
+                            Label(
+                                "편집 가능한 사본 만들기",
+                                systemImage: "doc.on.doc"
+                            )
+                            .frame(
+                                maxWidth: .infinity,
+                                alignment: .leading
+                            )
+                        }
+                        .disabled(petLibrarySession.isImporting)
+                        .accessibilityIdentifier(
+                            "monglepet.settings.createEditablePetCopy"
+                        )
+                    }
+
+                    if !petLibrarySession.selectedItem.isBuiltIn {
+                        Button(role: .destructive) {
+                            isConfirmingRemoval = true
+                        } label: {
+                            Label("펫 삭제", systemImage: "trash")
+                                .frame(
+                                    maxWidth: .infinity,
+                                    alignment: .leading
+                                )
+                        }
+                        .disabled(isPetLibraryBusy)
+                        .accessibilityIdentifier(
+                            "monglepet.settings.removePet"
+                        )
+                    }
+                }
             }
         }
         .formStyle(.grouped)
@@ -532,14 +498,6 @@ private struct GeneralSettingsView: View {
             onCompletion: handlePetPackageExportResult
         )
         .onAppear(perform: synchronizePreviewMotion)
-        .onAppear(perform: loginLaunchSettings.refresh)
-        .onReceive(
-            NotificationCenter.default.publisher(
-                for: NSApplication.didBecomeActiveNotification
-            )
-        ) { _ in
-            loginLaunchSettings.refresh()
-        }
         .onChange(of: petLibrarySession.selection) {
             synchronizePreviewMotion()
         }
@@ -571,8 +529,18 @@ private struct GeneralSettingsView: View {
             return nil
         }
         return petLibrarySession.selectedItem.isEditable
-            ? "펫 정보 수정…"
-            : "편집 가능한 사본 만들기…"
+            ? "펫 정보 수정"
+            : "편집 가능한 사본 만들기"
+    }
+
+    private var petManagementDescription: String {
+        if petLibrarySession.selectedItem.isBuiltIn {
+            return "개별 PNG 또는 정적 PNG·WebP 스프라이트 시트로 새 펫을 만들 수 있습니다."
+        }
+        if petLibrarySession.selectedItem.isEditable {
+            return "현재 펫의 이름, 버전, 제작자와 라이선스를 수정하거나 펫을 삭제할 수 있습니다."
+        }
+        return "가져온 패키지는 원본을 보호하기 위해 직접 수정하지 않으며 필요하면 펫을 삭제할 수 있습니다."
     }
 
     private var canDeleteSelectedAnimation: Bool {
@@ -621,172 +589,11 @@ private struct GeneralSettingsView: View {
             + components.attoseconds / 1_000_000_000_000_000
     }
 
-    private var awakeBinding: Binding<Bool> {
-        Binding(
-            get: { settingsSession.settings.lastUserPresentation == .awake },
-            set: {
-                settingsSession.setUserPresentation($0 ? .awake : .tuckedAway)
-            }
-        )
-    }
-
-    private var loginLaunchBinding: Binding<Bool> {
-        Binding(
-            get: { loginLaunchSettings.isRequestedEnabled },
-            set: { loginLaunchSettings.setEnabled($0) }
-        )
-    }
-
-    @ViewBuilder
-    private var loginLaunchStatusLabel: some View {
-        switch loginLaunchSettings.status {
-        case .notRegistered:
-            Text("초기에는 꺼져 있으며 원할 때 직접 켤 수 있습니다.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        case .enabled:
-            Label(
-                "다음 로그인부터 MonglePet이 자동으로 실행됩니다.",
-                systemImage: "checkmark.circle.fill"
-            )
-            .font(.caption)
-            .foregroundStyle(.secondary)
-        case .requiresApproval:
-            Label(
-                "macOS 승인이 필요합니다. 로그인 항목 설정에서 MonglePet을 허용해 주세요.",
-                systemImage: "exclamationmark.triangle.fill"
-            )
-            .font(.caption)
-            .foregroundStyle(.orange)
-            .accessibilityIdentifier(
-                "monglepet.settings.loginApprovalRequired"
-            )
-        case .notFound:
-            Label(
-                "아직 로그인 항목 등록 기록이 없습니다. 켜면 새로 등록합니다.",
-                systemImage: "info.circle"
-            )
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .accessibilityIdentifier(
-                "monglepet.settings.loginItemUnavailable"
-            )
-        }
-    }
-
     private var petSelectionBinding: Binding<PetLibrarySelection> {
         Binding(
             get: { petLibrarySession.selection },
             set: { _ = petLibrarySession.select($0) }
         )
-    }
-
-    private var behaviorModeBinding: Binding<String> {
-        Binding(
-            get: { settingsSession.settings.behaviorMode.rawValue },
-            set: { rawValue in
-                guard let mode = BehaviorMode(rawValue: rawValue) else {
-                    return
-                }
-                settingsSession.setBehaviorMode(mode)
-            }
-        )
-    }
-
-    private var overlayWidthBinding: Binding<Double> {
-        Binding(
-            get: { settingsSession.settings.overlay.width },
-            set: { settingsSession.setOverlayWidth($0, persist: false) }
-        )
-    }
-
-    private var overlayOpacityBinding: Binding<Double> {
-        Binding(
-            get: { settingsSession.settings.overlay.opacity },
-            set: {
-                settingsSession.setOverlayOpacity($0, persist: false)
-            }
-        )
-    }
-
-    private var pixelArtRenderingBinding: Binding<Bool> {
-        Binding(
-            get: { settingsSession.settings.overlay.pixelArtRendering },
-            set: { settingsSession.setPixelArtRendering($0) }
-        )
-    }
-
-    private var manualSequenceBinding: Binding<String> {
-        Binding(
-            get: {
-                settingsSession.settings.manualSequenceID
-                    ?? settingsSession.settings.sequences.first?.id
-                    ?? ""
-            },
-            set: { settingsSession.setManualSequenceID($0) }
-        )
-    }
-
-    private var clickThroughBinding: Binding<Bool> {
-        Binding(
-            get: { settingsSession.settings.overlay.clickThrough },
-            set: { settingsSession.setClickThrough($0) }
-        )
-    }
-
-    private var pointerOverlapFadeBinding: Binding<Bool> {
-        Binding(
-            get: {
-                settingsSession.settings.overlay.pointerOverlapFadeEnabled
-            },
-            set: {
-                settingsSession.setPointerOverlapFadeEnabled($0)
-            }
-        )
-    }
-
-    private var pointerOverlapOpacityBinding: Binding<Double> {
-        Binding(
-            get: {
-                settingsSession.settings.overlay.pointerOverlapOpacity
-            },
-            set: {
-                settingsSession.setPointerOverlapOpacity(
-                    $0,
-                    persist: false
-                )
-            }
-        )
-    }
-
-    private var pointerOverlapDescription: String {
-        guard settingsSession.settings.overlay.clickThrough else {
-            return "클릭 통과를 켜면 마우스와 실제로 보이는 펫 영역이 겹칠 때만 적용됩니다."
-        }
-        let effectiveOpacity = min(
-            settingsSession.settings.overlay.opacity,
-            settingsSession.settings.overlay.pointerOverlapOpacity
-        )
-        return "투명한 여백은 제외하며 겹칠 때 실제 투명도는 \(opacityText(effectiveOpacity))입니다."
-    }
-
-    private func opacityText(_ opacity: Double) -> String {
-        "\(Int((opacity * 100).rounded()))%"
-    }
-
-    private func persistSliderWhenEditingEnds(_ isEditing: Bool) {
-        if !isEditing {
-            settingsSession.persistCurrentSettings()
-        }
-    }
-
-    private var modeDescription: String {
-        switch settingsSession.settings.behaviorMode {
-        case .automatic:
-            "활성화된 자동 규칙 중 우선순위가 가장 높은 행동을 재생합니다."
-        case .manual:
-            "선택한 행동 루틴의 펫 애니메이션을 순서대로 재생합니다."
-        }
     }
 
     private var duplicateInstallRequestBinding: Binding<DuplicatePetInstallRequest?> {
@@ -919,6 +726,401 @@ private struct GeneralSettingsView: View {
 
     @ViewBuilder
     private func noticeLabel(_ message: String, systemImage: String) -> some View {
+        Label(message, systemImage: systemImage)
+            .foregroundStyle(.orange)
+            .font(.callout)
+            .accessibilityIdentifier("monglepet.settings.notice")
+    }
+}
+
+private struct GeneralSettingsView: View {
+    @ObservedObject var settingsSession: AppSettingsSession
+    @ObservedObject var loginLaunchSettings: LoginLaunchSettings
+
+    var body: some View {
+        Form {
+            if let loadNotice = settingsSession.loadNotice {
+                noticeLabel(
+                    loadNotice,
+                    systemImage: "exclamationmark.triangle.fill"
+                )
+            }
+            if let saveErrorMessage = settingsSession.saveErrorMessage {
+                noticeLabel(
+                    saveErrorMessage,
+                    systemImage: "xmark.circle.fill"
+                )
+            }
+
+            Section("펫 표시") {
+                Toggle("펫 깨우기", isOn: awakeBinding)
+                    .accessibilityIdentifier("monglepet.settings.awake")
+
+                Text("재워도 메뉴 막대에서 언제든 다시 깨울 수 있습니다.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("행동 모드") {
+                Picker("행동 모드", selection: behaviorModeBinding) {
+                    Text("자동").tag(BehaviorMode.automatic.rawValue)
+                    Text("수동").tag(BehaviorMode.manual.rawValue)
+                }
+                .pickerStyle(.segmented)
+                .accessibilityIdentifier("monglepet.settings.behaviorMode")
+
+                if settingsSession.settings.behaviorMode == .manual {
+                    Picker(
+                        "수동 행동 루틴",
+                        selection: manualSequenceBinding
+                    ) {
+                        ForEach(settingsSession.settings.sequences) { sequence in
+                            Text(
+                                BuiltInBehaviorPresets.displayName(
+                                    for: sequence.id
+                                )
+                            )
+                            .tag(sequence.id)
+                        }
+                    }
+                    .accessibilityIdentifier(
+                        "monglepet.settings.manualSequence"
+                    )
+                }
+
+                Text(modeDescription)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .disabled(!settingsSession.isWritingEnabled)
+
+            Section("화면 표시") {
+                HStack {
+                    Text("펫 크기")
+                    Slider(
+                        value: overlayWidthBinding,
+                        in: AppSettingsLimits.minimumOverlayWidth
+                            ... AppSettingsLimits.maximumOverlayWidth,
+                        step: 8,
+                        onEditingChanged: persistSliderWhenEditingEnds
+                    )
+                    .accessibilityIdentifier(
+                        "monglepet.settings.overlayWidth"
+                    )
+                    Text(
+                        "\(Int(settingsSession.settings.overlay.width)) pt"
+                    )
+                    .monospacedDigit()
+                    .frame(width: 52, alignment: .trailing)
+                }
+
+                Toggle(
+                    "픽셀 아트 선명하게",
+                    isOn: pixelArtRenderingBinding
+                )
+                .accessibilityIdentifier(
+                    "monglepet.settings.pixelArtRendering"
+                )
+
+                Text(
+                    "픽셀 아트의 확대 경계를 또렷하게 표시합니다. 일반 일러스트에서는 계단 현상이 보일 수 있습니다."
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+                HStack {
+                    Text("기본 투명도")
+                    Slider(
+                        value: overlayOpacityBinding,
+                        in: AppSettingsLimits.minimumOverlayOpacity
+                            ... AppSettingsLimits.maximumOverlayOpacity,
+                        step: 0.05,
+                        onEditingChanged: persistSliderWhenEditingEnds
+                    )
+                    .accessibilityIdentifier(
+                        "monglepet.settings.overlayOpacity"
+                    )
+                    Text(
+                        opacityText(settingsSession.settings.overlay.opacity)
+                    )
+                    .monospacedDigit()
+                    .frame(width: 48, alignment: .trailing)
+                }
+
+                Toggle("클릭 통과", isOn: clickThroughBinding)
+                    .accessibilityIdentifier(
+                        "monglepet.settings.clickThrough"
+                    )
+
+                Text(
+                    settingsSession.settings.overlay.clickThrough
+                        ? "펫을 직접 드래그할 수 없습니다. 이 설정창에서 클릭 통과를 끌 수 있습니다."
+                        : "켜면 펫 아래의 앱을 바로 클릭할 수 있습니다."
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+                Toggle(
+                    "마우스가 펫과 겹치면 더 투명하게",
+                    isOn: pointerOverlapFadeBinding
+                )
+                .accessibilityIdentifier(
+                    "monglepet.settings.pointerOverlapFade"
+                )
+
+                if settingsSession.settings.overlay.pointerOverlapFadeEnabled {
+                    HStack {
+                        Text("겹침 투명도")
+                        Slider(
+                            value: pointerOverlapOpacityBinding,
+                            in:
+                                AppSettingsLimits.minimumPointerOverlapOpacity
+                                ... AppSettingsLimits
+                                    .maximumPointerOverlapOpacity,
+                            step: 0.05,
+                            onEditingChanged: persistSliderWhenEditingEnds
+                        )
+                        .accessibilityIdentifier(
+                            "monglepet.settings.pointerOverlapOpacity"
+                        )
+                        Text(
+                            opacityText(
+                                settingsSession.settings.overlay
+                                    .pointerOverlapOpacity
+                            )
+                        )
+                        .monospacedDigit()
+                        .frame(width: 48, alignment: .trailing)
+                    }
+
+                    Text(pointerOverlapDescription)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .disabled(!settingsSession.isWritingEnabled)
+
+            Section("앱 실행") {
+                Toggle(
+                    "로그인 시 MonglePet 자동 실행",
+                    isOn: loginLaunchBinding
+                )
+                .accessibilityIdentifier(
+                    "monglepet.settings.launchAtLogin"
+                )
+
+                loginLaunchStatusLabel
+
+                if loginLaunchSettings.requiresApproval {
+                    Button("로그인 항목 설정 열기") {
+                        loginLaunchSettings.openSystemSettings()
+                    }
+                    .accessibilityIdentifier(
+                        "monglepet.settings.openLoginItems"
+                    )
+                }
+
+                if let errorMessage = loginLaunchSettings.errorMessage {
+                    noticeLabel(
+                        errorMessage,
+                        systemImage: "xmark.circle.fill"
+                    )
+                }
+            }
+
+            Section("앱 정보") {
+                LabeledContent(
+                    "버전",
+                    value: MonglePetAppVersion.current.displayText
+                )
+                .accessibilityIdentifier("monglepet.settings.appVersion")
+
+                Text("펫 패키지 호환성은 이 앱 버전을 기준으로 확인합니다.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+        .onAppear(perform: loginLaunchSettings.refresh)
+        .onReceive(
+            NotificationCenter.default.publisher(
+                for: NSApplication.didBecomeActiveNotification
+            )
+        ) { _ in
+            loginLaunchSettings.refresh()
+        }
+    }
+
+    private var awakeBinding: Binding<Bool> {
+        Binding(
+            get: {
+                settingsSession.settings.lastUserPresentation == .awake
+            },
+            set: {
+                settingsSession.setUserPresentation(
+                    $0 ? .awake : .tuckedAway
+                )
+            }
+        )
+    }
+
+    private var loginLaunchBinding: Binding<Bool> {
+        Binding(
+            get: { loginLaunchSettings.isRequestedEnabled },
+            set: { loginLaunchSettings.setEnabled($0) }
+        )
+    }
+
+    @ViewBuilder
+    private var loginLaunchStatusLabel: some View {
+        switch loginLaunchSettings.status {
+        case .notRegistered:
+            Text("초기에는 꺼져 있으며 원할 때 직접 켤 수 있습니다.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        case .enabled:
+            Label(
+                "다음 로그인부터 MonglePet이 자동으로 실행됩니다.",
+                systemImage: "checkmark.circle.fill"
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        case .requiresApproval:
+            Label(
+                "macOS 승인이 필요합니다. 로그인 항목 설정에서 MonglePet을 허용해 주세요.",
+                systemImage: "exclamationmark.triangle.fill"
+            )
+            .font(.caption)
+            .foregroundStyle(.orange)
+            .accessibilityIdentifier(
+                "monglepet.settings.loginApprovalRequired"
+            )
+        case .notFound:
+            Label(
+                "아직 로그인 항목 등록 기록이 없습니다. 켜면 새로 등록합니다.",
+                systemImage: "info.circle"
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .accessibilityIdentifier(
+                "monglepet.settings.loginItemUnavailable"
+            )
+        }
+    }
+
+    private var behaviorModeBinding: Binding<String> {
+        Binding(
+            get: { settingsSession.settings.behaviorMode.rawValue },
+            set: { rawValue in
+                guard let mode = BehaviorMode(rawValue: rawValue) else {
+                    return
+                }
+                settingsSession.setBehaviorMode(mode)
+            }
+        )
+    }
+
+    private var overlayWidthBinding: Binding<Double> {
+        Binding(
+            get: { settingsSession.settings.overlay.width },
+            set: { settingsSession.setOverlayWidth($0, persist: false) }
+        )
+    }
+
+    private var overlayOpacityBinding: Binding<Double> {
+        Binding(
+            get: { settingsSession.settings.overlay.opacity },
+            set: {
+                settingsSession.setOverlayOpacity($0, persist: false)
+            }
+        )
+    }
+
+    private var pixelArtRenderingBinding: Binding<Bool> {
+        Binding(
+            get: { settingsSession.settings.overlay.pixelArtRendering },
+            set: { settingsSession.setPixelArtRendering($0) }
+        )
+    }
+
+    private var manualSequenceBinding: Binding<String> {
+        Binding(
+            get: {
+                settingsSession.settings.manualSequenceID
+                    ?? settingsSession.settings.sequences.first?.id
+                    ?? ""
+            },
+            set: { settingsSession.setManualSequenceID($0) }
+        )
+    }
+
+    private var clickThroughBinding: Binding<Bool> {
+        Binding(
+            get: { settingsSession.settings.overlay.clickThrough },
+            set: { settingsSession.setClickThrough($0) }
+        )
+    }
+
+    private var pointerOverlapFadeBinding: Binding<Bool> {
+        Binding(
+            get: {
+                settingsSession.settings.overlay.pointerOverlapFadeEnabled
+            },
+            set: {
+                settingsSession.setPointerOverlapFadeEnabled($0)
+            }
+        )
+    }
+
+    private var pointerOverlapOpacityBinding: Binding<Double> {
+        Binding(
+            get: {
+                settingsSession.settings.overlay.pointerOverlapOpacity
+            },
+            set: {
+                settingsSession.setPointerOverlapOpacity(
+                    $0,
+                    persist: false
+                )
+            }
+        )
+    }
+
+    private var pointerOverlapDescription: String {
+        guard settingsSession.settings.overlay.clickThrough else {
+            return "클릭 통과를 켜면 마우스와 실제로 보이는 펫 영역이 겹칠 때만 적용됩니다."
+        }
+        let effectiveOpacity = min(
+            settingsSession.settings.overlay.opacity,
+            settingsSession.settings.overlay.pointerOverlapOpacity
+        )
+        return "투명한 여백은 제외하며 겹칠 때 실제 투명도는 \(opacityText(effectiveOpacity))입니다."
+    }
+
+    private func opacityText(_ opacity: Double) -> String {
+        "\(Int((opacity * 100).rounded()))%"
+    }
+
+    private func persistSliderWhenEditingEnds(_ isEditing: Bool) {
+        if !isEditing {
+            settingsSession.persistCurrentSettings()
+        }
+    }
+
+    private var modeDescription: String {
+        switch settingsSession.settings.behaviorMode {
+        case .automatic:
+            "활성화된 자동 규칙 중 우선순위가 가장 높은 행동을 재생합니다."
+        case .manual:
+            "선택한 행동 루틴의 펫 애니메이션을 순서대로 재생합니다."
+        }
+    }
+
+    @ViewBuilder
+    private func noticeLabel(
+        _ message: String,
+        systemImage: String
+    ) -> some View {
         Label(message, systemImage: systemImage)
             .foregroundStyle(.orange)
             .font(.callout)
@@ -1985,6 +2187,9 @@ private struct UserPetAnimationEditorView: View {
                             systemImage: "plus"
                         )
                     }
+                    .accessibilityIdentifier(
+                        "monglepet.userPet.frameImportMenu"
+                    )
                 }
 
                 if frames.isEmpty {
