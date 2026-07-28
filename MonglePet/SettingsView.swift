@@ -1791,10 +1791,12 @@ private struct UserPetAnimationEditorView: View {
     @State private var loops = true
     @State private var frames: [UserPetAnimationFrameDraft] = []
     @State private var selectedFrameID: UUID?
+    @State private var spriteSheetImport: SpriteSheetImportPresentation?
+    @State private var imageImportErrorMessage: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(mode == .create ? "PNG로 새 펫 만들기" : "펫 애니메이션 추가")
+            Text(mode == .create ? "새 펫 만들기" : "펫 애니메이션 추가")
                 .font(.title2.weight(.semibold))
                 .padding(.horizontal, 20)
                 .padding(.vertical, 16)
@@ -1809,9 +1811,15 @@ private struct UserPetAnimationEditorView: View {
                     animationInformationSection
                     frameEditorSection
 
-                    Text("권장: 512×512 px 투명 PNG, 모든 프레임에 동일한 캔버스와 캐릭터 크기를 사용해 주세요. 크기가 다르면 투명 영역을 기준으로 자동 맞춤하며 선택 프레임의 배율과 위치를 조정할 수 있습니다.")
+                    Text("개별 프레임은 512×512 px 투명 PNG를 권장합니다. 정적 PNG·WebP 스프라이트 시트도 경계를 확인한 뒤 여러 프레임으로 가져올 수 있습니다.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+
+                    if let imageImportErrorMessage {
+                        Label(imageImportErrorMessage, systemImage: "exclamationmark.triangle.fill")
+                            .font(.callout)
+                            .foregroundStyle(.orange)
+                    }
 
                     if let errorMessage = petLibrarySession.errorMessage {
                         Label(errorMessage, systemImage: "xmark.circle.fill")
@@ -1843,6 +1851,11 @@ private struct UserPetAnimationEditorView: View {
         .onAppear {
             if mode == .create {
                 animationName = "기본"
+            }
+        }
+        .sheet(item: $spriteSheetImport) { presentation in
+            SpriteSheetImportView(document: presentation.document) { images in
+                appendSpriteImages(images)
             }
         }
     }
@@ -1895,7 +1908,7 @@ private struct UserPetAnimationEditorView: View {
                 }
 
                 GridRow {
-                    fieldLabel("새 PNG 간격")
+                    fieldLabel("새 프레임 간격")
                     HStack {
                         Stepper(
                             "\(frameDurationMilliseconds) ms",
@@ -1926,24 +1939,38 @@ private struct UserPetAnimationEditorView: View {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("PNG 프레임")
+                        Text("애니메이션 프레임")
                             .font(.headline)
                         Text("프레임을 선택하면 배율·위치·재생 간격을 개별 편집할 수 있습니다.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
-                    Button(frames.isEmpty ? "PNG 선택…" : "PNG 추가…") {
-                        choosePNGs()
+                    Menu {
+                        Button("개별 PNG 추가…") {
+                            choosePNGs()
+                        }
+                        .accessibilityIdentifier("monglepet.userPet.choosePNGs")
+
+                        Button("스프라이트 시트에서 추가…") {
+                            chooseSpriteSheet()
+                        }
+                        .accessibilityIdentifier("monglepet.userPet.chooseSpriteSheet")
+                        Divider()
+                        SpriteSheetPromptCopyButton()
+                    } label: {
+                        Label(
+                            frames.isEmpty ? "프레임 선택" : "프레임 추가",
+                            systemImage: "plus"
+                        )
                     }
-                    .accessibilityIdentifier("monglepet.userPet.choosePNGs")
                 }
 
                 if frames.isEmpty {
                     ContentUnavailableView(
-                        "선택한 PNG가 없습니다.",
+                        "추가한 프레임이 없습니다.",
                         systemImage: "photo.on.rectangle.angled",
-                        description: Text("한 장 또는 여러 장의 PNG를 선택해 주세요.")
+                        description: Text("개별 PNG 또는 정적 PNG·WebP 스프라이트 시트를 추가해 주세요.")
                     )
                     .frame(maxWidth: .infinity, minHeight: 220)
                 } else {
@@ -2078,6 +2105,40 @@ private struct UserPetAnimationEditorView: View {
         )
         frames.append(contentsOf: addedFrames)
         selectedFrameID = addedFrames.first?.id ?? selectedFrameID
+        imageImportErrorMessage = nil
+    }
+
+    private func chooseSpriteSheet() {
+        let panel = NSOpenPanel()
+        panel.title = "정적 스프라이트 시트 선택"
+        panel.prompt = "열기"
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.resolvesAliases = true
+        panel.allowedContentTypes = [.png, .webP]
+
+        guard panel.runModal() == .OK, let sourceURL = panel.url else {
+            return
+        }
+        do {
+            let document = try SpriteSheetFrameExtractor().load(at: sourceURL)
+            spriteSheetImport = SpriteSheetImportPresentation(document: document)
+            imageImportErrorMessage = nil
+        } catch {
+            imageImportErrorMessage = error.localizedDescription
+        }
+    }
+
+    private func appendSpriteImages(_ images: [UserPetSourceImage]) {
+        let addedFrames = UserPetAnimationDraftFactory.new(
+            images: images,
+            durationMilliseconds: frameDurationMilliseconds,
+            reference: frames.first
+        )
+        frames.append(contentsOf: addedFrames)
+        selectedFrameID = addedFrames.first?.id ?? selectedFrameID
+        imageImportErrorMessage = nil
     }
 
     private func moveFrame(at index: Int, offset: Int) {
@@ -2141,14 +2202,22 @@ private struct UserPetAnimationEditorView: View {
 
     private var sourceFrameRequests: [UserPetSourceFrameRequest] {
         frames.compactMap { frame in
-            guard case let .png(url) = frame.source else {
+            switch frame.source {
+            case .existing:
                 return nil
+            case let .png(url):
+                return UserPetSourceFrameRequest(
+                    sourceURL: url,
+                    durationMilliseconds: frame.durationMilliseconds,
+                    placement: frame.placement
+                )
+            case let .image(image):
+                return UserPetSourceFrameRequest(
+                    image: image,
+                    durationMilliseconds: frame.durationMilliseconds,
+                    placement: frame.placement
+                )
             }
-            return UserPetSourceFrameRequest(
-                sourceURL: url,
-                durationMilliseconds: frame.durationMilliseconds,
-                placement: frame.placement
-            )
         }
     }
 
@@ -2181,10 +2250,14 @@ private struct UserPetAnimationEditorView: View {
     }
 
     private func frameFilename(_ frame: UserPetAnimationFrameDraft) -> String {
-        guard case let .png(url) = frame.source else {
+        switch frame.source {
+        case .existing:
             return "기존 프레임"
+        case let .png(url):
+            return url.lastPathComponent
+        case let .image(image):
+            return image.displayName
         }
-        return url.lastPathComponent
     }
 }
 
@@ -2379,6 +2452,8 @@ private struct UserPetAnimationDetailsEditorView: View {
     @State private var loops: Bool
     @State private var frames: [UserPetAnimationFrameDraft]
     @State private var selectedFrameID: UUID?
+    @State private var spriteSheetImport: SpriteSheetImportPresentation?
+    @State private var imageImportErrorMessage: String?
 
     init(
         item: PetLibraryItem,
@@ -2433,10 +2508,21 @@ private struct UserPetAnimationDetailsEditorView: View {
                         FramePlacementControls(frame: selectedFrameBinding)
                     }
 
-                    Button("PNG 프레임 추가…") {
-                        choosePNGs()
+                    Menu {
+                        Button("개별 PNG 추가…") {
+                            choosePNGs()
+                        }
+                        .accessibilityIdentifier("monglepet.petAnimation.addFrames")
+
+                        Button("스프라이트 시트에서 추가…") {
+                            chooseSpriteSheet()
+                        }
+                        .accessibilityIdentifier("monglepet.petAnimation.addSpriteSheet")
+                        Divider()
+                        SpriteSheetPromptCopyButton()
+                    } label: {
+                        Label("프레임 추가", systemImage: "plus")
                     }
-                    .accessibilityIdentifier("monglepet.petAnimation.addFrames")
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
@@ -2512,9 +2598,18 @@ private struct UserPetAnimationDetailsEditorView: View {
                 .frame(maxWidth: .infinity)
             }
 
-            Text("권장: 512×512 px 투명 PNG, 모든 프레임에 동일한 캔버스와 캐릭터 크기를 사용해 주세요. 새 프레임은 투명 영역을 기준으로 자동 맞춤하며 선택 프레임의 배율과 위치를 조정할 수 있습니다. 각 프레임 간격은 16~60000ms입니다.")
+            Text("개별 프레임은 512×512 px 투명 PNG를 권장합니다. 정적 PNG·WebP 스프라이트 시트도 경계를 확인한 뒤 추가할 수 있습니다. 각 프레임 간격은 16~60000ms입니다.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+
+                    if let imageImportErrorMessage {
+                        Label(
+                            imageImportErrorMessage,
+                            systemImage: "exclamationmark.triangle.fill"
+                        )
+                        .font(.callout)
+                        .foregroundStyle(.orange)
+                    }
 
                     if let errorMessage = petLibrarySession.errorMessage {
                         Label(errorMessage, systemImage: "xmark.circle.fill")
@@ -2539,6 +2634,11 @@ private struct UserPetAnimationDetailsEditorView: View {
         }
         .padding(20)
         .frame(minWidth: 720, idealWidth: 780, minHeight: 560, idealHeight: 680)
+        .sheet(item: $spriteSheetImport) { presentation in
+            SpriteSheetImportView(document: presentation.document) { images in
+                appendSpriteImages(images)
+            }
+        }
     }
 
     private var canSave: Bool {
@@ -2611,6 +2711,40 @@ private struct UserPetAnimationDetailsEditorView: View {
         )
         frames.append(contentsOf: addedFrames)
         selectedFrameID = addedFrames.first?.id ?? selectedFrameID
+        imageImportErrorMessage = nil
+    }
+
+    private func chooseSpriteSheet() {
+        let panel = NSOpenPanel()
+        panel.title = "정적 스프라이트 시트 선택"
+        panel.prompt = "열기"
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.resolvesAliases = true
+        panel.allowedContentTypes = [.png, .webP]
+
+        guard panel.runModal() == .OK, let sourceURL = panel.url else {
+            return
+        }
+        do {
+            let document = try SpriteSheetFrameExtractor().load(at: sourceURL)
+            spriteSheetImport = SpriteSheetImportPresentation(document: document)
+            imageImportErrorMessage = nil
+        } catch {
+            imageImportErrorMessage = error.localizedDescription
+        }
+    }
+
+    private func appendSpriteImages(_ images: [UserPetSourceImage]) {
+        let addedFrames = UserPetAnimationDraftFactory.new(
+            images: images,
+            durationMilliseconds: 120,
+            reference: frames.first
+        )
+        frames.append(contentsOf: addedFrames)
+        selectedFrameID = addedFrames.first?.id ?? selectedFrameID
+        imageImportErrorMessage = nil
     }
 
     private func moveFrame(at index: Int, offset: Int) {
@@ -2769,13 +2903,53 @@ private enum UserPetAnimationDraftFactory {
         durationMilliseconds: Int,
         reference: UserPetAnimationFrameDraft? = nil
     ) -> [UserPetAnimationFrameDraft] {
-        let sources = urls.compactMap { url -> (URL, CGImage, TransparentFrameContent)? in
+        let sources = urls.compactMap { url -> NewFrameSource? in
             guard let image = loadImage(at: url),
                   let content = try? FrameCanvasComposer().transparentContent(in: image) else {
                 return nil
             }
-            return (url, image, content)
+            return NewFrameSource(
+                source: .png(url),
+                image: image,
+                content: content
+            )
         }
+        return new(
+            sources: sources,
+            durationMilliseconds: durationMilliseconds,
+            reference: reference
+        )
+    }
+
+    static func new(
+        images: [UserPetSourceImage],
+        durationMilliseconds: Int,
+        reference: UserPetAnimationFrameDraft? = nil
+    ) -> [UserPetAnimationFrameDraft] {
+        let sources = images.compactMap { sourceImage -> NewFrameSource? in
+            guard let content = try? FrameCanvasComposer().transparentContent(
+                in: sourceImage.image
+            ) else {
+                return nil
+            }
+            return NewFrameSource(
+                source: .image(sourceImage),
+                image: sourceImage.image,
+                content: content
+            )
+        }
+        return new(
+            sources: sources,
+            durationMilliseconds: durationMilliseconds,
+            reference: reference
+        )
+    }
+
+    private static func new(
+        sources: [NewFrameSource],
+        durationMilliseconds: Int,
+        reference: UserPetAnimationFrameDraft?
+    ) -> [UserPetAnimationFrameDraft] {
         guard !sources.isEmpty else {
             return []
         }
@@ -2785,15 +2959,15 @@ private enum UserPetAnimationDraftFactory {
             let targetSize = reference.renderedContentSize
             let anchorX = referencePlacement.x + targetSize.width / 2
             let anchorBottom = referencePlacement.y + targetSize.height
-            return sources.compactMap { url, image, content in
+            return sources.compactMap { item in
                 let scale = min(
-                    targetSize.width / Double(content.image.width),
-                    targetSize.height / Double(content.image.height)
+                    targetSize.width / Double(item.content.image.width),
+                    targetSize.height / Double(item.content.image.height)
                 )
                 return UserPetAnimationFrameDraft(
-                    source: .png(url),
+                    source: item.source,
                     durationMilliseconds: durationMilliseconds,
-                    image: image,
+                    image: item.image,
                     canvasSize: reference.canvasSize,
                     baseScale: scale,
                     anchorX: anchorX,
@@ -2803,11 +2977,15 @@ private enum UserPetAnimationDraftFactory {
         }
 
         let canvasSize = PixelSize(
-            width: sources.map { $0.1.width }.max() ?? 512,
-            height: sources.map { $0.1.height }.max() ?? 512
+            width: sources.map { $0.image.width }.max() ?? 512,
+            height: sources.map { $0.image.height }.max() ?? 512
         )
-        let usesSameCanvas = Set(sources.map { "\($0.1.width)x\($0.1.height)" }).count == 1
-        return sources.compactMap { url, image, content in
+        let usesSameCanvas = Set(
+            sources.map { "\($0.image.width)x\($0.image.height)" }
+        ).count == 1
+        return sources.compactMap { item in
+            let image = item.image
+            let content = item.content
             let scale: Double
             let anchorX: Double
             let anchorBottom: Double
@@ -2827,7 +3005,7 @@ private enum UserPetAnimationDraftFactory {
                 anchorBottom = Double(canvasSize.height) * 0.9
             }
             return UserPetAnimationFrameDraft(
-                source: .png(url),
+                source: item.source,
                 durationMilliseconds: durationMilliseconds,
                 image: image,
                 canvasSize: canvasSize,
@@ -2836,6 +3014,12 @@ private enum UserPetAnimationDraftFactory {
                 anchorBottom: anchorBottom
             )
         }
+    }
+
+    private struct NewFrameSource {
+        let source: UserPetAnimationFrameSource
+        let image: CGImage
+        let content: TransparentFrameContent
     }
 
     private static func loadImage(at fileURL: URL) -> CGImage? {

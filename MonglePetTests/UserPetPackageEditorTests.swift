@@ -6,6 +6,45 @@ import XCTest
 @testable import MonglePet
 
 final class UserPetPackageEditorTests: XCTestCase {
+    func testCreatesEditablePetFromInMemorySpriteFrames() throws {
+        let environment = try makeEnvironment()
+        let store = PetLibraryStore(libraryRootURL: environment.libraryURL)
+        let editor = UserPetPackageEditor(store: store)
+        let sourceURL = environment.rootURL.appendingPathComponent("source.png")
+        try writePNG(to: sourceURL, width: 5, height: 4)
+        let source = try XCTUnwrap(
+            CGImageSourceCreateWithURL(sourceURL as CFURL, nil)
+        )
+        let image = try XCTUnwrap(CGImageSourceCreateImageAtIndex(source, 0, nil))
+
+        let created = try editor.createPet(
+            UserPetCreationRequest(
+                displayName: "시트 펫",
+                animationName: "기본",
+                loops: true,
+                frames: [
+                    UserPetSourceFrameRequest(
+                        image: UserPetSourceImage(
+                            displayName: "시트 1",
+                            image: image
+                        ),
+                        durationMilliseconds: 90
+                    )
+                ],
+                version: "1.0.0",
+                author: "테스터",
+                license: "Private Use",
+                description: nil
+            )
+        )
+
+        let motion = try XCTUnwrap(created.package.definition.motion(id: "기본"))
+        XCTAssertEqual(motion.frames.count, 1)
+        XCTAssertEqual(motion.frames[0].sourceRect.width, 5)
+        XCTAssertEqual(motion.frames[0].sourceRect.height, 4)
+        XCTAssertEqual(motion.frames[0].duration, .milliseconds(90))
+    }
+
     func testCreatesEditablePetAndAtomicallyAddsPNGAnimation() throws {
         let environment = try makeEnvironment()
         let firstID = UUID(uuidString: "11111111-1111-1111-1111-111111111111")!

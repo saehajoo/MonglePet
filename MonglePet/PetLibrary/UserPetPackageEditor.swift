@@ -93,7 +93,7 @@ nonisolated struct UserPetAnimationRequest: Equatable, Sendable {
 }
 
 nonisolated struct UserPetSourceFrameRequest: Equatable, Sendable {
-    let sourceURL: URL
+    let source: UserPetNewFrameSource
     let durationMilliseconds: Int
     let placement: FrameCanvasPlacement?
 
@@ -102,9 +102,44 @@ nonisolated struct UserPetSourceFrameRequest: Equatable, Sendable {
         durationMilliseconds: Int,
         placement: FrameCanvasPlacement? = nil
     ) {
-        self.sourceURL = sourceURL
+        source = .png(sourceURL)
         self.durationMilliseconds = durationMilliseconds
         self.placement = placement
+    }
+
+    init(
+        image: UserPetSourceImage,
+        durationMilliseconds: Int,
+        placement: FrameCanvasPlacement? = nil
+    ) {
+        source = .image(image)
+        self.durationMilliseconds = durationMilliseconds
+        self.placement = placement
+    }
+}
+
+nonisolated enum UserPetNewFrameSource: Equatable, Sendable {
+    case png(URL)
+    case image(UserPetSourceImage)
+}
+
+nonisolated struct UserPetSourceImage: @unchecked Sendable, Equatable {
+    let id: UUID
+    let displayName: String
+    let image: CGImage
+
+    init(
+        id: UUID = UUID(),
+        displayName: String,
+        image: CGImage
+    ) {
+        self.id = id
+        self.displayName = displayName
+        self.image = image
+    }
+
+    static func == (lhs: UserPetSourceImage, rhs: UserPetSourceImage) -> Bool {
+        lhs.id == rhs.id
     }
 }
 
@@ -143,6 +178,7 @@ nonisolated struct UserPetAnimationFrameRequest: Equatable, Sendable {
 nonisolated enum UserPetAnimationFrameSource: Equatable, Sendable {
     case existing(index: Int)
     case png(URL)
+    case image(UserPetSourceImage)
 }
 
 nonisolated enum UserPetEditingError: Error, Equatable, Sendable {
@@ -678,6 +714,8 @@ nonisolated struct UserPetPackageEditor {
                 image = croppedImage
             case let .png(sourceURL):
                 image = try animationAdapter.loadStaticPNGWithSecurityScope(at: sourceURL)
+            case let .image(sourceImage):
+                image = sourceImage.image
             }
             return PNGSequenceFrameImage(
                 image: try composedImage(image, placement: request.placement),
@@ -709,9 +747,15 @@ nonisolated struct UserPetPackageEditor {
             throw UserPetEditingError.emptyAnimation
         }
         let frames = try frameRequests.map { request in
-            let image = try animationAdapter.loadStaticPNGWithSecurityScope(
-                at: request.sourceURL
-            )
+            let image: CGImage
+            switch request.source {
+            case let .png(sourceURL):
+                image = try animationAdapter.loadStaticPNGWithSecurityScope(
+                    at: sourceURL
+                )
+            case let .image(sourceImage):
+                image = sourceImage.image
+            }
             return PNGSequenceFrameImage(
                 image: try composedImage(image, placement: request.placement),
                 durationMilliseconds: request.durationMilliseconds
