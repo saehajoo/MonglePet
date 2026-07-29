@@ -88,7 +88,7 @@ nonisolated enum AppSettingsV4Mapper {
         let storedV3 = try AppSettingsV3Mapper.storedSettings(from: settings)
         let overlay = settings.overlay
         return StoredAppSettingsV4(
-            schemaVersion: AppSettingsLimits.schemaVersion,
+            schemaVersion: 4,
             selectedPetInstallationID: storedV3.selectedPetInstallationID,
             lastUserPresentation: storedV3.lastUserPresentation,
             overlay: StoredOverlaySettingsV4(

@@ -215,8 +215,22 @@ final class BehaviorSettingsEditorTests: XCTestCase {
                     freeRoamingDwellMilliseconds:
                         AppSettingsLimits.defaultFreeRoamingDwellMilliseconds,
                     prefersFrontmostWindow: true,
-                    cursorFollowingMotionID: "waving",
-                    freeRoamingMotionID: "waving"
+                    cursorFollowingAnimation: MovementAnimationSettings(
+                        fallbackMotionID: "waving",
+                        usesDirectionalMotions: true,
+                        usesDiagonalMotions: true,
+                        directionMotionIDs: DirectionalMotionIDs(
+                            left: "waving",
+                            upRight: "waving"
+                        )
+                    ),
+                    freeRoamingAnimation: MovementAnimationSettings(
+                        fallbackMotionID: "waving",
+                        usesDirectionalMotions: true,
+                        directionMotionIDs: DirectionalMotionIDs(
+                            right: "waving"
+                        )
+                    )
                 ),
                 pettingMotionID: "waving"
             )
@@ -238,6 +252,21 @@ final class BehaviorSettingsEditorTests: XCTestCase {
             "hello"
         )
         XCTAssertEqual(settings.movementSettings.freeRoamingMotionID, "hello")
+        XCTAssertEqual(
+            settings.movementSettings.cursorFollowingAnimation
+                .directionMotionIDs.left,
+            "hello"
+        )
+        XCTAssertEqual(
+            settings.movementSettings.cursorFollowingAnimation
+                .directionMotionIDs.upRight,
+            "hello"
+        )
+        XCTAssertEqual(
+            settings.movementSettings.freeRoamingAnimation
+                .directionMotionIDs.right,
+            "hello"
+        )
         XCTAssertEqual(settings.pettingMotionID, "hello")
 
         settings = try BehaviorSettingsEditor.replacingMotionReferences(
@@ -253,6 +282,18 @@ final class BehaviorSettingsEditorTests: XCTestCase {
         XCTAssertEqual(step.repeatCount, 7)
         XCTAssertNil(settings.movementSettings.cursorFollowingMotionID)
         XCTAssertNil(settings.movementSettings.freeRoamingMotionID)
+        XCTAssertNil(
+            settings.movementSettings.cursorFollowingAnimation
+                .directionMotionIDs.left
+        )
+        XCTAssertNil(
+            settings.movementSettings.cursorFollowingAnimation
+                .directionMotionIDs.upRight
+        )
+        XCTAssertNil(
+            settings.movementSettings.freeRoamingAnimation
+                .directionMotionIDs.right
+        )
         XCTAssertNil(settings.pettingMotionID)
     }
 

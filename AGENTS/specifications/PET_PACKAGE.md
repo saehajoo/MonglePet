@@ -241,10 +241,10 @@ GIF, APNG 또는 PNG 시퀀스는 다음 기본 manifest를 생성해 내부 패
 - 내보내기 파일은 ZIP 컨테이너의 `.monglepet` 확장자를 사용한다.
 - 기본 내보내기는 `pet.json`, 미리보기와 참조된 이미지 자산만 포함한다.
 - 사용자가 `펫 설정도 함께 공유`를 선택하면 별도 `recommended-profile.json`을 포함할 수 있다.
-- `공유 내용 확인` 화면은 펫 정보와 권장 설정 요약을 보여준다. 권장 설정은 기본적으로 제외하며 사용자가 명시적으로 포함을 선택한다.
+- `공유 내용 확인` 화면은 펫 정보와 권장 설정 요약을 보여준다. 권장 설정은 기본적으로 제외하며 사용자가 명시적으로 포함을 선택한다. 요약은 행동 루틴의 단계, 자동 규칙의 조건·우선순위, 이동 수치와 방향별 애니메이션 연결까지 가져오기 화면과 같은 공통 모델로 표시한다.
 - 앱 bundle identifier가 들어 있는 앱별 자동 규칙은 권장 설정과도 분리해 한 번 더 선택한다. 포함을 선택하면 기록될 앱 식별자 목록을 같은 화면에 표시한다.
 - `monglepet-editor.json`, 설치 UUID와 화면 좌표를 포함한 로컬 앱 설정은 포함하지 않는다.
-- 이동 범위, 디스플레이 식별자, 기본 투명도와 클릭 통과 중 겹침 투명도도 기기별 표시 설정이므로 포함하지 않는다.
+- 이동 범위, 디스플레이 식별자, 펫 크기, 클릭 통과, 기본·겹침 투명도, 픽셀 아트 표시와 로그인 실행은 기기별 표시·실행 설정이므로 포함하지 않는다.
 - Phase 9B부터 현재 앱이 다시 인코딩하는 `pet.json`에는 선택적 앱 호환 정보를 자동으로 기록한다.
 - 내보내기 직전에 패키지를 다시 로드·검증하고 허용되지 않은 파일을 거부한다.
 - 설치 폴더 전체를 직접 압축하지 않고 manifest를 현재 schema로 다시 인코딩한 뒤 `pet.json`, `previewPath`와 `atlases[].path`가 참조하는 파일만 임시 패키지에 복사한다. 임시 패키지와 완성된 ZIP의 가져오기 왕복 검증이 모두 성공해야 목적지에 원자적으로 기록한다.
@@ -259,11 +259,11 @@ GIF, APNG 또는 PNG 시퀀스는 다음 기본 manifest를 생성해 내부 패
 
 `recommended-profile.json`은 펫 패키지와 독립적으로 버전을 갖는 선택 데이터다. 받는 사용자의 설정을 강제하지 않으며 적용을 명시적으로 선택한 경우에만 설치 UUID에 연결된 편집 가능한 로컬 행동 프로필로 복사한다.
 
-schema-v1 예시:
+새 내보내기가 사용하는 schema-v2 예시:
 
 ```json
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "behavior": {
     "mode": "manual",
     "manualSequenceID": "default",
@@ -284,8 +284,36 @@ schema-v1 예시:
     "stopRadius": 24,
     "freeRoamingDwellMilliseconds": 8000,
     "prefersFrontmostWindow": true,
-    "cursorFollowingMotionID": "run",
-    "freeRoamingMotionID": "walk"
+    "cursorFollowingAnimation": {
+      "fallbackMotionID": "run",
+      "usesDirectionalMotions": true,
+      "usesDiagonalMotions": false,
+      "directionMotionIDs": {
+        "left": "run-left",
+        "right": "run-right",
+        "up": "run-up",
+        "down": "run-down",
+        "upLeft": null,
+        "upRight": null,
+        "downLeft": null,
+        "downRight": null
+      }
+    },
+    "freeRoamingAnimation": {
+      "fallbackMotionID": "walk",
+      "usesDirectionalMotions": false,
+      "usesDiagonalMotions": false,
+      "directionMotionIDs": {
+        "left": null,
+        "right": null,
+        "up": null,
+        "down": null,
+        "upLeft": null,
+        "upRight": null,
+        "downLeft": null,
+        "downRight": null
+      }
+    }
   },
   "pettingMotionID": "petting",
   "automaticRules": []
@@ -293,20 +321,23 @@ schema-v1 예시:
 ```
 
 - 행동 모드는 `automatic` 또는 `manual`, 이동 모드는 `fixed`, `cursorFollowing`, `freeRoaming`만 허용한다.
+- schema-v2는 마우스 따라가기와 자유 이동에 독립된 공통 fallback, 방향별 사용 여부와 명시적인 8방향 모션 참조를 기록한다. 대각선 사용은 방향별 사용이 켜진 경우에만 허용한다.
+- 기존 schema-v1의 `cursorFollowingMotionID`와 `freeRoamingMotionID`는 각각 해당 모드의 공통 fallback으로 계속 읽고 방향별 기능은 끈다.
 - 수동 모드에는 존재하는 행동 루틴 ID를 `manualSequenceID`로 지정해야 한다.
 - 행동 루틴과 단계, 자동 규칙의 개수·반복 횟수·유휴 시간, 이동 값은 앱 설정과 같은 상한을 적용한다.
 - 행동 단계는 패키지에 존재하는 모션 ID 또는 예약된 `현재 펫의 기본 애니메이션` 참조만 사용할 수 있다.
 - 이동 중 애니메이션과 쓰다듬기 애니메이션은 런타임에서 직접 재생하므로 패키지에 실제로 존재하는 모션 ID만 사용할 수 있다.
 - 자동 규칙은 고유한 규칙 ID와 존재하는 행동 루틴 참조를 가져야 한다. 앱 bundle identifier 규칙은 내보내는 사용자가 별도로 포함을 선택하고 목록을 검토한 경우에만 기록한다.
 - 파일 크기는 압축 해제 상태에서 최대 1 MiB로 제한한다.
-- 설치 UUID, 로컬 펫 키, 화면·창 좌표, 디스플레이 식별자, 펫 크기, 클릭 통과, 깨움 상태와 이동 이력 필드는 정의하지 않는다.
+- 설치 UUID, 로컬 펫 키, 화면·창 좌표, 이동 범위, 디스플레이 식별자, 펫 크기, 클릭 통과, 투명도, 픽셀 표시, 로그인 실행, 깨움 상태와 이동 이력 필드는 정의하지 않는다.
 - 지원하지 않는 미래 schema 또는 내용이 손상된 권장 프로필은 펫 자산 패키지 전체를 무효화하지 않는다. 보안 검증을 통과한 펫만 설치하고 권장 설정을 적용하지 않았음을 알린다.
 - 실행 파일, 스크립트, 안전하지 않은 경로, 크기 제한 초과처럼 패키지 보안 경계를 위반한 파일은 권장 프로필의 선택 여부와 관계없이 전체 패키지를 거부한다.
 
 ### 권장 프로필 가져오기
 
 - 패키지 선택 직후 설치하지 않고 `가져오기 내용 확인` 화면에서 이름, 버전, 제작자, 라이선스와 애니메이션 수를 먼저 표시한다.
-- 유효한 `recommended-profile.json`이 있으면 행동 모드, 행동 루틴·자동 규칙 수, 이동 방식, 쓰다듬기 애니메이션과 앱별 규칙의 bundle identifier를 요약한다.
+- 유효한 `recommended-profile.json`이 있으면 행동 모드와 선택 루틴, 행동 루틴의 단계, 자동 규칙의 조건·우선순위, 이동 방식·속도·거리·정지 반경·대기 시간, 모드별 공통·방향 애니메이션, 쓰다듬기 애니메이션과 앱별 규칙의 bundle identifier를 공통 요약으로 표시한다.
+- 같은 화면에 위치·범위·크기·투명도·클릭 통과·픽셀 표시·로그인 실행은 포함되지 않는 기기 설정임을 안내한다.
 - 새 설치는 사용자가 `펫만 설치` 또는 `권장 설정 적용 후 설치`를 명시적으로 선택한다. 펫만 설치하면 해당 설치 UUID의 표준 기본 프로필을 사용한다.
 - 권장 설정을 적용하면 새 설치 UUID에 맞춘 편집 가능한 로컬 `BehaviorProfile` 사본을 만들고 즉시 `settings.json`에 저장한다. 패키지의 권장 설정 파일은 원본 preset으로 유지되며 이후 로컬 편집과 자동 동기화하지 않는다.
 - 권장 설정이 없거나 미래 schema·손상된 내용이면 적용 버튼을 제공하지 않고 사유를 표시하되 `펫만 설치`는 허용한다.

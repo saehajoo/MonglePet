@@ -345,13 +345,13 @@ nonisolated enum BehaviorSettingsEditor {
             freeRoamingDwellMilliseconds:
                 settings.movementSettings.freeRoamingDwellMilliseconds,
             prefersFrontmostWindow: settings.movementSettings.prefersFrontmostWindow,
-            cursorFollowingMotionID: replacingMotionID(
-                settings.movementSettings.cursorFollowingMotionID,
+            cursorFollowingAnimation: replacingMotionReferences(
+                in: settings.movementSettings.cursorFollowingAnimation,
                 oldMotionID: oldMotionID,
                 replacementMotionID: movementReplacementMotionID
             ),
-            freeRoamingMotionID: replacingMotionID(
-                settings.movementSettings.freeRoamingMotionID,
+            freeRoamingAnimation: replacingMotionReferences(
+                in: settings.movementSettings.freeRoamingAnimation,
                 oldMotionID: oldMotionID,
                 replacementMotionID: movementReplacementMotionID
             )
@@ -471,6 +471,31 @@ nonisolated enum BehaviorSettingsEditor {
         replacementMotionID: String?
     ) -> String? {
         motionID == oldMotionID ? replacementMotionID : motionID
+    }
+
+    private static func replacingMotionReferences(
+        in animation: MovementAnimationSettings,
+        oldMotionID: String,
+        replacementMotionID: String?
+    ) -> MovementAnimationSettings {
+        var directions = animation.directionMotionIDs
+        for direction in MovementDirection.allCases
+            where directions[direction] == oldMotionID {
+            directions = directions.replacing(
+                direction,
+                with: replacementMotionID
+            )
+        }
+        return MovementAnimationSettings(
+            fallbackMotionID: replacingMotionID(
+                animation.fallbackMotionID,
+                oldMotionID: oldMotionID,
+                replacementMotionID: replacementMotionID
+            ),
+            usesDirectionalMotions: animation.usesDirectionalMotions,
+            usesDiagonalMotions: animation.usesDiagonalMotions,
+            directionMotionIDs: directions
+        )
     }
 
     private static func replacing(

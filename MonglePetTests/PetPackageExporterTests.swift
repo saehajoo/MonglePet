@@ -870,8 +870,31 @@ final class PetPackageExporterTests: XCTestCase {
                 stopRadius: 18,
                 freeRoamingDwellMilliseconds: 7_000,
                 prefersFrontmostWindow: false,
-                cursorFollowingMotionID: "idle",
-                freeRoamingMotionID: "idle"
+                cursorFollowingAnimation: MovementAnimationSettings(
+                    fallbackMotionID: "idle",
+                    usesDirectionalMotions: true,
+                    usesDiagonalMotions: true,
+                    directionMotionIDs: DirectionalMotionIDs(
+                        left: "idle",
+                        right: "idle",
+                        up: "idle",
+                        down: "idle",
+                        upLeft: "idle",
+                        upRight: "idle",
+                        downLeft: "idle",
+                        downRight: "idle"
+                    )
+                ),
+                freeRoamingAnimation: MovementAnimationSettings(
+                    fallbackMotionID: "idle",
+                    usesDirectionalMotions: true,
+                    directionMotionIDs: DirectionalMotionIDs(
+                        left: "idle",
+                        right: "idle",
+                        up: "idle",
+                        down: "idle"
+                    )
+                )
             ),
             pettingMotionID: "idle"
         )

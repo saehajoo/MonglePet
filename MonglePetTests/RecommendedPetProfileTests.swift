@@ -32,7 +32,7 @@ final class RecommendedPetProfileTests: XCTestCase {
         let object = try XCTUnwrap(
             JSONSerialization.jsonObject(with: data) as? [String: Any]
         )
-        XCTAssertEqual(object["schemaVersion"] as? Int, 1)
+        XCTAssertEqual(object["schemaVersion"] as? Int, 2)
         XCTAssertNotNil(object["behavior"])
         XCTAssertNotNil(object["movement"])
         XCTAssertNotNil(object["automaticRules"])
@@ -51,7 +51,10 @@ final class RecommendedPetProfileTests: XCTestCase {
             "originY",
             "screenIdentifier",
             "lastUserPresentation",
-            "clickThrough"
+            "clickThrough",
+            "opacity",
+            "movementBoundary",
+            "pixelArtRendering"
         ] {
             XCTAssertFalse(json.contains(forbiddenKey))
         }
@@ -263,7 +266,7 @@ final class RecommendedPetProfileTests: XCTestCase {
         var object = try XCTUnwrap(
             JSONSerialization.jsonObject(with: data) as? [String: Any]
         )
-        object["schemaVersion"] = 2
+        object["schemaVersion"] = 3
         let futureData = try JSONSerialization.data(withJSONObject: object)
 
         XCTAssertThrowsError(
@@ -274,7 +277,7 @@ final class RecommendedPetProfileTests: XCTestCase {
         ) { error in
             XCTAssertEqual(
                 error as? RecommendedPetProfileError,
-                .unsupportedSchemaVersion(2)
+                .unsupportedSchemaVersion(3)
             )
         }
         XCTAssertThrowsError(
@@ -304,6 +307,62 @@ final class RecommendedPetProfileTests: XCTestCase {
                 .fileTooLarge
             )
         }
+    }
+
+    func testCodecDecodesSchemaV1SingleMovementMotionsAsFallbacks() throws {
+        let encodedV2 = try RecommendedPetProfileCodec.encode(
+            makeProfile(),
+            for: petDefinition
+        )
+        var object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: encodedV2)
+                as? [String: Any]
+        )
+        object["schemaVersion"] = 1
+        var movement = try XCTUnwrap(
+            object["movement"] as? [String: Any]
+        )
+        movement.removeValue(forKey: "cursorFollowingAnimation")
+        movement.removeValue(forKey: "freeRoamingAnimation")
+        movement["cursorFollowingMotionID"] = "run"
+        movement["freeRoamingMotionID"] = "idle"
+        object["movement"] = movement
+        let v1Data = try JSONSerialization.data(withJSONObject: object)
+
+        let decoded = try RecommendedPetProfileCodec.decode(
+            v1Data,
+            for: petDefinition
+        )
+
+        XCTAssertEqual(decoded.movement.cursorFollowingMotionID, "run")
+        XCTAssertEqual(decoded.movement.freeRoamingMotionID, "idle")
+        XCTAssertFalse(
+            decoded.movement.cursorFollowingAnimation
+                .usesDirectionalMotions
+        )
+        XCTAssertFalse(
+            decoded.movement.freeRoamingAnimation
+                .usesDirectionalMotions
+        )
+    }
+
+    func testSharedSummaryCoversEveryRecommendedProfileField() {
+        let profile = makeProfile()
+
+        let summary = RecommendedProfileSummary(profile: profile)
+
+        XCTAssertEqual(summary.mode, profile.mode)
+        XCTAssertEqual(
+            summary.manualSequenceID,
+            profile.manualSequenceID
+        )
+        XCTAssertEqual(summary.sequences, profile.sequences)
+        XCTAssertEqual(summary.automaticRules, profile.automaticRules)
+        XCTAssertEqual(summary.movement, profile.movement)
+        XCTAssertEqual(
+            summary.pettingMotionID,
+            profile.pettingMotionID
+        )
     }
 
     private var petDefinition: PetDefinition {
@@ -369,8 +428,31 @@ final class RecommendedPetProfileTests: XCTestCase {
                 stopRadius: 24,
                 freeRoamingDwellMilliseconds: 8_000,
                 prefersFrontmostWindow: true,
-                cursorFollowingMotionID: "run",
-                freeRoamingMotionID: "idle"
+                cursorFollowingAnimation: MovementAnimationSettings(
+                    fallbackMotionID: "run",
+                    usesDirectionalMotions: true,
+                    usesDiagonalMotions: true,
+                    directionMotionIDs: DirectionalMotionIDs(
+                        left: "run",
+                        right: "run",
+                        up: "idle",
+                        down: "idle",
+                        upLeft: "run",
+                        upRight: "run",
+                        downLeft: "idle",
+                        downRight: "idle"
+                    )
+                ),
+                freeRoamingAnimation: MovementAnimationSettings(
+                    fallbackMotionID: "idle",
+                    usesDirectionalMotions: true,
+                    directionMotionIDs: DirectionalMotionIDs(
+                        left: "run",
+                        right: "run",
+                        up: "idle",
+                        down: "idle"
+                    )
+                )
             ),
             pettingMotionID: pettingMotionID
         )

@@ -1324,50 +1324,9 @@ private struct PetPackageImportReviewView: View {
                 .font(.headline)
 
             if let profile = review.recommendedProfile {
-                Grid(
-                    alignment: .leading,
-                    horizontalSpacing: 20,
-                    verticalSpacing: 8
-                ) {
-                    informationRow(
-                        "행동 모드",
-                        value: profile.mode == .automatic ? "자동" : "수동"
-                    )
-                    informationRow(
-                        "행동 루틴",
-                        value: "\(profile.sequences.count)개"
-                    )
-                    informationRow(
-                        "자동 규칙",
-                        value: "\(profile.automaticRules.count)개"
-                    )
-                    informationRow(
-                        "이동 방식",
-                        value: movementModeName(profile.movement.mode)
-                    )
-                    informationRow(
-                        "쓰다듬기",
-                        value: profile.pettingMotionID ?? "지정 안 함"
-                    )
-                }
-                .padding(12)
-                .background(
-                    .quaternary.opacity(0.35),
-                    in: RoundedRectangle(cornerRadius: 10)
+                RecommendedProfileSummaryView(
+                    summary: RecommendedProfileSummary(profile: profile)
                 )
-
-                if !review.applicationBundleIdentifiers.isEmpty {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("포함된 앱별 자동 규칙")
-                            .font(.subheadline.weight(.medium))
-                        ForEach(review.applicationBundleIdentifiers, id: \.self) {
-                            bundleIdentifier in
-                            Text(bundleIdentifier)
-                                .font(.caption.monospaced())
-                                .textSelection(.enabled)
-                        }
-                    }
-                }
 
                 if !allowsRecommendedProfileApplication {
                     Label(
@@ -1408,16 +1367,6 @@ private struct PetPackageImportReviewView: View {
         }
     }
 
-    private func movementModeName(_ mode: PetMovementMode) -> String {
-        switch mode {
-        case .fixed:
-            "위치 고정"
-        case .cursorFollowing:
-            "마우스 따라가기"
-        case .freeRoaming:
-            "자유 이동"
-        }
-    }
 }
 
 private enum DuplicateReplacementProfileChoice: Hashable {
@@ -1899,35 +1848,13 @@ private struct PetPackageShareReviewView: View {
 
     @ViewBuilder
     private var recommendedProfileSummary: some View {
-        if let profile = review.recommendedProfile {
-            Grid(
-                alignment: .leading,
-                horizontalSpacing: 16,
-                verticalSpacing: 6
-            ) {
-                shareInformationRow(
-                    "행동 모드",
-                    value: profile.mode == .automatic ? "자동" : "수동"
-                )
-                shareInformationRow(
-                    "행동 루틴",
-                    value: "\(profile.sequences.count)개"
-                )
-                shareInformationRow(
-                    "입력 없음 자동 규칙",
-                    value: "\(profile.automaticRules.count)개"
-                )
-                shareInformationRow(
-                    "이동 방식",
-                    value: movementModeName(profile.movement.mode)
-                )
-                shareInformationRow(
-                    "쓰다듬기",
-                    value: profile.pettingMotionID ?? "지정 안 함"
-                )
-            }
-            .padding(.leading, 24)
-            .font(.caption)
+        if let profile = includesApplicationRules
+            ? review.recommendedProfileWithApplicationRules
+            : review.recommendedProfile {
+            RecommendedProfileSummaryView(
+                summary: RecommendedProfileSummary(profile: profile)
+            )
+            .padding(.leading, 8)
         }
     }
 
@@ -1968,6 +1895,288 @@ private struct PetPackageShareReviewView: View {
         }
     }
 
+    private func shareInformationRow(
+        _ label: String,
+        value: String
+    ) -> some View {
+        GridRow {
+            Text(label)
+                .foregroundStyle(.secondary)
+            Text(value)
+                .textSelection(.enabled)
+        }
+    }
+}
+
+private struct RecommendedProfileSummaryView: View {
+    let summary: RecommendedProfileSummary
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Grid(
+                alignment: .leading,
+                horizontalSpacing: 16,
+                verticalSpacing: 6
+            ) {
+                informationRow(
+                    "행동 모드",
+                    value: summary.mode == .automatic ? "자동" : "수동"
+                )
+                informationRow(
+                    "선택 루틴",
+                    value: summary.manualSequenceID.map(
+                        BuiltInBehaviorPresets.displayName(for:)
+                    ) ?? "자동 결정"
+                )
+                informationRow(
+                    "행동 루틴",
+                    value: "\(summary.sequences.count)개"
+                )
+                informationRow(
+                    "자동 규칙",
+                    value: "\(summary.automaticRules.count)개"
+                )
+                informationRow(
+                    "이동 방식",
+                    value: movementModeName(summary.movement.mode)
+                )
+                informationRow(
+                    "쓰다듬기",
+                    value: summary.pettingMotionID ?? "지정 안 함"
+                )
+            }
+
+            DisclosureGroup("행동 루틴 상세") {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(summary.sequences, id: \.id) { sequence in
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(
+                                BuiltInBehaviorPresets.displayName(
+                                    for: sequence.id
+                                )
+                            )
+                                .font(.caption.weight(.semibold))
+                            Text(
+                                sequence.repeats
+                                    ? "전체 반복"
+                                    : "한 번 재생"
+                            )
+                            .foregroundStyle(.secondary)
+                            ForEach(
+                                Array(sequence.steps.enumerated()),
+                                id: \.offset
+                            ) { index, step in
+                                Text(
+                                    "\(index + 1). \(BuiltInBehaviorPresets.motionDisplayName(for: step.motionID)) × \(step.repeatCount)"
+                                )
+                                .textSelection(.enabled)
+                            }
+                        }
+                    }
+                }
+                .padding(.top, 6)
+            }
+
+            DisclosureGroup("자동 규칙 상세") {
+                VStack(alignment: .leading, spacing: 8) {
+                    if summary.automaticRules.isEmpty {
+                        Text("포함된 자동 규칙이 없습니다.")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(summary.automaticRules, id: \.id) { rule in
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(ruleConditionText(rule.condition))
+                                    .textSelection(.enabled)
+                                Text(
+                                    "\(rule.isEnabled ? "사용" : "사용 안 함") · 우선순위 \(rule.priority) · \(BuiltInBehaviorPresets.displayName(for: rule.sequenceID))"
+                                )
+                                .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+                .padding(.top, 6)
+            }
+
+            DisclosureGroup("이동 설정 상세") {
+                VStack(alignment: .leading, spacing: 6) {
+                    Grid(
+                        alignment: .leading,
+                        horizontalSpacing: 14,
+                        verticalSpacing: 5
+                    ) {
+                        informationRow(
+                            "이동 속도",
+                            value:
+                                "\(Int(summary.movement.speed.rounded())) pt/s"
+                        )
+                        informationRow(
+                            "마우스와 거리",
+                            value:
+                                "\(Int(summary.movement.cursorDistance.rounded())) pt"
+                        )
+                        informationRow(
+                            "정지 반경",
+                            value:
+                                "\(Int(summary.movement.stopRadius.rounded())) pt"
+                        )
+                        informationRow(
+                            "자유 이동 대기",
+                            value: dwellText(
+                                summary.movement
+                                    .freeRoamingDwellMilliseconds
+                            )
+                        )
+                        informationRow(
+                            "활성 앱 창 우선",
+                            value: summary.movement.prefersFrontmostWindow
+                                ? "사용"
+                                : "사용 안 함"
+                        )
+                    }
+
+                    Divider()
+
+                    movementAnimationSummary(
+                        title: "마우스 따라가기",
+                        systemImage: "cursorarrow",
+                        mode: .cursorFollowing,
+                        animation:
+                            summary.movement.cursorFollowingAnimation
+                    )
+
+                    Divider()
+
+                    movementAnimationSummary(
+                        title: "자유 이동",
+                        systemImage: "arrow.triangle.2.circlepath",
+                        mode: .freeRoaming,
+                        animation: summary.movement.freeRoamingAnimation
+                    )
+                }
+                .padding(.top, 6)
+            }
+
+            Label(
+                "화면 위치·이동 범위·크기·투명도·클릭 통과·픽셀 표시·로그인 실행은 이 패키지에 포함되지 않습니다.",
+                systemImage: "desktopcomputer"
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+        .font(.caption)
+        .padding(12)
+        .background(
+            .quaternary.opacity(0.35),
+            in: RoundedRectangle(cornerRadius: 10)
+        )
+    }
+
+    @ViewBuilder
+    private func movementAnimationSummary(
+        title: String,
+        systemImage: String,
+        mode: PetMovementMode,
+        animation: MovementAnimationSettings
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 6) {
+                Label(title, systemImage: systemImage)
+                    .font(.subheadline.weight(.semibold))
+
+                Spacer(minLength: 8)
+
+                if summary.movement.mode == mode {
+                    Text("현재 사용")
+                        .foregroundStyle(.tint)
+                        .font(.caption2.weight(.semibold))
+                }
+
+                Text(animationStyleName(animation))
+                    .font(.caption2.weight(.medium))
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(
+                        .quaternary,
+                        in: Capsule()
+                    )
+            }
+
+            Grid(
+                alignment: .leading,
+                horizontalSpacing: 14,
+                verticalSpacing: 5
+            ) {
+                informationRow(
+                    "기본 이동",
+                    value: animation.fallbackMotionID ?? "기존 행동 유지"
+                )
+                if animation.usesDirectionalMotions {
+                    ForEach(displayedDirections(for: animation), id: \.self) {
+                        direction in
+                        informationRow(
+                            directionLabel(direction),
+                            value: directionMotionDescription(
+                                direction,
+                                animation: animation
+                            )
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    private func animationStyleName(
+        _ animation: MovementAnimationSettings
+    ) -> String {
+        guard animation.usesDirectionalMotions else {
+            return "공통 하나"
+        }
+        return animation.usesDiagonalMotions
+            ? "방향별 8방향"
+            : "방향별 4방향"
+    }
+
+    private func directionMotionDescription(
+        _ direction: MovementDirection,
+        animation: MovementAnimationSettings
+    ) -> String {
+        if let motionID = animation.directionMotionIDs[direction] {
+            return motionID
+        }
+        if direction.isDiagonal {
+            return animation.fallbackMotionID == nil
+                ? "가까운 기본 방향 또는 기존 행동 사용"
+                : "가까운 기본 방향 또는 기본 이동 사용"
+        }
+        if let fallbackMotionID = animation.fallbackMotionID {
+            return "기본 이동 사용 · \(fallbackMotionID)"
+        }
+        return "기존 행동 유지"
+    }
+
+    private func displayedDirections(
+        for animation: MovementAnimationSettings
+    ) -> [MovementDirection] {
+        animation.usesDiagonalMotions
+            ? MovementDirection.cardinalCases
+                + MovementDirection.diagonalCases
+            : MovementDirection.cardinalCases
+    }
+
+    private func informationRow(
+        _ label: String,
+        value: String
+    ) -> some View {
+        GridRow {
+            Text(label)
+                .foregroundStyle(.secondary)
+            Text(value)
+                .textSelection(.enabled)
+        }
+    }
+
     private func movementModeName(_ mode: PetMovementMode) -> String {
         switch mode {
         case .fixed:
@@ -1979,16 +2188,47 @@ private struct PetPackageShareReviewView: View {
         }
     }
 
-    private func shareInformationRow(
-        _ label: String,
-        value: String
-    ) -> some View {
-        GridRow {
-            Text(label)
-                .foregroundStyle(.secondary)
-            Text(value)
-                .textSelection(.enabled)
+    private func directionLabel(_ direction: MovementDirection) -> String {
+        switch direction {
+        case .left:
+            "왼쪽"
+        case .right:
+            "오른쪽"
+        case .up:
+            "위쪽"
+        case .down:
+            "아래쪽"
+        case .upLeft:
+            "왼쪽 위"
+        case .upRight:
+            "오른쪽 위"
+        case .downLeft:
+            "왼쪽 아래"
+        case .downRight:
+            "오른쪽 아래"
         }
+    }
+
+    private func ruleConditionText(_ condition: RuleCondition) -> String {
+        switch condition {
+        case let .application(bundleIdentifier):
+            "앱: \(bundleIdentifier)"
+        case let .idleAtLeast(milliseconds):
+            "입력 없음: \(dwellText(milliseconds)) 이상"
+        case let .unsupported(type):
+            "지원하지 않는 규칙: \(type)"
+        }
+    }
+
+    private func dwellText(_ milliseconds: Int64) -> String {
+        let seconds = Double(milliseconds) / 1_000
+        if seconds >= 60, seconds.truncatingRemainder(dividingBy: 60) == 0 {
+            return "\(Int(seconds / 60))분"
+        }
+        if seconds.rounded() == seconds {
+            return "\(Int(seconds))초"
+        }
+        return String(format: "%.1f초", seconds)
     }
 }
 

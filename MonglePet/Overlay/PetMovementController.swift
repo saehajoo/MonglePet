@@ -113,6 +113,7 @@ final class PetMovementController: PetMovementControlling {
     private var isMovementAllowed = false
     private var lastTickAt: ContinuousClock.Instant?
     private var lastMovedAt: ContinuousClock.Instant?
+    private var directionClassifier = MovementDirectionClassifier()
     private(set) var targetOrigin: PetMovementPoint?
     private(set) var state: PetMovementControllerState = .inactive
     private(set) var activity: PetMovementActivity = .stationary
@@ -457,12 +458,8 @@ final class PetMovementController: PetMovementControlling {
                 return false
             }
             lastMovedAt = now
-            emit(
-                activity: PetMovementActivity(
-                    isMoving: true,
-                    motionID: movementMotionID
-                )
-            )
+            let directionOrigin = originBeforeRequest ?? advance.origin
+            emit(activity: movingActivity(from: directionOrigin, to: actualOrigin))
             return true
         } else {
             updateStationaryActivityIfNeeded(at: now)
@@ -496,12 +493,7 @@ final class PetMovementController: PetMovementControlling {
             return
         }
         lastMovedAt = now
-        emit(
-            activity: PetMovementActivity(
-                isMoving: true,
-                motionID: movementMotionID
-            )
-        )
+        emit(activity: movingActivity(from: origin, to: actualOrigin))
     }
 
     private func originsAreNear(
@@ -529,15 +521,27 @@ final class PetMovementController: PetMovementControlling {
         }
     }
 
-    private var movementMotionID: String? {
-        switch settings.mode {
-        case .fixed:
-            nil
-        case .cursorFollowing:
-            settings.cursorFollowingMotionID
-        case .freeRoaming:
-            settings.freeRoamingMotionID
-        }
+    private func movingActivity(
+        from origin: PetMovementPoint,
+        to actualOrigin: PetMovementPoint
+    ) -> PetMovementActivity {
+        let deltaX = actualOrigin.x - origin.x
+        let deltaY = actualOrigin.y - origin.y
+        let animation = settings.animationSettings(for: settings.mode)
+        let direction = directionClassifier.classify(
+            deltaX: deltaX,
+            deltaY: deltaY,
+            usesDiagonals: animation?.usesDirectionalMotions == true
+                && animation?.usesDiagonalMotions == true
+        )
+        return PetMovementActivity(
+            isMoving: true,
+            motionID: animation?.resolvedMotionID(
+                for: direction,
+                deltaX: deltaX,
+                deltaY: deltaY
+            )
+        )
     }
 
     private func elapsedSeconds(
@@ -576,6 +580,7 @@ final class PetMovementController: PetMovementControlling {
         targetOrigin = nil
         lastTickAt = nil
         lastMovedAt = nil
+        directionClassifier.reset()
         emit(activity: .stationary)
     }
 

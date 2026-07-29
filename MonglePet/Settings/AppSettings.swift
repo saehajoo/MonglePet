@@ -1,7 +1,7 @@
 import Foundation
 
 nonisolated enum AppSettingsLimits {
-    static let schemaVersion = 4
+    static let schemaVersion = 5
     static let maximumFileSize = 5 * 1_024 * 1_024
     static let defaultOverlayWidth = 192.0
     static let minimumOverlayWidth = 96.0
@@ -105,8 +105,8 @@ nonisolated struct PetMovementSettings: Equatable, Sendable {
     let stopRadius: Double
     let freeRoamingDwellMilliseconds: Int64
     let prefersFrontmostWindow: Bool
-    let cursorFollowingMotionID: String?
-    let freeRoamingMotionID: String?
+    let cursorFollowingAnimation: MovementAnimationSettings
+    let freeRoamingAnimation: MovementAnimationSettings
 
     init(
         mode: PetMovementMode,
@@ -116,7 +116,9 @@ nonisolated struct PetMovementSettings: Equatable, Sendable {
         freeRoamingDwellMilliseconds: Int64,
         prefersFrontmostWindow: Bool,
         cursorFollowingMotionID: String? = nil,
-        freeRoamingMotionID: String? = nil
+        freeRoamingMotionID: String? = nil,
+        cursorFollowingAnimation: MovementAnimationSettings? = nil,
+        freeRoamingAnimation: MovementAnimationSettings? = nil
     ) {
         self.mode = mode
         self.speed = speed
@@ -124,8 +126,10 @@ nonisolated struct PetMovementSettings: Equatable, Sendable {
         self.stopRadius = stopRadius
         self.freeRoamingDwellMilliseconds = freeRoamingDwellMilliseconds
         self.prefersFrontmostWindow = prefersFrontmostWindow
-        self.cursorFollowingMotionID = cursorFollowingMotionID
-        self.freeRoamingMotionID = freeRoamingMotionID
+        self.cursorFollowingAnimation = cursorFollowingAnimation
+            ?? .single(cursorFollowingMotionID)
+        self.freeRoamingAnimation = freeRoamingAnimation
+            ?? .single(freeRoamingMotionID)
     }
 
     static let `default` = PetMovementSettings(
@@ -152,16 +156,29 @@ nonisolated struct PetMovementSettings: Equatable, Sendable {
             && (AppSettingsLimits.minimumFreeRoamingDwellMilliseconds
                 ... AppSettingsLimits.maximumFreeRoamingDwellMilliseconds)
                 .contains(freeRoamingDwellMilliseconds)
-            && Self.isValidOptionalMotionID(cursorFollowingMotionID)
-            && Self.isValidOptionalMotionID(freeRoamingMotionID)
+            && cursorFollowingAnimation.isValid
+            && freeRoamingAnimation.isValid
     }
 
-    private static func isValidOptionalMotionID(_ motionID: String?) -> Bool {
-        guard let motionID else {
-            return true
+    var cursorFollowingMotionID: String? {
+        cursorFollowingAnimation.fallbackMotionID
+    }
+
+    var freeRoamingMotionID: String? {
+        freeRoamingAnimation.fallbackMotionID
+    }
+
+    func animationSettings(
+        for mode: PetMovementMode
+    ) -> MovementAnimationSettings? {
+        switch mode {
+        case .fixed:
+            nil
+        case .cursorFollowing:
+            cursorFollowingAnimation
+        case .freeRoaming:
+            freeRoamingAnimation
         }
-        let trimmed = motionID.trimmingCharacters(in: .whitespacesAndNewlines)
-        return !trimmed.isEmpty && trimmed == motionID
     }
 }
 

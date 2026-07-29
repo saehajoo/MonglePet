@@ -44,7 +44,7 @@ extension RecommendedPetProfileError: LocalizedError {
 }
 
 nonisolated enum RecommendedPetProfileCodec {
-    static let schemaVersion = 1
+    static let schemaVersion = 2
     static let maximumFileSize = 1 * 1_024 * 1_024
 
     static func encode(
@@ -52,7 +52,7 @@ nonisolated enum RecommendedPetProfileCodec {
         for definition: PetDefinition
     ) throws -> Data {
         try validate(profile, for: definition)
-        let stored = StoredRecommendedPetProfileV1(
+        let stored = StoredRecommendedPetProfileV2(
             schemaVersion: schemaVersion,
             behavior: StoredRecommendedBehaviorV1(
                 mode: storedMode(profile.mode),
@@ -100,20 +100,39 @@ nonisolated enum RecommendedPetProfileCodec {
         } catch {
             throw RecommendedPetProfileError.unreadable
         }
-        guard envelope.schemaVersion == schemaVersion else {
+        let profile: RecommendedPetProfile
+        switch envelope.schemaVersion {
+        case 1:
+            do {
+                profile = try domainProfile(
+                    from: decoder.decode(
+                        StoredRecommendedPetProfileV1.self,
+                        from: data
+                    )
+                )
+            } catch let error as RecommendedPetProfileError {
+                throw error
+            } catch {
+                throw RecommendedPetProfileError.unreadable
+            }
+        case schemaVersion:
+            do {
+                profile = try domainProfile(
+                    from: decoder.decode(
+                        StoredRecommendedPetProfileV2.self,
+                        from: data
+                    )
+                )
+            } catch let error as RecommendedPetProfileError {
+                throw error
+            } catch {
+                throw RecommendedPetProfileError.unreadable
+            }
+        default:
             throw RecommendedPetProfileError.unsupportedSchemaVersion(
                 envelope.schemaVersion
             )
         }
-
-        let stored: StoredRecommendedPetProfileV1
-        do {
-            stored = try decoder.decode(StoredRecommendedPetProfileV1.self, from: data)
-        } catch {
-            throw RecommendedPetProfileError.unreadable
-        }
-
-        let profile = try domainProfile(from: stored)
         try validate(profile, for: definition)
         return profile
     }
@@ -188,6 +207,77 @@ nonisolated enum RecommendedPetProfileCodec {
                 freeRoamingMotionID: stored.movement.freeRoamingMotionID
             ),
             pettingMotionID: stored.pettingMotionID
+        )
+    }
+
+    private static func domainProfile(
+        from stored: StoredRecommendedPetProfileV2
+    ) throws -> RecommendedPetProfile {
+        let baseProfile = try domainProfile(
+            from: StoredRecommendedPetProfileV1(
+                schemaVersion: 1,
+                behavior: stored.behavior,
+                movement: StoredRecommendedMovementV1(
+                    mode: stored.movement.mode,
+                    speed: stored.movement.speed,
+                    cursorDistance: stored.movement.cursorDistance,
+                    stopRadius: stored.movement.stopRadius,
+                    freeRoamingDwellMilliseconds:
+                        stored.movement.freeRoamingDwellMilliseconds,
+                    prefersFrontmostWindow:
+                        stored.movement.prefersFrontmostWindow,
+                    cursorFollowingMotionID:
+                        stored.movement.cursorFollowingAnimation
+                            .fallbackMotionID,
+                    freeRoamingMotionID:
+                        stored.movement.freeRoamingAnimation.fallbackMotionID
+                ),
+                pettingMotionID: stored.pettingMotionID,
+                automaticRules: stored.automaticRules
+            )
+        )
+        return RecommendedPetProfile(
+            mode: baseProfile.mode,
+            manualSequenceID: baseProfile.manualSequenceID,
+            sequences: baseProfile.sequences,
+            automaticRules: baseProfile.automaticRules,
+            movement: PetMovementSettings(
+                mode: baseProfile.movement.mode,
+                speed: baseProfile.movement.speed,
+                cursorDistance: baseProfile.movement.cursorDistance,
+                stopRadius: baseProfile.movement.stopRadius,
+                freeRoamingDwellMilliseconds:
+                    baseProfile.movement.freeRoamingDwellMilliseconds,
+                prefersFrontmostWindow:
+                    baseProfile.movement.prefersFrontmostWindow,
+                cursorFollowingAnimation: domainAnimation(
+                    from: stored.movement.cursorFollowingAnimation
+                ),
+                freeRoamingAnimation: domainAnimation(
+                    from: stored.movement.freeRoamingAnimation
+                )
+            ),
+            pettingMotionID: baseProfile.pettingMotionID
+        )
+    }
+
+    private static func domainAnimation(
+        from stored: StoredRecommendedMovementAnimationV2
+    ) -> MovementAnimationSettings {
+        MovementAnimationSettings(
+            fallbackMotionID: stored.fallbackMotionID,
+            usesDirectionalMotions: stored.usesDirectionalMotions,
+            usesDiagonalMotions: stored.usesDiagonalMotions,
+            directionMotionIDs: DirectionalMotionIDs(
+                left: stored.directionMotionIDs.left,
+                right: stored.directionMotionIDs.right,
+                up: stored.directionMotionIDs.up,
+                down: stored.directionMotionIDs.down,
+                upLeft: stored.directionMotionIDs.upLeft,
+                upRight: stored.directionMotionIDs.upRight,
+                downLeft: stored.directionMotionIDs.downLeft,
+                downRight: stored.directionMotionIDs.downRight
+            )
         )
     }
 
@@ -291,11 +381,43 @@ nonisolated enum RecommendedPetProfileCodec {
             field: "movement.freeRoamingMotionID",
             definition: definition
         )
+        try validateAnimation(
+            profile.movement.cursorFollowingAnimation,
+            field: "movement.cursorFollowingAnimation",
+            definition: definition
+        )
+        try validateAnimation(
+            profile.movement.freeRoamingAnimation,
+            field: "movement.freeRoamingAnimation",
+            definition: definition
+        )
         try validateOptionalMotion(
             profile.pettingMotionID,
             field: "pettingMotionID",
             definition: definition
         )
+    }
+
+    private static func validateAnimation(
+        _ animation: MovementAnimationSettings,
+        field: String,
+        definition: PetDefinition
+    ) throws {
+        guard animation.isValid else {
+            throw RecommendedPetProfileError.invalidField(field)
+        }
+        try validateOptionalMotion(
+            animation.fallbackMotionID,
+            field: "\(field).fallbackMotionID",
+            definition: definition
+        )
+        for direction in MovementDirection.allCases {
+            try validateOptionalMotion(
+                animation.directionMotionIDs[direction],
+                field: "\(field).directionMotionIDs.\(direction.rawValue)",
+                definition: definition
+            )
+        }
     }
 
     private static func validateOptionalMotion(
@@ -341,13 +463,13 @@ nonisolated enum RecommendedPetProfileCodec {
 
     private static func storedMovement(
         _ movement: PetMovementSettings
-    ) -> StoredRecommendedMovementV1 {
+    ) -> StoredRecommendedMovementV2 {
         let mode: String = switch movement.mode {
         case .fixed: "fixed"
         case .cursorFollowing: "cursorFollowing"
         case .freeRoaming: "freeRoaming"
         }
-        return StoredRecommendedMovementV1(
+        return StoredRecommendedMovementV2(
             mode: mode,
             speed: movement.speed,
             cursorDistance: movement.cursorDistance,
@@ -355,8 +477,33 @@ nonisolated enum RecommendedPetProfileCodec {
             freeRoamingDwellMilliseconds:
                 movement.freeRoamingDwellMilliseconds,
             prefersFrontmostWindow: movement.prefersFrontmostWindow,
-            cursorFollowingMotionID: movement.cursorFollowingMotionID,
-            freeRoamingMotionID: movement.freeRoamingMotionID
+            cursorFollowingAnimation: storedAnimation(
+                movement.cursorFollowingAnimation
+            ),
+            freeRoamingAnimation: storedAnimation(
+                movement.freeRoamingAnimation
+            )
+        )
+    }
+
+    private static func storedAnimation(
+        _ animation: MovementAnimationSettings
+    ) -> StoredRecommendedMovementAnimationV2 {
+        let directions = animation.directionMotionIDs
+        return StoredRecommendedMovementAnimationV2(
+            fallbackMotionID: animation.fallbackMotionID,
+            usesDirectionalMotions: animation.usesDirectionalMotions,
+            usesDiagonalMotions: animation.usesDiagonalMotions,
+            directionMotionIDs: StoredRecommendedDirectionalMotionIDsV2(
+                left: directions.left,
+                right: directions.right,
+                up: directions.up,
+                down: directions.down,
+                upLeft: directions.upLeft,
+                upRight: directions.upRight,
+                downLeft: directions.downLeft,
+                downRight: directions.downRight
+            )
         )
     }
 
@@ -408,6 +555,14 @@ private nonisolated struct StoredRecommendedPetProfileV1: Codable {
     let automaticRules: [StoredRecommendedAutomaticRuleV1]
 }
 
+private nonisolated struct StoredRecommendedPetProfileV2: Codable {
+    let schemaVersion: Int
+    let behavior: StoredRecommendedBehaviorV1
+    let movement: StoredRecommendedMovementV2
+    let pettingMotionID: String?
+    let automaticRules: [StoredRecommendedAutomaticRuleV1]
+}
+
 private nonisolated struct StoredRecommendedBehaviorV1: Codable {
     let mode: String
     let manualSequenceID: String?
@@ -434,6 +589,35 @@ private nonisolated struct StoredRecommendedMovementV1: Codable {
     let prefersFrontmostWindow: Bool
     let cursorFollowingMotionID: String?
     let freeRoamingMotionID: String?
+}
+
+private nonisolated struct StoredRecommendedMovementV2: Codable {
+    let mode: String
+    let speed: Double
+    let cursorDistance: Double
+    let stopRadius: Double
+    let freeRoamingDwellMilliseconds: Int64
+    let prefersFrontmostWindow: Bool
+    let cursorFollowingAnimation: StoredRecommendedMovementAnimationV2
+    let freeRoamingAnimation: StoredRecommendedMovementAnimationV2
+}
+
+private nonisolated struct StoredRecommendedMovementAnimationV2: Codable {
+    let fallbackMotionID: String?
+    let usesDirectionalMotions: Bool
+    let usesDiagonalMotions: Bool
+    let directionMotionIDs: StoredRecommendedDirectionalMotionIDsV2
+}
+
+private nonisolated struct StoredRecommendedDirectionalMotionIDsV2: Codable {
+    let left: String?
+    let right: String?
+    let up: String?
+    let down: String?
+    let upLeft: String?
+    let upRight: String?
+    let downLeft: String?
+    let downRight: String?
 }
 
 private nonisolated struct StoredRecommendedAutomaticRuleV1: Codable {

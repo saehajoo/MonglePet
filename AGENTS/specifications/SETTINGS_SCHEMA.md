@@ -17,11 +17,11 @@ MonglePet의 사용자 설정은 SwiftData나 Core Data가 아닌 버전이 지�
 - 지원하는 이전 버전은 선택 펫 정의를 먼저 읽어 순차 마이그레이션하고, 성공한 결과만 원자적으로 현재 버전 파일로 교체한다.
 - 현재 앱보다 새로운 스키마는 원본을 그대로 보존하고 해당 실행의 설정 쓰기를 차단한다.
 
-## 현재 schema-v4 최상위 구조
+## 현재 schema-v5 최상위 구조
 
 ```json
 {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "selectedPetInstallationID": null,
   "lastUserPresentation": "awake",
   "overlay": {
@@ -66,8 +66,36 @@ MonglePet의 사용자 설정은 SwiftData나 Core Data가 아닌 버전이 지�
         "stopRadius": 16,
         "freeRoamingDwellMilliseconds": 6000,
         "prefersFrontmostWindow": true,
-        "cursorFollowingMotionID": null,
-        "freeRoamingMotionID": null
+        "cursorFollowingAnimation": {
+          "fallbackMotionID": null,
+          "usesDirectionalMotions": false,
+          "usesDiagonalMotions": false,
+          "directionMotionIDs": {
+            "left": null,
+            "right": null,
+            "up": null,
+            "down": null,
+            "upLeft": null,
+            "upRight": null,
+            "downLeft": null,
+            "downRight": null
+          }
+        },
+        "freeRoamingAnimation": {
+          "fallbackMotionID": null,
+          "usesDirectionalMotions": false,
+          "usesDiagonalMotions": false,
+          "directionMotionIDs": {
+            "left": null,
+            "right": null,
+            "up": null,
+            "down": null,
+            "upLeft": null,
+            "upRight": null,
+            "downLeft": null,
+            "downRight": null
+          }
+        }
       }
     }
   ]
@@ -78,7 +106,7 @@ MonglePet의 사용자 설정은 SwiftData나 Core Data가 아닌 버전이 지�
 
 ## 필드 규칙
 
-- `schemaVersion`: 현재 설정 파일 스키마 버전은 `4`다.
+- `schemaVersion`: 현재 설정 파일 스키마 버전은 `5`다.
 - `selectedPetInstallationID`: PetLibrary가 생성한 설치 UUID 문자열 또는 `null`이다.
 - `lastUserPresentation`: 사용자가 마지막으로 선택한 `awake` 또는 `tuckedAway`만 저장한다. 시스템에 의한 `suspended`는 저장하지 않는다.
 - `overlay.screenIdentifier`: `CGDisplayCreateUUIDFromDisplayID`로 얻은 디스플레이 UUID 기반 식별자다. 저장된 화면을 찾을 수 없으면 현재 화면 중 가장 적합한 화면을 사용한다.
@@ -102,8 +130,12 @@ MonglePet의 사용자 설정은 SwiftData나 Core Data가 아닌 버전이 지�
 - `behaviorProfiles[].movement.stopRadius`: 목표 도착으로 판단하는 반경이며 0–128pt, 기본값 16pt다.
 - `behaviorProfiles[].movement.freeRoamingDwellMilliseconds`: 자유 이동 목표에서 머무는 시간이며 500–300,000ms, 기본값 6,000ms다.
 - `behaviorProfiles[].movement.prefersFrontmostWindow`: 자유 이동 목표를 만들 때 현재 전면 앱의 대표 창 주변을 우선할지 나타내며 기본값은 `true`다.
-- `behaviorProfiles[].movement.cursorFollowingMotionID`: 마우스 따라가기로 실제 이동 중 재생할 펫 애니메이션 ID 또는 `null`이다.
-- `behaviorProfiles[].movement.freeRoamingMotionID`: 자유 이동으로 실제 이동 중 재생할 펫 애니메이션 ID 또는 `null`이다.
+- `behaviorProfiles[].movement.cursorFollowingAnimation`: 마우스 따라가기에서 사용할 공통·방향별 이동 애니메이션 설정이다.
+- `behaviorProfiles[].movement.freeRoamingAnimation`: 자유 이동에서 사용할 공통·방향별 이동 애니메이션 설정이다.
+- 각 `*Animation.fallbackMotionID`: 방향 기능을 사용하지 않을 때의 단일 이동 애니메이션이자 방향 참조가 없을 때의 최종 fallback이다.
+- 각 `*Animation.usesDirectionalMotions`: `true`이면 실제 이동 방향에 맞는 참조를 우선한다.
+- 각 `*Animation.usesDiagonalMotions`: 방향 기능이 켜진 상태에서만 `true`일 수 있으며 4방향 대신 8방향을 분류한다.
+- 각 `*Animation.directionMotionIDs`: `left`, `right`, `up`, `down`, `upLeft`, `upRight`, `downLeft`, `downRight`의 명시적인 애니메이션 ID 또는 `null`이다.
 
 행동 단계 규칙:
 
@@ -243,6 +275,19 @@ schema-v4는 전역 overlay에 이동 범위, 투명도와 선택형 픽셀 아�
 
 schema-v3에서 v4로 마이그레이션할 때 기존 overlay 값과 모든 펫 프로필을 그대로 유지하고 위 필드의 기본값만 추가한다. 기존 schema-v4의 선택 필드 `pixelArtRendering`이 없으면 `false`로 읽고 다음 저장부터 명시한다. 변환과 원자적 저장이 모두 성공한 경우에만 v4 파일로 교체한다.
 
+## schema-v5 방향별 이동 애니메이션
+
+schema-v5는 schema-v4의 `cursorFollowingMotionID`와 `freeRoamingMotionID`를 각각 `cursorFollowingAnimation.fallbackMotionID`와 `freeRoamingAnimation.fallbackMotionID`로 옮기고, 마우스 따라가기와 자유 이동에 독립된 방향별 참조를 추가한다.
+
+- 새 설정과 마이그레이션된 설정의 기본값은 `usesDirectionalMotions: false`, `usesDiagonalMotions: false`다.
+- 방향별 기능을 켜면 상·하·좌·우를 사용하고, `usesDiagonalMotions`를 켠 경우에만 네 대각선을 추가한다.
+- 대각선 참조가 없으면 실제 이동량이 큰 축의 기본 방향을 사용한다. 두 축의 크기가 같으면 좌·우를 우선한다.
+- 기본 방향 참조도 없으면 `fallbackMotionID`, 이것도 없거나 현재 펫에서 찾을 수 없으면 기존 행동 애니메이션을 유지한다.
+- 방향 모션 ID는 각각 독립적으로 복구한다. 한 방향의 잘못된 문자열 때문에 같은 모드의 다른 참조나 전체 프로필을 버리지 않는다.
+- 애니메이션 이름을 바꾸면 두 이동 모드의 fallback과 모든 방향 참조를 함께 바꾸고, 삭제하면 일치하는 참조만 `null`로 해제한다.
+
+schema-v4에서 v5로 마이그레이션할 때 overlay, 행동 루틴, 자동 규칙과 이동 수치는 그대로 유지한다. 기존 두 단일 이동 모션은 각 모드의 fallback으로 보존하고 방향별 기능은 끈다. 변환과 원자적 저장이 모두 성공한 경우에만 v5 파일로 교체한다.
+
 ## 자동 규칙 조건
 
 앱 조건:
@@ -272,7 +317,7 @@ schema-v3에서 v4로 마이그레이션할 때 기존 overlay 값과 모든 펫
 
 - schema-v3의 반복 횟수는 Domain의 `BehaviorStep.repeatCount`로 변환한다. v1의 정수 밀리초는 마이그레이션 과정에서만 Swift `Duration` 호환 정보로 읽는다.
 - 잘못된 이동 enum이나 범위 밖 값은 해당 필드만 기본값으로 복구하고 `SettingsRecoveryIssue.invalidField`를 반환한다.
-- 이동·쓰다듬기 애니메이션 ID는 앞뒤 공백이 없는 비어 있지 않은 문자열 또는 `null`이다. 이름 변경 시 같은 펫 프로필의 참조를 함께 바꾸고 삭제 시 `null`로 해제한다.
+- 이동 fallback·8방향 참조와 쓰다듬기 애니메이션 ID는 앞뒤 공백이 없는 비어 있지 않은 문자열 또는 `null`이다. 이름 변경 시 같은 펫 프로필의 모든 참조를 함께 바꾸고 삭제 시 일치하는 참조를 `null`로 해제한다.
 - 저장 enum 문자열을 Swift enum 자동 합성 결과에 의존하지 않는다.
 - 잘못된 최상위 enum과 overlay 필드는 해당 필드만 기본값 또는 허용 범위로 복구한다.
 - 잘못된 행동 단계는 그 단계만 제거하고, 남은 단계가 없는 행동 목록은 제거한다.
@@ -284,15 +329,16 @@ schema-v3에서 v4로 마이그레이션할 때 기존 overlay 값과 모든 펫
 ## 버전 처리
 
 1. 파일 크기를 확인한 뒤 `schemaVersion`만 먼저 읽는다.
-2. 현재 버전 `4`는 전체 DTO를 디코딩하고 프로필·항목 단위로 검증·복구한다.
-3. 버전 `3`은 기존 overlay와 모든 펫 프로필을 유지하고 이동 범위·투명도 기본값을 추가해 v4로 원자적 교체한다.
-4. 버전 `2`는 모든 펫 프로필에 기본 `fixed` 이동 설정을 추가해 v3로 변환한 뒤 v4 표시 기본값을 추가한다.
-5. 버전 `1`은 당시 선택된 펫 정의로 v2 행동 프로필을 만든 뒤 v3 이동 설정과 v4 표시 기본값을 순차적으로 추가한다. 전체 변환과 저장이 성공한 경우에만 v4로 교체하며, 필요한 펫 정의를 얻지 못하거나 저장에 실패하면 v1 원본과 쓰기 차단 상태를 유지한다.
-6. 현재 앱보다 새로운 버전은 원본을 이동하거나 덮어쓰지 않고 기본값으로 실행하며 저장을 거부한다.
-7. 향후 마이그레이션은 버전별 순차 변환과 fixture 기반 단위 테스트를 함께 추가한다.
+2. 현재 버전 `5`는 전체 DTO를 디코딩하고 프로필·방향 참조를 항목 단위로 검증·복구한다.
+3. 버전 `4`는 기존 두 단일 이동 모션을 모드별 공통 fallback으로 옮기고 방향 기능을 끈 v5로 원자적 교체한다.
+4. 버전 `3`은 기존 overlay와 모든 펫 프로필을 유지하고 이동 범위·투명도 기본값을 추가해 v4로 만든 뒤 v5 방향 설정을 추가한다.
+5. 버전 `2`는 모든 펫 프로필에 기본 `fixed` 이동 설정을 추가해 v3로 변환한 뒤 v4 표시 기본값과 v5 방향 설정을 순서대로 추가한다.
+6. 버전 `1`은 당시 선택된 펫 정의로 v2 행동 프로필을 만든 뒤 v3 이동 설정, v4 표시 기본값과 v5 방향 설정을 순차적으로 추가한다. 전체 변환과 저장이 성공한 경우에만 v5로 교체하며, 필요한 펫 정의를 얻지 못하거나 저장에 실패하면 v1 원본과 쓰기 차단 상태를 유지한다.
+7. 현재 앱보다 새로운 버전은 원본을 이동하거나 덮어쓰지 않고 기본값으로 실행하며 저장을 거부한다.
+8. 향후 마이그레이션은 버전별 순차 변환과 fixture 기반 단위 테스트를 함께 추가한다.
 
 ---
 
 문서 상태: active
-스키마 버전: 4
+스키마 버전: 5
 마지막 갱신: 2026-07-29

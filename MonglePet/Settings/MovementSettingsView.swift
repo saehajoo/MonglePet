@@ -79,12 +79,10 @@ struct MovementSettingsView: View {
                         accessibilityIdentifier: "monglepet.settings.cursorDistance"
                     )
 
-                    motionPicker(
-                        title: "이동 중 애니메이션",
-                        selection: cursorFollowingMotionBinding,
-                        noneLabel: "기존 행동 유지",
-                        accessibilityIdentifier:
-                            "monglepet.settings.cursorFollowingMotion"
+                    movementAnimationEditor(
+                        for: .cursorFollowing,
+                        accessibilityPrefix:
+                            "monglepet.settings.cursorFollowing"
                     )
 
                     Text("마우스 포인터와 지정한 거리를 유지하며 화면 안에서 따라갑니다.")
@@ -110,12 +108,10 @@ struct MovementSettingsView: View {
                         "monglepet.settings.prefersFrontmostWindow"
                     )
 
-                    motionPicker(
-                        title: "이동 중 애니메이션",
-                        selection: freeRoamingMotionBinding,
-                        noneLabel: "기존 행동 유지",
-                        accessibilityIdentifier:
-                            "monglepet.settings.freeRoamingMotion"
+                    movementAnimationEditor(
+                        for: .freeRoaming,
+                        accessibilityPrefix:
+                            "monglepet.settings.freeRoaming"
                     )
 
                     Text("창 정보를 얻을 수 없거나 전체 화면이면 현재 화면 안에서 안전한 위치를 선택합니다.")
@@ -353,28 +349,6 @@ struct MovementSettingsView: View {
         )
     }
 
-    private var cursorFollowingMotionBinding: Binding<String> {
-        Binding(
-            get: { movement.cursorFollowingMotionID ?? "" },
-            set: {
-                apply(
-                    .cursorFollowingMotionID($0.isEmpty ? nil : $0)
-                )
-            }
-        )
-    }
-
-    private var freeRoamingMotionBinding: Binding<String> {
-        Binding(
-            get: { movement.freeRoamingMotionID ?? "" },
-            set: {
-                apply(
-                    .freeRoamingMotionID($0.isEmpty ? nil : $0)
-                )
-            }
-        )
-    }
-
     private var pettingMotionBinding: Binding<String> {
         Binding(
             get: { settingsSession.settings.pettingMotionID ?? "" },
@@ -506,6 +480,220 @@ struct MovementSettingsView: View {
         .accessibilityIdentifier(accessibilityIdentifier)
     }
 
+    private func movementAnimationEditor(
+        for mode: PetMovementMode,
+        accessibilityPrefix: String
+    ) -> some View {
+        let animation = movementAnimation(for: mode)
+        return VStack(alignment: .leading, spacing: 10) {
+            Picker(
+                "이동 애니메이션",
+                selection: directionalAnimationBinding(for: mode)
+            ) {
+                Text("공통 하나").tag(false)
+                Text("방향별").tag(true)
+            }
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("\(accessibilityPrefix)AnimationStyle")
+
+            motionPicker(
+                title: animation.usesDirectionalMotions
+                    ? "기본 이동 애니메이션"
+                    : "이동 중 애니메이션",
+                selection: fallbackMotionBinding(for: mode),
+                noneLabel: "기존 행동 유지",
+                accessibilityIdentifier: "\(accessibilityPrefix)FallbackMotion"
+            )
+
+            if animation.usesDirectionalMotions {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(
+                        MovementDirection.cardinalCases,
+                        id: \.self
+                    ) { direction in
+                        motionPicker(
+                            title: directionLabel(direction),
+                            selection: directionMotionBinding(
+                                direction,
+                                for: mode
+                            ),
+                            noneLabel: "기본값 사용",
+                            accessibilityIdentifier:
+                                "\(accessibilityPrefix)Direction\(direction.rawValue)"
+                        )
+                    }
+
+                    Toggle(
+                        "대각선도 따로 설정",
+                        isOn: diagonalAnimationBinding(for: mode)
+                    )
+                    .accessibilityIdentifier(
+                        "\(accessibilityPrefix)UsesDiagonals"
+                    )
+
+                    if animation.usesDiagonalMotions {
+                        ForEach(
+                            MovementDirection.diagonalCases,
+                            id: \.self
+                        ) { direction in
+                            motionPicker(
+                                title: directionLabel(direction),
+                                selection: directionMotionBinding(
+                                    direction,
+                                    for: mode
+                                ),
+                                noneLabel: "가까운 기본 방향 사용",
+                                accessibilityIdentifier:
+                                    "\(accessibilityPrefix)Direction\(direction.rawValue)"
+                            )
+                        }
+                    }
+                }
+
+                Text(
+                    "지정하지 않은 방향은 이동량이 큰 기본 방향을 사용하고, 찾을 수 없으면 기본 이동 애니메이션이나 기존 행동으로 돌아갑니다."
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func movementAnimation(
+        for mode: PetMovementMode
+    ) -> MovementAnimationSettings {
+        switch mode {
+        case .fixed:
+            .default
+        case .cursorFollowing:
+            movement.cursorFollowingAnimation
+        case .freeRoaming:
+            movement.freeRoamingAnimation
+        }
+    }
+
+    private func directionalAnimationBinding(
+        for mode: PetMovementMode
+    ) -> Binding<Bool> {
+        Binding(
+            get: { movementAnimation(for: mode).usesDirectionalMotions },
+            set: { usesDirectionalMotions in
+                updateMovementAnimation(for: mode) { current in
+                    MovementAnimationSettings(
+                        fallbackMotionID: current.fallbackMotionID,
+                        usesDirectionalMotions: usesDirectionalMotions,
+                        usesDiagonalMotions: usesDirectionalMotions
+                            && current.usesDiagonalMotions,
+                        directionMotionIDs: current.directionMotionIDs
+                    )
+                }
+            }
+        )
+    }
+
+    private func diagonalAnimationBinding(
+        for mode: PetMovementMode
+    ) -> Binding<Bool> {
+        Binding(
+            get: { movementAnimation(for: mode).usesDiagonalMotions },
+            set: { usesDiagonalMotions in
+                updateMovementAnimation(for: mode) { current in
+                    MovementAnimationSettings(
+                        fallbackMotionID: current.fallbackMotionID,
+                        usesDirectionalMotions: true,
+                        usesDiagonalMotions: usesDiagonalMotions,
+                        directionMotionIDs: current.directionMotionIDs
+                    )
+                }
+            }
+        )
+    }
+
+    private func fallbackMotionBinding(
+        for mode: PetMovementMode
+    ) -> Binding<String> {
+        Binding(
+            get: {
+                movementAnimation(for: mode).fallbackMotionID ?? ""
+            },
+            set: { motionID in
+                updateMovementAnimation(for: mode) { current in
+                    MovementAnimationSettings(
+                        fallbackMotionID:
+                            motionID.isEmpty ? nil : motionID,
+                        usesDirectionalMotions:
+                            current.usesDirectionalMotions,
+                        usesDiagonalMotions: current.usesDiagonalMotions,
+                        directionMotionIDs: current.directionMotionIDs
+                    )
+                }
+            }
+        )
+    }
+
+    private func directionMotionBinding(
+        _ direction: MovementDirection,
+        for mode: PetMovementMode
+    ) -> Binding<String> {
+        Binding(
+            get: {
+                movementAnimation(for: mode).directionMotionIDs[direction]
+                    ?? ""
+            },
+            set: { motionID in
+                updateMovementAnimation(for: mode) { current in
+                    MovementAnimationSettings(
+                        fallbackMotionID: current.fallbackMotionID,
+                        usesDirectionalMotions:
+                            current.usesDirectionalMotions,
+                        usesDiagonalMotions: current.usesDiagonalMotions,
+                        directionMotionIDs:
+                            current.directionMotionIDs.replacing(
+                                direction,
+                                with: motionID.isEmpty ? nil : motionID
+                            )
+                    )
+                }
+            }
+        )
+    }
+
+    private func updateMovementAnimation(
+        for mode: PetMovementMode,
+        transform: (MovementAnimationSettings) -> MovementAnimationSettings
+    ) {
+        let animation = transform(movementAnimation(for: mode))
+        switch mode {
+        case .fixed:
+            return
+        case .cursorFollowing:
+            apply(.cursorFollowingAnimation(animation))
+        case .freeRoaming:
+            apply(.freeRoamingAnimation(animation))
+        }
+    }
+
+    private func directionLabel(_ direction: MovementDirection) -> String {
+        switch direction {
+        case .left:
+            "왼쪽"
+        case .right:
+            "오른쪽"
+        case .up:
+            "위쪽"
+        case .down:
+            "아래쪽"
+        case .upLeft:
+            "왼쪽 위"
+        case .upRight:
+            "오른쪽 위"
+        case .downLeft:
+            "왼쪽 아래"
+        case .downRight:
+            "오른쪽 아래"
+        }
+    }
+
     private func motionIDs(for selectedMotionID: String) -> [String] {
         var motionIDs = petDefinition.motions.map(\.id)
         if !selectedMotionID.isEmpty,
@@ -610,8 +798,8 @@ struct MovementSettingsView: View {
         var freeRoamingDwellMilliseconds =
             current.freeRoamingDwellMilliseconds
         var prefersFrontmostWindow = current.prefersFrontmostWindow
-        var cursorFollowingMotionID = current.cursorFollowingMotionID
-        var freeRoamingMotionID = current.freeRoamingMotionID
+        var cursorFollowingAnimation = current.cursorFollowingAnimation
+        var freeRoamingAnimation = current.freeRoamingAnimation
 
         switch edit {
         case let .mode(value):
@@ -626,10 +814,10 @@ struct MovementSettingsView: View {
             freeRoamingDwellMilliseconds = value
         case let .prefersFrontmostWindow(value):
             prefersFrontmostWindow = value
-        case let .cursorFollowingMotionID(value):
-            cursorFollowingMotionID = value
-        case let .freeRoamingMotionID(value):
-            freeRoamingMotionID = value
+        case let .cursorFollowingAnimation(value):
+            cursorFollowingAnimation = value
+        case let .freeRoamingAnimation(value):
+            freeRoamingAnimation = value
         }
 
         settingsSession.setMovementSettings(
@@ -641,8 +829,8 @@ struct MovementSettingsView: View {
                 freeRoamingDwellMilliseconds:
                     freeRoamingDwellMilliseconds,
                 prefersFrontmostWindow: prefersFrontmostWindow,
-                cursorFollowingMotionID: cursorFollowingMotionID,
-                freeRoamingMotionID: freeRoamingMotionID
+                cursorFollowingAnimation: cursorFollowingAnimation,
+                freeRoamingAnimation: freeRoamingAnimation
             ),
             persist: persist
         )
@@ -656,8 +844,8 @@ private enum MovementEdit {
     case stopRadius(Double)
     case freeRoamingDwellMilliseconds(Int64)
     case prefersFrontmostWindow(Bool)
-    case cursorFollowingMotionID(String?)
-    case freeRoamingMotionID(String?)
+    case cursorFollowingAnimation(MovementAnimationSettings)
+    case freeRoamingAnimation(MovementAnimationSettings)
 }
 
 private enum CustomAreaField {

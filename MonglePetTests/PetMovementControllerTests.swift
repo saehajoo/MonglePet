@@ -88,6 +88,70 @@ final class PetMovementControllerTests: XCTestCase {
         XCTAssertEqual(fixture.controller.activity, movement("run"))
     }
 
+    func testCursorFollowingSelectsMotionFromActualMovementDirection() {
+        let fixture = Fixture()
+        fixture.origin = point(500, 100)
+        fixture.pointer = point(50, 150)
+        fixture.controller.update(
+            settings: fixture.settings(
+                mode: .cursorFollowing,
+                speed: 100,
+                cursorDistance: 0,
+                stopRadius: 0,
+                cursorAnimation: MovementAnimationSettings(
+                    fallbackMotionID: "fallback",
+                    usesDirectionalMotions: true,
+                    directionMotionIDs: DirectionalMotionIDs(
+                        left: "run-left",
+                        right: "run-right"
+                    )
+                )
+            ),
+            isMovementAllowed: true
+        )
+
+        fixture.clock.advance(by: .seconds(1))
+        fixture.scheduler.fire()
+
+        XCTAssertEqual(fixture.origin, point(400, 100))
+        XCTAssertEqual(
+            fixture.controller.activity,
+            movement("run-left")
+        )
+    }
+
+    func testDiagonalMovementFallsBackToDominantCardinalMotion() {
+        let fixture = Fixture()
+        fixture.origin = point(100, 100)
+        fixture.pointer = point(600, 550)
+        fixture.controller.update(
+            settings: fixture.settings(
+                mode: .cursorFollowing,
+                speed: 100,
+                cursorDistance: 0,
+                stopRadius: 0,
+                cursorAnimation: MovementAnimationSettings(
+                    fallbackMotionID: "fallback",
+                    usesDirectionalMotions: true,
+                    usesDiagonalMotions: true,
+                    directionMotionIDs: DirectionalMotionIDs(
+                        right: "run-right",
+                        up: "run-up"
+                    )
+                )
+            ),
+            isMovementAllowed: true
+        )
+
+        fixture.clock.advance(by: .seconds(1))
+        fixture.scheduler.fire()
+
+        XCTAssertEqual(
+            fixture.controller.activity,
+            movement("run-right")
+        )
+    }
+
     func testCursorFollowingStopsAnimationAfterActualMovementHysteresis() {
         let fixture = Fixture()
         fixture.origin = point(100, 100)
@@ -460,7 +524,9 @@ private final class Fixture {
         dwellMilliseconds: Int64 = 6_000,
         prefersFrontmostWindow: Bool = true,
         cursorMotionID: String? = nil,
-        freeMotionID: String? = nil
+        freeMotionID: String? = nil,
+        cursorAnimation: MovementAnimationSettings? = nil,
+        freeAnimation: MovementAnimationSettings? = nil
     ) -> PetMovementSettings {
         PetMovementSettings(
             mode: mode,
@@ -470,7 +536,9 @@ private final class Fixture {
             freeRoamingDwellMilliseconds: dwellMilliseconds,
             prefersFrontmostWindow: prefersFrontmostWindow,
             cursorFollowingMotionID: cursorMotionID,
-            freeRoamingMotionID: freeMotionID
+            freeRoamingMotionID: freeMotionID,
+            cursorFollowingAnimation: cursorAnimation,
+            freeRoamingAnimation: freeAnimation
         )
     }
 }
