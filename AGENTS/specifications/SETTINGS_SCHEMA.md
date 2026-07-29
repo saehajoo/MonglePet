@@ -95,7 +95,7 @@ MonglePet의 사용자 설정은 SwiftData나 Core Data가 아닌 버전이 지�
 - `behaviorProfiles[].manualSequenceID`: 같은 프로필에 존재하는 행동 목록 ID 또는 `null`이다.
 - `behaviorProfiles[].sequences`: 최대 100개이며 목록별 단계는 최대 100개다.
 - `behaviorProfiles[].automaticRules`: 최대 100개이며 명시적인 조건 discriminator를 사용한다.
-- `behaviorProfiles[].pettingMotionID`: 펫을 클릭했을 때 한 번 재생할 현재 펫 애니메이션 ID 또는 `null`이다.
+- `behaviorProfiles[].pettingMotionID`: 펫의 실제 표시 영역에 마우스를 잠시 올렸을 때 한 번 재생할 현재 펫 애니메이션 ID 또는 `null`이다.
 - `behaviorProfiles[].movement.mode`: `fixed`, `cursorFollowing`, `freeRoaming` 중 하나이며 기본값은 `fixed`다.
 - `behaviorProfiles[].movement.speed`: 초당 이동 거리이며 20–1,000pt/s, 기본값 160pt/s다.
 - `behaviorProfiles[].movement.cursorDistance`: 마우스 따라가기 목표 거리이며 0–512pt, 기본값 96pt다.
@@ -125,7 +125,7 @@ MonglePet의 사용자 설정은 SwiftData나 Core Data가 아닌 버전이 지�
 
 ## schema-v3 펫별 행동·이동 프로필
 
-schema-v2는 schema-v1의 최상위 전역 행동 필드를 펫별 `behaviorProfiles`로 이동했다. schema-v3는 같은 프로필에 `movement`와 선택적 `pettingMotionID`를 추가해 행동 모드, 이동 모드와 클릭 반응을 독립적으로 저장한다. 초기 schema-v3 파일에 `pettingMotionID`가 없으면 `null`과 동일하게 읽는다.
+schema-v2는 schema-v1의 최상위 전역 행동 필드를 펫별 `behaviorProfiles`로 이동했다. schema-v3는 같은 프로필에 `movement`와 선택적 `pettingMotionID`를 추가해 행동 모드, 이동 모드와 쓰다듬기 반응을 독립적으로 저장한다. 초기 schema-v3 파일에 `pettingMotionID`가 없으면 `null`과 동일하게 읽는다.
 
 ```json
 {
@@ -295,4 +295,4 @@ schema-v3에서 v4로 마이그레이션할 때 기존 overlay 값과 모든 펫
 
 문서 상태: active
 스키마 버전: 4
-마지막 갱신: 2026-07-23
+마지막 갱신: 2026-07-29

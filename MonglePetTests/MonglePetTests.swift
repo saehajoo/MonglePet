@@ -371,7 +371,7 @@ final class MonglePetTests: XCTestCase {
     }
 
     @MainActor
-    func testPetWindowClickDoesNotPersistGeometryAndRequestsPetting() {
+    func testPetWindowDragWithoutMovementDoesNotPersistGeometry() {
         let controller = PetWindowController()
         var events: [String] = []
         controller.onUserDragStateDidChange = {
@@ -380,17 +380,12 @@ final class MonglePetTests: XCTestCase {
         controller.onOverlayGeometryDidChange = {
             events.append("geometry")
         }
-        controller.onPettingRequested = {
-            events.append("petting")
-        }
-
         controller.wake()
         controller.userDragDidBegin()
         controller.userDragDidEnd(didMove: false)
-        controller.pettingDidRequest()
         controller.sleep()
 
-        XCTAssertEqual(events, ["drag:true", "drag:false", "petting"])
+        XCTAssertEqual(events, ["drag:true", "drag:false"])
     }
 
     @MainActor

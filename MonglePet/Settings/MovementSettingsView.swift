@@ -132,15 +132,9 @@ struct MovementSettingsView: View {
                     accessibilityIdentifier: "monglepet.settings.pettingMotion"
                 )
 
-                Text("펫을 클릭하면 선택한 애니메이션을 한 번 재생한 뒤 기존 행동으로 돌아갑니다. 드래그는 쓰다듬기로 처리하지 않습니다.")
+                Text("펫의 보이는 부분에 마우스를 잠시 올리면 선택한 애니메이션을 한 번 재생한 뒤 기존 행동으로 돌아갑니다. 클릭 통과 중에도 사용할 수 있습니다.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-
-                if settingsSession.settings.overlay.clickThrough {
-                    Text("클릭 통과가 켜져 있습니다. 쓰다듬기를 사용하려면 일반 탭에서 클릭 통과를 꺼 주세요.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
             }
 
             Section {

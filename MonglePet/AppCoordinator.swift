@@ -323,6 +323,10 @@ final class AppCoordinator: NSObject {
             settings.overlay,
             restorePosition: shouldRestorePosition
         )
+        let pettingMotionExists = settings.pettingMotionID.flatMap {
+            petLibrarySession.selectedItem.definition.motion(id: $0)
+        } != nil
+        petWindowController.setPettingEnabled(pettingMotionExists)
         hasAppliedSettings = true
 
         switch settings.lastUserPresentation {

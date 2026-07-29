@@ -139,17 +139,28 @@ final class PetWindowController: NSWindowController {
         panel.contentView = petOverlayView
         panel.setContentSize(Self.defaultContentSize)
         pointerOverlapLifecycle = PetPointerOverlapLifecycle(
-            isPointerOverVisibleContent: { [weak panel, weak petOverlayView] in
+            observePointer: { [weak panel, weak petOverlayView] in
+                let mouseLocation = NSEvent.mouseLocation
                 guard let panel,
                       let petOverlayView,
                       panel.isVisible else {
-                    return false
+                    return PetPointerObservation(
+                        screenLocation: mouseLocation,
+                        isInsidePanel: false,
+                        isOverVisibleContent: false
+                    )
                 }
+                let isInsidePanel = panel.frame.contains(mouseLocation)
                 let windowPoint = panel.convertPoint(
-                    fromScreen: NSEvent.mouseLocation
+                    fromScreen: mouseLocation
                 )
                 let viewPoint = petOverlayView.convert(windowPoint, from: nil)
-                return petOverlayView.containsVisibleContent(at: viewPoint)
+                return PetPointerObservation(
+                    screenLocation: mouseLocation,
+                    isInsidePanel: isInsidePanel,
+                    isOverVisibleContent: isInsidePanel
+                        && petOverlayView.containsVisibleContent(at: viewPoint)
+                )
             },
             applyOpacity: { [weak panel] opacity, animated in
                 guard let panel else {
@@ -165,14 +176,14 @@ final class PetWindowController: NSWindowController {
 
         super.init(window: panel)
         shouldCascadeWindows = false
+        pointerOverlapLifecycle.setPettingRequestHandler { [weak self] in
+            self?.pettingDidRequest()
+        }
         petOverlayView.onDragBegan = { [weak self] in
             self?.userDragDidBegin()
         }
         petOverlayView.onDragEnded = { [weak self] didMove in
             self?.userDragDidEnd(didMove: didMove)
-        }
-        petOverlayView.onPetting = { [weak self] in
-            self?.pettingDidRequest()
         }
         framePlayer.play(defaultMotion)
         framePlayer.pause()
@@ -234,6 +245,7 @@ final class PetWindowController: NSWindowController {
             return
         }
         isUserDragging = true
+        pointerOverlapLifecycle.setUserDragging(true)
         onUserDragStateDidChange?(true)
     }
 
@@ -242,6 +254,7 @@ final class PetWindowController: NSWindowController {
             return
         }
         isUserDragging = false
+        pointerOverlapLifecycle.setUserDragging(false)
         onUserDragStateDidChange?(false)
         if didMove {
             onOverlayGeometryDidChange?()
@@ -332,6 +345,10 @@ final class PetWindowController: NSWindowController {
 
     func setReduceMotion(_ shouldReduceMotion: Bool) {
         pointerOverlapLifecycle.setReduceMotion(shouldReduceMotion)
+    }
+
+    func setPettingEnabled(_ isEnabled: Bool) {
+        pointerOverlapLifecycle.setPettingEnabled(isEnabled)
     }
 
     func setScheduledMotion(_ scheduledMotion: ScheduledMotion?) {

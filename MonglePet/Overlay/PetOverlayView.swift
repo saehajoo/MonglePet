@@ -11,7 +11,6 @@ struct PetAtlasImage {
 final class PetOverlayView: NSView {
     var onDragBegan: (() -> Void)?
     var onDragEnded: ((Bool) -> Void)?
-    var onPetting: (() -> Void)?
     var allowsWindowDragging = true
 
     private var atlases: [String: PetAtlasImage]
@@ -149,9 +148,6 @@ final class PetOverlayView: NSView {
             to: finalOrigin
         )
         onDragEnded?(didMove)
-        if !didMove {
-            onPetting?()
-        }
     }
 
     nonisolated static func didMove(

@@ -161,7 +161,13 @@ final class PetPointerOverlapTests: XCTestCase {
         var applied: [(opacity: Double, animated: Bool)] = []
         let lifecycle = PetPointerOverlapLifecycle(
             scheduler: scheduler,
-            isPointerOverVisibleContent: { isOverlapping },
+            observePointer: {
+                PetPointerObservation(
+                    screenLocation: .zero,
+                    isInsidePanel: isOverlapping,
+                    isOverVisibleContent: isOverlapping
+                )
+            },
             applyOpacity: { applied.append(($0, $1)) }
         )
         let settings = makeOverlaySettings(
@@ -234,7 +240,13 @@ final class PetPointerOverlapTests: XCTestCase {
         var applied: [Double] = []
         let lifecycle = PetPointerOverlapLifecycle(
             scheduler: scheduler,
-            isPointerOverVisibleContent: { true },
+            observePointer: {
+                PetPointerObservation(
+                    screenLocation: .zero,
+                    isInsidePanel: true,
+                    isOverVisibleContent: true
+                )
+            },
             applyOpacity: { opacity, _ in applied.append(opacity) }
         )
 
@@ -263,6 +275,193 @@ final class PetPointerOverlapTests: XCTestCase {
         XCTAssertFalse(lifecycle.isMonitoring)
         XCTAssertNil(scheduler.action)
         XCTAssertEqual(applied, [0.3])
+    }
+
+    @MainActor
+    func testHoverPettingWaitsForDwellAndRequiresExitBeforeRepeating() {
+        let scheduler = TestPointerOverlapScheduler()
+        var observation = PetPointerObservation(
+            screenLocation: CGPoint(x: 10, y: 10),
+            isInsidePanel: false,
+            isOverVisibleContent: false
+        )
+        var pettingCount = 0
+        let lifecycle = PetPointerOverlapLifecycle(
+            scheduler: scheduler,
+            observePointer: { observation },
+            applyOpacity: { _, _ in },
+            requestPetting: { pettingCount += 1 }
+        )
+
+        lifecycle.setSettings(
+            makeOverlaySettings(
+                clickThrough: false,
+                opacity: 1,
+                fadeEnabled: false,
+                overlapOpacity: 0.2
+            )
+        )
+        lifecycle.setPettingEnabled(true)
+        lifecycle.setAwake(true)
+
+        XCTAssertTrue(lifecycle.isMonitoring)
+        observation = PetPointerObservation(
+            screenLocation: CGPoint(x: 30, y: 30),
+            isInsidePanel: true,
+            isOverVisibleContent: true
+        )
+        scheduler.fire()
+        XCTAssertEqual(pettingCount, 0)
+
+        for opacity in [0.9, 0.8, 0.7] {
+            lifecycle.setSettings(
+                makeOverlaySettings(
+                    clickThrough: false,
+                    opacity: opacity,
+                    fadeEnabled: false,
+                    overlapOpacity: 0.2
+                )
+            )
+        }
+        XCTAssertEqual(pettingCount, 0)
+
+        for _ in 0..<PetPointerOverlapLifecycle.pettingDwellSampleCount {
+            scheduler.fire()
+        }
+        XCTAssertEqual(pettingCount, 1)
+
+        for _ in 0..<5 {
+            scheduler.fire()
+        }
+        XCTAssertEqual(pettingCount, 1)
+
+        lifecycle.setSettings(
+            makeOverlaySettings(
+                clickThrough: true,
+                opacity: 1,
+                fadeEnabled: false,
+                overlapOpacity: 0.2
+            )
+        )
+        observation = PetPointerObservation(
+            screenLocation: CGPoint(x: 40, y: 30),
+            isInsidePanel: false,
+            isOverVisibleContent: false
+        )
+        scheduler.fire()
+        observation = PetPointerObservation(
+            screenLocation: CGPoint(x: 50, y: 30),
+            isInsidePanel: true,
+            isOverVisibleContent: true
+        )
+        scheduler.fire()
+        for _ in 0..<PetPointerOverlapLifecycle.pettingDwellSampleCount {
+            scheduler.fire()
+        }
+
+        XCTAssertEqual(pettingCount, 2)
+    }
+
+    @MainActor
+    func testHoverPettingDoesNotTriggerWhenPetMovesUnderStationaryPointer() {
+        let scheduler = TestPointerOverlapScheduler()
+        var observation = PetPointerObservation(
+            screenLocation: CGPoint(x: 10, y: 10),
+            isInsidePanel: false,
+            isOverVisibleContent: false
+        )
+        var pettingCount = 0
+        let lifecycle = PetPointerOverlapLifecycle(
+            scheduler: scheduler,
+            observePointer: { observation },
+            applyOpacity: { _, _ in },
+            requestPetting: { pettingCount += 1 }
+        )
+
+        lifecycle.setPettingEnabled(true)
+        lifecycle.setAwake(true)
+        observation = PetPointerObservation(
+            screenLocation: CGPoint(x: 10, y: 10),
+            isInsidePanel: true,
+            isOverVisibleContent: true
+        )
+        scheduler.fire()
+        for _ in 0..<5 {
+            scheduler.fire()
+        }
+
+        XCTAssertEqual(pettingCount, 0)
+
+        observation = PetPointerObservation(
+            screenLocation: CGPoint(x: 20, y: 10),
+            isInsidePanel: true,
+            isOverVisibleContent: true
+        )
+        for _ in 0..<5 {
+            scheduler.fire()
+        }
+        XCTAssertEqual(pettingCount, 0)
+    }
+
+    @MainActor
+    func testHoverPettingIsSuppressedUntilExitAfterUserDrag() {
+        let scheduler = TestPointerOverlapScheduler()
+        var observation = PetPointerObservation(
+            screenLocation: CGPoint(x: 0, y: 0),
+            isInsidePanel: false,
+            isOverVisibleContent: false
+        )
+        var pettingCount = 0
+        let lifecycle = PetPointerOverlapLifecycle(
+            scheduler: scheduler,
+            observePointer: { observation },
+            applyOpacity: { _, _ in },
+            requestPetting: { pettingCount += 1 }
+        )
+
+        lifecycle.setPettingEnabled(true)
+        lifecycle.setAwake(true)
+        lifecycle.setUserDragging(true)
+        observation = PetPointerObservation(
+            screenLocation: CGPoint(x: 20, y: 20),
+            isInsidePanel: true,
+            isOverVisibleContent: true
+        )
+        scheduler.fire()
+        lifecycle.setUserDragging(false)
+        for _ in 0..<5 {
+            scheduler.fire()
+        }
+
+        XCTAssertEqual(pettingCount, 0)
+    }
+
+    @MainActor
+    func testPettingKeepsMonitoringDuringReduceMotionAndStopsWhenDisabled() {
+        let scheduler = TestPointerOverlapScheduler()
+        let lifecycle = PetPointerOverlapLifecycle(
+            scheduler: scheduler,
+            observePointer: {
+                PetPointerObservation(
+                    screenLocation: .zero,
+                    isInsidePanel: false,
+                    isOverVisibleContent: false
+                )
+            },
+            applyOpacity: { _, _ in }
+        )
+
+        lifecycle.setPettingEnabled(true)
+        lifecycle.setAwake(true)
+        lifecycle.setReduceMotion(true)
+
+        XCTAssertTrue(lifecycle.isMonitoring)
+        XCTAssertNotNil(scheduler.action)
+
+        lifecycle.setPettingEnabled(false)
+
+        XCTAssertFalse(lifecycle.isMonitoring)
+        XCTAssertNil(scheduler.action)
     }
 
     private func makeOverlaySettings(
