@@ -2145,10 +2145,15 @@ private struct RecommendedProfileSummaryView: View {
         if let motionID = animation.directionMotionIDs[direction] {
             return motionID
         }
-        if direction.isDiagonal {
-            return animation.fallbackMotionID == nil
-                ? "가까운 기본 방향 또는 기존 행동 사용"
-                : "가까운 기본 방향 또는 기본 이동 사용"
+        let availableDirections = animation.usesDiagonalMotions
+            ? MovementDirection.cardinalCases
+                + MovementDirection.diagonalCases
+            : MovementDirection.cardinalCases
+        if availableDirections.contains(where: {
+            $0 != direction
+                && animation.directionMotionIDs[$0] != nil
+        }) {
+            return "가까운 사용 방향 자동 선택"
         }
         if let fallbackMotionID = animation.fallbackMotionID {
             return "기본 이동 사용 · \(fallbackMotionID)"

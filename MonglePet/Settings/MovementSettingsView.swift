@@ -517,7 +517,7 @@ struct MovementSettingsView: View {
                                 direction,
                                 for: mode
                             ),
-                            noneLabel: "기본값 사용",
+                            noneLabel: "자동 선택",
                             accessibilityIdentifier:
                                 "\(accessibilityPrefix)Direction\(direction.rawValue)"
                         )
@@ -542,7 +542,7 @@ struct MovementSettingsView: View {
                                     direction,
                                     for: mode
                                 ),
-                                noneLabel: "가까운 기본 방향 사용",
+                                noneLabel: "자동 선택",
                                 accessibilityIdentifier:
                                     "\(accessibilityPrefix)Direction\(direction.rawValue)"
                             )
@@ -551,7 +551,7 @@ struct MovementSettingsView: View {
                 }
 
                 Text(
-                    "지정하지 않은 방향은 이동량이 큰 기본 방향을 사용하고, 찾을 수 없으면 기본 이동 애니메이션이나 기존 행동으로 돌아갑니다."
+                    "자동 선택 방향은 실제 이동과 같은 쪽을 향하는 사용 중 애니메이션 가운데 가장 가까운 것을 사용합니다. 적합한 방향이 없으면 기본 이동 애니메이션이나 기존 행동으로 돌아갑니다."
                 )
                 .font(.caption)
                 .foregroundStyle(.secondary)

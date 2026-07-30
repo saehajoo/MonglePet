@@ -118,6 +118,8 @@ nonisolated struct DirectionalMotionIDs: Equatable, Sendable {
 }
 
 nonisolated struct MovementAnimationSettings: Equatable, Sendable {
+    private static let minimumAutomaticAlignment = 0.05
+
     let fallbackMotionID: String?
     let usesDirectionalMotions: Bool
     let usesDiagonalMotions: Bool
@@ -160,26 +162,92 @@ nonisolated struct MovementAnimationSettings: Equatable, Sendable {
         if let exact = directionMotionIDs[direction] {
             return exact
         }
-        if direction.isDiagonal {
-            let cardinal = dominantCardinalDirection(
-                deltaX: deltaX,
-                deltaY: deltaY
-            )
-            if let cardinalMotionID = directionMotionIDs[cardinal] {
-                return cardinalMotionID
-            }
+        if let automaticMotionID = closestUsableMotionID(
+            deltaX: deltaX,
+            deltaY: deltaY
+        ) {
+            return automaticMotionID
         }
         return fallbackMotionID
     }
 
-    private func dominantCardinalDirection(
+    private func closestUsableMotionID(
         deltaX: Double,
         deltaY: Double
-    ) -> MovementDirection {
-        if abs(deltaX) >= abs(deltaY) {
-            return deltaX < 0 ? .left : .right
+    ) -> String? {
+        let magnitude = hypot(deltaX, deltaY)
+        guard
+            deltaX.isFinite,
+            deltaY.isFinite,
+            magnitude > MovementDirectionClassifier.minimumVectorLength
+        else {
+            return nil
         }
-        return deltaY < 0 ? .down : .up
+
+        let directions = usesDiagonalMotions
+            ? MovementDirection.cardinalCases
+                + MovementDirection.diagonalCases
+            : MovementDirection.cardinalCases
+        var bestMotionID: String?
+        var bestAlignment = Self.minimumAutomaticAlignment
+
+        for candidate in directions {
+            guard
+                let motionID = directionMotionIDs[candidate],
+                isCompatible(
+                    candidate,
+                    deltaX: deltaX,
+                    deltaY: deltaY
+                )
+            else {
+                continue
+            }
+            let vector = unitVector(for: candidate)
+            let alignment = (
+                deltaX * vector.x
+                    + deltaY * vector.y
+            ) / magnitude
+            if alignment > bestAlignment {
+                bestAlignment = alignment
+                bestMotionID = motionID
+            }
+        }
+
+        return bestMotionID
+    }
+
+    private func isCompatible(
+        _ direction: MovementDirection,
+        deltaX: Double,
+        deltaY: Double
+    ) -> Bool {
+        let vector = unitVector(for: direction)
+        return !(vector.x != 0 && deltaX * vector.x < 0)
+            && !(vector.y != 0 && deltaY * vector.y < 0)
+    }
+
+    private func unitVector(
+        for direction: MovementDirection
+    ) -> (x: Double, y: Double) {
+        let diagonal = 1 / sqrt(2.0)
+        return switch direction {
+        case .left:
+            (-1, 0)
+        case .right:
+            (1, 0)
+        case .up:
+            (0, 1)
+        case .down:
+            (0, -1)
+        case .upLeft:
+            (-diagonal, diagonal)
+        case .upRight:
+            (diagonal, diagonal)
+        case .downLeft:
+            (-diagonal, -diagonal)
+        case .downRight:
+            (diagonal, -diagonal)
+        }
     }
 
     private static func isValidOptionalMotionID(_ motionID: String?) -> Bool {

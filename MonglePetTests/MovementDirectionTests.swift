@@ -77,7 +77,7 @@ final class MovementDirectionTests: XCTestCase {
         )
     }
 
-    func testDirectionalAnimationUsesExactThenCardinalThenFallback() {
+    func testDirectionalAnimationUsesExactThenClosestUsableDirection() {
         let animation = MovementAnimationSettings(
             fallbackMotionID: "fallback",
             usesDirectionalMotions: true,
@@ -111,7 +111,81 @@ final class MovementDirectionTests: XCTestCase {
                 deltaX: 4,
                 deltaY: -10
             ),
+            "right"
+        )
+    }
+
+    func testAutomaticSelectionUsesSecondaryAxisWhenPrimaryIsUnavailable() {
+        let animation = MovementAnimationSettings(
+            fallbackMotionID: "fallback",
+            usesDirectionalMotions: true,
+            directionMotionIDs: DirectionalMotionIDs(right: "right")
+        )
+
+        XCTAssertEqual(
+            animation.resolvedMotionID(
+                for: .up,
+                deltaX: 4,
+                deltaY: 10
+            ),
+            "right"
+        )
+    }
+
+    func testAutomaticSelectionRejectsOpposingAndTinyDirections() {
+        let animation = MovementAnimationSettings(
+            fallbackMotionID: "fallback",
+            usesDirectionalMotions: true,
+            directionMotionIDs: DirectionalMotionIDs(
+                left: "left",
+                right: "right"
+            )
+        )
+
+        XCTAssertEqual(
+            animation.resolvedMotionID(
+                for: .up,
+                deltaX: -4,
+                deltaY: 10
+            ),
+            "left"
+        )
+        XCTAssertEqual(
+            animation.resolvedMotionID(
+                for: .up,
+                deltaX: 0.01,
+                deltaY: 10
+            ),
             "fallback"
+        )
+        XCTAssertEqual(
+            animation.resolvedMotionID(
+                for: .right,
+                deltaX: 10,
+                deltaY: 0
+            ),
+            "right"
+        )
+    }
+
+    func testAutomaticSelectionIgnoresDisabledDiagonalDirections() {
+        let animation = MovementAnimationSettings(
+            fallbackMotionID: "fallback",
+            usesDirectionalMotions: true,
+            usesDiagonalMotions: false,
+            directionMotionIDs: DirectionalMotionIDs(
+                up: "up",
+                upRight: "up-right"
+            )
+        )
+
+        XCTAssertEqual(
+            animation.resolvedMotionID(
+                for: .right,
+                deltaX: 10,
+                deltaY: 4
+            ),
+            "up"
         )
     }
 
