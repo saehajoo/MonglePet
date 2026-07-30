@@ -109,6 +109,30 @@ final class BehaviorSettingsEditorTests: XCTestCase {
             sequenceID: "custom",
             to: settings
         )
+        settings = settings.replacingActiveBehaviorProfile(
+            BehaviorProfile(
+                petKey: settings.selectedPetKey,
+                mode: settings.behaviorMode,
+                manualSequenceID: settings.manualSequenceID,
+                sequences: settings.sequences,
+                automaticRules: settings.automaticRules,
+                movement: settings.movementSettings,
+                pettingMotionID: settings.pettingMotionID,
+                speech: PetSpeechSettings(
+                    isEnabled: true,
+                    phrases: [
+                        PetSpeechPhrase(
+                            text: "남는 대사",
+                            trigger: .periodic
+                        ),
+                        PetSpeechPhrase(
+                            text: "삭제될 대사",
+                            trigger: .sequence("custom")
+                        )
+                    ]
+                )
+            )
+        )
 
         settings = try BehaviorSettingsEditor.removingSequence(
             id: "custom",
@@ -121,6 +145,10 @@ final class BehaviorSettingsEditorTests: XCTestCase {
         )
         XCTAssertFalse(settings.sequences.contains { $0.id == "custom" })
         XCTAssertFalse(settings.automaticRules.contains { $0.sequenceID == "custom" })
+        XCTAssertEqual(
+            settings.speechSettings.phrases.map(\.text),
+            ["남는 대사"]
+        )
         XCTAssertThrowsError(
             try BehaviorSettingsEditor.removingSequence(
                 id: BuiltInBehaviorPresets.defaultSequenceID,

@@ -319,7 +319,8 @@ nonisolated struct PetPackageSharingService {
             sequences: profile.sequences,
             automaticRules: automaticRules,
             movement: profile.movement,
-            pettingMotionID: profile.pettingMotionID
+            pettingMotionID: profile.pettingMotionID,
+            speech: profile.speech
         )
     }
 

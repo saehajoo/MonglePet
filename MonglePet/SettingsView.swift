@@ -43,6 +43,15 @@ struct SettingsView: View {
                     Label("행동 루틴", systemImage: "list.bullet.rectangle")
                 }
 
+            SpeechBubbleSettingsView(
+                settingsSession: settingsSession,
+                petDisplayName:
+                    petLibrarySession.selectedItem.metadata.displayName
+            )
+                .tabItem {
+                    Label("말풍선", systemImage: "text.bubble")
+                }
+
             AutomaticRulesSettingsView(
                 settingsSession: settingsSession,
                 petDisplayName: petLibrarySession.selectedItem.metadata.displayName
@@ -1320,7 +1329,7 @@ private struct PetPackageImportReviewView: View {
     @ViewBuilder
     private var recommendedProfileSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("펫별 행동·이동 권장 설정")
+            Text("펫별 행동·이동·말풍선 권장 설정")
                 .font(.headline)
 
             if let profile = review.recommendedProfile {
@@ -1575,7 +1584,7 @@ private struct DuplicatePetInstallView: View {
         case .preserveLocal:
             "현재 설치의 행동 모드, 루틴, 자동 규칙, 이동과 쓰다듬기 설정을 그대로 유지합니다."
         case .applyRecommended:
-            "현재 펫별 행동·이동 설정 전체를 패키지의 권장 설정으로 바꿉니다. 부분 병합은 제공하지 않습니다."
+            "현재 펫별 행동·이동·말풍선 설정 전체를 패키지의 권장 설정으로 바꿉니다. 부분 병합은 제공하지 않습니다."
         }
     }
 
@@ -1605,7 +1614,7 @@ private struct DuplicatePetInstallView: View {
     private var newInstallationDescription: String {
         if request.appliesRecommendedProfileToNewInstallation,
            request.importReview?.recommendedProfile != nil {
-            return "새 설치는 새 설치 ID를 사용하며 확인한 행동·이동 권장 설정을 적용합니다."
+            return "새 설치는 새 설치 ID를 사용하며 확인한 행동·이동·말풍선 권장 설정을 적용합니다."
         }
         return "새 설치는 새 설치 ID와 독립된 기본 행동·이동 설정을 사용합니다."
     }
@@ -1813,7 +1822,7 @@ private struct PetPackageShareReviewView: View {
                 Divider()
 
                 Toggle(
-                    "펫별 행동·이동 권장 설정 포함",
+                    "펫별 행동·이동·말풍선 권장 설정 포함",
                     isOn: $includesRecommendedProfile
                 )
                 .disabled(review.recommendedProfile == nil)
@@ -1829,7 +1838,7 @@ private struct PetPackageShareReviewView: View {
                     .font(.caption)
                     .foregroundStyle(.orange)
                 } else if review.recommendedProfile == nil {
-                    Text("현재 펫에 공유할 행동·이동 권장 설정이 없습니다.")
+                    Text("현재 펫에 공유할 행동·이동·말풍선 권장 설정이 없습니다.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else if includesRecommendedProfile {
@@ -1945,6 +1954,12 @@ private struct RecommendedProfileSummaryView: View {
                     value: summary.movement.mode == .cursorAvoiding
                         ? "도망가기 모드에서 사용하지 않음"
                         : summary.pettingMotionID ?? "지정 안 함"
+                )
+                informationRow(
+                    "말풍선",
+                    value: summary.speech.isEnabled
+                        ? "사용 · 대사 \(summary.speech.phrases.count)개"
+                        : "사용 안 함 · 대사 \(summary.speech.phrases.count)개"
                 )
             }
 

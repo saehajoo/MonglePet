@@ -45,7 +45,7 @@ final class AppSettingsStoreTests: XCTestCase {
             JSONSerialization.jsonObject(with: Data(contentsOf: settingsURL))
                 as? [String: Any]
         )
-        XCTAssertEqual(json["schemaVersion"] as? Int, 6)
+        XCTAssertEqual(json["schemaVersion"] as? Int, 7)
         XCTAssertEqual(json["lastUserPresentation"] as? String, "tuckedAway")
         XCTAssertNil(json["behaviorMode"])
         let overlay = try XCTUnwrap(json["overlay"] as? [String: Any])
@@ -101,6 +101,18 @@ final class AppSettingsStoreTests: XCTestCase {
         )
         XCTAssertNil(avoidingAnimation["fallbackMotionID"])
         XCTAssertEqual(profiles.first?["pettingMotionID"] as? String, "petting")
+        let speech = try XCTUnwrap(
+            profiles.first?["speech"] as? [String: Any]
+        )
+        XCTAssertEqual(speech["isEnabled"] as? Bool, true)
+        XCTAssertEqual(
+            speech["periodicIntervalMilliseconds"] as? Int,
+            45_000
+        )
+        let speechPhrases = try XCTUnwrap(
+            speech["phrases"] as? [[String: Any]]
+        )
+        XCTAssertEqual(speechPhrases.count, 2)
         let sequences = try XCTUnwrap(profiles.first?["sequences"] as? [[String: Any]])
         let steps = try XCTUnwrap(sequences.first?["steps"] as? [[String: Any]])
         XCTAssertEqual(steps.first?["repeatCount"] as? Int, 2)
@@ -241,14 +253,14 @@ final class AppSettingsStoreTests: XCTestCase {
     }
 
     func testNewerSchemaIsPreservedAndDisablesWriting() throws {
-        let originalData = Data(#"{"schemaVersion":7,"futureValue":true}"#.utf8)
+        let originalData = Data(#"{"schemaVersion":8,"futureValue":true}"#.utf8)
         try originalData.write(to: settingsURL)
         let store = AppSettingsStore(settingsURL: settingsURL)
 
         let loaded = store.load()
 
-        XCTAssertEqual(loaded.source, .newerSchema(7))
-        XCTAssertEqual(loaded.issues, [.newerSchemaVersion(7)])
+        XCTAssertEqual(loaded.source, .newerSchema(8))
+        XCTAssertEqual(loaded.issues, [.newerSchemaVersion(8)])
         XCTAssertFalse(loaded.isWritingEnabled)
         XCTAssertEqual(try Data(contentsOf: settingsURL), originalData)
         XCTAssertThrowsError(try store.save(.default)) { error in
@@ -328,7 +340,7 @@ final class AppSettingsStoreTests: XCTestCase {
         XCTAssertEqual(children.map(\.lastPathComponent), ["settings.json"])
     }
 
-    func testV1LoadMigratesAndAtomicallyRewritesSettingsAsV6() throws {
+    func testV1LoadMigratesAndAtomicallyRewritesSettingsAsV7() throws {
         let stored = makeLegacySettings()
         try JSONEncoder().encode(stored).write(to: settingsURL)
         let store = AppSettingsStore(settingsURL: settingsURL)
@@ -343,9 +355,9 @@ final class AppSettingsStoreTests: XCTestCase {
             StoredSchemaEnvelope.self,
             from: migratedData
         )
-        XCTAssertEqual(envelope.schemaVersion, 6)
+        XCTAssertEqual(envelope.schemaVersion, 7)
         XCTAssertNoThrow(
-            try JSONDecoder().decode(StoredAppSettingsV6.self, from: migratedData)
+            try JSONDecoder().decode(StoredAppSettingsV7.self, from: migratedData)
         )
         XCTAssertEqual(loaded.settings.movementSettings, .default)
         let children = try FileManager.default.contentsOfDirectory(
@@ -355,7 +367,7 @@ final class AppSettingsStoreTests: XCTestCase {
         XCTAssertEqual(children.map(\.lastPathComponent), ["settings.json"])
     }
 
-    func testV2LoadAddsDefaultMovementAndAtomicallyRewritesAsV6() throws {
+    func testV2LoadAddsDefaultMovementAndAtomicallyRewritesAsV7() throws {
         let profile = StoredBehaviorProfileV2(
             petKey: .builtIn,
             mode: "manual",
@@ -389,10 +401,10 @@ final class AppSettingsStoreTests: XCTestCase {
         XCTAssertEqual(loaded.source, .file)
         XCTAssertEqual(loaded.settings.movementSettings, .default)
         let migrated = try JSONDecoder().decode(
-            StoredAppSettingsV6.self,
+            StoredAppSettingsV7.self,
             from: Data(contentsOf: settingsURL)
         )
-        XCTAssertEqual(migrated.schemaVersion, 6)
+        XCTAssertEqual(migrated.schemaVersion, 7)
         XCTAssertEqual(migrated.behaviorProfiles.first?.movement.mode, "fixed")
         XCTAssertEqual(
             migrated.behaviorProfiles.first?.movement.cursorAvoidingIdleBehavior,
@@ -402,10 +414,13 @@ final class AppSettingsStoreTests: XCTestCase {
             migrated.overlay.movementBoundary.mode,
             "allDisplays"
         )
+        XCTAssertFalse(
+            migrated.behaviorProfiles.first?.speech.isEnabled ?? true
+        )
     }
 
-    func testV3LoadAddsDisplayDefaultsAndAtomicallyRewritesAsV6() throws {
-        let originalSettings = makeSettings()
+    func testV3LoadAddsDisplayDefaultsAndAtomicallyRewritesAsV7() throws {
+        let originalSettings = makeSettings(speech: .default)
         let storedV3 = try AppSettingsV3Mapper.storedSettings(
             from: originalSettings
         )
@@ -416,10 +431,10 @@ final class AppSettingsStoreTests: XCTestCase {
         XCTAssertEqual(loaded.source, .file)
         XCTAssertEqual(loaded.settings, originalSettings)
         let migrated = try JSONDecoder().decode(
-            StoredAppSettingsV6.self,
+            StoredAppSettingsV7.self,
             from: Data(contentsOf: settingsURL)
         )
-        XCTAssertEqual(migrated.schemaVersion, 6)
+        XCTAssertEqual(migrated.schemaVersion, 7)
         XCTAssertEqual(migrated.overlay.opacity, 1)
         XCTAssertFalse(migrated.overlay.pointerOverlapFadeEnabled)
         XCTAssertEqual(migrated.overlay.pointerOverlapOpacity, 0.2)
@@ -429,8 +444,8 @@ final class AppSettingsStoreTests: XCTestCase {
         )
     }
 
-    func testV4LoadPreservesSingleMotionFallbacksAndRewritesAsV6() throws {
-        let originalSettings = makeSettings()
+    func testV4LoadPreservesSingleMotionFallbacksAndRewritesAsV7() throws {
+        let originalSettings = makeSettings(speech: .default)
         let storedV4 = try AppSettingsV4Mapper.storedSettings(
             from: originalSettings
         )
@@ -441,10 +456,10 @@ final class AppSettingsStoreTests: XCTestCase {
         XCTAssertEqual(loaded.source, .file)
         XCTAssertEqual(loaded.settings, originalSettings)
         let migrated = try JSONDecoder().decode(
-            StoredAppSettingsV6.self,
+            StoredAppSettingsV7.self,
             from: Data(contentsOf: settingsURL)
         )
-        XCTAssertEqual(migrated.schemaVersion, 6)
+        XCTAssertEqual(migrated.schemaVersion, 7)
         XCTAssertEqual(
             migrated.behaviorProfiles.first?.movement
                 .cursorFollowingAnimation.fallbackMotionID,
@@ -473,7 +488,9 @@ final class AppSettingsStoreTests: XCTestCase {
         XCTAssertEqual(migrated.settings.sequences.first?.steps.first?.repeatCount, 3)
     }
 
-    private func makeSettings() -> AppSettings {
+    private func makeSettings(
+        speech: PetSpeechSettings? = nil
+    ) -> AppSettings {
         let selectedPetID = UUID(
             uuidString: "30000000-0000-0000-0000-000000000001"
         )!
@@ -526,6 +543,29 @@ final class AppSettingsStoreTests: XCTestCase {
                 freeRoamingMotionID: "walk"
             ),
             pettingMotionID: "petting",
+            speech: speech ?? PetSpeechSettings(
+                isEnabled: true,
+                periodicIntervalMilliseconds: 45_000,
+                phrases: [
+                    PetSpeechPhrase(
+                        id: UUID(
+                            uuidString:
+                                "30000000-0000-0000-0000-000000000004"
+                        )!,
+                        text: "같이 쉬어 갈까요?",
+                        trigger: .periodic
+                    ),
+                    PetSpeechPhrase(
+                        id: UUID(
+                            uuidString:
+                                "30000000-0000-0000-0000-000000000005"
+                        )!,
+                        text: "집중할 시간이에요.",
+                        displayDurationMilliseconds: 4_000,
+                        trigger: .sequence(focusSequence.id)
+                    )
+                ]
+            ),
             manualSequenceID: focusSequence.id,
             sequences: [idleSequence, focusSequence],
             automaticRules: [

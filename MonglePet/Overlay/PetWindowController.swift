@@ -90,6 +90,7 @@ final class PetWindowController: NSWindowController {
     private let framePlayer: FramePlayer
     private let petOverlayView: PetOverlayView
     private let pointerOverlapLifecycle: PetPointerOverlapLifecycle
+    private let speechBubbleController: PetSpeechBubbleWindowController
     private let builtInAtlases: [PetAtlasImage]
     private var contentAspectRatio = PetWindowController.defaultContentSize.height
         / PetWindowController.defaultContentSize.width
@@ -172,6 +173,9 @@ final class PetWindowController: NSWindowController {
                     animated: animated
                 )
             }
+        )
+        speechBubbleController = PetSpeechBubbleWindowController(
+            parentWindow: panel
         )
 
         super.init(window: panel)
@@ -324,6 +328,7 @@ final class PetWindowController: NSWindowController {
 
     func sleep() {
         pointerOverlapLifecycle.setAwake(false)
+        speechBubbleController.hide()
         framePlayer.pause()
         panel?.orderOut(nil)
         isAwake = false
@@ -337,6 +342,7 @@ final class PetWindowController: NSWindowController {
         isSystemSuspended = isSuspended
         pointerOverlapLifecycle.setSystemSuspended(isSuspended)
         if isSuspended {
+            speechBubbleController.hide()
             framePlayer.pause()
         } else if isAwake {
             framePlayer.resume()
@@ -349,6 +355,20 @@ final class PetWindowController: NSWindowController {
 
     func setPettingEnabled(_ isEnabled: Bool) {
         pointerOverlapLifecycle.setPettingEnabled(isEnabled)
+    }
+
+    func showSpeechBubble(_ presentation: PetSpeechPresentation) {
+        guard isAwake, !isSystemSuspended else {
+            return
+        }
+        speechBubbleController.show(
+            text: presentation.text,
+            durationMilliseconds: presentation.displayDurationMilliseconds
+        )
+    }
+
+    func hideSpeechBubble() {
+        speechBubbleController.hide()
     }
 
     func setScheduledMotion(_ scheduledMotion: ScheduledMotion?) {

@@ -26,11 +26,13 @@ MonglePetApp
 ├── Runtime
 │   ├── PetRuntime
 │   ├── MotionScheduler
+│   ├── PetSpeechRuntime
 │   └── FramePlayer
 ├── Overlay
 │   ├── PetWindowController
 │   ├── PetMovementController
 │   ├── PetMovementLifecycle
+│   ├── PetSpeechBubbleWindowController
 │   ├── PetWindow
 │   └── PetView
 ├── Settings
@@ -83,7 +85,7 @@ MonglePetApp
 - 라이브러리와 같은 볼륨의 staging에서 다시 검증한 뒤 UUID 최종 경로로 rename 또는 replace한다.
 - 사용자 펫 편집은 설치 디렉터리에 직접 쓰지 않고 임시 사본을 수정·재검증한 뒤 같은 설치 UUID로 원자적 교체한다.
 - 가져온 패키지는 읽기 전용으로 유지하고 사용자가 요청할 때 새 패키지 ID의 편집 가능한 사본을 만든다.
-- 공유 내보내기는 편집 marker와 설치 식별자를 제외한 표준 `.monglepet` 아카이브를 생성한다. 사용자가 선택하면 펫 데이터와 분리된 버전 지정 `recommended-profile.json`에 공유 가능한 행동·이동 권장 설정을 추가한다.
+- 공유 내보내기는 편집 marker와 설치 식별자를 제외한 표준 `.monglepet` 아카이브를 생성한다. 사용자가 선택하면 펫 데이터와 분리된 버전 지정 `recommended-profile.json`에 공유 가능한 행동·이동·말풍선 권장 설정을 추가한다.
 - `pet.json`의 선택적 호환 정보는 펫 자체 버전과 분리해 제작에 사용한 앱 버전과 필수 최소 앱 버전을 기록한다. 필드가 없는 기존 패키지는 허용하고 최소 버전 미충족만 설치를 차단한다.
 - 상세 형식과 보안 제한은 `../specifications/PET_PACKAGE.md`를 따른다.
 
@@ -99,6 +101,8 @@ MonglePetApp
 - 행동 단계 진행은 지속 polling하지 않고 현재 사이클의 남은 시간에 맞춘 일회성 main run loop timer를 사용한다.
 - 프레임별 `duration`이 재생 속도의 단일 원본이며 행동 단계에는 별도 배속을 저장하지 않는다.
 - 같은 행동이 유지될 때 불필요하게 재시작하지 않는다.
+- `PetSpeechRuntime`은 활성 펫의 말풍선 설정만 받아 주기 대사를 일회성 timer로 예약하고 실제 행동 루틴 ID가 바뀔 때 조건 대사를 한 번 표시한다. 이동 애니메이션과 쓰다듬기 덮어쓰기는 새 행동 진입으로 취급하지 않는다.
+- 말풍선은 재우기·잠금·절전에서 timer와 현재 표시를 즉시 중지하고 활성 상태로 돌아왔을 때 필요한 주기 timer만 다시 예약한다.
 
 ### Overlay
 
@@ -122,12 +126,14 @@ MonglePetApp
 - 다중 모니터 경로는 목적지만 대상 화면으로 보정하지 않고 펫 전체가 통과할 수 있는 화면 경계 지점을 경유한다. 화면 사이에 연속 영역이 없으면 기존 화면 경계에서 대상 화면 진입점으로 한 번만 전환하며, 요청한 진입점과 적용 후 실제 패널 원점이 일치하지 않으면 대상 화면의 안전한 최종 목표로 복구하고 다음 tick에서 경로를 다시 계산한다.
 - 자동 이동 범위는 전역 overlay 환경으로 해석한다. 마우스 따라가기와 도망가기 목표는 범위 경계로 제한하고 자유 이동 목표는 범위 안에서만 생성하며 위치 고정에는 적용하지 않는다.
 - 기본 투명도는 `PetWindowController`가 적용한다. `PetPointerOverlapLifecycle`은 클릭 통과 중 겹침 투명화와 호버 쓰다듬기가 하나라도 필요한 awake·화면 사용 가능 상태에서만 100ms 일회성 포인터 확인을 공유한다. 겹침 투명화는 동작 줄이기에서 중지하되 쓰다듬기는 유지한다. 호버는 화면 포인터 자체의 이동과 사용자 드래그 상태를 비교해 자동 이동 중에도 포인터 주도 진입은 허용하고, 펫이 정지 포인터 아래로 이동한 경우는 억제한다. 마우스 도망가기 모드에서는 호버 감지와 실행을 모두 차단하지만 클릭 통과와 겹침 투명화는 독립적으로 유지한다. 겹침과 호버 판정은 현재 프레임별 최대 64×64 알파 마스크를 최대 256개까지 캐시해 사용하며 두 기능이 모두 비활성 상태이면 timer를 유지하지 않는다.
+- `PetSpeechBubbleWindowController`는 표시 중에만 펫 패널에 붙는 non-activating child panel을 사용한다. 항상 마우스 이벤트를 통과시키고 부모 창 이동을 따르며 최초 표시 위치를 현재 화면 visible frame 안으로 보정한다.
 
 ### Settings
 
-- `AppSettings` Domain 모델과 현재 schema-v6 `StoredAppSettingsV6`, 마이그레이션 전용 schema-v1·v2·v3·v4·v5 DTO를 분리한다.
+- `AppSettings` Domain 모델과 현재 schema-v7 `StoredAppSettingsV7`, 마이그레이션 전용 schema-v1·v2·v3·v4·v5·v6 DTO를 분리한다.
 - 앱 자동 규칙 선택 adapter는 `NSWorkspace.runningApplications`의 일반 앱과 사용자가 표준 파일 선택창에서 고른 `.app`만 검사한다. 이름·아이콘·파일 경로는 선택 UI에서만 사용하고 설정에는 기존 bundle identifier만 저장한다.
 - `AppSettingsV4Mapper`가 로컬 이동 범위와 표시 환경을 검증하고, `AppSettingsV5Mapper`가 기존 두 모드의 공통·방향별 이동 애니메이션 참조를 검증하며, `AppSettingsV6Mapper`가 마우스 도망가기 설정과 세 번째 이동 애니메이션을 항목 단위로 검증·복구한다.
+- `AppSettingsV7Mapper`는 펫별 말풍선 사용 여부, 주기, 대사와 행동 루틴 참조를 검증하고 잘못된 대사만 항목 단위로 제외한다.
 - v1 마이그레이터는 선택 펫의 실제 프레임 사이클을 사용해 유지 시간을 반복 횟수로 변환하고, v2 마이그레이터는 각 펫 프로필에 기본 위치 고정 이동 설정을 추가하며, v3 마이그레이터는 이동 범위·투명도 기본값을 추가한다. v4 마이그레이터는 기존 모드별 단일 이동 모션을 방향 기능이 꺼진 공통 fallback으로 옮기고, v5 마이그레이터는 기본 마우스 도망가기 설정을 추가한다. 전체 순차 변환이 성공한 v6 결과만 원자적으로 기록한다.
 - `AppSettingsStore`는 5MiB 상한, 같은 디렉터리 임시 파일과 원자적 교체를 책임진다.
 - `AppSettingsSession`은 저장소의 로드·복구·쓰기 상태를 SwiftUI와 `AppCoordinator`에 전달하고 유효한 Domain 설정 변경만 저장한다.

@@ -7,6 +7,7 @@ nonisolated struct RecommendedProfileSummary: Equatable, Sendable {
     let automaticRules: [AutomaticRule]
     let movement: PetMovementSettings
     let pettingMotionID: String?
+    let speech: PetSpeechSettings
 
     init(profile: RecommendedPetProfile) {
         mode = profile.mode
@@ -15,5 +16,6 @@ nonisolated struct RecommendedProfileSummary: Equatable, Sendable {
         automaticRules = profile.automaticRules
         movement = profile.movement
         pettingMotionID = profile.pettingMotionID
+        speech = profile.speech
     }
 }

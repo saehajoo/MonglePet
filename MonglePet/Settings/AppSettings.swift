@@ -1,7 +1,7 @@
 import Foundation
 
 nonisolated enum AppSettingsLimits {
-    static let schemaVersion = 6
+    static let schemaVersion = 7
     static let maximumFileSize = 5 * 1_024 * 1_024
     static let defaultOverlayWidth = 192.0
     static let minimumOverlayWidth = 96.0
@@ -12,6 +12,14 @@ nonisolated enum AppSettingsLimits {
     static let maximumStepsPerSequence = 100
     static let maximumAutomaticRules = 100
     static let maximumBehaviorProfiles = 1_000
+    static let maximumSpeechPhrases = 100
+    static let maximumSpeechTextLength = 120
+    static let defaultSpeechDisplayDurationMilliseconds: Int64 = 3_000
+    static let minimumSpeechDisplayDurationMilliseconds: Int64 = 1_000
+    static let maximumSpeechDisplayDurationMilliseconds: Int64 = 30_000
+    static let defaultSpeechPeriodicIntervalMilliseconds: Int64 = 60_000
+    static let minimumSpeechPeriodicIntervalMilliseconds: Int64 = 5_000
+    static let maximumSpeechPeriodicIntervalMilliseconds: Int64 = 3_600_000
     static let maximumRepeatCount = 100_000
     static let maximumDurationMilliseconds: Int64 = 86_400_000
     static let defaultMovementSpeed = 160.0
@@ -106,6 +114,90 @@ nonisolated enum PetMovementMode: Hashable, Sendable {
 nonisolated enum CursorAvoidingIdleBehavior: Hashable, Sendable {
     case stationary
     case freeRoaming
+}
+
+nonisolated enum PetSpeechTrigger: Hashable, Sendable {
+    case periodic
+    case sequence(String)
+}
+
+nonisolated struct PetSpeechPhrase: Equatable, Identifiable, Sendable {
+    let id: UUID
+    let text: String
+    let displayDurationMilliseconds: Int64
+    let trigger: PetSpeechTrigger
+
+    init(
+        id: UUID = UUID(),
+        text: String,
+        displayDurationMilliseconds: Int64 =
+            AppSettingsLimits.defaultSpeechDisplayDurationMilliseconds,
+        trigger: PetSpeechTrigger = .periodic
+    ) {
+        self.id = id
+        self.text = text
+        self.displayDurationMilliseconds = displayDurationMilliseconds
+        self.trigger = trigger
+    }
+
+    var isValid: Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard
+            !trimmed.isEmpty,
+            trimmed == text,
+            text.count <= AppSettingsLimits.maximumSpeechTextLength,
+            (AppSettingsLimits.minimumSpeechDisplayDurationMilliseconds
+                ... AppSettingsLimits.maximumSpeechDisplayDurationMilliseconds)
+                .contains(displayDurationMilliseconds)
+        else {
+            return false
+        }
+        switch trigger {
+        case .periodic:
+            return true
+        case let .sequence(sequenceID):
+            let trimmedSequenceID = sequenceID.trimmingCharacters(
+                in: .whitespacesAndNewlines
+            )
+            return !trimmedSequenceID.isEmpty
+                && trimmedSequenceID == sequenceID
+        }
+    }
+}
+
+nonisolated struct PetSpeechSettings: Equatable, Sendable {
+    let isEnabled: Bool
+    let periodicIntervalMilliseconds: Int64
+    let phrases: [PetSpeechPhrase]
+
+    init(
+        isEnabled: Bool,
+        periodicIntervalMilliseconds: Int64 =
+            AppSettingsLimits.defaultSpeechPeriodicIntervalMilliseconds,
+        phrases: [PetSpeechPhrase]
+    ) {
+        self.isEnabled = isEnabled
+        self.periodicIntervalMilliseconds = periodicIntervalMilliseconds
+        self.phrases = phrases
+    }
+
+    static let `default` = PetSpeechSettings(
+        isEnabled: false,
+        phrases: []
+    )
+
+    var isValid: Bool {
+        guard
+            phrases.count <= AppSettingsLimits.maximumSpeechPhrases,
+            (AppSettingsLimits.minimumSpeechPeriodicIntervalMilliseconds
+                ... AppSettingsLimits.maximumSpeechPeriodicIntervalMilliseconds)
+                .contains(periodicIntervalMilliseconds),
+            phrases.allSatisfy(\.isValid)
+        else {
+            return false
+        }
+        return Set(phrases.map(\.id)).count == phrases.count
+    }
 }
 
 nonisolated struct PetMovementSettings: Equatable, Sendable {
@@ -244,6 +336,7 @@ nonisolated struct BehaviorProfile: Equatable, Identifiable, Sendable {
     let automaticRules: [AutomaticRule]
     let movement: PetMovementSettings
     let pettingMotionID: String?
+    let speech: PetSpeechSettings
 
     init(
         petKey: PetBehaviorKey,
@@ -252,7 +345,8 @@ nonisolated struct BehaviorProfile: Equatable, Identifiable, Sendable {
         sequences: [BehaviorSequence],
         automaticRules: [AutomaticRule],
         movement: PetMovementSettings = .default,
-        pettingMotionID: String? = nil
+        pettingMotionID: String? = nil,
+        speech: PetSpeechSettings = .default
     ) {
         self.petKey = petKey
         self.mode = mode
@@ -261,6 +355,7 @@ nonisolated struct BehaviorProfile: Equatable, Identifiable, Sendable {
         self.automaticRules = automaticRules
         self.movement = movement
         self.pettingMotionID = pettingMotionID
+        self.speech = speech
     }
 }
 
@@ -340,6 +435,7 @@ nonisolated struct AppSettings: Equatable, Sendable {
         overlay: OverlaySettings,
         movement: PetMovementSettings = .default,
         pettingMotionID: String? = nil,
+        speech: PetSpeechSettings = .default,
         manualSequenceID: String?,
         sequences: [BehaviorSequence],
         automaticRules: [AutomaticRule]
@@ -358,7 +454,8 @@ nonisolated struct AppSettings: Equatable, Sendable {
                     sequences: sequences,
                     automaticRules: automaticRules,
                     movement: movement,
-                    pettingMotionID: pettingMotionID
+                    pettingMotionID: pettingMotionID,
+                    speech: speech
                 )
             ]
         )
@@ -394,6 +491,10 @@ nonisolated struct AppSettings: Equatable, Sendable {
 
     var pettingMotionID: String? {
         activeBehaviorProfile?.pettingMotionID
+    }
+
+    var speechSettings: PetSpeechSettings {
+        activeBehaviorProfile?.speech ?? .default
     }
 
     func behaviorProfile(for key: PetBehaviorKey) -> BehaviorProfile? {

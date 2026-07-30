@@ -8,6 +8,7 @@
 
 | 상태 | 작업명 | 파일 | 마지막 갱신 |
 | --- | --- | --- | --- |
+| in_progress | 펫별 말풍선 1차 기능 | `tasks/2026-07-30-speech-bubbles.md` | 2026-07-30 |
 | in_progress | 스프라이트 시트 애니메이션 가져오기 | `tasks/2026-07-27-sprite-sheet-animation-import.md` | 2026-07-28 |
 | in_progress | Phase 10 공개 준비와 이동 성능 보완 | `tasks/2026-07-24-phase-10-release-preparation.md` | 2026-07-26 |
 | in_progress | 개인 맥 Preview 배포 파일 생성 | `tasks/2026-07-24-personal-mac-preview-artifact.md` | 2026-07-26 |
@@ -17,6 +18,7 @@
 
 | 상태 | 작업명 | 파일 | 마지막 갱신 |
 | --- | --- | --- | --- |
+| planned | 말풍선 테마 커스텀 | `tasks/2026-07-30-speech-bubble-themes.md` | 2026-07-30 |
 
 ## 보류 / 대기
 

@@ -123,11 +123,23 @@ nonisolated enum BehaviorSettingsEditor {
         let automaticRules = settings.automaticRules.filter {
             $0.sequenceID != sequenceID
         }
+        let speech = PetSpeechSettings(
+            isEnabled: settings.speechSettings.isEnabled,
+            periodicIntervalMilliseconds:
+                settings.speechSettings.periodicIntervalMilliseconds,
+            phrases: settings.speechSettings.phrases.filter { phrase in
+                guard case let .sequence(triggerSequenceID) = phrase.trigger else {
+                    return true
+                }
+                return triggerSequenceID != sequenceID
+            }
+        )
         return replacing(
             settings,
             sequences: sequences,
             manualSequenceID: manualSequenceID,
-            automaticRules: automaticRules
+            automaticRules: automaticRules,
+            speech: speech
         )
     }
 
@@ -515,7 +527,8 @@ nonisolated enum BehaviorSettingsEditor {
         manualSequenceID: String?,
         automaticRules: [AutomaticRule],
         movement: PetMovementSettings? = nil,
-        pettingMotionUpdate: PettingMotionUpdate = .preserving
+        pettingMotionUpdate: PettingMotionUpdate = .preserving,
+        speech: PetSpeechSettings? = nil
     ) -> AppSettings {
         let pettingMotionID = switch pettingMotionUpdate {
         case .preserving:
@@ -531,7 +544,8 @@ nonisolated enum BehaviorSettingsEditor {
                 sequences: sequences,
                 automaticRules: automaticRules,
                 movement: movement ?? settings.movementSettings,
-                pettingMotionID: pettingMotionID
+                pettingMotionID: pettingMotionID,
+                speech: speech ?? settings.speechSettings
             )
         )
     }

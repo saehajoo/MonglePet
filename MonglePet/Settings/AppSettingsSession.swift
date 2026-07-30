@@ -56,7 +56,8 @@ final class AppSettingsSession: ObservableObject {
                 sequences: settings.sequences,
                 automaticRules: settings.automaticRules,
                 movement: settings.movementSettings,
-                pettingMotionID: settings.pettingMotionID
+                pettingMotionID: settings.pettingMotionID,
+                speech: settings.speechSettings
             )
         )
     }
@@ -76,7 +77,8 @@ final class AppSettingsSession: ObservableObject {
                 sequences: settings.sequences,
                 automaticRules: settings.automaticRules,
                 movement: movement,
-                pettingMotionID: settings.pettingMotionID
+                pettingMotionID: settings.pettingMotionID,
+                speech: settings.speechSettings
             ),
             persist: persist
         )
@@ -97,7 +99,8 @@ final class AppSettingsSession: ObservableObject {
                 sequences: settings.sequences,
                 automaticRules: settings.automaticRules,
                 movement: settings.movementSettings,
-                pettingMotionID: motionID
+                pettingMotionID: motionID,
+                speech: settings.speechSettings
             )
         )
     }
@@ -175,9 +178,40 @@ final class AppSettingsSession: ObservableObject {
                 sequences: settings.sequences,
                 automaticRules: settings.automaticRules,
                 movement: settings.movementSettings,
-                pettingMotionID: settings.pettingMotionID
+                pettingMotionID: settings.pettingMotionID,
+                speech: settings.speechSettings
             )
         )
+    }
+
+    @discardableResult
+    func setSpeechSettings(_ speech: PetSpeechSettings) -> Bool {
+        let sequenceIDs = Set(settings.sequences.map(\.id))
+        guard
+            speech.isValid,
+            speech.phrases.allSatisfy({ phrase in
+                guard case let .sequence(sequenceID) = phrase.trigger else {
+                    return true
+                }
+                return sequenceIDs.contains(sequenceID)
+            })
+        else {
+            return false
+        }
+
+        updateActiveProfile(
+            BehaviorProfile(
+                petKey: settings.selectedPetKey,
+                mode: settings.behaviorMode,
+                manualSequenceID: settings.manualSequenceID,
+                sequences: settings.sequences,
+                automaticRules: settings.automaticRules,
+                movement: settings.movementSettings,
+                pettingMotionID: settings.pettingMotionID,
+                speech: speech
+            )
+        )
+        return true
     }
 
     @discardableResult

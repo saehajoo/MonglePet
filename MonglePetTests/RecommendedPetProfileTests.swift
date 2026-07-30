@@ -25,17 +25,19 @@ final class RecommendedPetProfileTests: XCTestCase {
                 sequences: profile.sequences,
                 automaticRules: profile.automaticRules,
                 movement: profile.movement,
-                pettingMotionID: profile.pettingMotionID
+                pettingMotionID: profile.pettingMotionID,
+                speech: profile.speech
             )
         )
 
         let object = try XCTUnwrap(
             JSONSerialization.jsonObject(with: data) as? [String: Any]
         )
-        XCTAssertEqual(object["schemaVersion"] as? Int, 3)
+        XCTAssertEqual(object["schemaVersion"] as? Int, 4)
         XCTAssertNotNil(object["behavior"])
         XCTAssertNotNil(object["movement"])
         XCTAssertNotNil(object["automaticRules"])
+        XCTAssertNotNil(object["speech"])
         XCTAssertNil(object["petKey"])
         XCTAssertNil(object["installationID"])
         XCTAssertNil(object["selectedPetInstallationID"])
@@ -258,6 +260,43 @@ final class RecommendedPetProfileTests: XCTestCase {
         }
     }
 
+    func testCodecRejectsPeriodicSpeechTriggerWithSequenceID() throws {
+        let data = try RecommendedPetProfileCodec.encode(
+            makeProfile(),
+            for: petDefinition
+        )
+        var object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: data) as? [String: Any]
+        )
+        var speech = try XCTUnwrap(object["speech"] as? [String: Any])
+        var phrases = try XCTUnwrap(
+            speech["phrases"] as? [[String: Any]]
+        )
+        var phrase = try XCTUnwrap(phrases.first)
+        var trigger = try XCTUnwrap(
+            phrase["trigger"] as? [String: Any]
+        )
+        trigger["type"] = "periodic"
+        trigger["sequenceID"] = "default"
+        phrase["trigger"] = trigger
+        phrases[0] = phrase
+        speech["phrases"] = phrases
+        object["speech"] = speech
+        let invalidData = try JSONSerialization.data(withJSONObject: object)
+
+        XCTAssertThrowsError(
+            try RecommendedPetProfileCodec.decode(
+                invalidData,
+                for: petDefinition
+            )
+        ) { error in
+            XCTAssertEqual(
+                error as? RecommendedPetProfileError,
+                .invalidField("speech.phrases.0.trigger")
+            )
+        }
+    }
+
     func testCodecDistinguishesFutureSchemaFromUnreadableData() throws {
         let data = try RecommendedPetProfileCodec.encode(
             makeProfile(),
@@ -266,7 +305,7 @@ final class RecommendedPetProfileTests: XCTestCase {
         var object = try XCTUnwrap(
             JSONSerialization.jsonObject(with: data) as? [String: Any]
         )
-        object["schemaVersion"] = 4
+        object["schemaVersion"] = 5
         let futureData = try JSONSerialization.data(withJSONObject: object)
 
         XCTAssertThrowsError(
@@ -277,7 +316,7 @@ final class RecommendedPetProfileTests: XCTestCase {
         ) { error in
             XCTAssertEqual(
                 error as? RecommendedPetProfileError,
-                .unsupportedSchemaVersion(4)
+                .unsupportedSchemaVersion(5)
             )
         }
         XCTAssertThrowsError(
@@ -406,6 +445,7 @@ final class RecommendedPetProfileTests: XCTestCase {
             summary.pettingMotionID,
             profile.pettingMotionID
         )
+        XCTAssertEqual(summary.speech, profile.speech)
     }
 
     private var petDefinition: PetDefinition {
@@ -424,7 +464,8 @@ final class RecommendedPetProfileTests: XCTestCase {
     private func makeProfile(
         automaticRules: [AutomaticRule]? = nil,
         movement: PetMovementSettings? = nil,
-        pettingMotionID: String? = "petting"
+        pettingMotionID: String? = "petting",
+        speech: PetSpeechSettings? = nil
     ) -> RecommendedPetProfile {
         RecommendedPetProfile(
             mode: .manual,
@@ -510,7 +551,30 @@ final class RecommendedPetProfileTests: XCTestCase {
                     )
                 )
             ),
-            pettingMotionID: pettingMotionID
+            pettingMotionID: pettingMotionID,
+            speech: speech ?? PetSpeechSettings(
+                isEnabled: true,
+                periodicIntervalMilliseconds: 30_000,
+                phrases: [
+                    PetSpeechPhrase(
+                        id: UUID(
+                            uuidString:
+                                "CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC"
+                        )!,
+                        text: "함께 산책할까요?",
+                        trigger: .periodic
+                    ),
+                    PetSpeechPhrase(
+                        id: UUID(
+                            uuidString:
+                                "DDDDDDDD-DDDD-DDDD-DDDD-DDDDDDDDDDDD"
+                        )!,
+                        text: "잠깐 쉬어 가요.",
+                        displayDurationMilliseconds: 4_000,
+                        trigger: .sequence("rest")
+                    )
+                ]
+            )
         )
     }
 

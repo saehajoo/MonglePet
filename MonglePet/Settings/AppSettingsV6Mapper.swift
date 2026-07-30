@@ -159,7 +159,7 @@ nonisolated enum AppSettingsV6Mapper {
             )
         }
         return StoredAppSettingsV6(
-            schemaVersion: AppSettingsLimits.schemaVersion,
+            schemaVersion: 6,
             selectedPetInstallationID:
                 storedV5.selectedPetInstallationID,
             lastUserPresentation: storedV5.lastUserPresentation,

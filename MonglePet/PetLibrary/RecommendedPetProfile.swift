@@ -7,6 +7,25 @@ nonisolated struct RecommendedPetProfile: Equatable, Sendable {
     let automaticRules: [AutomaticRule]
     let movement: PetMovementSettings
     let pettingMotionID: String?
+    let speech: PetSpeechSettings
+
+    init(
+        mode: BehaviorMode,
+        manualSequenceID: String?,
+        sequences: [BehaviorSequence],
+        automaticRules: [AutomaticRule],
+        movement: PetMovementSettings,
+        pettingMotionID: String?,
+        speech: PetSpeechSettings = .default
+    ) {
+        self.mode = mode
+        self.manualSequenceID = manualSequenceID
+        self.sequences = sequences
+        self.automaticRules = automaticRules
+        self.movement = movement
+        self.pettingMotionID = pettingMotionID
+        self.speech = speech
+    }
 
     func behaviorProfile(for petKey: PetBehaviorKey) -> BehaviorProfile {
         BehaviorProfile(
@@ -16,7 +35,8 @@ nonisolated struct RecommendedPetProfile: Equatable, Sendable {
             sequences: sequences,
             automaticRules: automaticRules,
             movement: movement,
-            pettingMotionID: pettingMotionID
+            pettingMotionID: pettingMotionID,
+            speech: speech
         )
     }
 }
@@ -44,7 +64,7 @@ extension RecommendedPetProfileError: LocalizedError {
 }
 
 nonisolated enum RecommendedPetProfileCodec {
-    static let schemaVersion = 3
+    static let schemaVersion = 4
     static let maximumFileSize = 1 * 1_024 * 1_024
 
     static func encode(
@@ -52,7 +72,7 @@ nonisolated enum RecommendedPetProfileCodec {
         for definition: PetDefinition
     ) throws -> Data {
         try validate(profile, for: definition)
-        let stored = StoredRecommendedPetProfileV3(
+        let stored = StoredRecommendedPetProfileV4(
             schemaVersion: schemaVersion,
             behavior: StoredRecommendedBehaviorV1(
                 mode: storedMode(profile.mode),
@@ -61,7 +81,8 @@ nonisolated enum RecommendedPetProfileCodec {
             ),
             movement: storedMovement(profile.movement),
             pettingMotionID: profile.pettingMotionID,
-            automaticRules: profile.automaticRules.map(storedRule)
+            automaticRules: profile.automaticRules.map(storedRule),
+            speech: storedSpeech(profile.speech)
         )
 
         let data: Data
@@ -128,11 +149,24 @@ nonisolated enum RecommendedPetProfileCodec {
             } catch {
                 throw RecommendedPetProfileError.unreadable
             }
-        case schemaVersion:
+        case 3:
             do {
                 profile = try domainProfile(
                     from: decoder.decode(
                         StoredRecommendedPetProfileV3.self,
+                        from: data
+                    )
+                )
+            } catch let error as RecommendedPetProfileError {
+                throw error
+            } catch {
+                throw RecommendedPetProfileError.unreadable
+            }
+        case schemaVersion:
+            do {
+                profile = try domainProfile(
+                    from: decoder.decode(
+                        StoredRecommendedPetProfileV4.self,
                         from: data
                     )
                 )
@@ -349,6 +383,72 @@ nonisolated enum RecommendedPetProfileCodec {
         )
     }
 
+    private static func domainProfile(
+        from stored: StoredRecommendedPetProfileV4
+    ) throws -> RecommendedPetProfile {
+        let baseProfile = try domainProfile(
+            from: StoredRecommendedPetProfileV3(
+                schemaVersion: 3,
+                behavior: stored.behavior,
+                movement: stored.movement,
+                pettingMotionID: stored.pettingMotionID,
+                automaticRules: stored.automaticRules
+            )
+        )
+        let phrases = try stored.speech.phrases.enumerated().map {
+            index,
+            phrase -> PetSpeechPhrase in
+            guard let id = UUID(uuidString: phrase.id) else {
+                throw RecommendedPetProfileError.invalidField(
+                    "speech.phrases.\(index).id"
+                )
+            }
+            let trigger: PetSpeechTrigger = switch phrase.trigger.type {
+            case "periodic":
+                if phrase.trigger.sequenceID == nil {
+                    .periodic
+                } else {
+                    throw RecommendedPetProfileError.invalidField(
+                        "speech.phrases.\(index).trigger"
+                    )
+                }
+            case "sequence":
+                if let sequenceID = phrase.trigger.sequenceID {
+                    .sequence(sequenceID)
+                } else {
+                    throw RecommendedPetProfileError.invalidField(
+                        "speech.phrases.\(index).trigger"
+                    )
+                }
+            default:
+                throw RecommendedPetProfileError.invalidField(
+                    "speech.phrases.\(index).trigger"
+                )
+            }
+            return PetSpeechPhrase(
+                id: id,
+                text: phrase.text,
+                displayDurationMilliseconds:
+                    phrase.displayDurationMilliseconds,
+                trigger: trigger
+            )
+        }
+        return RecommendedPetProfile(
+            mode: baseProfile.mode,
+            manualSequenceID: baseProfile.manualSequenceID,
+            sequences: baseProfile.sequences,
+            automaticRules: baseProfile.automaticRules,
+            movement: baseProfile.movement,
+            pettingMotionID: baseProfile.pettingMotionID,
+            speech: PetSpeechSettings(
+                isEnabled: stored.speech.isEnabled,
+                periodicIntervalMilliseconds:
+                    stored.speech.periodicIntervalMilliseconds,
+                phrases: phrases
+            )
+        )
+    }
+
     private static func domainAnimation(
         from stored: StoredRecommendedMovementAnimationV2
     ) -> MovementAnimationSettings {
@@ -489,6 +589,17 @@ nonisolated enum RecommendedPetProfileCodec {
             field: "pettingMotionID",
             definition: definition
         )
+        guard profile.speech.isValid else {
+            throw RecommendedPetProfileError.invalidField("speech")
+        }
+        for (index, phrase) in profile.speech.phrases.enumerated() {
+            if case let .sequence(sequenceID) = phrase.trigger,
+               !sequenceIDs.contains(sequenceID) {
+                throw RecommendedPetProfileError.invalidField(
+                    "speech.phrases.\(index).trigger"
+                )
+            }
+        }
     }
 
     private static func validateAnimation(
@@ -645,6 +756,38 @@ nonisolated enum RecommendedPetProfileCodec {
             sequenceID: rule.sequenceID
         )
     }
+
+    private static func storedSpeech(
+        _ speech: PetSpeechSettings
+    ) -> StoredRecommendedSpeechV4 {
+        StoredRecommendedSpeechV4(
+            isEnabled: speech.isEnabled,
+            periodicIntervalMilliseconds:
+                speech.periodicIntervalMilliseconds,
+            phrases: speech.phrases.map { phrase in
+                let trigger: StoredRecommendedSpeechTriggerV4 =
+                    switch phrase.trigger {
+                    case .periodic:
+                        StoredRecommendedSpeechTriggerV4(
+                            type: "periodic",
+                            sequenceID: nil
+                        )
+                    case let .sequence(sequenceID):
+                        StoredRecommendedSpeechTriggerV4(
+                            type: "sequence",
+                            sequenceID: sequenceID
+                        )
+                    }
+                return StoredRecommendedSpeechPhraseV4(
+                    id: phrase.id.uuidString,
+                    text: phrase.text,
+                    displayDurationMilliseconds:
+                        phrase.displayDurationMilliseconds,
+                    trigger: trigger
+                )
+            }
+        )
+    }
 }
 
 private nonisolated struct StoredRecommendedPetProfileEnvelope: Decodable {
@@ -673,6 +816,33 @@ private nonisolated struct StoredRecommendedPetProfileV3: Codable {
     let movement: StoredRecommendedMovementV3
     let pettingMotionID: String?
     let automaticRules: [StoredRecommendedAutomaticRuleV1]
+}
+
+private nonisolated struct StoredRecommendedPetProfileV4: Codable {
+    let schemaVersion: Int
+    let behavior: StoredRecommendedBehaviorV1
+    let movement: StoredRecommendedMovementV3
+    let pettingMotionID: String?
+    let automaticRules: [StoredRecommendedAutomaticRuleV1]
+    let speech: StoredRecommendedSpeechV4
+}
+
+private nonisolated struct StoredRecommendedSpeechV4: Codable {
+    let isEnabled: Bool
+    let periodicIntervalMilliseconds: Int64
+    let phrases: [StoredRecommendedSpeechPhraseV4]
+}
+
+private nonisolated struct StoredRecommendedSpeechPhraseV4: Codable {
+    let id: String
+    let text: String
+    let displayDurationMilliseconds: Int64
+    let trigger: StoredRecommendedSpeechTriggerV4
+}
+
+private nonisolated struct StoredRecommendedSpeechTriggerV4: Codable {
+    let type: String
+    let sequenceID: String?
 }
 
 private nonisolated struct StoredRecommendedBehaviorV1: Codable {

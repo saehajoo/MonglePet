@@ -9,6 +9,7 @@ final class AppCoordinator: NSObject {
     private let petWindowController: PetWindowController
     private let playbackCoordinator: PetPlaybackCoordinator
     private let behaviorRuntime: PetBehaviorRuntime
+    private let speechRuntime: PetSpeechRuntime
     private let movementController: PetMovementController
     private let movementLifecycle: PetMovementLifecycle
     private let activityMonitor: any ActivitySnapshotMonitoring
@@ -65,10 +66,22 @@ final class AppCoordinator: NSObject {
             petWindowController?.setScheduledMotion(playback)
         }
         self.playbackCoordinator = playbackCoordinator
+        let speechRuntime = PetSpeechRuntime {
+            [weak petWindowController] presentation in
+            if let presentation {
+                petWindowController?.showSpeechBubble(presentation)
+            } else {
+                petWindowController?.hideSpeechBubble()
+            }
+        }
+        self.speechRuntime = speechRuntime
         behaviorRuntime = PetBehaviorRuntime(
             petDefinition: petWindowController.petDefinition
-        ) { [weak playbackCoordinator] playback in
+        ) { [weak playbackCoordinator, weak speechRuntime] playback in
             playbackCoordinator?.setBehaviorPlayback(playback)
+            if playback?.isInteraction != true {
+                speechRuntime?.behaviorSequenceDidChange(playback?.sequenceID)
+            }
         }
         self.movementController = movementController
         movementLifecycle = PetMovementLifecycle(controller: movementController)
@@ -199,6 +212,7 @@ final class AppCoordinator: NSObject {
         )
         activityMonitor.stop()
         behaviorRuntime.stop()
+        speechRuntime.stop()
         movementLifecycle.setAwake(false)
         movementLifecycle.setSystemSuspended(true)
         movementLifecycle.stop()
@@ -218,6 +232,9 @@ final class AppCoordinator: NSObject {
     private func activitySnapshotDidChange(_ snapshot: ActivitySnapshot) {
         latestActivitySnapshot = snapshot
         petWindowController.setSystemSuspended(
+            snapshot.isScreenLocked || snapshot.isSystemSleeping
+        )
+        speechRuntime.setSystemSuspended(
             snapshot.isScreenLocked || snapshot.isSystemSleeping
         )
         movementLifecycle.setSystemSuspended(
@@ -325,6 +342,7 @@ final class AppCoordinator: NSObject {
             settings.overlay,
             restorePosition: shouldRestorePosition
         )
+        speechRuntime.update(settings: settings.speechSettings)
         let pettingMotionExists = settings.pettingMotionID.flatMap {
             petLibrarySession.selectedItem.definition.motion(id: $0)
         } != nil
@@ -348,6 +366,7 @@ final class AppCoordinator: NSObject {
         }
         movementLifecycle.setSettings(settings.movementSettings)
         movementLifecycle.setAwake(petWindowController.isAwake)
+        speechRuntime.setAwake(petWindowController.isAwake)
         movementLifecycle.invalidateEnvironment()
         if settings.movementSettings.mode == .fixed,
            let appliedOverlay = petWindowController.currentOverlaySettings() {
