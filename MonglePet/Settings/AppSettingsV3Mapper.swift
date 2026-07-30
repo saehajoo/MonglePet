@@ -230,6 +230,8 @@ nonisolated enum AppSettingsV3Mapper {
             "cursorFollowing"
         case .freeRoaming:
             "freeRoaming"
+        case .cursorAvoiding:
+            "fixed"
         }
         return StoredPetMovementSettingsV3(
             mode: mode,

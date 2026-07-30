@@ -402,6 +402,86 @@ final class PetMovementGeometryTests: XCTestCase {
         XCTAssertEqual(target, point(630, 480))
     }
 
+    func testPointerDistanceUsesNearestPetRectangleEdge() throws {
+        XCTAssertEqual(
+            try XCTUnwrap(
+                PetMovementGeometry.distance(
+                    from: point(150, 150),
+                    toPetAt: point(100, 100),
+                    petSize: size(100, 100)
+                )
+            ),
+            0
+        )
+        XCTAssertEqual(
+            try XCTUnwrap(
+                PetMovementGeometry.distance(
+                    from: point(250, 150),
+                    toPetAt: point(100, 100),
+                    petSize: size(100, 100)
+                )
+            ),
+            50
+        )
+    }
+
+    func testCursorAvoidingRouteMovesAwayAndReachesSafeDistance() throws {
+        let pointer = point(550, 350)
+        let route = try XCTUnwrap(
+            PetMovementGeometry.cursorAvoidingRoute(
+                pointer: pointer,
+                currentOrigin: point(400, 300),
+                petSize: size(100, 100),
+                safeDistance: 220,
+                screenInset: 20,
+                screens: [screen("main", 0, 0, 1_000, 800)]
+            )
+        )
+
+        XCTAssertLessThan(route.targetOrigin.x, 400)
+        XCTAssertEqual(route.targetOrigin.y, 300)
+        XCTAssertGreaterThanOrEqual(
+            try XCTUnwrap(
+                PetMovementGeometry.distance(
+                    from: pointer,
+                    toPetAt: route.targetOrigin,
+                    petSize: size(100, 100)
+                )
+            ),
+            220
+        )
+        XCTAssertNil(route.transition)
+    }
+
+    func testCursorAvoidingRouteUsesFarthestAllowedCandidateAtBoundary() throws {
+        let route = try XCTUnwrap(
+            PetMovementGeometry.cursorAvoidingRoute(
+                pointer: point(690, 350),
+                currentOrigin: point(580, 300),
+                petSize: size(100, 100),
+                safeDistance: 300,
+                screenInset: 20,
+                screens: [screen("main", 0, 0, 1_000, 800)],
+                boundary: MovementBoundarySettings(
+                    mode: .customArea,
+                    screenIdentifier: "main",
+                    normalizedRect: NormalizedMovementRect(
+                        x: 0.5,
+                        y: 0.25,
+                        width: 0.25,
+                        height: 0.5
+                    )
+                )
+            )
+        )
+
+        XCTAssertGreaterThanOrEqual(route.targetOrigin.x, 520)
+        XCTAssertLessThanOrEqual(route.targetOrigin.x, 630)
+        XCTAssertGreaterThanOrEqual(route.targetOrigin.y, 220)
+        XCTAssertLessThanOrEqual(route.targetOrigin.y, 480)
+        XCTAssertLessThan(route.targetOrigin.x, 580)
+    }
+
     func testAdvanceMovesAtConfiguredPointsPerSecond() {
         let result = PetMovementGeometry.advance(
             from: point(0, 0),

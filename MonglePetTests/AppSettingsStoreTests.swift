@@ -45,7 +45,7 @@ final class AppSettingsStoreTests: XCTestCase {
             JSONSerialization.jsonObject(with: Data(contentsOf: settingsURL))
                 as? [String: Any]
         )
-        XCTAssertEqual(json["schemaVersion"] as? Int, 5)
+        XCTAssertEqual(json["schemaVersion"] as? Int, 6)
         XCTAssertEqual(json["lastUserPresentation"] as? String, "tuckedAway")
         XCTAssertNil(json["behaviorMode"])
         let overlay = try XCTUnwrap(json["overlay"] as? [String: Any])
@@ -69,11 +69,23 @@ final class AppSettingsStoreTests: XCTestCase {
         XCTAssertEqual(movement["stopRadius"] as? Double, 20)
         XCTAssertEqual(movement["freeRoamingDwellMilliseconds"] as? Int, 9_000)
         XCTAssertEqual(movement["prefersFrontmostWindow"] as? Bool, false)
+        XCTAssertEqual(
+            movement["cursorAvoidingIdleBehavior"] as? String,
+            "stationary"
+        )
+        XCTAssertEqual(
+            movement["cursorAvoidingDetectionDistance"] as? Double,
+            160
+        )
+        XCTAssertEqual(movement["cursorAvoidingSpeed"] as? Double, 320)
         let cursorAnimation = try XCTUnwrap(
             movement["cursorFollowingAnimation"] as? [String: Any]
         )
         let freeAnimation = try XCTUnwrap(
             movement["freeRoamingAnimation"] as? [String: Any]
+        )
+        let avoidingAnimation = try XCTUnwrap(
+            movement["cursorAvoidingAnimation"] as? [String: Any]
         )
         XCTAssertEqual(
             cursorAnimation["fallbackMotionID"] as? String,
@@ -87,6 +99,7 @@ final class AppSettingsStoreTests: XCTestCase {
             freeAnimation["fallbackMotionID"] as? String,
             "walk"
         )
+        XCTAssertNil(avoidingAnimation["fallbackMotionID"])
         XCTAssertEqual(profiles.first?["pettingMotionID"] as? String, "petting")
         let sequences = try XCTUnwrap(profiles.first?["sequences"] as? [[String: Any]])
         let steps = try XCTUnwrap(sequences.first?["steps"] as? [[String: Any]])
@@ -228,14 +241,14 @@ final class AppSettingsStoreTests: XCTestCase {
     }
 
     func testNewerSchemaIsPreservedAndDisablesWriting() throws {
-        let originalData = Data(#"{"schemaVersion":6,"futureValue":true}"#.utf8)
+        let originalData = Data(#"{"schemaVersion":7,"futureValue":true}"#.utf8)
         try originalData.write(to: settingsURL)
         let store = AppSettingsStore(settingsURL: settingsURL)
 
         let loaded = store.load()
 
-        XCTAssertEqual(loaded.source, .newerSchema(6))
-        XCTAssertEqual(loaded.issues, [.newerSchemaVersion(6)])
+        XCTAssertEqual(loaded.source, .newerSchema(7))
+        XCTAssertEqual(loaded.issues, [.newerSchemaVersion(7)])
         XCTAssertFalse(loaded.isWritingEnabled)
         XCTAssertEqual(try Data(contentsOf: settingsURL), originalData)
         XCTAssertThrowsError(try store.save(.default)) { error in
@@ -315,7 +328,7 @@ final class AppSettingsStoreTests: XCTestCase {
         XCTAssertEqual(children.map(\.lastPathComponent), ["settings.json"])
     }
 
-    func testV1LoadMigratesAndAtomicallyRewritesSettingsAsV5() throws {
+    func testV1LoadMigratesAndAtomicallyRewritesSettingsAsV6() throws {
         let stored = makeLegacySettings()
         try JSONEncoder().encode(stored).write(to: settingsURL)
         let store = AppSettingsStore(settingsURL: settingsURL)
@@ -330,9 +343,9 @@ final class AppSettingsStoreTests: XCTestCase {
             StoredSchemaEnvelope.self,
             from: migratedData
         )
-        XCTAssertEqual(envelope.schemaVersion, 5)
+        XCTAssertEqual(envelope.schemaVersion, 6)
         XCTAssertNoThrow(
-            try JSONDecoder().decode(StoredAppSettingsV5.self, from: migratedData)
+            try JSONDecoder().decode(StoredAppSettingsV6.self, from: migratedData)
         )
         XCTAssertEqual(loaded.settings.movementSettings, .default)
         let children = try FileManager.default.contentsOfDirectory(
@@ -342,7 +355,7 @@ final class AppSettingsStoreTests: XCTestCase {
         XCTAssertEqual(children.map(\.lastPathComponent), ["settings.json"])
     }
 
-    func testV2LoadAddsDefaultMovementAndAtomicallyRewritesAsV5() throws {
+    func testV2LoadAddsDefaultMovementAndAtomicallyRewritesAsV6() throws {
         let profile = StoredBehaviorProfileV2(
             petKey: .builtIn,
             mode: "manual",
@@ -376,18 +389,22 @@ final class AppSettingsStoreTests: XCTestCase {
         XCTAssertEqual(loaded.source, .file)
         XCTAssertEqual(loaded.settings.movementSettings, .default)
         let migrated = try JSONDecoder().decode(
-            StoredAppSettingsV5.self,
+            StoredAppSettingsV6.self,
             from: Data(contentsOf: settingsURL)
         )
-        XCTAssertEqual(migrated.schemaVersion, 5)
+        XCTAssertEqual(migrated.schemaVersion, 6)
         XCTAssertEqual(migrated.behaviorProfiles.first?.movement.mode, "fixed")
+        XCTAssertEqual(
+            migrated.behaviorProfiles.first?.movement.cursorAvoidingIdleBehavior,
+            "stationary"
+        )
         XCTAssertEqual(
             migrated.overlay.movementBoundary.mode,
             "allDisplays"
         )
     }
 
-    func testV3LoadAddsDisplayDefaultsAndAtomicallyRewritesAsV5() throws {
+    func testV3LoadAddsDisplayDefaultsAndAtomicallyRewritesAsV6() throws {
         let originalSettings = makeSettings()
         let storedV3 = try AppSettingsV3Mapper.storedSettings(
             from: originalSettings
@@ -399,10 +416,10 @@ final class AppSettingsStoreTests: XCTestCase {
         XCTAssertEqual(loaded.source, .file)
         XCTAssertEqual(loaded.settings, originalSettings)
         let migrated = try JSONDecoder().decode(
-            StoredAppSettingsV5.self,
+            StoredAppSettingsV6.self,
             from: Data(contentsOf: settingsURL)
         )
-        XCTAssertEqual(migrated.schemaVersion, 5)
+        XCTAssertEqual(migrated.schemaVersion, 6)
         XCTAssertEqual(migrated.overlay.opacity, 1)
         XCTAssertFalse(migrated.overlay.pointerOverlapFadeEnabled)
         XCTAssertEqual(migrated.overlay.pointerOverlapOpacity, 0.2)
@@ -412,7 +429,7 @@ final class AppSettingsStoreTests: XCTestCase {
         )
     }
 
-    func testV4LoadPreservesSingleMotionFallbacksAndRewritesAsV5() throws {
+    func testV4LoadPreservesSingleMotionFallbacksAndRewritesAsV6() throws {
         let originalSettings = makeSettings()
         let storedV4 = try AppSettingsV4Mapper.storedSettings(
             from: originalSettings
@@ -424,10 +441,10 @@ final class AppSettingsStoreTests: XCTestCase {
         XCTAssertEqual(loaded.source, .file)
         XCTAssertEqual(loaded.settings, originalSettings)
         let migrated = try JSONDecoder().decode(
-            StoredAppSettingsV5.self,
+            StoredAppSettingsV6.self,
             from: Data(contentsOf: settingsURL)
         )
-        XCTAssertEqual(migrated.schemaVersion, 5)
+        XCTAssertEqual(migrated.schemaVersion, 6)
         XCTAssertEqual(
             migrated.behaviorProfiles.first?.movement
                 .cursorFollowingAnimation.fallbackMotionID,

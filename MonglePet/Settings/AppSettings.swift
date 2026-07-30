@@ -1,7 +1,7 @@
 import Foundation
 
 nonisolated enum AppSettingsLimits {
-    static let schemaVersion = 5
+    static let schemaVersion = 6
     static let maximumFileSize = 5 * 1_024 * 1_024
     static let defaultOverlayWidth = 192.0
     static let minimumOverlayWidth = 96.0
@@ -20,6 +20,10 @@ nonisolated enum AppSettingsLimits {
     static let defaultCursorDistance = 96.0
     static let minimumCursorDistance = 0.0
     static let maximumCursorDistance = 512.0
+    static let defaultCursorAvoidingDetectionDistance = 160.0
+    static let minimumCursorAvoidingDetectionDistance = 32.0
+    static let maximumCursorAvoidingDetectionDistance = 1_024.0
+    static let defaultCursorAvoidingSpeed = 320.0
     static let defaultMovementStopRadius = 16.0
     static let minimumMovementStopRadius = 0.0
     static let maximumMovementStopRadius = 128.0
@@ -96,6 +100,12 @@ nonisolated enum PetMovementMode: Hashable, Sendable {
     case fixed
     case cursorFollowing
     case freeRoaming
+    case cursorAvoiding
+}
+
+nonisolated enum CursorAvoidingIdleBehavior: Hashable, Sendable {
+    case stationary
+    case freeRoaming
 }
 
 nonisolated struct PetMovementSettings: Equatable, Sendable {
@@ -107,6 +117,10 @@ nonisolated struct PetMovementSettings: Equatable, Sendable {
     let prefersFrontmostWindow: Bool
     let cursorFollowingAnimation: MovementAnimationSettings
     let freeRoamingAnimation: MovementAnimationSettings
+    let cursorAvoidingIdleBehavior: CursorAvoidingIdleBehavior
+    let cursorAvoidingDetectionDistance: Double
+    let cursorAvoidingSpeed: Double
+    let cursorAvoidingAnimation: MovementAnimationSettings
 
     init(
         mode: PetMovementMode,
@@ -118,7 +132,13 @@ nonisolated struct PetMovementSettings: Equatable, Sendable {
         cursorFollowingMotionID: String? = nil,
         freeRoamingMotionID: String? = nil,
         cursorFollowingAnimation: MovementAnimationSettings? = nil,
-        freeRoamingAnimation: MovementAnimationSettings? = nil
+        freeRoamingAnimation: MovementAnimationSettings? = nil,
+        cursorAvoidingIdleBehavior: CursorAvoidingIdleBehavior = .stationary,
+        cursorAvoidingDetectionDistance: Double =
+            AppSettingsLimits.defaultCursorAvoidingDetectionDistance,
+        cursorAvoidingSpeed: Double =
+            AppSettingsLimits.defaultCursorAvoidingSpeed,
+        cursorAvoidingAnimation: MovementAnimationSettings = .single(nil)
     ) {
         self.mode = mode
         self.speed = speed
@@ -130,6 +150,11 @@ nonisolated struct PetMovementSettings: Equatable, Sendable {
             ?? .single(cursorFollowingMotionID)
         self.freeRoamingAnimation = freeRoamingAnimation
             ?? .single(freeRoamingMotionID)
+        self.cursorAvoidingIdleBehavior = cursorAvoidingIdleBehavior
+        self.cursorAvoidingDetectionDistance =
+            cursorAvoidingDetectionDistance
+        self.cursorAvoidingSpeed = cursorAvoidingSpeed
+        self.cursorAvoidingAnimation = cursorAvoidingAnimation
     }
 
     static let `default` = PetMovementSettings(
@@ -158,6 +183,15 @@ nonisolated struct PetMovementSettings: Equatable, Sendable {
                 .contains(freeRoamingDwellMilliseconds)
             && cursorFollowingAnimation.isValid
             && freeRoamingAnimation.isValid
+            && cursorAvoidingDetectionDistance.isFinite
+            && (AppSettingsLimits.minimumCursorAvoidingDetectionDistance
+                ... AppSettingsLimits.maximumCursorAvoidingDetectionDistance)
+                .contains(cursorAvoidingDetectionDistance)
+            && cursorAvoidingSpeed.isFinite
+            && (AppSettingsLimits.minimumMovementSpeed
+                ... AppSettingsLimits.maximumMovementSpeed)
+                .contains(cursorAvoidingSpeed)
+            && cursorAvoidingAnimation.isValid
     }
 
     var cursorFollowingMotionID: String? {
@@ -178,6 +212,8 @@ nonisolated struct PetMovementSettings: Equatable, Sendable {
             cursorFollowingAnimation
         case .freeRoaming:
             freeRoamingAnimation
+        case .cursorAvoiding:
+            cursorAvoidingAnimation
         }
     }
 }

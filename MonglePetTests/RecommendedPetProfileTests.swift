@@ -32,7 +32,7 @@ final class RecommendedPetProfileTests: XCTestCase {
         let object = try XCTUnwrap(
             JSONSerialization.jsonObject(with: data) as? [String: Any]
         )
-        XCTAssertEqual(object["schemaVersion"] as? Int, 2)
+        XCTAssertEqual(object["schemaVersion"] as? Int, 3)
         XCTAssertNotNil(object["behavior"])
         XCTAssertNotNil(object["movement"])
         XCTAssertNotNil(object["automaticRules"])
@@ -266,7 +266,7 @@ final class RecommendedPetProfileTests: XCTestCase {
         var object = try XCTUnwrap(
             JSONSerialization.jsonObject(with: data) as? [String: Any]
         )
-        object["schemaVersion"] = 3
+        object["schemaVersion"] = 4
         let futureData = try JSONSerialization.data(withJSONObject: object)
 
         XCTAssertThrowsError(
@@ -277,7 +277,7 @@ final class RecommendedPetProfileTests: XCTestCase {
         ) { error in
             XCTAssertEqual(
                 error as? RecommendedPetProfileError,
-                .unsupportedSchemaVersion(3)
+                .unsupportedSchemaVersion(4)
             )
         }
         XCTAssertThrowsError(
@@ -343,6 +343,49 @@ final class RecommendedPetProfileTests: XCTestCase {
         XCTAssertFalse(
             decoded.movement.freeRoamingAnimation
                 .usesDirectionalMotions
+        )
+    }
+
+    func testCodecDecodesSchemaV2WithSafeAvoidingDefaults() throws {
+        let encodedV3 = try RecommendedPetProfileCodec.encode(
+            makeProfile(),
+            for: petDefinition
+        )
+        var object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: encodedV3)
+                as? [String: Any]
+        )
+        object["schemaVersion"] = 2
+        var movement = try XCTUnwrap(
+            object["movement"] as? [String: Any]
+        )
+        movement.removeValue(forKey: "cursorAvoidingIdleBehavior")
+        movement.removeValue(forKey: "cursorAvoidingDetectionDistance")
+        movement.removeValue(forKey: "cursorAvoidingSpeed")
+        movement.removeValue(forKey: "cursorAvoidingAnimation")
+        object["movement"] = movement
+        let v2Data = try JSONSerialization.data(withJSONObject: object)
+
+        let decoded = try RecommendedPetProfileCodec.decode(
+            v2Data,
+            for: petDefinition
+        )
+
+        XCTAssertEqual(
+            decoded.movement.cursorAvoidingIdleBehavior,
+            .stationary
+        )
+        XCTAssertEqual(
+            decoded.movement.cursorAvoidingDetectionDistance,
+            AppSettingsLimits.defaultCursorAvoidingDetectionDistance
+        )
+        XCTAssertEqual(
+            decoded.movement.cursorAvoidingSpeed,
+            AppSettingsLimits.defaultCursorAvoidingSpeed
+        )
+        XCTAssertEqual(
+            decoded.movement.cursorAvoidingAnimation,
+            .single(nil)
         )
     }
 
@@ -445,6 +488,19 @@ final class RecommendedPetProfileTests: XCTestCase {
                 ),
                 freeRoamingAnimation: MovementAnimationSettings(
                     fallbackMotionID: "idle",
+                    usesDirectionalMotions: true,
+                    directionMotionIDs: DirectionalMotionIDs(
+                        left: "run",
+                        right: "run",
+                        up: "idle",
+                        down: "idle"
+                    )
+                ),
+                cursorAvoidingIdleBehavior: .freeRoaming,
+                cursorAvoidingDetectionDistance: 180,
+                cursorAvoidingSpeed: 360,
+                cursorAvoidingAnimation: MovementAnimationSettings(
+                    fallbackMotionID: "run",
                     usesDirectionalMotions: true,
                     directionMotionIDs: DirectionalMotionIDs(
                         left: "run",

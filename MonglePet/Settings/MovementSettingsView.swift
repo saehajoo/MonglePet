@@ -18,12 +18,25 @@ struct MovementSettingsView: View {
             }
 
             Section("이동 방식") {
-                Picker("이동 방식", selection: movementModeBinding) {
-                    Text("위치 고정").tag(PetMovementMode.fixed)
-                    Text("마우스 따라가기").tag(PetMovementMode.cursorFollowing)
-                    Text("자유 이동").tag(PetMovementMode.freeRoaming)
+                LazyVGrid(
+                    columns: [
+                        GridItem(.flexible(), spacing: 10),
+                        GridItem(.flexible(), spacing: 10)
+                    ],
+                    spacing: 10
+                ) {
+                    ForEach(
+                        [
+                            PetMovementMode.fixed,
+                            .freeRoaming,
+                            .cursorFollowing,
+                            .cursorAvoiding
+                        ],
+                        id: \.self
+                    ) { mode in
+                        movementModeCard(mode)
+                    }
                 }
-                .pickerStyle(.segmented)
                 .accessibilityIdentifier("monglepet.settings.movementMode")
 
                 Text(modeDescription)
@@ -33,15 +46,22 @@ struct MovementSettingsView: View {
 
             if movement.mode != .fixed {
                 Section("이동 감각") {
-                    movementSlider(
-                        title: "이동 속도",
-                        value: movementSpeedBinding,
-                        range: AppSettingsLimits.minimumMovementSpeed
-                            ... AppSettingsLimits.maximumMovementSpeed,
-                        step: 10,
-                        valueText: "\(Int(movement.speed.rounded())) pt/s",
-                        accessibilityIdentifier: "monglepet.settings.movementSpeed"
-                    )
+                    if movement.mode != .cursorAvoiding
+                        || movement.cursorAvoidingIdleBehavior == .freeRoaming {
+                        movementSlider(
+                            title: movement.mode == .cursorAvoiding
+                                ? "평상시 이동 속도"
+                                : "이동 속도",
+                            value: movementSpeedBinding,
+                            range: AppSettingsLimits.minimumMovementSpeed
+                                ... AppSettingsLimits.maximumMovementSpeed,
+                            step: 10,
+                            valueText:
+                                "\(Int(movement.speed.rounded())) pt/s",
+                            accessibilityIdentifier:
+                                "monglepet.settings.movementSpeed"
+                        )
+                    }
                     movementSlider(
                         title: "정지 반경",
                         value: movementStopRadiusBinding,
@@ -118,19 +138,101 @@ struct MovementSettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+            case .cursorAvoiding:
+                Section("마우스 도망가기") {
+                    Picker(
+                        "평상시 행동",
+                        selection: cursorAvoidingIdleBehaviorBinding
+                    ) {
+                        Text("가만히 있기")
+                            .tag(CursorAvoidingIdleBehavior.stationary)
+                        Text("자유 이동")
+                            .tag(CursorAvoidingIdleBehavior.freeRoaming)
+                    }
+                    .pickerStyle(.segmented)
+                    .accessibilityIdentifier(
+                        "monglepet.settings.cursorAvoidingIdleBehavior"
+                    )
+
+                    movementSlider(
+                        title: "마우스 감지 거리",
+                        value: cursorAvoidingDetectionDistanceBinding,
+                        range:
+                            AppSettingsLimits
+                                .minimumCursorAvoidingDetectionDistance
+                            ... AppSettingsLimits
+                                .maximumCursorAvoidingDetectionDistance,
+                        step: 8,
+                        valueText:
+                            "\(Int(movement.cursorAvoidingDetectionDistance.rounded())) pt",
+                        accessibilityIdentifier:
+                            "monglepet.settings.cursorAvoidingDetectionDistance"
+                    )
+                    movementSlider(
+                        title: "도망가는 속도",
+                        value: cursorAvoidingSpeedBinding,
+                        range: AppSettingsLimits.minimumMovementSpeed
+                            ... AppSettingsLimits.maximumMovementSpeed,
+                        step: 10,
+                        valueText:
+                            "\(Int(movement.cursorAvoidingSpeed.rounded())) pt/s",
+                        accessibilityIdentifier:
+                            "monglepet.settings.cursorAvoidingSpeed"
+                    )
+
+                    if movement.cursorAvoidingIdleBehavior == .freeRoaming {
+                        movementSlider(
+                            title: "평상시 머무는 시간",
+                            value: freeRoamingDwellSecondsBinding,
+                            range: freeRoamingDwellSecondsRange,
+                            step: 0.5,
+                            valueText: dwellTimeText,
+                            accessibilityIdentifier:
+                                "monglepet.settings.cursorAvoidingDwell"
+                        )
+                        Toggle(
+                            "현재 사용 중인 앱의 창 근처를 우선",
+                            isOn: prefersFrontmostWindowBinding
+                        )
+                        movementAnimationEditor(
+                            for: .freeRoaming,
+                            title: "평상시 자유 이동 애니메이션",
+                            accessibilityPrefix:
+                                "monglepet.settings.cursorAvoidingRoaming"
+                        )
+                    }
+
+                    movementAnimationEditor(
+                        for: .cursorAvoiding,
+                        title: "도망가기 애니메이션",
+                        accessibilityPrefix:
+                            "monglepet.settings.cursorAvoiding"
+                    )
+
+                    Text("클릭 통과 여부와 관계없이 마우스를 피해 이동합니다. 안전한 거리까지 멀어지면 선택한 평상시 행동으로 돌아갑니다.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             Section("상호작용") {
-                motionPicker(
-                    title: "쓰다듬기 애니메이션",
-                    selection: pettingMotionBinding,
-                    noneLabel: "반응 없음",
-                    accessibilityIdentifier: "monglepet.settings.pettingMotion"
-                )
-
-                Text("펫의 보이는 부분에 마우스를 잠시 올리면 선택한 애니메이션을 한 번 재생한 뒤 기존 행동으로 돌아갑니다. 클릭 통과 중에도 사용할 수 있습니다.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                if movement.mode == .cursorAvoiding {
+                    LabeledContent("쓰다듬기", value: "사용하지 않음")
+                    Text("마우스 도망가기 모드에서는 접근 반응과 충돌하지 않도록 쓰다듬기를 실행하지 않습니다. 다른 이동 모드에서 선택한 설정은 유지됩니다.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    motionPicker(
+                        title: "쓰다듬기 애니메이션",
+                        selection: pettingMotionBinding,
+                        noneLabel: "반응 없음",
+                        accessibilityIdentifier:
+                            "monglepet.settings.pettingMotion"
+                    )
+                    Text("펫의 보이는 부분에 마우스를 잠시 올리면 선택한 애니메이션을 한 번 재생한 뒤 기존 행동으로 돌아갑니다. 클릭 통과 중에도 사용할 수 있습니다.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             Section {
@@ -238,6 +340,30 @@ struct MovementSettingsView: View {
         Binding(
             get: { movement.mode },
             set: { apply(.mode($0)) }
+        )
+    }
+
+    private var cursorAvoidingIdleBehaviorBinding:
+        Binding<CursorAvoidingIdleBehavior> {
+        Binding(
+            get: { movement.cursorAvoidingIdleBehavior },
+            set: { apply(.cursorAvoidingIdleBehavior($0)) }
+        )
+    }
+
+    private var cursorAvoidingDetectionDistanceBinding: Binding<Double> {
+        Binding(
+            get: { movement.cursorAvoidingDetectionDistance },
+            set: {
+                apply(.cursorAvoidingDetectionDistance($0), persist: false)
+            }
+        )
+    }
+
+    private var cursorAvoidingSpeedBinding: Binding<Double> {
+        Binding(
+            get: { movement.cursorAvoidingSpeed },
+            set: { apply(.cursorAvoidingSpeed($0), persist: false) }
         )
     }
 
@@ -368,6 +494,8 @@ struct MovementSettingsView: View {
             "마우스 포인터를 부드럽게 따라가며 설정한 거리에서 멈춥니다."
         case .freeRoaming:
             "화면 안의 안전한 목표를 골라 이동하고 잠시 머문 뒤 다시 움직입니다."
+        case .cursorAvoiding:
+            "평상시에는 선택한 행동을 하다가 마우스가 가까워지면 반대 방향으로 도망갑니다."
         }
     }
 
@@ -443,6 +571,79 @@ struct MovementSettingsView: View {
         }
     }
 
+    private func movementModeCard(
+        _ mode: PetMovementMode
+    ) -> some View {
+        let isSelected = movement.mode == mode
+        return Button {
+            movementModeBinding.wrappedValue = mode
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: movementModeSymbol(mode))
+                    .font(.title3)
+                    .frame(width: 22)
+                Text(movementModeTitle(mode))
+                    .fontWeight(isSelected ? .semibold : .regular)
+                Spacer(minLength: 0)
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.tint)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 11)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(
+                        isSelected
+                            ? Color.accentColor.opacity(0.12)
+                            : Color.secondary.opacity(0.06)
+                    )
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(
+                        isSelected
+                            ? Color.accentColor.opacity(0.7)
+                            : Color.secondary.opacity(0.18),
+                        lineWidth: 1
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(
+            "monglepet.settings.movementMode.\(movementModeIdentifier(mode))"
+        )
+    }
+
+    private func movementModeTitle(_ mode: PetMovementMode) -> String {
+        switch mode {
+        case .fixed: "위치 고정"
+        case .cursorFollowing: "마우스 따라가기"
+        case .freeRoaming: "자유 이동"
+        case .cursorAvoiding: "마우스 도망가기"
+        }
+    }
+
+    private func movementModeSymbol(_ mode: PetMovementMode) -> String {
+        switch mode {
+        case .fixed: "pin.fill"
+        case .cursorFollowing: "cursorarrow.motionlines"
+        case .freeRoaming: "arrow.triangle.branch"
+        case .cursorAvoiding: "figure.run"
+        }
+    }
+
+    private func movementModeIdentifier(_ mode: PetMovementMode) -> String {
+        switch mode {
+        case .fixed: "fixed"
+        case .cursorFollowing: "cursorFollowing"
+        case .freeRoaming: "freeRoaming"
+        case .cursorAvoiding: "cursorAvoiding"
+        }
+    }
+
     private func percentageSlider(
         title: String,
         value: Binding<Double>,
@@ -482,12 +683,13 @@ struct MovementSettingsView: View {
 
     private func movementAnimationEditor(
         for mode: PetMovementMode,
+        title: String = "이동 애니메이션",
         accessibilityPrefix: String
     ) -> some View {
         let animation = movementAnimation(for: mode)
         return VStack(alignment: .leading, spacing: 10) {
             Picker(
-                "이동 애니메이션",
+                title,
                 selection: directionalAnimationBinding(for: mode)
             ) {
                 Text("공통 하나").tag(false)
@@ -569,6 +771,8 @@ struct MovementSettingsView: View {
             movement.cursorFollowingAnimation
         case .freeRoaming:
             movement.freeRoamingAnimation
+        case .cursorAvoiding:
+            movement.cursorAvoidingAnimation
         }
     }
 
@@ -670,6 +874,8 @@ struct MovementSettingsView: View {
             apply(.cursorFollowingAnimation(animation))
         case .freeRoaming:
             apply(.freeRoamingAnimation(animation))
+        case .cursorAvoiding:
+            apply(.cursorAvoidingAnimation(animation))
         }
     }
 
@@ -800,6 +1006,12 @@ struct MovementSettingsView: View {
         var prefersFrontmostWindow = current.prefersFrontmostWindow
         var cursorFollowingAnimation = current.cursorFollowingAnimation
         var freeRoamingAnimation = current.freeRoamingAnimation
+        var cursorAvoidingIdleBehavior =
+            current.cursorAvoidingIdleBehavior
+        var cursorAvoidingDetectionDistance =
+            current.cursorAvoidingDetectionDistance
+        var cursorAvoidingSpeed = current.cursorAvoidingSpeed
+        var cursorAvoidingAnimation = current.cursorAvoidingAnimation
 
         switch edit {
         case let .mode(value):
@@ -818,6 +1030,14 @@ struct MovementSettingsView: View {
             cursorFollowingAnimation = value
         case let .freeRoamingAnimation(value):
             freeRoamingAnimation = value
+        case let .cursorAvoidingIdleBehavior(value):
+            cursorAvoidingIdleBehavior = value
+        case let .cursorAvoidingDetectionDistance(value):
+            cursorAvoidingDetectionDistance = value
+        case let .cursorAvoidingSpeed(value):
+            cursorAvoidingSpeed = value
+        case let .cursorAvoidingAnimation(value):
+            cursorAvoidingAnimation = value
         }
 
         settingsSession.setMovementSettings(
@@ -830,7 +1050,13 @@ struct MovementSettingsView: View {
                     freeRoamingDwellMilliseconds,
                 prefersFrontmostWindow: prefersFrontmostWindow,
                 cursorFollowingAnimation: cursorFollowingAnimation,
-                freeRoamingAnimation: freeRoamingAnimation
+                freeRoamingAnimation: freeRoamingAnimation,
+                cursorAvoidingIdleBehavior:
+                    cursorAvoidingIdleBehavior,
+                cursorAvoidingDetectionDistance:
+                    cursorAvoidingDetectionDistance,
+                cursorAvoidingSpeed: cursorAvoidingSpeed,
+                cursorAvoidingAnimation: cursorAvoidingAnimation
             ),
             persist: persist
         )
@@ -846,6 +1072,10 @@ private enum MovementEdit {
     case prefersFrontmostWindow(Bool)
     case cursorFollowingAnimation(MovementAnimationSettings)
     case freeRoamingAnimation(MovementAnimationSettings)
+    case cursorAvoidingIdleBehavior(CursorAvoidingIdleBehavior)
+    case cursorAvoidingDetectionDistance(Double)
+    case cursorAvoidingSpeed(Double)
+    case cursorAvoidingAnimation(MovementAnimationSettings)
 }
 
 private enum CustomAreaField {

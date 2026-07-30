@@ -28,6 +28,7 @@
 
 | 상태 | 작업명 | 파일 | 완료일 |
 | --- | --- | --- | --- |
+| completed | 마우스 도망가기 이동 모드 | `tasks/2026-07-30-cursor-avoiding-movement.md` | 2026-07-30 |
 | completed | Phase 9C 방향별 이동 애니메이션 | `tasks/2026-07-29-directional-movement-animations.md` | 2026-07-30 |
 | completed | 호버 쓰다듬기 상호작용 | `tasks/2026-07-29-hover-petting-interaction.md` | 2026-07-29 |
 | completed | Phase 9B 다중 모니터·표시·호환성 보완 | `tasks/2026-07-23-phase-9b-display-and-compatibility.md` | 2026-07-23 |

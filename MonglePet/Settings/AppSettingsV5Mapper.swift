@@ -114,7 +114,7 @@ nonisolated enum AppSettingsV5Mapper {
         }
 
         return StoredAppSettingsV5(
-            schemaVersion: AppSettingsLimits.schemaVersion,
+            schemaVersion: 5,
             selectedPetInstallationID: storedV4.selectedPetInstallationID,
             lastUserPresentation: storedV4.lastUserPresentation,
             overlay: storedV4.overlay,
@@ -231,6 +231,8 @@ nonisolated enum AppSettingsV5Mapper {
             "cursorFollowing"
         case .freeRoaming:
             "freeRoaming"
+        case .cursorAvoiding:
+            "fixed"
         }
         return StoredPetMovementSettingsV5(
             mode: mode,

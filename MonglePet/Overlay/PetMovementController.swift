@@ -17,6 +17,10 @@ nonisolated enum PetMovementControllerState: Equatable, Sendable {
     case freeRoamingMoving
     case freeRoamingSettling
     case freeRoamingDwelling
+    case cursorAvoidingIdle
+    case cursorAvoidingEscaping
+    case cursorAvoidingRoamingMoving
+    case cursorAvoidingRoamingDwelling
 }
 
 @MainActor
@@ -113,6 +117,7 @@ final class PetMovementController: PetMovementControlling {
     private var isMovementAllowed = false
     private var lastTickAt: ContinuousClock.Instant?
     private var lastMovedAt: ContinuousClock.Instant?
+    private var cursorAvoidingDwellStartedAt: ContinuousClock.Instant?
     private var directionClassifier = MovementDirectionClassifier()
     private(set) var targetOrigin: PetMovementPoint?
     private(set) var state: PetMovementControllerState = .inactive
@@ -204,6 +209,8 @@ final class PetMovementController: PetMovementControlling {
         case .freeRoaming:
             state = .freeRoamingMoving
             prepareFreeRoamingTargetAndSchedule()
+        case .cursorAvoiding:
+            prepareCursorAvoidingBaselineAndSchedule()
         }
     }
 
@@ -231,6 +238,9 @@ final class PetMovementController: PetMovementControlling {
         if settings.mode == .freeRoaming {
             state = .freeRoamingMoving
             scheduleTick(after: tickInterval)
+        } else if settings.mode == .cursorAvoiding {
+            cursorAvoidingDwellStartedAt = nil
+            prepareCursorAvoidingBaselineAndSchedule()
         }
     }
 
@@ -247,6 +257,8 @@ final class PetMovementController: PetMovementControlling {
             tickCursorFollowing()
         case .freeRoaming:
             tickFreeRoaming()
+        case .cursorAvoiding:
+            tickCursorAvoiding()
         }
     }
 
@@ -390,6 +402,215 @@ final class PetMovementController: PetMovementControlling {
         }
     }
 
+    private func tickCursorAvoiding() {
+        let now = clock.now
+        let elapsedSeconds = elapsedSeconds(to: now)
+        guard let origin = originProvider(),
+              let petSize = petSizeProvider(),
+              let pointer = pointerProvider(),
+              let pointerDistance = PetMovementGeometry.distance(
+                  from: pointer,
+                  toPetAt: origin,
+                  petSize: petSize
+              ) else {
+            updateStationaryActivityIfNeeded(at: now)
+            scheduleTick(after: retryInterval)
+            return
+        }
+
+        let releaseDistance =
+            settings.cursorAvoidingDetectionDistance
+            + max(64, settings.stopRadius * 2)
+        let isEscaping = state == .cursorAvoidingEscaping
+        if pointerDistance <= settings.cursorAvoidingDetectionDistance
+            || (isEscaping && pointerDistance < releaseDistance) {
+            cursorAvoidingDwellStartedAt = nil
+            guard let route = PetMovementGeometry.cursorAvoidingRoute(
+                pointer: pointer,
+                currentOrigin: origin,
+                petSize: petSize,
+                safeDistance: releaseDistance,
+                screenInset: screenInset,
+                screens: screensProvider(),
+                boundary: movementBoundaryProvider()
+            ) else {
+                updateStationaryActivityIfNeeded(at: now)
+                scheduleTick(after: retryInterval)
+                return
+            }
+            state = .cursorAvoidingEscaping
+            targetOrigin = route.targetOrigin
+            move(
+                along: route,
+                from: origin,
+                speed: settings.cursorAvoidingSpeed,
+                elapsedSeconds: elapsedSeconds,
+                at: now
+            )
+            scheduleTick(
+                after: activity.isMoving
+                    ? tickInterval
+                    : cursorIdleInterval
+            )
+            return
+        }
+
+        if isEscaping {
+            targetOrigin = nil
+            lastTickAt = now
+        }
+        switch settings.cursorAvoidingIdleBehavior {
+        case .stationary:
+            state = .cursorAvoidingIdle
+            updateStationaryActivityIfNeeded(at: now)
+            scheduleTick(after: cursorIdleInterval)
+        case .freeRoaming:
+            tickCursorAvoidingFreeRoaming(
+                now: now,
+                elapsedSeconds: elapsedSeconds,
+                origin: origin,
+                petSize: petSize
+            )
+        }
+    }
+
+    private func tickCursorAvoidingFreeRoaming(
+        now: ContinuousClock.Instant,
+        elapsedSeconds: TimeInterval,
+        origin: PetMovementPoint,
+        petSize: PetMovementSize
+    ) {
+        if let dwellStartedAt = cursorAvoidingDwellStartedAt {
+            let dwell = Duration.milliseconds(
+                settings.freeRoamingDwellMilliseconds
+            )
+            guard dwellStartedAt.duration(to: now) >= dwell else {
+                state = .cursorAvoidingRoamingDwelling
+                updateStationaryActivityIfNeeded(at: now)
+                scheduleTick(after: cursorIdleInterval)
+                return
+            }
+            cursorAvoidingDwellStartedAt = nil
+        }
+
+        guard let targetOrigin else {
+            prepareCursorAvoidingRoamingTargetAndSchedule()
+            return
+        }
+        state = .cursorAvoidingRoamingMoving
+        let route = PetMovementCursorRoute(
+            targetOrigin: targetOrigin,
+            transition: PetMovementGeometry.screenTransition(
+                from: origin,
+                toward: targetOrigin,
+                petSize: petSize,
+                screens: screensProvider()
+            )
+        )
+        let advance = move(
+            along: route,
+            from: origin,
+            speed: settings.speed,
+            elapsedSeconds: elapsedSeconds,
+            at: now
+        )
+        guard advance.hasArrived else {
+            scheduleTick(after: tickInterval)
+            return
+        }
+        self.targetOrigin = nil
+        cursorAvoidingDwellStartedAt = now
+        state = .cursorAvoidingRoamingDwelling
+        scheduleTick(after: cursorIdleInterval)
+    }
+
+    private func prepareCursorAvoidingBaselineAndSchedule() {
+        switch settings.cursorAvoidingIdleBehavior {
+        case .stationary:
+            state = .cursorAvoidingIdle
+            scheduleTick(after: cursorIdleInterval)
+        case .freeRoaming:
+            prepareCursorAvoidingRoamingTargetAndSchedule()
+        }
+    }
+
+    private func prepareCursorAvoidingRoamingTargetAndSchedule() {
+        guard let petSize = petSizeProvider() else {
+            scheduleTick(after: retryInterval)
+            return
+        }
+        let preferredWindow = settings.prefersFrontmostWindow
+            ? frontmostWindowProvider.representativeWindow()
+            : nil
+        targetOrigin = PetMovementGeometry.freeRoamingTargetOrigin(
+            screens: screensProvider(),
+            petSize: petSize,
+            screenInset: screenInset,
+            preferredWindow: preferredWindow,
+            sample: randomSampleProvider(),
+            boundary: movementBoundaryProvider()
+        )
+        lastTickAt = clock.now
+        guard targetOrigin != nil else {
+            scheduleTick(after: retryInterval)
+            return
+        }
+        state = .cursorAvoidingRoamingMoving
+        scheduleTick(after: tickInterval)
+    }
+
+    @discardableResult
+    private func move(
+        along route: PetMovementCursorRoute,
+        from origin: PetMovementPoint,
+        speed: Double,
+        elapsedSeconds: TimeInterval,
+        at now: ContinuousClock.Instant
+    ) -> PetMovementAdvance {
+        if let transition = route.transition {
+            let exitAdvance = PetMovementGeometry.advance(
+                from: origin,
+                toward: transition.exitOrigin,
+                speed: speed,
+                elapsedSeconds: elapsedSeconds,
+                stopRadius: 0
+            )
+            if exitAdvance.didMove {
+                if !apply(exitAdvance, at: now) {
+                    applyScreenTransition(
+                        transition,
+                        finalTarget: route.targetOrigin,
+                        from: origin,
+                        at: now
+                    )
+                }
+            } else if exitAdvance.hasArrived {
+                applyScreenTransition(
+                    transition,
+                    finalTarget: route.targetOrigin,
+                    from: origin,
+                    at: now
+                )
+            } else {
+                updateStationaryActivityIfNeeded(at: now)
+            }
+            return PetMovementAdvance(
+                origin: exitAdvance.origin,
+                didMove: exitAdvance.didMove,
+                hasArrived: false
+            )
+        }
+        let advance = PetMovementGeometry.advance(
+            from: origin,
+            toward: route.targetOrigin,
+            speed: speed,
+            elapsedSeconds: elapsedSeconds,
+            stopRadius: settings.stopRadius
+        )
+        apply(advance, at: now)
+        return advance
+    }
+
     private func prepareFreeRoamingTargetAndSchedule() {
         guard let petSize = petSizeProvider() else {
             scheduleTick(after: retryInterval)
@@ -527,7 +748,13 @@ final class PetMovementController: PetMovementControlling {
     ) -> PetMovementActivity {
         let deltaX = actualOrigin.x - origin.x
         let deltaY = actualOrigin.y - origin.y
-        let animation = settings.animationSettings(for: settings.mode)
+        let animation: MovementAnimationSettings? =
+            if settings.mode == .cursorAvoiding,
+               state == .cursorAvoidingRoamingMoving {
+                settings.freeRoamingAnimation
+            } else {
+                settings.animationSettings(for: settings.mode)
+            }
         let direction = directionClassifier.classify(
             deltaX: deltaX,
             deltaY: deltaY,
@@ -580,6 +807,7 @@ final class PetMovementController: PetMovementControlling {
         targetOrigin = nil
         lastTickAt = nil
         lastMovedAt = nil
+        cursorAvoidingDwellStartedAt = nil
         directionClassifier.reset()
         emit(activity: .stationary)
     }

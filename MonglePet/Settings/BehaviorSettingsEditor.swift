@@ -354,6 +354,17 @@ nonisolated enum BehaviorSettingsEditor {
                 in: settings.movementSettings.freeRoamingAnimation,
                 oldMotionID: oldMotionID,
                 replacementMotionID: movementReplacementMotionID
+            ),
+            cursorAvoidingIdleBehavior:
+                settings.movementSettings.cursorAvoidingIdleBehavior,
+            cursorAvoidingDetectionDistance:
+                settings.movementSettings.cursorAvoidingDetectionDistance,
+            cursorAvoidingSpeed:
+                settings.movementSettings.cursorAvoidingSpeed,
+            cursorAvoidingAnimation: replacingMotionReferences(
+                in: settings.movementSettings.cursorAvoidingAnimation,
+                oldMotionID: oldMotionID,
+                replacementMotionID: movementReplacementMotionID
             )
         )
         let pettingMotionID = replacingMotionID(

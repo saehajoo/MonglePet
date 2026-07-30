@@ -259,11 +259,11 @@ GIF, APNG 또는 PNG 시퀀스는 다음 기본 manifest를 생성해 내부 패
 
 `recommended-profile.json`은 펫 패키지와 독립적으로 버전을 갖는 선택 데이터다. 받는 사용자의 설정을 강제하지 않으며 적용을 명시적으로 선택한 경우에만 설치 UUID에 연결된 편집 가능한 로컬 행동 프로필로 복사한다.
 
-새 내보내기가 사용하는 schema-v2 예시:
+새 내보내기가 사용하는 schema-v3 예시:
 
 ```json
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "behavior": {
     "mode": "manual",
     "manualSequenceID": "default",
@@ -284,6 +284,9 @@ GIF, APNG 또는 PNG 시퀀스는 다음 기본 manifest를 생성해 내부 패
     "stopRadius": 24,
     "freeRoamingDwellMilliseconds": 8000,
     "prefersFrontmostWindow": true,
+    "cursorAvoidingIdleBehavior": "stationary",
+    "cursorAvoidingDetectionDistance": 160,
+    "cursorAvoidingSpeed": 320,
     "cursorFollowingAnimation": {
       "fallbackMotionID": "run",
       "usesDirectionalMotions": true,
@@ -313,6 +316,21 @@ GIF, APNG 또는 PNG 시퀀스는 다음 기본 manifest를 생성해 내부 패
         "downLeft": null,
         "downRight": null
       }
+    },
+    "cursorAvoidingAnimation": {
+      "fallbackMotionID": "run",
+      "usesDirectionalMotions": true,
+      "usesDiagonalMotions": false,
+      "directionMotionIDs": {
+        "left": "run-left",
+        "right": "run-right",
+        "up": "run-up",
+        "down": "run-down",
+        "upLeft": null,
+        "upRight": null,
+        "downLeft": null,
+        "downRight": null
+      }
     }
   },
   "pettingMotionID": "petting",
@@ -320,13 +338,15 @@ GIF, APNG 또는 PNG 시퀀스는 다음 기본 manifest를 생성해 내부 패
 }
 ```
 
-- 행동 모드는 `automatic` 또는 `manual`, 이동 모드는 `fixed`, `cursorFollowing`, `freeRoaming`만 허용한다.
+- 행동 모드는 `automatic` 또는 `manual`, 이동 모드는 `fixed`, `cursorFollowing`, `freeRoaming`, `cursorAvoiding`만 허용한다.
+- schema-v3는 마우스 도망가기의 평상시 행동 `stationary` / `freeRoaming`, 감지 거리, 도망 속도와 독립 방향 애니메이션을 기록한다. 평상시 자유 이동은 기존 자유 이동 수치와 애니메이션을 재사용한다.
 - schema-v2는 마우스 따라가기와 자유 이동에 독립된 공통 fallback, 방향별 사용 여부와 명시적인 8방향 모션 참조를 기록한다. 대각선 사용은 방향별 사용이 켜진 경우에만 허용한다.
+- 기존 schema-v2는 도망가기 필드를 안전한 기본값으로 채워 읽으며 schema-v1은 단일 모션 호환 변환 뒤 같은 기본값을 추가한다.
 - 기존 schema-v1의 `cursorFollowingMotionID`와 `freeRoamingMotionID`는 각각 해당 모드의 공통 fallback으로 계속 읽고 방향별 기능은 끈다.
 - 수동 모드에는 존재하는 행동 루틴 ID를 `manualSequenceID`로 지정해야 한다.
 - 행동 루틴과 단계, 자동 규칙의 개수·반복 횟수·유휴 시간, 이동 값은 앱 설정과 같은 상한을 적용한다.
 - 행동 단계는 패키지에 존재하는 모션 ID 또는 예약된 `현재 펫의 기본 애니메이션` 참조만 사용할 수 있다.
-- 이동 중 애니메이션과 쓰다듬기 애니메이션은 런타임에서 직접 재생하므로 패키지에 실제로 존재하는 모션 ID만 사용할 수 있다.
+- 세 이동 애니메이션과 쓰다듬기 애니메이션은 런타임에서 직접 재생하므로 패키지에 실제로 존재하는 모션 ID만 사용할 수 있다. 도망가기 모드에서는 공유된 쓰다듬기 값을 보존하되 실행하지 않는다.
 - 자동 규칙은 고유한 규칙 ID와 존재하는 행동 루틴 참조를 가져야 한다. 앱 bundle identifier 규칙은 내보내는 사용자가 별도로 포함을 선택하고 목록을 검토한 경우에만 기록한다.
 - 파일 크기는 압축 해제 상태에서 최대 1 MiB로 제한한다.
 - 설치 UUID, 로컬 펫 키, 화면·창 좌표, 이동 범위, 디스플레이 식별자, 펫 크기, 클릭 통과, 투명도, 픽셀 표시, 로그인 실행, 깨움 상태와 이동 이력 필드는 정의하지 않는다.
@@ -336,7 +356,7 @@ GIF, APNG 또는 PNG 시퀀스는 다음 기본 manifest를 생성해 내부 패
 ### 권장 프로필 가져오기
 
 - 패키지 선택 직후 설치하지 않고 `가져오기 내용 확인` 화면에서 이름, 버전, 제작자, 라이선스와 애니메이션 수를 먼저 표시한다.
-- 유효한 `recommended-profile.json`이 있으면 행동 모드와 선택 루틴, 행동 루틴의 단계, 자동 규칙의 조건·우선순위, 이동 방식·속도·거리·정지 반경·대기 시간, 모드별 공통·방향 애니메이션, 쓰다듬기 애니메이션과 앱별 규칙의 bundle identifier를 공통 요약으로 표시한다.
+- 유효한 `recommended-profile.json`이 있으면 행동 모드와 선택 루틴, 행동 루틴의 단계, 자동 규칙의 조건·우선순위, 이동 방식·속도·거리·정지 반경·대기 시간, 도망가기 평상시 행동·감지 거리·속도, 모드별 공통·방향 애니메이션, 쓰다듬기 애니메이션과 앱별 규칙의 bundle identifier를 공통 요약으로 표시한다.
 - 같은 화면에 위치·범위·크기·투명도·클릭 통과·픽셀 표시·로그인 실행은 포함되지 않는 기기 설정임을 안내한다.
 - 새 설치는 사용자가 `펫만 설치` 또는 `권장 설정 적용 후 설치`를 명시적으로 선택한다. 펫만 설치하면 해당 설치 UUID의 표준 기본 프로필을 사용한다.
 - 권장 설정을 적용하면 새 설치 UUID에 맞춘 편집 가능한 로컬 `BehaviorProfile` 사본을 만들고 즉시 `settings.json`에 저장한다. 패키지의 권장 설정 파일은 원본 preset으로 유지되며 이후 로컬 편집과 자동 동기화하지 않는다.

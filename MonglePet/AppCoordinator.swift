@@ -289,6 +289,8 @@ final class AppCoordinator: NSObject {
 
     private func pettingDidRequest() {
         guard
+            settingsSession.settings.movementSettings.mode
+                != .cursorAvoiding,
             let motionID = settingsSession.settings.pettingMotionID,
             petLibrarySession.selectedItem.definition.motion(id: motionID) != nil
         else {
@@ -326,7 +328,10 @@ final class AppCoordinator: NSObject {
         let pettingMotionExists = settings.pettingMotionID.flatMap {
             petLibrarySession.selectedItem.definition.motion(id: $0)
         } != nil
-        petWindowController.setPettingEnabled(pettingMotionExists)
+        petWindowController.setPettingEnabled(
+            pettingMotionExists
+                && settings.movementSettings.mode != .cursorAvoiding
+        )
         hasAppliedSettings = true
 
         switch settings.lastUserPresentation {

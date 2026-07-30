@@ -1942,7 +1942,9 @@ private struct RecommendedProfileSummaryView: View {
                 )
                 informationRow(
                     "쓰다듬기",
-                    value: summary.pettingMotionID ?? "지정 안 함"
+                    value: summary.movement.mode == .cursorAvoiding
+                        ? "도망가기 모드에서 사용하지 않음"
+                        : summary.pettingMotionID ?? "지정 안 함"
                 )
             }
 
@@ -2033,6 +2035,25 @@ private struct RecommendedProfileSummaryView: View {
                                 ? "사용"
                                 : "사용 안 함"
                         )
+                        informationRow(
+                            "도망가기 평상시",
+                            value:
+                                summary.movement
+                                    .cursorAvoidingIdleBehavior
+                                    == .stationary
+                                ? "가만히 있기"
+                                : "자유 이동"
+                        )
+                        informationRow(
+                            "마우스 감지 거리",
+                            value:
+                                "\(Int(summary.movement.cursorAvoidingDetectionDistance.rounded())) pt"
+                        )
+                        informationRow(
+                            "도망가는 속도",
+                            value:
+                                "\(Int(summary.movement.cursorAvoidingSpeed.rounded())) pt/s"
+                        )
                     }
 
                     Divider()
@@ -2052,6 +2073,16 @@ private struct RecommendedProfileSummaryView: View {
                         systemImage: "arrow.triangle.2.circlepath",
                         mode: .freeRoaming,
                         animation: summary.movement.freeRoamingAnimation
+                    )
+
+                    Divider()
+
+                    movementAnimationSummary(
+                        title: "마우스 도망가기",
+                        systemImage: "figure.run",
+                        mode: .cursorAvoiding,
+                        animation:
+                            summary.movement.cursorAvoidingAnimation
                     )
                 }
                 .padding(.top, 6)
@@ -2190,6 +2221,8 @@ private struct RecommendedProfileSummaryView: View {
             "마우스 따라가기"
         case .freeRoaming:
             "자유 이동"
+        case .cursorAvoiding:
+            "마우스 도망가기"
         }
     }
 

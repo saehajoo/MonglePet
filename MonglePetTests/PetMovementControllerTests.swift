@@ -377,6 +377,97 @@ final class PetMovementControllerTests: XCTestCase {
         XCTAssertEqual(fixture.scheduler.scheduledDelay, .milliseconds(33))
     }
 
+    func testCursorAvoidingEscapesPointerWithDirectionalAnimation() {
+        let fixture = Fixture()
+        fixture.origin = point(300, 300)
+        fixture.pointer = point(410, 350)
+        fixture.controller.update(
+            settings: fixture.settings(
+                mode: .cursorAvoiding,
+                stopRadius: 0,
+                avoidingDistance: 160,
+                avoidingSpeed: 100,
+                avoidingAnimation: MovementAnimationSettings(
+                    fallbackMotionID: "escape",
+                    usesDirectionalMotions: true,
+                    usesDiagonalMotions: false,
+                    directionMotionIDs: DirectionalMotionIDs(
+                        left: "escape-left"
+                    )
+                )
+            ),
+            isMovementAllowed: true
+        )
+
+        XCTAssertEqual(fixture.controller.state, .cursorAvoidingIdle)
+        XCTAssertEqual(fixture.scheduler.scheduledDelay, .milliseconds(100))
+
+        fixture.clock.advance(by: .seconds(1))
+        fixture.scheduler.fire()
+
+        XCTAssertEqual(fixture.controller.state, .cursorAvoidingEscaping)
+        XCTAssertLessThan(fixture.origin.x, 300)
+        XCTAssertEqual(
+            fixture.controller.activity,
+            movement("escape-left")
+        )
+        XCTAssertEqual(fixture.scheduler.scheduledDelay, .milliseconds(33))
+    }
+
+    func testCursorAvoidingReturnsToStationaryAfterReleaseDistance() {
+        let fixture = Fixture()
+        fixture.origin = point(300, 300)
+        fixture.pointer = point(410, 350)
+        let settings = fixture.settings(
+            mode: .cursorAvoiding,
+            avoidingDistance: 160,
+            avoidingSpeed: 1_000,
+            avoidingAnimation: .single("escape")
+        )
+        fixture.controller.update(
+            settings: settings,
+            isMovementAllowed: true
+        )
+        fixture.clock.advance(by: .seconds(1))
+        fixture.scheduler.fire()
+        XCTAssertEqual(fixture.controller.state, .cursorAvoidingEscaping)
+
+        fixture.pointer = point(900, 700)
+        fixture.clock.advance(by: .milliseconds(33))
+        fixture.scheduler.fire()
+
+        XCTAssertEqual(fixture.controller.state, .cursorAvoidingIdle)
+        XCTAssertNil(fixture.controller.targetOrigin)
+        XCTAssertEqual(fixture.scheduler.scheduledDelay, .milliseconds(100))
+    }
+
+    func testCursorAvoidingCanFreeRoamWhilePointerIsFarAway() {
+        let fixture = Fixture()
+        fixture.origin = point(100, 100)
+        fixture.pointer = point(900, 700)
+        fixture.randomSamples = [sample(0, 1, 1)]
+        fixture.controller.update(
+            settings: fixture.settings(
+                mode: .cursorAvoiding,
+                speed: 100,
+                freeMotionID: "walk",
+                avoidingIdleBehavior: .freeRoaming,
+                avoidingAnimation: .single("escape")
+            ),
+            isMovementAllowed: true
+        )
+
+        XCTAssertEqual(
+            fixture.controller.state,
+            .cursorAvoidingRoamingMoving
+        )
+        fixture.clock.advance(by: .seconds(1))
+        fixture.scheduler.fire()
+
+        XCTAssertGreaterThan(fixture.origin.x, 100)
+        XCTAssertEqual(fixture.controller.activity, movement("walk"))
+    }
+
     func testDisallowingMovementCancelsTimerAndReportsStationary() {
         let fixture = Fixture()
         fixture.pointer = point(600, 150)
@@ -526,7 +617,13 @@ private final class Fixture {
         cursorMotionID: String? = nil,
         freeMotionID: String? = nil,
         cursorAnimation: MovementAnimationSettings? = nil,
-        freeAnimation: MovementAnimationSettings? = nil
+        freeAnimation: MovementAnimationSettings? = nil,
+        avoidingIdleBehavior: CursorAvoidingIdleBehavior = .stationary,
+        avoidingDistance: Double =
+            AppSettingsLimits.defaultCursorAvoidingDetectionDistance,
+        avoidingSpeed: Double =
+            AppSettingsLimits.defaultCursorAvoidingSpeed,
+        avoidingAnimation: MovementAnimationSettings = .single(nil)
     ) -> PetMovementSettings {
         PetMovementSettings(
             mode: mode,
@@ -538,7 +635,11 @@ private final class Fixture {
             cursorFollowingMotionID: cursorMotionID,
             freeRoamingMotionID: freeMotionID,
             cursorFollowingAnimation: cursorAnimation,
-            freeRoamingAnimation: freeAnimation
+            freeRoamingAnimation: freeAnimation,
+            cursorAvoidingIdleBehavior: avoidingIdleBehavior,
+            cursorAvoidingDetectionDistance: avoidingDistance,
+            cursorAvoidingSpeed: avoidingSpeed,
+            cursorAvoidingAnimation: avoidingAnimation
         )
     }
 }

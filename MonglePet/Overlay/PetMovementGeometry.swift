@@ -243,6 +243,128 @@ nonisolated enum PetMovementGeometry {
         )
     }
 
+    static func distance(
+        from pointer: PetMovementPoint,
+        toPetAt origin: PetMovementPoint,
+        petSize: PetMovementSize
+    ) -> Double? {
+        let rect = PetMovementRect(
+            x: origin.x,
+            y: origin.y,
+            width: petSize.width,
+            height: petSize.height
+        )
+        guard pointer.isFinite, rect.isValid else {
+            return nil
+        }
+        return sqrt(squaredDistance(from: pointer, to: rect))
+    }
+
+    static func cursorAvoidingRoute(
+        pointer: PetMovementPoint,
+        currentOrigin: PetMovementPoint,
+        petSize: PetMovementSize,
+        safeDistance: Double,
+        screenInset: Double,
+        screens: [PetMovementScreen],
+        boundary: MovementBoundarySettings = .default
+    ) -> PetMovementCursorRoute? {
+        let availableScreens = movementScreens(
+            constrainedBy: boundary,
+            screens: screens
+        )
+        guard pointer.isFinite, currentOrigin.isFinite, petSize.isValid,
+              safeDistance.isFinite, safeDistance >= 0,
+              let targetScreen = screen(
+                  containingOrNearestTo: PetMovementPoint(
+                      x: currentOrigin.x + (petSize.width / 2),
+                      y: currentOrigin.y + (petSize.height / 2)
+                  ),
+                  in: availableScreens
+              ),
+              let bounds = safeOriginBounds(
+                  in: targetScreen.visibleFrame,
+                  petSize: petSize,
+                  inset: screenInset
+              ) else {
+            return nil
+        }
+
+        let currentCenter = PetMovementPoint(
+            x: currentOrigin.x + (petSize.width / 2),
+            y: currentOrigin.y + (petSize.height / 2)
+        )
+        var awayX = currentCenter.x - pointer.x
+        var awayY = currentCenter.y - pointer.y
+        var awayMagnitude = hypot(awayX, awayY)
+        if awayMagnitude <= 0.000_1 {
+            let screenCenter = targetScreen.visibleFrame.center
+            awayX = currentCenter.x >= screenCenter.x ? 1 : -1
+            awayY = currentCenter.y >= screenCenter.y ? 1 : -1
+            awayMagnitude = hypot(awayX, awayY)
+        }
+        let unitX = awayX / awayMagnitude
+        let unitY = awayY / awayMagnitude
+        let travel = safeDistance
+            + max(petSize.width, petSize.height)
+        let direct = bounds.clamped(
+            PetMovementPoint(
+                x: currentOrigin.x + (unitX * travel),
+                y: currentOrigin.y + (unitY * travel)
+            )
+        )
+        var candidates = [
+            direct,
+            PetMovementPoint(x: bounds.minX, y: bounds.minY),
+            PetMovementPoint(x: bounds.minX, y: bounds.maxY),
+            PetMovementPoint(x: bounds.maxX, y: bounds.minY),
+            PetMovementPoint(x: bounds.maxX, y: bounds.maxY),
+            PetMovementPoint(x: direct.x, y: bounds.minY),
+            PetMovementPoint(x: direct.x, y: bounds.maxY),
+            PetMovementPoint(x: bounds.minX, y: direct.y),
+            PetMovementPoint(x: bounds.maxX, y: direct.y)
+        ]
+        candidates = candidates.filter { candidate in
+            let deltaX = candidate.x - currentOrigin.x
+            let deltaY = candidate.y - currentOrigin.y
+            return (deltaX * unitX) + (deltaY * unitY) >= 0
+        }
+        guard !candidates.isEmpty else {
+            return nil
+        }
+
+        let safeCandidates = candidates.filter {
+            (distance(from: pointer, toPetAt: $0, petSize: petSize) ?? 0)
+                >= safeDistance
+        }
+        let targetOrigin: PetMovementPoint
+        if let nearestSafe = safeCandidates.min(by: {
+            originDistance($0, currentOrigin)
+                < originDistance($1, currentOrigin)
+        }) {
+            targetOrigin = nearestSafe
+        } else {
+            targetOrigin = candidates.max(by: {
+                (distance(from: pointer, toPetAt: $0, petSize: petSize) ?? 0)
+                    < (distance(
+                        from: pointer,
+                        toPetAt: $1,
+                        petSize: petSize
+                    ) ?? 0)
+            }) ?? direct
+        }
+
+        return PetMovementCursorRoute(
+            targetOrigin: targetOrigin,
+            transition: screenTransition(
+                from: currentOrigin,
+                toScreenID: targetScreen.id,
+                petSize: petSize,
+                screens: screens
+            )
+        )
+    }
+
     static func freeRoamingTargetOrigin(
         screens: [PetMovementScreen],
         petSize: PetMovementSize,
@@ -564,6 +686,13 @@ nonisolated enum PetMovementGeometry {
         let deltaX = point.x - nearestX
         let deltaY = point.y - nearestY
         return (deltaX * deltaX) + (deltaY * deltaY)
+    }
+
+    private static func originDistance(
+        _ lhs: PetMovementPoint,
+        _ rhs: PetMovementPoint
+    ) -> Double {
+        hypot(lhs.x - rhs.x, lhs.y - rhs.y)
     }
 
     private static func intersectionArea(
