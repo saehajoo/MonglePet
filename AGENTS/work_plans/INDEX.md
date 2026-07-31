@@ -8,12 +8,8 @@
 
 | 상태 | 작업명 | 파일 | 마지막 갱신 |
 | --- | --- | --- | --- |
-| in_progress | 행동 대사 우선순위와 주기 대사 목록 분리 | `tasks/2026-07-31-speech-priority-and-periodic-list.md` | 2026-07-31 |
-| in_progress | 말풍선 테마 커스텀 | `tasks/2026-07-30-speech-bubble-themes.md` | 2026-07-31 |
-| in_progress | 펫별 말풍선 1차 기능 | `tasks/2026-07-30-speech-bubbles.md` | 2026-07-31 |
 | in_progress | Phase 10 공개 준비와 이동 성능 보완 | `tasks/2026-07-24-phase-10-release-preparation.md` | 2026-07-31 |
 | in_progress | 개인 맥 Preview 배포 파일 생성 | `tasks/2026-07-24-personal-mac-preview-artifact.md` | 2026-07-26 |
-| in_progress | 자동 규칙 앱 선택기 | `tasks/2026-07-24-application-rule-picker.md` | 2026-07-24 |
 
 ## 계획됨
 
@@ -29,6 +25,10 @@
 
 | 상태 | 작업명 | 파일 | 완료일 |
 | --- | --- | --- | --- |
+| completed | 행동 대사 우선순위와 주기 대사 목록 분리 | `tasks/2026-07-31-speech-priority-and-periodic-list.md` | 2026-07-31 |
+| completed | 말풍선 테마 커스텀 | `tasks/2026-07-30-speech-bubble-themes.md` | 2026-07-31 |
+| completed | 펫별 말풍선 1차 기능 | `tasks/2026-07-30-speech-bubbles.md` | 2026-07-31 |
+| completed | 자동 규칙 앱 선택기 | `tasks/2026-07-24-application-rule-picker.md` | 2026-07-31 |
 | completed | 웹 커뮤니티 인계 지침 | `tasks/2026-07-31-web-community-handoff.md` | 2026-07-31 |
 | completed | macOS·Windows 플랫폼 디렉터리 분리 | `tasks/2026-07-31-platform-directory-split.md` | 2026-07-31 |
 | completed | 스프라이트 시트 애니메이션 가져오기 | `tasks/2026-07-27-sprite-sheet-animation-import.md` | 2026-07-31 |
