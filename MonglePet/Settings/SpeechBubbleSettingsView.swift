@@ -9,13 +9,10 @@ struct SpeechBubbleSettingsView: View {
     var body: some View {
         Form {
             Section {
-                VStack(alignment: .leading, spacing: 6) {
-                    Label("말풍선", systemImage: "text.bubble")
-                        .font(.title3.weight(.semibold))
-                    Text("\(petDisplayName)에게 보여 줄 대사와 나타나는 조건을 설정합니다.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                LabeledContent("설정 대상 펫", value: petDisplayName)
+                    .accessibilityIdentifier(
+                        "monglepet.settings.speech.petName"
+                    )
             }
 
             Section("사용 설정") {
@@ -24,15 +21,18 @@ struct SpeechBubbleSettingsView: View {
                         "monglepet.settings.speech.enabled"
                     )
 
-                Stepper(
-                    value: periodicIntervalSecondsBinding,
-                    in: 5...3_600,
-                    step: 5
-                ) {
-                    LabeledContent("주기 대사 간격") {
-                        Text(periodicIntervalDescription)
-                            .monospacedDigit()
-                    }
+                HStack(spacing: 12) {
+                    Text("주기 대사 간격")
+
+                    Slider(
+                        value: periodicIntervalSliderBinding,
+                        in: 5...3_600,
+                        step: 5
+                    )
+
+                    Text(periodicIntervalDescription)
+                        .monospacedDigit()
+                        .frame(width: 64, alignment: .trailing)
                 }
                 .disabled(!speechSettings.isEnabled)
                 .accessibilityIdentifier(
@@ -77,13 +77,16 @@ struct SpeechBubbleSettingsView: View {
 
             Section {
                 Label(
-                    "말풍선은 펫과 함께 움직이며 마우스 클릭을 가로채지 않습니다.",
+                    "말풍선은 펫과 함께 움직이며 마우스 클릭을 가로채지 않습니다. 대사와 조건은 현재 펫에 저장됩니다.",
                     systemImage: "cursorarrow.rays"
                 )
                 .font(.caption)
                 .foregroundStyle(.secondary)
             }
         }
+        .formStyle(.grouped)
+        .disabled(!settingsSession.isWritingEnabled)
+        .accessibilityIdentifier("monglepet.settings.speech.root")
         .sheet(item: $editorContext) { context in
             SpeechPhraseEditorView(
                 phrase: context.phrase,
@@ -119,16 +122,17 @@ struct SpeechBubbleSettingsView: View {
         )
     }
 
-    private var periodicIntervalSecondsBinding: Binding<Int> {
+    private var periodicIntervalSliderBinding: Binding<Double> {
         Binding(
             get: {
-                Int(speechSettings.periodicIntervalMilliseconds / 1_000)
+                Double(speechSettings.periodicIntervalMilliseconds) / 1_000
             },
             set: { seconds in
                 _ = settingsSession.setSpeechSettings(
                     PetSpeechSettings(
                         isEnabled: speechSettings.isEnabled,
-                        periodicIntervalMilliseconds: Int64(seconds) * 1_000,
+                        periodicIntervalMilliseconds:
+                            Int64(seconds.rounded()) * 1_000,
                         phrases: speechSettings.phrases
                     )
                 )
@@ -188,6 +192,7 @@ struct SpeechBubbleSettingsView: View {
                     .imageScale(.large)
             }
             .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
             .fixedSize()
             .accessibilityLabel("대사 메뉴")
         }
@@ -337,11 +342,18 @@ private struct SpeechPhraseEditorView: View {
                 .disabled(sequences.isEmpty)
             }
 
-            Stepper(value: $durationSeconds, in: 1...30) {
-                LabeledContent("표시 시간") {
-                    Text("\(durationSeconds)초")
-                        .monospacedDigit()
-                }
+            HStack(spacing: 12) {
+                Text("표시 시간")
+
+                Slider(
+                    value: durationSecondsSliderBinding,
+                    in: 1...30,
+                    step: 1
+                )
+
+                Text("\(durationSeconds)초")
+                    .monospacedDigit()
+                    .frame(width: 48, alignment: .trailing)
             }
 
             HStack {
@@ -377,6 +389,13 @@ private struct SpeechPhraseEditorView: View {
         case .sequence:
             return .sequence(sequenceID)
         }
+    }
+
+    private var durationSecondsSliderBinding: Binding<Double> {
+        Binding(
+            get: { Double(durationSeconds) },
+            set: { durationSeconds = Int($0.rounded()) }
+        )
     }
 
     private var canSave: Bool {

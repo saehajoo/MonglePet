@@ -151,25 +151,67 @@ private struct PetSettingsView: View {
             }
 
             Section("애니메이션") {
-                List(selection: $previewMotionID) {
-                    ForEach(
-                        petLibrarySession.selectedItem.definition.motions
-                    ) { motion in
-                        HStack {
-                            Text(motion.id)
-                            Spacer()
-                            if motion.id
-                                == petLibrarySession.selectedItem.definition
-                                    .defaultMotionID {
-                                Text("기본")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
+                ScrollView {
+                    LazyVStack(spacing: 2) {
+                        ForEach(
+                            petLibrarySession.selectedItem.definition.motions
+                        ) { motion in
+                            Button {
+                                previewMotionID = motion.id
+                            } label: {
+                                HStack {
+                                    Text(motion.id)
+                                        .lineLimit(1)
+
+                                    Spacer()
+
+                                    if motion.id
+                                        == petLibrarySession.selectedItem
+                                            .definition.defaultMotionID {
+                                        Text("기본")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                                .padding(.horizontal, 10)
+                                .frame(
+                                    maxWidth: .infinity,
+                                    minHeight: 32,
+                                    alignment: .leading
+                                )
+                                .background(
+                                    effectivePreviewMotionID == motion.id
+                                        ? Color.accentColor.opacity(0.16)
+                                        : Color.clear,
+                                    in: RoundedRectangle(cornerRadius: 6)
+                                )
                             }
+                            .buttonStyle(.plain)
+                            .contentShape(Rectangle())
+                            .accessibilityLabel(
+                                animationAccessibilityLabel(for: motion)
+                            )
+                            .accessibilityAddTraits(
+                                effectivePreviewMotionID == motion.id
+                                    ? .isSelected
+                                    : []
+                            )
                         }
-                        .tag(motion.id)
                     }
+                    .padding(4)
                 }
-                .frame(minHeight: 112, maxHeight: 160)
+                .frame(height: animationListHeight)
+                .background(
+                    .quaternary.opacity(0.24),
+                    in: RoundedRectangle(cornerRadius: 8)
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(
+                            Color(nsColor: .separatorColor).opacity(0.65),
+                            lineWidth: 1
+                        )
+                }
                 .accessibilityIdentifier("monglepet.settings.petAnimations")
 
                 if let motion = selectedPreviewMotion {
@@ -529,6 +571,14 @@ private struct PetSettingsView: View {
         petLibrarySession.selectedItem.definition.motion(id: effectivePreviewMotionID)
     }
 
+    private var animationListHeight: CGFloat {
+        let visibleRowCount = min(
+            petLibrarySession.selectedItem.definition.motions.count,
+            7
+        )
+        return max(112, CGFloat(visibleRowCount) * 34 + 8)
+    }
+
     private var isPetLibraryBusy: Bool {
         petLibrarySession.isImporting || petLibrarySession.isExporting
     }
@@ -590,6 +640,12 @@ private struct PetSettingsView: View {
         }
         let playback = motion.loops ? "반복" : "1회"
         return "\(motion.frames.count)프레임 · \(duration)ms · \(playback)"
+    }
+
+    private func animationAccessibilityLabel(for motion: PetMotion) -> String {
+        motion.id == petLibrarySession.selectedItem.definition.defaultMotionID
+            ? "\(motion.id), 기본 애니메이션"
+            : motion.id
     }
 
     private func durationMilliseconds(_ duration: Duration) -> Int64 {

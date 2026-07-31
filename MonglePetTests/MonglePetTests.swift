@@ -328,6 +328,61 @@ final class MonglePetTests: XCTestCase {
         XCTAssertEqual(captured.originY, panel.frame.minY, accuracy: 0.001)
     }
 
+    func testSettingsChangeNeverRequestsStoredOverlayPositionRestore() {
+        XCTAssertFalse(
+            PetOverlayApplicationReason.settingsChange
+                .shouldRestorePosition
+        )
+        XCTAssertTrue(
+            PetOverlayApplicationReason.initialLoad(
+                shouldRestorePosition: true
+            )
+            .shouldRestorePosition
+        )
+        XCTAssertFalse(
+            PetOverlayApplicationReason.initialLoad(
+                shouldRestorePosition: false
+            )
+            .shouldRestorePosition
+        )
+    }
+
+    @MainActor
+    func testPetWindowNonPositionSettingsUpdateKeepsRuntimeOrigin() throws {
+        let controller = PetWindowController()
+        let panel = try XCTUnwrap(controller.panel)
+        let visibleFrame = try XCTUnwrap(NSScreen.main?.visibleFrame)
+        let runtimeOrigin = NSPoint(
+            x: visibleFrame.minX + 120,
+            y: visibleFrame.minY + 120
+        )
+        controller.wake()
+        controller.setMovementOrigin(
+            PetMovementPoint(
+                x: runtimeOrigin.x,
+                y: runtimeOrigin.y
+            )
+        )
+        let settings = OverlaySettings(
+            screenIdentifier: nil,
+            originX: visibleFrame.maxX - 300,
+            originY: visibleFrame.maxY - 300,
+            width: 240,
+            clickThrough: true,
+            opacity: 0.7
+        )
+
+        controller.applyOverlaySettings(
+            settings,
+            restorePosition: false
+        )
+
+        XCTAssertEqual(panel.frame.origin.x, runtimeOrigin.x, accuracy: 0.001)
+        XCTAssertEqual(panel.frame.origin.y, runtimeOrigin.y, accuracy: 0.001)
+        XCTAssertEqual(panel.frame.width, 240, accuracy: 0.001)
+        XCTAssertTrue(panel.ignoresMouseEvents)
+    }
+
     @MainActor
     func testPetWindowMovementAdapterDoesNotPersistAutomaticOrigin() throws {
         let controller = PetWindowController()

@@ -400,6 +400,7 @@ final class PetWindowController: NSWindowController {
             return
         }
 
+        let currentOrigin = panel.frame.origin
         let width = CGFloat(settings.width)
         panel.setContentSize(
             NSSize(width: width, height: width * contentAspectRatio)
@@ -427,6 +428,7 @@ final class PetWindowController: NSWindowController {
             panel.setFrameOrigin(correctedOrigin)
             hasPositionedPanel = true
         } else if hasPositionedPanel {
+            panel.setFrameOrigin(currentOrigin)
             correctPanelPosition()
         }
     }

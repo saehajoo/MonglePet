@@ -1,5 +1,19 @@
 import AppKit
 
+nonisolated enum PetOverlayApplicationReason: Equatable, Sendable {
+    case initialLoad(shouldRestorePosition: Bool)
+    case settingsChange
+
+    var shouldRestorePosition: Bool {
+        switch self {
+        case let .initialLoad(shouldRestorePosition):
+            return shouldRestorePosition
+        case .settingsChange:
+            return false
+        }
+    }
+}
+
 @MainActor
 final class AppCoordinator: NSObject {
     private let settingsSession: AppSettingsSession
@@ -16,7 +30,6 @@ final class AppCoordinator: NSObject {
     private let workspaceNotificationCenter: NotificationCenter
     private let reduceMotionProvider: () -> Bool
     private var menuBarController: MenuBarController?
-    private var hasAppliedSettings = false
     private(set) var latestActivitySnapshot: ActivitySnapshot?
     private(set) var latestMovementActivity = PetMovementActivity.stationary
 
@@ -179,7 +192,10 @@ final class AppCoordinator: NSObject {
         }
         apply(
             settings: settingsSession.settings,
-            restorePosition: loadResult.shouldRestoreOverlayPosition
+            reason: .initialLoad(
+                shouldRestorePosition:
+                    loadResult.shouldRestoreOverlayPosition
+            )
         )
         activityMonitor.start { [weak self] snapshot in
             self?.activitySnapshotDidChange(snapshot)
@@ -260,7 +276,7 @@ final class AppCoordinator: NSObject {
                 return
             }
         }
-        apply(settings: settings, restorePosition: true)
+        apply(settings: settings, reason: .settingsChange)
         guard let latestActivitySnapshot else {
             return
         }
@@ -335,12 +351,13 @@ final class AppCoordinator: NSObject {
         }
     }
 
-    private func apply(settings: AppSettings, restorePosition: Bool) {
-        let shouldRestorePosition = restorePosition
-            && (!hasAppliedSettings || settings.movementSettings.mode == .fixed)
+    private func apply(
+        settings: AppSettings,
+        reason: PetOverlayApplicationReason
+    ) {
         petWindowController.applyOverlaySettings(
             settings.overlay,
-            restorePosition: shouldRestorePosition
+            restorePosition: reason.shouldRestorePosition
         )
         speechRuntime.update(settings: settings.speechSettings)
         let pettingMotionExists = settings.pettingMotionID.flatMap {
@@ -350,8 +367,6 @@ final class AppCoordinator: NSObject {
             pettingMotionExists
                 && settings.movementSettings.mode != .cursorAvoiding
         )
-        hasAppliedSettings = true
-
         switch settings.lastUserPresentation {
         case .awake:
             if !petWindowController.isAwake {

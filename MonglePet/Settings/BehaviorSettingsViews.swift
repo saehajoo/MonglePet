@@ -396,9 +396,9 @@ struct BehaviorSequencesSettingsView: View {
                     )
             }
 
-            Section("행동 루틴") {
+            Section("편집할 행동 루틴") {
                 HStack {
-                    Picker("편집할 루틴", selection: $selectedSequenceID) {
+                    Picker("선택한 루틴", selection: $selectedSequenceID) {
                         ForEach(settingsSession.settings.sequences) { sequence in
                             Text(BuiltInBehaviorPresets.displayName(for: sequence.id))
                                 .tag(sequence.id)
@@ -417,22 +417,33 @@ struct BehaviorSequencesSettingsView: View {
                     .accessibilityIdentifier("monglepet.settings.deleteSequence")
                 }
 
+                Text("선택한 루틴의 재생 방식과 애니메이션 단계를 아래에서 편집합니다.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("새 행동 루틴 만들기") {
                 HStack {
-                    TextField("새 행동 루틴 이름", text: $newSequenceName)
+                    TextField("루틴 이름", text: $newSequenceName)
                         .onSubmit(addSequence)
                         .accessibilityIdentifier("monglepet.settings.newSequenceName")
-                    Button("추가", action: addSequence)
+                    Button("만들기", action: addSequence)
+                        .buttonStyle(.borderedProminent)
                         .disabled(newSequenceName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                         .accessibilityIdentifier("monglepet.settings.addSequence")
                 }
+
+                Text("새 루틴을 만들면 바로 선택되어 애니메이션 단계를 편집할 수 있습니다.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             if let sequence = selectedSequence {
-                Section("재생 설정") {
+                Section("‘\(selectedSequenceDisplayName)’ 재생 설정") {
                     Toggle("마지막 단계 후 처음부터 반복", isOn: repeatsBinding(for: sequence))
                 }
 
-                Section("애니메이션 단계") {
+                Section("‘\(selectedSequenceDisplayName)’ 애니메이션 단계") {
                     ForEach(Array(sequence.steps.indices), id: \.self) { index in
                         BehaviorStepEditorRow(
                             settingsSession: settingsSession,
@@ -480,6 +491,10 @@ struct BehaviorSequencesSettingsView: View {
 
     private var selectedSequence: BehaviorSequence? {
         settingsSession.settings.sequences.first { $0.id == selectedSequenceID }
+    }
+
+    private var selectedSequenceDisplayName: String {
+        BuiltInBehaviorPresets.displayName(for: selectedSequenceID)
     }
 
     private func repeatsBinding(for sequence: BehaviorSequence) -> Binding<Bool> {
