@@ -202,8 +202,16 @@ final class AppCoordinator: NSObject {
         }
         let menuBarController = MenuBarController(
             isPetAwake: petWindowController.isAwake,
+            petDisplayName: petLibrarySession.selectedItem.metadata.displayName,
+            isClickThrough: settingsSession.settings.overlay.clickThrough,
             onTogglePetAwakeState: { [weak self] in
                 self?.togglePetAwakeState()
+            },
+            onSetClickThrough: { [weak settingsSession] isEnabled in
+                settingsSession?.setClickThrough(isEnabled)
+            },
+            onBringPetToCurrentScreen: { [weak self] in
+                self?.bringPetToCurrentScreen()
             },
             onOpenSettings: { [weak self] in
                 self?.settingsWindowController.show()
@@ -243,6 +251,21 @@ final class AppCoordinator: NSObject {
         } else {
             settingsSession.setUserPresentation(.awake)
         }
+    }
+
+    private func bringPetToCurrentScreen() {
+        let mouseLocation = NSEvent.mouseLocation
+        guard
+            let targetScreen = NSScreen.screens.first(where: {
+                $0.frame.contains(mouseLocation)
+            }) ?? NSScreen.main ?? NSScreen.screens.first
+        else {
+            return
+        }
+
+        petWindowController.moveToVisibleFrame(targetScreen.visibleFrame)
+        movementLifecycle.invalidateEnvironment()
+        persistCurrentOverlayGeometry()
     }
 
     private func activitySnapshotDidChange(_ snapshot: ActivitySnapshot) {
@@ -346,6 +369,9 @@ final class AppCoordinator: NSObject {
                 )
             }
             movementLifecycle.invalidateEnvironment()
+            menuBarController?.setCurrentPetDisplayName(
+                item.metadata.displayName
+            )
             return true
         } catch {
             return false
@@ -389,6 +415,10 @@ final class AppCoordinator: NSObject {
             settingsSession.synchronizeOverlayGeometry(appliedOverlay)
         }
         menuBarController?.setPetAwake(petWindowController.isAwake)
+        menuBarController?.setClickThrough(settings.overlay.clickThrough)
+        menuBarController?.setCurrentPetDisplayName(
+            petLibrarySession.selectedItem.metadata.displayName
+        )
     }
 
     private func persistCurrentOverlayGeometry() {

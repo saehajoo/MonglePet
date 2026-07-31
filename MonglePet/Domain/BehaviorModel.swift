@@ -78,29 +78,24 @@ nonisolated struct ActivitySnapshot: Equatable, Sendable {
 }
 
 nonisolated struct BehaviorConfiguration: Equatable, Sendable {
-    static let defaultIdleExitDelay: Duration = .seconds(3)
-
     let mode: BehaviorMode
     let defaultSequenceID: String
     let manualSequenceID: String?
     let sequences: [BehaviorSequence]
     let automaticRules: [AutomaticRule]
-    let idleExitDelay: Duration
 
     init(
         mode: BehaviorMode,
         defaultSequenceID: String,
         manualSequenceID: String? = nil,
         sequences: [BehaviorSequence],
-        automaticRules: [AutomaticRule] = [],
-        idleExitDelay: Duration = Self.defaultIdleExitDelay
+        automaticRules: [AutomaticRule] = []
     ) {
         self.mode = mode
         self.defaultSequenceID = defaultSequenceID
         self.manualSequenceID = manualSequenceID
         self.sequences = sequences
         self.automaticRules = automaticRules
-        self.idleExitDelay = idleExitDelay
     }
 
     func sequence(id: String) -> BehaviorSequence? {

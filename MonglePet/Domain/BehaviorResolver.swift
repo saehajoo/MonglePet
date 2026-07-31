@@ -1,9 +1,6 @@
 import Foundation
 
 nonisolated struct BehaviorResolver: Sendable {
-    private var activeIdleRuleID: UUID?
-    private var idleRecoveryStartedAt: ContinuousClock.Instant?
-
     init() {}
 
     mutating func resolve(
@@ -13,7 +10,6 @@ nonisolated struct BehaviorResolver: Sendable {
     ) -> BehaviorDecision {
         switch runtimeState.presentation {
         case .tuckedAway:
-            resetIdleState()
             return .tuckedAway
         case .suspended:
             return .suspended
@@ -34,7 +30,6 @@ nonisolated struct BehaviorResolver: Sendable {
 
         switch configuration.mode {
         case .manual:
-            resetIdleState()
             if
                 let manualSequenceID = configuration.manualSequenceID,
                 let manualSequence = configuration.sequence(id: manualSequenceID)
@@ -48,7 +43,7 @@ nonisolated struct BehaviorResolver: Sendable {
         }
     }
 
-    private mutating func resolveAutomatic(
+    private func resolveAutomatic(
         configuration: BehaviorConfiguration,
         snapshot: ActivitySnapshot
     ) -> BehaviorDecision {
@@ -64,41 +59,16 @@ nonisolated struct BehaviorResolver: Sendable {
             }
             .map(\.element)
 
-        let rawRule = firstMatchingRule(in: orderedRules, snapshot: snapshot)
-
-        if let activeIdleRuleID,
-           let activeRule = orderedRules.first(where: { $0.id == activeIdleRuleID }),
-           case let .idleAtLeast(milliseconds) = activeRule.condition,
-           milliseconds > 0 {
-            let activeThreshold = Duration.milliseconds(milliseconds)
-            if snapshot.idleDuration < activeThreshold {
-                if shouldKeepIdleRule(
-                    at: snapshot.capturedAt,
-                    exitDelay: configuration.idleExitDelay
-                ) {
-                    return decision(for: activeRule, configuration: configuration)
-                }
-
-                resetIdleState()
-            } else {
-                idleRecoveryStartedAt = nil
-            }
-        } else {
-            resetIdleState()
-        }
-
-        guard let rawRule else {
+        guard
+            let matchingRule = firstMatchingRule(
+                in: orderedRules,
+                snapshot: snapshot
+            )
+        else {
             return defaultDecision(configuration: configuration)
         }
 
-        if case .idleAtLeast = rawRule.condition {
-            activeIdleRuleID = rawRule.id
-            idleRecoveryStartedAt = nil
-        } else {
-            resetIdleState()
-        }
-
-        return decision(for: rawRule, configuration: configuration)
+        return decision(for: matchingRule, configuration: configuration)
     }
 
     private func firstMatchingRule(
@@ -119,28 +89,6 @@ nonisolated struct BehaviorResolver: Sendable {
         }
     }
 
-    private mutating func shouldKeepIdleRule(
-        at capturedAt: ContinuousClock.Instant,
-        exitDelay: Duration
-    ) -> Bool {
-        guard exitDelay > .zero else {
-            return false
-        }
-
-        guard let idleRecoveryStartedAt else {
-            self.idleRecoveryStartedAt = capturedAt
-            return true
-        }
-
-        let recoveryDuration = idleRecoveryStartedAt.duration(to: capturedAt)
-        if recoveryDuration < .zero {
-            self.idleRecoveryStartedAt = capturedAt
-            return true
-        }
-
-        return recoveryDuration < exitDelay
-    }
-
     private func decision(
         for rule: AutomaticRule,
         configuration: BehaviorConfiguration
@@ -158,10 +106,5 @@ nonisolated struct BehaviorResolver: Sendable {
         }
 
         return .sequence(sequence, source: .defaultBehavior)
-    }
-
-    private mutating func resetIdleState() {
-        activeIdleRuleID = nil
-        idleRecoveryStartedAt = nil
     }
 }

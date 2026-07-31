@@ -244,6 +244,19 @@ final class PetWindowController: NSWindowController {
         hasPositionedPanel = true
     }
 
+    func moveToVisibleFrame(_ visibleFrame: NSRect) {
+        guard let panel else {
+            return
+        }
+        panel.setFrameOrigin(
+            Self.defaultOrigin(
+                in: visibleFrame,
+                contentSize: panel.frame.size
+            )
+        )
+        hasPositionedPanel = true
+    }
+
     func userDragDidBegin() {
         guard !isUserDragging else {
             return

@@ -30,6 +30,8 @@
 
 | 상태 | 작업명 | 파일 | 완료일 |
 | --- | --- | --- | --- |
+| completed | 입력 없음 규칙 즉시 해제 | `tasks/2026-07-31-immediate-idle-rule-exit.md` | 2026-07-31 |
+| completed | 상태 메뉴 빠른 제어 | `tasks/2026-07-31-status-menu-quick-controls.md` | 2026-07-31 |
 | completed | 말풍선 배치·다중 화면 도망·즉시 행동 전환 | `tasks/2026-07-31-speech-placement-escape-and-immediate-behavior.md` | 2026-07-31 |
 | completed | 마우스 도망가기 이동 모드 | `tasks/2026-07-30-cursor-avoiding-movement.md` | 2026-07-30 |
 | completed | Phase 9C 방향별 이동 애니메이션 | `tasks/2026-07-29-directional-movement-animations.md` | 2026-07-30 |

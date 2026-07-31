@@ -47,6 +47,54 @@ final class PetBehaviorRuntimeTests: XCTestCase {
         XCTAssertEqual(runtime.currentPlayback?.motion.id, "idle")
     }
 
+    func testIdleRuleExitReplacesAnimationImmediatelyMidCycle() {
+        let clock = ManualBehaviorRuntimeClock()
+        let tickScheduler = ManualBehaviorTickScheduler()
+        var receivedMotionIDs: [String?] = []
+        let runtime = PetBehaviorRuntime(
+            petDefinition: makePet(),
+            clock: clock,
+            tickScheduler: tickScheduler
+        ) { receivedMotionIDs.append($0?.motion.id) }
+        let defaultSequence = BehaviorSequence(
+            id: BuiltInBehaviorPresets.defaultSequenceID,
+            steps: [BehaviorStep(motionID: "focus", repeatCount: 20)],
+            repeats: true
+        )
+        let idleSequence = BehaviorSequence(
+            id: "input-absent",
+            steps: [BehaviorStep(motionID: "rest", repeatCount: 20)],
+            repeats: true
+        )
+        let settings = AppSettings(
+            selectedPetInstallationID: nil,
+            lastUserPresentation: .awake,
+            behaviorMode: .automatic,
+            overlay: .default,
+            manualSequenceID: nil,
+            sequences: [defaultSequence, idleSequence],
+            automaticRules: [
+                AutomaticRule(
+                    id: UUID(),
+                    isEnabled: true,
+                    priority: 10,
+                    condition: .idleAtLeast(milliseconds: 1_000),
+                    sequenceID: idleSequence.id
+                )
+            ]
+        )
+
+        runtime.update(settings: settings, snapshot: snapshot(idle: .seconds(2)))
+        XCTAssertEqual(runtime.currentPlayback?.motion.id, "rest")
+
+        clock.advance(by: .milliseconds(40))
+        runtime.update(settings: settings, snapshot: snapshot(idle: .zero))
+
+        XCTAssertEqual(runtime.currentPlayback?.motion.id, "focus")
+        XCTAssertEqual(tickScheduler.scheduledDelay, .milliseconds(100))
+        XCTAssertEqual(receivedMotionIDs, ["rest", "focus"])
+    }
+
     func testCycleStepSchedulesEachFullCycleAndAdvancesAfterRepeatCount() {
         let clock = ManualBehaviorRuntimeClock()
         let tickScheduler = ManualBehaviorTickScheduler()

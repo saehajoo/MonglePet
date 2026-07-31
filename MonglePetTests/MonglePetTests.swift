@@ -20,13 +20,21 @@ final class MonglePetTests: XCTestCase {
     }
 
     @MainActor
-    func testMenuBarContainsPetStateSettingsAndQuitActions() throws {
+    func testMenuBarContainsQuickPetControlsSettingsAndQuitActions() throws {
         var didTogglePetAwakeState = false
+        var selectedClickThrough: Bool?
+        var didBringPetToCurrentScreen = false
         var didOpenSettings = false
         var didQuit = false
         let controller = MenuBarController(
             isPetAwake: true,
+            petDisplayName: "테스트 펫",
+            isClickThrough: false,
             onTogglePetAwakeState: { didTogglePetAwakeState = true },
+            onSetClickThrough: { selectedClickThrough = $0 },
+            onBringPetToCurrentScreen: {
+                didBringPetToCurrentScreen = true
+            },
             onOpenSettings: { didOpenSettings = true },
             onQuit: { didQuit = true }
         )
@@ -36,19 +44,40 @@ final class MonglePetTests: XCTestCase {
         let menu = try XCTUnwrap(controller.statusItem.menu)
         XCTAssertEqual(
             menu.items.map(\.title),
-            ["몽글이 재우기", "", "설정…", "", "MonglePet 종료"]
+            [
+                "현재 펫: 테스트 펫",
+                "",
+                "펫 재우기",
+                "클릭 통과",
+                "펫을 현재 화면으로 가져오기",
+                "",
+                "설정…",
+                "",
+                "MonglePet 종료"
+            ]
         )
+        XCTAssertFalse(menu.items[0].isEnabled)
+        XCTAssertEqual(menu.items[3].state, .off)
 
-        menu.performActionForItem(at: 0)
         menu.performActionForItem(at: 2)
+        menu.performActionForItem(at: 3)
         menu.performActionForItem(at: 4)
+        menu.performActionForItem(at: 6)
+        menu.performActionForItem(at: 8)
 
         XCTAssertTrue(didTogglePetAwakeState)
+        XCTAssertEqual(selectedClickThrough, true)
+        XCTAssertEqual(menu.items[3].state, .on)
+        XCTAssertTrue(didBringPetToCurrentScreen)
         XCTAssertTrue(didOpenSettings)
         XCTAssertTrue(didQuit)
 
         controller.setPetAwake(false)
-        XCTAssertEqual(menu.items[0].title, "몽글이 깨우기")
+        controller.setCurrentPetDisplayName("바뀐 펫")
+        controller.setClickThrough(false)
+        XCTAssertEqual(menu.items[0].title, "현재 펫: 바뀐 펫")
+        XCTAssertEqual(menu.items[2].title, "펫 깨우기")
+        XCTAssertEqual(menu.items[3].state, .off)
     }
 
     @MainActor
@@ -469,6 +498,26 @@ final class MonglePetTests: XCTestCase {
         let origin = PetWindowController.defaultOrigin(in: visibleFrame)
 
         XCTAssertEqual(origin, NSPoint(x: 1_076, y: 82))
+    }
+
+    @MainActor
+    func testPetWindowMovesToVisibleFrameDefaultOriginWithoutResizing() throws {
+        let controller = PetWindowController()
+        let panel = try XCTUnwrap(controller.panel)
+        panel.setContentSize(NSSize(width: 160, height: 180))
+        let originalSize = panel.frame.size
+        let visibleFrame = NSRect(x: -1440, y: 24, width: 1440, height: 876)
+
+        controller.moveToVisibleFrame(visibleFrame)
+
+        XCTAssertEqual(panel.frame.size, originalSize)
+        XCTAssertEqual(
+            panel.frame.origin,
+            PetWindowController.defaultOrigin(
+                in: visibleFrame,
+                contentSize: originalSize
+            )
+        )
     }
 
     @MainActor

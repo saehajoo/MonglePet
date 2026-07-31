@@ -155,7 +155,7 @@ final class BehaviorResolverTests: XCTestCase {
         XCTAssertEqual(source(from: decision), .automaticRule(firstRule.id))
     }
 
-    func testIdleExitHysteresisHoldsUntilExactThreeSecondBoundary() throws {
+    func testIdleRuleExitsImmediatelyWhenInputResumes() throws {
         let configuration = makeConfiguration(mode: .automatic)
         var resolver = BehaviorResolver()
         let runtimeState = BehaviorRuntimeState(presentation: .awake)
@@ -167,26 +167,13 @@ final class BehaviorResolverTests: XCTestCase {
         )
         XCTAssertEqual(try sequence(from: entered).id, "rest")
 
-        let recoveryStarted = resolver.resolve(
+        let resumed = resolver.resolve(
             configuration: configuration,
             snapshot: snapshot(at: .seconds(1), idle: .zero),
             runtimeState: runtimeState
         )
-        XCTAssertEqual(try sequence(from: recoveryStarted).id, "rest")
-
-        let beforeBoundary = resolver.resolve(
-            configuration: configuration,
-            snapshot: snapshot(at: .milliseconds(3_999), idle: .zero),
-            runtimeState: runtimeState
-        )
-        XCTAssertEqual(try sequence(from: beforeBoundary).id, "rest")
-
-        let atBoundary = resolver.resolve(
-            configuration: configuration,
-            snapshot: snapshot(at: .seconds(4), idle: .zero),
-            runtimeState: runtimeState
-        )
-        XCTAssertEqual(try sequence(from: atBoundary).id, "idle")
+        XCTAssertEqual(try sequence(from: resumed).id, "idle")
+        XCTAssertEqual(source(from: resumed), .defaultBehavior)
     }
 
     func testMissingSequenceFallsBackToDefaultAndEmptyConfigurationIsUnavailable() throws {
