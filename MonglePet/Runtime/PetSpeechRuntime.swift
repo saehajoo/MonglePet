@@ -4,6 +4,22 @@ nonisolated struct PetSpeechPresentation: Equatable, Sendable {
     let phraseID: UUID
     let text: String
     let displayDurationMilliseconds: Int64
+    let theme: PetSpeechBubbleTheme
+    let placement: PetSpeechBubblePlacementSettings
+
+    init(
+        phraseID: UUID,
+        text: String,
+        displayDurationMilliseconds: Int64,
+        theme: PetSpeechBubbleTheme = .default,
+        placement: PetSpeechBubblePlacementSettings = .default
+    ) {
+        self.phraseID = phraseID
+        self.text = text
+        self.displayDurationMilliseconds = displayDurationMilliseconds
+        self.theme = theme
+        self.placement = placement
+    }
 }
 
 @MainActor
@@ -50,17 +66,35 @@ final class RunLoopPetSpeechScheduler: NSObject, PetSpeechScheduling {
 final class PetSpeechRuntime {
     typealias PhrasePicker = ([PetSpeechPhrase], UUID?) -> PetSpeechPhrase?
 
+    private enum PresentationSource: Equatable {
+        case periodic
+        case behavior(String)
+    }
+
+    private struct ActivePresentation {
+        let presentation: PetSpeechPresentation
+        let source: PresentationSource
+        let displayMode: PetSpeechDisplayMode
+    }
+
     private var settings: PetSpeechSettings = .default
-    private let scheduler: any PetSpeechScheduling
+    private let periodicScheduler: any PetSpeechScheduling
+    private let dismissalScheduler: any PetSpeechScheduling
     private let phrasePicker: PhrasePicker
     private let onPresentationChange: (PetSpeechPresentation?) -> Void
     private var isAwake = false
     private var isSystemSuspended = false
     private var lastSequenceID: String?
     private var lastPeriodicPhraseID: UUID?
+    private var lastBehaviorPhraseIDs: [String: UUID] = [:]
+    private var activePresentation: ActivePresentation?
+    private var isPeriodicScheduled = false
+    private var isDismissalScheduled = false
 
     init(
         scheduler: any PetSpeechScheduling = RunLoopPetSpeechScheduler(),
+        dismissalScheduler: any PetSpeechScheduling =
+            RunLoopPetSpeechScheduler(),
         phrasePicker: @escaping PhrasePicker = { phrases, excludedID in
             let candidates: [PetSpeechPhrase]
             if phrases.count > 1, let excludedID {
@@ -72,7 +106,8 @@ final class PetSpeechRuntime {
         },
         onPresentationChange: @escaping (PetSpeechPresentation?) -> Void
     ) {
-        self.scheduler = scheduler
+        periodicScheduler = scheduler
+        self.dismissalScheduler = dismissalScheduler
         self.phrasePicker = phrasePicker
         self.onPresentationChange = onPresentationChange
     }
@@ -82,9 +117,12 @@ final class PetSpeechRuntime {
             return
         }
         self.settings = settings
+        cancelPeriodic()
+        cancelDismissal()
         lastSequenceID = nil
         lastPeriodicPhraseID = nil
-        onPresentationChange(nil)
+        lastBehaviorPhraseIDs = [:]
+        dismissCurrentPresentation()
         scheduleNextPeriodicPresentation()
     }
 
@@ -96,8 +134,9 @@ final class PetSpeechRuntime {
         if isAwake {
             scheduleNextPeriodicPresentation()
         } else {
-            scheduler.cancel()
-            onPresentationChange(nil)
+            cancelPeriodic()
+            cancelDismissal()
+            dismissCurrentPresentation()
             lastSequenceID = nil
         }
     }
@@ -108,8 +147,9 @@ final class PetSpeechRuntime {
         }
         isSystemSuspended = isSuspended
         if isSuspended {
-            scheduler.cancel()
-            onPresentationChange(nil)
+            cancelPeriodic()
+            cancelDismissal()
+            dismissCurrentPresentation()
             lastSequenceID = nil
         } else {
             scheduleNextPeriodicPresentation()
@@ -121,29 +161,54 @@ final class PetSpeechRuntime {
             return
         }
         lastSequenceID = sequenceID
-        guard
-            canPresent,
-            let sequenceID,
-            let phrase = phrasePicker(
-                settings.phrases.filter {
-                    $0.trigger == .sequence(sequenceID)
-                },
-                nil
-            )
-        else {
+        guard canPresent else {
             return
         }
-        present(phrase)
+
+        if let sequenceID,
+           let phrase = behaviorPhrase(for: sequenceID) {
+            lastBehaviorPhraseIDs[sequenceID] = phrase.id
+            present(phrase, source: .behavior(sequenceID))
+            return
+        }
+
+        if settings.behaviorChangePolicy == .dismiss {
+            dismissCurrentPresentation()
+            scheduleNextPeriodicPresentation()
+            return
+        }
+
+        guard let activePresentation else {
+            ensurePeriodicPresentationScheduled()
+            return
+        }
+        if case .behavior = activePresentation.source,
+           activePresentation.displayMode == .untilNextPhrase {
+            scheduleNextPeriodicPresentation()
+        }
     }
 
     func stop() {
-        scheduler.cancel()
-        onPresentationChange(nil)
+        cancelPeriodic()
+        cancelDismissal()
+        dismissCurrentPresentation()
         settings = .default
         isAwake = false
         isSystemSuspended = false
         lastSequenceID = nil
         lastPeriodicPhraseID = nil
+        lastBehaviorPhraseIDs = [:]
+    }
+
+    func prepareForPetChange() {
+        cancelPeriodic()
+        cancelDismissal()
+        dismissCurrentPresentation()
+        settings = .default
+        isAwake = false
+        lastSequenceID = nil
+        lastPeriodicPhraseID = nil
+        lastBehaviorPhraseIDs = [:]
     }
 
     private var canPresent: Bool {
@@ -151,14 +216,16 @@ final class PetSpeechRuntime {
     }
 
     private func scheduleNextPeriodicPresentation() {
-        scheduler.cancel()
+        cancelPeriodic()
         guard
             canPresent,
-            settings.phrases.contains(where: { $0.trigger == .periodic })
+            settings.periodicIsEnabled,
+            !settings.periodicPhrases.isEmpty
         else {
             return
         }
-        scheduler.schedule(
+        isPeriodicScheduled = true
+        periodicScheduler.schedule(
             after: .milliseconds(settings.periodicIntervalMilliseconds)
         ) { [weak self] in
             self?.periodicTimerDidFire()
@@ -166,27 +233,137 @@ final class PetSpeechRuntime {
     }
 
     private func periodicTimerDidFire() {
+        isPeriodicScheduled = false
         guard canPresent else {
-            scheduler.cancel()
+            cancelPeriodic()
             return
         }
-        let phrases = settings.phrases.filter { $0.trigger == .periodic }
-        if let phrase = phrasePicker(phrases, lastPeriodicPhraseID) {
-            lastPeriodicPhraseID = phrase.id
-            present(phrase)
+        if let activePresentation,
+           case let .behavior(sequenceID) = activePresentation.source,
+           sequenceID == lastSequenceID {
+            return
+        }
+        guard let phrase = nextPeriodicPhrase() else {
+            return
+        }
+        lastPeriodicPhraseID = phrase.id
+        present(phrase, source: .periodic)
+    }
+
+    private func present(
+        _ phrase: PetSpeechPhrase,
+        source: PresentationSource
+    ) {
+        cancelDismissal()
+        if case .behavior = source {
+            cancelPeriodic()
+        }
+        let presentation = PetSpeechPresentation(
+            phraseID: phrase.id,
+            text: phrase.text,
+            displayDurationMilliseconds:
+                phrase.displayDurationMilliseconds,
+            theme: settings.theme,
+            placement: settings.placement
+        )
+        activePresentation = ActivePresentation(
+            presentation: presentation,
+            source: source,
+            displayMode: phrase.displayMode
+        )
+        onPresentationChange(presentation)
+
+        switch phrase.displayMode {
+        case .timed:
+            scheduleDismissal(
+                phraseID: phrase.id,
+                after: phrase.displayDurationMilliseconds
+            )
+        case .untilNextPhrase:
+            if source == .periodic {
+                scheduleNextPeriodicPresentation()
+            }
+        }
+    }
+
+    private func scheduleDismissal(
+        phraseID: UUID,
+        after milliseconds: Int64
+    ) {
+        cancelDismissal()
+        isDismissalScheduled = true
+        dismissalScheduler.schedule(
+            after: .milliseconds(milliseconds)
+        ) { [weak self] in
+            self?.dismissalTimerDidFire(for: phraseID)
+        }
+    }
+
+    private func dismissalTimerDidFire(for phraseID: UUID) {
+        isDismissalScheduled = false
+        guard activePresentation?.presentation.phraseID == phraseID else {
+            return
+        }
+        dismissCurrentPresentation()
+        scheduleNextPeriodicPresentation()
+    }
+
+    private func dismissCurrentPresentation() {
+        cancelDismissal()
+        guard activePresentation != nil else {
+            return
+        }
+        activePresentation = nil
+        onPresentationChange(nil)
+    }
+
+    private func ensurePeriodicPresentationScheduled() {
+        guard !isPeriodicScheduled else {
+            return
         }
         scheduleNextPeriodicPresentation()
     }
 
-    private func present(_ phrase: PetSpeechPhrase) {
-        onPresentationChange(
-            PetSpeechPresentation(
-                phraseID: phrase.id,
-                text: phrase.text,
-                displayDurationMilliseconds:
-                    phrase.displayDurationMilliseconds
-            )
+    private func cancelPeriodic() {
+        periodicScheduler.cancel()
+        isPeriodicScheduled = false
+    }
+
+    private func cancelDismissal() {
+        dismissalScheduler.cancel()
+        isDismissalScheduled = false
+    }
+
+    private func behaviorPhrase(
+        for sequenceID: String
+    ) -> PetSpeechPhrase? {
+        phrasePicker(
+            settings.behaviorPhrases.filter {
+                $0.trigger == .sequence(sequenceID)
+            },
+            lastBehaviorPhraseIDs[sequenceID]
         )
+    }
+
+    private func nextPeriodicPhrase() -> PetSpeechPhrase? {
+        let phrases = settings.periodicPhrases
+        switch settings.periodicOrder {
+        case .random:
+            return phrasePicker(phrases, lastPeriodicPhraseID)
+        case .sequential:
+            guard
+                let lastPeriodicPhraseID,
+                let index = phrases.firstIndex(
+                    where: { $0.id == lastPeriodicPhraseID }
+                )
+            else {
+                return phrases.first
+            }
+            let nextIndex = phrases.index(after: index)
+            return nextIndex == phrases.endIndex
+                ? phrases.first
+                : phrases[nextIndex]
+        }
     }
 
 }

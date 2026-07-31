@@ -17,11 +17,11 @@ MonglePet의 사용자 설정은 SwiftData나 Core Data가 아닌 버전이 지�
 - 지원하는 이전 버전은 선택 펫 정의를 먼저 읽어 순차 마이그레이션하고, 성공한 결과만 원자적으로 현재 버전 파일로 교체한다.
 - 현재 앱보다 새로운 스키마는 원본을 그대로 보존하고 해당 실행의 설정 쓰기를 차단한다.
 
-## 현재 schema-v7 최상위 구조
+## 현재 schema-v10 최상위 구조
 
 ```json
 {
-  "schemaVersion": 7,
+  "schemaVersion": 10,
   "selectedPetInstallationID": null,
   "lastUserPresentation": "awake",
   "overlay": {
@@ -61,8 +61,27 @@ MonglePet의 사용자 설정은 SwiftData나 Core Data가 아닌 버전이 지�
       "pettingMotionID": null,
       "speech": {
         "isEnabled": false,
+        "periodicIsEnabled": false,
         "periodicIntervalMilliseconds": 60000,
-        "phrases": []
+        "periodicOrder": "random",
+        "behaviorChangePolicy": "dismiss",
+        "phrases": [],
+        "theme": {
+          "colorStyle": "system",
+          "customBackgroundColor": { "red": 1, "green": 1, "blue": 1 },
+          "customTextColor": { "red": 0, "green": 0, "blue": 0 },
+          "backgroundOpacity": 0.96,
+          "fontSize": 14,
+          "contentPadding": 12,
+          "cornerRadius": 14,
+          "showsTail": false,
+          "tailAlignment": "center"
+        },
+        "placement": {
+          "preferredPosition": "automatic",
+          "horizontalOffset": 0,
+          "gap": 8
+        }
       },
       "movement": {
         "mode": "fixed",
@@ -129,7 +148,7 @@ MonglePet의 사용자 설정은 SwiftData나 Core Data가 아닌 버전이 지�
 
 ## 필드 규칙
 
-- `schemaVersion`: 현재 설정 파일 스키마 버전은 `7`이다.
+- `schemaVersion`: 현재 설정 파일 스키마 버전은 `10`이다.
 - `selectedPetInstallationID`: PetLibrary가 생성한 설치 UUID 문자열 또는 `null`이다.
 - `lastUserPresentation`: 사용자가 마지막으로 선택한 `awake` 또는 `tuckedAway`만 저장한다. 시스템에 의한 `suspended`는 저장하지 않는다.
 - `overlay.screenIdentifier`: `CGDisplayCreateUUIDFromDisplayID`로 얻은 디스플레이 UUID 기반 식별자다. 저장된 화면을 찾을 수 없으면 현재 화면 중 가장 적합한 화면을 사용한다.
@@ -343,6 +362,47 @@ schema-v7은 각 `behaviorProfiles[]`에 `speech`를 추가한다.
 
 schema-v6에서 v7로 마이그레이션할 때 기존 필드를 모두 유지하고 각 프로필에 `isEnabled: false`, 60초와 빈 대사 목록을 추가한다. 전체 변환과 원자적 저장이 성공한 경우에만 v7 파일로 교체한다.
 
+## schema-v8 펫별 말풍선 테마
+
+schema-v8은 각 `speech`에 데이터 전용 `theme`을 추가한다.
+
+- `colorStyle`은 `system`, `cream`, `midnight`, `mint`, `peach`, `custom` 중 하나다.
+- 사용자 지정 배경·글자 색상은 각각 0~1 범위의 유한한 sRGB `red`, `green`, `blue` 값으로 저장한다.
+- `custom` 색상은 일반 텍스트 기준 4.5:1 이상의 대비를 만족해야 한다. 읽을 수 없는 저장값은 배경에 더 적합한 검정 또는 흰색 글자로 복구한다.
+- `backgroundOpacity`는 0.65~1.0, 기본값 0.96이다.
+- `fontSize`는 11~24pt, 기본값 14pt다.
+- `contentPadding`은 6~24pt, 기본값 12pt다.
+- `cornerRadius`는 0~28pt, 기본값 14pt다.
+- `showsTail`은 말풍선 꼬리 표시 여부이며, `tailAlignment`는 `leading`, `center`, `trailing` 중 하나다.
+- 화면 위쪽 공간에 따라 실제 말풍선이 펫 위 또는 아래로 이동하면 꼬리도 펫을 향하는 위·아래 변으로 자동 전환한다.
+
+schema-v7에서 v8로 마이그레이션할 때 기존 표시와 가까운 시스템 색상, 14pt, 기본 여백·모서리와 꼬리 없음으로 이관한다. 기존 대사와 다른 펫별 설정은 모두 유지한다.
+
+## schema-v9 행동 대사 우선순위와 독립 주기 대사
+
+schema-v9는 기존 `speech`에 주기 대사의 독립 사용 여부와 순서, 행동 전환 정책 및 대사별 표시 방식을 추가한다.
+
+- `periodicIsEnabled`는 전체 말풍선과 별개인 주기 대사 사용 여부다.
+- `periodicOrder`는 `random` 또는 `sequential`이다.
+- `behaviorChangePolicy`는 새 행동에 연결된 대사가 없을 때 현재 말풍선을 닫는 `dismiss` 또는 유지하는 `keep`이다.
+- 각 대사의 `displayMode`는 설정 시간 뒤 숨기는 `timed` 또는 다음 대사까지 유지하는 `untilNextPhrase`다. 호환 검증을 위해 유지형 대사도 유효한 표시 시간을 보존한다.
+- 실제 행동 루틴 진입 대사가 주기 대사보다 항상 우선한다. 같은 행동이 유지되거나 이동·쓰다듬기 애니메이션만 바뀐 경우에는 다시 표시하지 않는다.
+- 시간 지정 주기 대사는 숨은 시점부터 전체 간격을 다시 기다리고, 유지형 주기 대사는 표시된 시점부터 간격을 계산해 다음 대사로 교체한다.
+
+schema-v8에서 v9로 마이그레이션할 때 주기 조건 대사가 하나 이상 있으면 `periodicIsEnabled: true`로 설정한다. 기존 대사는 모두 `timed`, 주기 순서는 `random`, 행동 전환 정책은 `dismiss`로 이관하며 나머지 설정과 테마를 유지한다.
+
+## schema-v10 펫별 말풍선 상대 배치
+
+schema-v10은 기존 `speech`에 시각 테마와 분리된 `placement`를 추가한다.
+
+- `preferredPosition`은 화면 여유에 따라 위·아래를 고르는 `automatic`, 위를 우선하는 `above`, 아래를 우선하는 `below` 중 하나다. 선택한 쪽의 공간이 부족하면 반대쪽 또는 visible frame 안의 안전한 위치로 복구한다.
+- `horizontalOffset`은 펫 중심을 기준으로 한 좌우 이동값이며 -160~160pt, 기본값 0pt다.
+- `gap`은 펫과 말풍선 사이 간격이며 0~64pt, 기본값 8pt다.
+- 위치는 화면 절대 좌표가 아니라 펫 기준 상대값으로 저장하므로 펫이 이동하거나 다른 화면으로 넘어가도 함께 이동한다.
+- 좌우 이동이나 화면 경계 보정이 발생하면 실제 말풍선 위치에서 펫을 향하도록 꼬리 기준점을 보정한다. 보정이 필요하지 않으면 사용자가 선택한 꼬리 정렬을 유지한다.
+
+schema-v9에서 v10으로 마이그레이션할 때 `automatic`, 좌우 0pt, 간격 8pt를 추가하며 기존 말풍선 대사·정책·테마와 다른 펫별 설정을 유지한다.
+
 ## 자동 규칙 조건
 
 앱 조건:
@@ -373,7 +433,7 @@ schema-v6에서 v7로 마이그레이션할 때 기존 필드를 모두 유지�
 - schema-v3의 반복 횟수는 Domain의 `BehaviorStep.repeatCount`로 변환한다. v1의 정수 밀리초는 마이그레이션 과정에서만 Swift `Duration` 호환 정보로 읽는다.
 - 잘못된 이동 enum이나 범위 밖 값은 해당 필드만 기본값으로 복구하고 `SettingsRecoveryIssue.invalidField`를 반환한다.
 - 이동 fallback·8방향 참조와 쓰다듬기 애니메이션 ID는 앞뒤 공백이 없는 비어 있지 않은 문자열 또는 `null`이다. 이름 변경 시 같은 펫 프로필의 세 이동 애니메이션 참조를 함께 바꾸고 삭제 시 일치하는 참조를 `null`로 해제한다.
-- 말풍선 간격과 대사별 UUID·텍스트·시간·조건을 독립적으로 검증하며 하나의 잘못된 대사 때문에 같은 펫의 나머지 설정을 버리지 않는다.
+- 말풍선 주기 사용 여부·순서·행동 전환 정책·간격과 대사별 UUID·텍스트·시간·조건·표시 방식, 테마 및 상대 배치 값을 독립적으로 검증하며 하나의 잘못된 값 때문에 같은 펫의 나머지 설정을 버리지 않는다.
 - 저장 enum 문자열을 Swift enum 자동 합성 결과에 의존하지 않는다.
 - 잘못된 최상위 enum과 overlay 필드는 해당 필드만 기본값 또는 허용 범위로 복구한다.
 - 잘못된 행동 단계는 그 단계만 제거하고, 남은 단계가 없는 행동 목록은 제거한다.
@@ -385,18 +445,17 @@ schema-v6에서 v7로 마이그레이션할 때 기존 필드를 모두 유지�
 ## 버전 처리
 
 1. 파일 크기를 확인한 뒤 `schemaVersion`만 먼저 읽는다.
-2. 현재 버전 `7`은 전체 DTO를 디코딩하고 프로필·세 이동 애니메이션과 말풍선 대사를 항목 단위로 검증·복구한다.
-3. 버전 `6`은 기존 필드를 유지하고 비활성·빈 말풍선 설정을 추가해 v7로 원자적 교체한다.
-4. 버전 `5`는 기본 마우스 도망가기 설정을 추가해 v6로 만든 뒤 v7 말풍선 기본값을 추가한다.
-5. 버전 `4`는 기존 두 단일 이동 모션을 모드별 공통 fallback으로 옮기고 방향 기능을 끈 v5를 만든 뒤 v6 도망가기와 v7 말풍선 기본값을 추가한다.
-6. 버전 `3`은 기존 overlay와 모든 펫 프로필을 유지하고 이동 범위·투명도 기본값을 추가해 v4로 만든 뒤 v5 방향, v6 도망가기와 v7 말풍선 설정을 추가한다.
-7. 버전 `2`는 모든 펫 프로필에 기본 `fixed` 이동 설정을 추가한 뒤 현재 v7까지 순차 변환한다.
-8. 버전 `1`은 당시 선택된 펫 정의로 v2 행동 프로필을 만든 뒤 현재 v7까지 순차 변환한다. 전체 변환과 저장이 성공한 경우에만 v7로 교체하며, 필요한 펫 정의를 얻지 못하거나 저장에 실패하면 v1 원본과 쓰기 차단 상태를 유지한다.
-9. 현재 앱보다 새로운 버전은 원본을 이동하거나 덮어쓰지 않고 기본값으로 실행하며 저장을 거부한다.
-10. 향후 마이그레이션은 버전별 순차 변환과 fixture 기반 단위 테스트를 함께 추가한다.
+2. 현재 버전 `10`은 전체 DTO를 디코딩하고 프로필·세 이동 애니메이션, 말풍선 정책·대사·테마·상대 배치를 항목 단위로 검증·복구한다.
+3. 버전 `9`는 기존 필드를 유지하고 상대 배치 기본값을 추가해 v10으로 원자적 교체한다.
+4. 버전 `8`은 기존 대사와 테마를 유지하고 주기·전환·표시 정책의 호환 기본값을 추가한 뒤 현재 v10까지 순차 변환한다.
+5. 버전 `7`과 `6`은 각 말풍선 호환 기본값을 추가한 뒤 현재 v10까지 순차 변환한다.
+6. 버전 `5`부터 `2`까지는 각 버전별 변환을 거쳐 현재 v10까지 순차 변환한다.
+7. 버전 `1`은 당시 선택된 펫 정의로 v2 행동 프로필을 만든 뒤 현재 v10까지 순차 변환한다. 전체 변환과 저장이 성공한 경우에만 v10으로 교체하며, 필요한 펫 정의를 얻지 못하거나 저장에 실패하면 v1 원본과 쓰기 차단 상태를 유지한다.
+8. 현재 앱보다 새로운 버전은 원본을 이동하거나 덮어쓰지 않고 기본값으로 실행하며 저장을 거부한다.
+9. 향후 마이그레이션은 버전별 순차 변환과 fixture 기반 단위 테스트를 함께 추가한다.
 
 ---
 
 문서 상태: active
-스키마 버전: 7
-마지막 갱신: 2026-07-30
+스키마 버전: 10
+마지막 갱신: 2026-07-31

@@ -93,7 +93,7 @@ nonisolated struct MotionScheduler: Sendable {
             return false
         }
 
-        guard var baseCursor else {
+        guard let baseCursor else {
             self.baseCursor = requestedCursor
             pendingSequence = nil
             return true
@@ -104,26 +104,8 @@ nonisolated struct MotionScheduler: Sendable {
             return false
         }
 
-        if baseCursor.isComplete {
-            baseCursor = requestedCursor
-            self.baseCursor = baseCursor
-            pendingSequence = nil
-            return true
-        }
-
-        if baseCursor.sequence.id == sequence.id {
-            guard pendingSequence != sequence else {
-                return false
-            }
-            pendingSequence = sequence
-            return true
-        }
-
-        guard pendingSequence?.id != sequence.id else {
-            return false
-        }
-
-        pendingSequence = sequence
+        self.baseCursor = requestedCursor
+        pendingSequence = nil
         return true
     }
 
@@ -228,12 +210,6 @@ nonisolated struct MotionScheduler: Sendable {
             }
 
             remainingElapsed -= cursor.remainingCycleDuration
-
-            if let pendingSequence, let pendingCursor = makeCursor(for: pendingSequence) {
-                baseCursor = pendingCursor
-                self.pendingSequence = nil
-                continue
-            }
 
             if advanceCursorAfterCycle(&cursor) {
                 baseCursor = cursor

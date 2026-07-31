@@ -33,11 +33,20 @@ final class RecommendedPetProfileTests: XCTestCase {
         let object = try XCTUnwrap(
             JSONSerialization.jsonObject(with: data) as? [String: Any]
         )
-        XCTAssertEqual(object["schemaVersion"] as? Int, 4)
+        XCTAssertEqual(object["schemaVersion"] as? Int, 7)
         XCTAssertNotNil(object["behavior"])
         XCTAssertNotNil(object["movement"])
         XCTAssertNotNil(object["automaticRules"])
-        XCTAssertNotNil(object["speech"])
+        let speech = try XCTUnwrap(object["speech"] as? [String: Any])
+        let placement = try XCTUnwrap(
+            speech["placement"] as? [String: Any]
+        )
+        XCTAssertEqual(
+            placement["preferredPosition"] as? String,
+            "above"
+        )
+        XCTAssertEqual(placement["horizontalOffset"] as? Double, -36)
+        XCTAssertEqual(placement["gap"] as? Double, 20)
         XCTAssertNil(object["petKey"])
         XCTAssertNil(object["installationID"])
         XCTAssertNil(object["selectedPetInstallationID"])
@@ -305,7 +314,7 @@ final class RecommendedPetProfileTests: XCTestCase {
         var object = try XCTUnwrap(
             JSONSerialization.jsonObject(with: data) as? [String: Any]
         )
-        object["schemaVersion"] = 5
+        object["schemaVersion"] = 8
         let futureData = try JSONSerialization.data(withJSONObject: object)
 
         XCTAssertThrowsError(
@@ -316,7 +325,7 @@ final class RecommendedPetProfileTests: XCTestCase {
         ) { error in
             XCTAssertEqual(
                 error as? RecommendedPetProfileError,
-                .unsupportedSchemaVersion(5)
+                .unsupportedSchemaVersion(8)
             )
         }
         XCTAssertThrowsError(
@@ -425,6 +434,67 @@ final class RecommendedPetProfileTests: XCTestCase {
         XCTAssertEqual(
             decoded.movement.cursorAvoidingAnimation,
             .single(nil)
+        )
+    }
+
+    func testCodecDecodesSchemaV4WithLegacyCompatibleSpeechTheme() throws {
+        let encodedV5 = try RecommendedPetProfileCodec.encode(
+            makeProfile(),
+            for: petDefinition
+        )
+        var object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: encodedV5)
+                as? [String: Any]
+        )
+        object["schemaVersion"] = 4
+        let v4Data = try JSONSerialization.data(withJSONObject: object)
+
+        let decoded = try RecommendedPetProfileCodec.decode(
+            v4Data,
+            for: petDefinition
+        )
+
+        XCTAssertEqual(decoded.speech.theme, .default)
+    }
+
+    func testCodecDecodesSchemaV5WithLegacySpeechPolicies() throws {
+        let encodedV6 = try RecommendedPetProfileCodec.encode(
+            makeProfile(),
+            for: petDefinition
+        )
+        var object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: encodedV6)
+                as? [String: Any]
+        )
+        object["schemaVersion"] = 5
+        var speech = try XCTUnwrap(
+            object["speech"] as? [String: Any]
+        )
+        speech.removeValue(forKey: "periodicIsEnabled")
+        speech.removeValue(forKey: "periodicOrder")
+        speech.removeValue(forKey: "behaviorChangePolicy")
+        var phrases = try XCTUnwrap(
+            speech["phrases"] as? [[String: Any]]
+        )
+        for index in phrases.indices {
+            phrases[index].removeValue(forKey: "displayMode")
+        }
+        speech["phrases"] = phrases
+        object["speech"] = speech
+        let v5Data = try JSONSerialization.data(withJSONObject: object)
+
+        let decoded = try RecommendedPetProfileCodec.decode(
+            v5Data,
+            for: petDefinition
+        )
+
+        XCTAssertTrue(decoded.speech.periodicIsEnabled)
+        XCTAssertEqual(decoded.speech.periodicOrder, .random)
+        XCTAssertEqual(decoded.speech.behaviorChangePolicy, .dismiss)
+        XCTAssertTrue(
+            decoded.speech.phrases.allSatisfy {
+                $0.displayMode == .timed
+            }
         )
     }
 
@@ -554,7 +624,10 @@ final class RecommendedPetProfileTests: XCTestCase {
             pettingMotionID: pettingMotionID,
             speech: speech ?? PetSpeechSettings(
                 isEnabled: true,
+                periodicIsEnabled: true,
                 periodicIntervalMilliseconds: 30_000,
+                periodicOrder: .sequential,
+                behaviorChangePolicy: .keep,
                 phrases: [
                     PetSpeechPhrase(
                         id: UUID(
@@ -562,7 +635,8 @@ final class RecommendedPetProfileTests: XCTestCase {
                                 "CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC"
                         )!,
                         text: "함께 산책할까요?",
-                        trigger: .periodic
+                        trigger: .periodic,
+                        displayMode: .untilNextPhrase
                     ),
                     PetSpeechPhrase(
                         id: UUID(
@@ -573,7 +647,21 @@ final class RecommendedPetProfileTests: XCTestCase {
                         displayDurationMilliseconds: 4_000,
                         trigger: .sequence("rest")
                     )
-                ]
+                ],
+                theme: PetSpeechBubbleTheme(
+                    colorStyle: .peach,
+                    backgroundOpacity: 0.88,
+                    fontSize: 17,
+                    contentPadding: 15,
+                    cornerRadius: 19,
+                    showsTail: true,
+                    tailAlignment: .leading
+                ),
+                placement: PetSpeechBubblePlacementSettings(
+                    preferredPosition: .above,
+                    horizontalOffset: -36,
+                    gap: 20
+                )
             )
         )
     }

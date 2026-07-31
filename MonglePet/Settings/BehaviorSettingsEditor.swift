@@ -125,14 +125,21 @@ nonisolated enum BehaviorSettingsEditor {
         }
         let speech = PetSpeechSettings(
             isEnabled: settings.speechSettings.isEnabled,
+            periodicIsEnabled:
+                settings.speechSettings.periodicIsEnabled,
             periodicIntervalMilliseconds:
                 settings.speechSettings.periodicIntervalMilliseconds,
+            periodicOrder: settings.speechSettings.periodicOrder,
+            behaviorChangePolicy:
+                settings.speechSettings.behaviorChangePolicy,
             phrases: settings.speechSettings.phrases.filter { phrase in
                 guard case let .sequence(triggerSequenceID) = phrase.trigger else {
                     return true
                 }
                 return triggerSequenceID != sequenceID
-            }
+            },
+            theme: settings.speechSettings.theme,
+            placement: settings.speechSettings.placement
         )
         return replacing(
             settings,

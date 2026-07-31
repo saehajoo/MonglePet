@@ -45,7 +45,7 @@ final class AppSettingsStoreTests: XCTestCase {
             JSONSerialization.jsonObject(with: Data(contentsOf: settingsURL))
                 as? [String: Any]
         )
-        XCTAssertEqual(json["schemaVersion"] as? Int, 7)
+        XCTAssertEqual(json["schemaVersion"] as? Int, 10)
         XCTAssertEqual(json["lastUserPresentation"] as? String, "tuckedAway")
         XCTAssertNil(json["behaviorMode"])
         let overlay = try XCTUnwrap(json["overlay"] as? [String: Any])
@@ -105,14 +105,46 @@ final class AppSettingsStoreTests: XCTestCase {
             profiles.first?["speech"] as? [String: Any]
         )
         XCTAssertEqual(speech["isEnabled"] as? Bool, true)
+        XCTAssertEqual(speech["periodicIsEnabled"] as? Bool, true)
+        XCTAssertEqual(speech["periodicOrder"] as? String, "sequential")
+        XCTAssertEqual(
+            speech["behaviorChangePolicy"] as? String,
+            "keep"
+        )
         XCTAssertEqual(
             speech["periodicIntervalMilliseconds"] as? Int,
             45_000
         )
+        let speechTheme = try XCTUnwrap(
+            speech["theme"] as? [String: Any]
+        )
+        XCTAssertEqual(speechTheme["colorStyle"] as? String, "mint")
+        XCTAssertEqual(speechTheme["fontSize"] as? Double, 16)
+        XCTAssertEqual(speechTheme["showsTail"] as? Bool, true)
+        XCTAssertEqual(
+            speechTheme["tailAlignment"] as? String,
+            "trailing"
+        )
+        let speechPlacement = try XCTUnwrap(
+            speech["placement"] as? [String: Any]
+        )
+        XCTAssertEqual(
+            speechPlacement["preferredPosition"] as? String,
+            "below"
+        )
+        XCTAssertEqual(
+            speechPlacement["horizontalOffset"] as? Double,
+            48
+        )
+        XCTAssertEqual(speechPlacement["gap"] as? Double, 18)
         let speechPhrases = try XCTUnwrap(
             speech["phrases"] as? [[String: Any]]
         )
         XCTAssertEqual(speechPhrases.count, 2)
+        XCTAssertEqual(
+            speechPhrases.first?["displayMode"] as? String,
+            "untilNextPhrase"
+        )
         let sequences = try XCTUnwrap(profiles.first?["sequences"] as? [[String: Any]])
         let steps = try XCTUnwrap(sequences.first?["steps"] as? [[String: Any]])
         XCTAssertEqual(steps.first?["repeatCount"] as? Int, 2)
@@ -253,14 +285,14 @@ final class AppSettingsStoreTests: XCTestCase {
     }
 
     func testNewerSchemaIsPreservedAndDisablesWriting() throws {
-        let originalData = Data(#"{"schemaVersion":8,"futureValue":true}"#.utf8)
+        let originalData = Data(#"{"schemaVersion":11,"futureValue":true}"#.utf8)
         try originalData.write(to: settingsURL)
         let store = AppSettingsStore(settingsURL: settingsURL)
 
         let loaded = store.load()
 
-        XCTAssertEqual(loaded.source, .newerSchema(8))
-        XCTAssertEqual(loaded.issues, [.newerSchemaVersion(8)])
+        XCTAssertEqual(loaded.source, .newerSchema(11))
+        XCTAssertEqual(loaded.issues, [.newerSchemaVersion(11)])
         XCTAssertFalse(loaded.isWritingEnabled)
         XCTAssertEqual(try Data(contentsOf: settingsURL), originalData)
         XCTAssertThrowsError(try store.save(.default)) { error in
@@ -340,7 +372,7 @@ final class AppSettingsStoreTests: XCTestCase {
         XCTAssertEqual(children.map(\.lastPathComponent), ["settings.json"])
     }
 
-    func testV1LoadMigratesAndAtomicallyRewritesSettingsAsV7() throws {
+    func testV1LoadMigratesAndAtomicallyRewritesSettingsAsV10() throws {
         let stored = makeLegacySettings()
         try JSONEncoder().encode(stored).write(to: settingsURL)
         let store = AppSettingsStore(settingsURL: settingsURL)
@@ -355,9 +387,12 @@ final class AppSettingsStoreTests: XCTestCase {
             StoredSchemaEnvelope.self,
             from: migratedData
         )
-        XCTAssertEqual(envelope.schemaVersion, 7)
+        XCTAssertEqual(envelope.schemaVersion, 10)
         XCTAssertNoThrow(
-            try JSONDecoder().decode(StoredAppSettingsV7.self, from: migratedData)
+            try JSONDecoder().decode(
+                StoredAppSettingsV10.self,
+                from: migratedData
+            )
         )
         XCTAssertEqual(loaded.settings.movementSettings, .default)
         let children = try FileManager.default.contentsOfDirectory(
@@ -367,7 +402,7 @@ final class AppSettingsStoreTests: XCTestCase {
         XCTAssertEqual(children.map(\.lastPathComponent), ["settings.json"])
     }
 
-    func testV2LoadAddsDefaultMovementAndAtomicallyRewritesAsV7() throws {
+    func testV2LoadAddsDefaultMovementAndAtomicallyRewritesAsV10() throws {
         let profile = StoredBehaviorProfileV2(
             petKey: .builtIn,
             mode: "manual",
@@ -401,10 +436,10 @@ final class AppSettingsStoreTests: XCTestCase {
         XCTAssertEqual(loaded.source, .file)
         XCTAssertEqual(loaded.settings.movementSettings, .default)
         let migrated = try JSONDecoder().decode(
-            StoredAppSettingsV7.self,
+            StoredAppSettingsV10.self,
             from: Data(contentsOf: settingsURL)
         )
-        XCTAssertEqual(migrated.schemaVersion, 7)
+        XCTAssertEqual(migrated.schemaVersion, 10)
         XCTAssertEqual(migrated.behaviorProfiles.first?.movement.mode, "fixed")
         XCTAssertEqual(
             migrated.behaviorProfiles.first?.movement.cursorAvoidingIdleBehavior,
@@ -419,7 +454,7 @@ final class AppSettingsStoreTests: XCTestCase {
         )
     }
 
-    func testV3LoadAddsDisplayDefaultsAndAtomicallyRewritesAsV7() throws {
+    func testV3LoadAddsDisplayDefaultsAndAtomicallyRewritesAsV10() throws {
         let originalSettings = makeSettings(speech: .default)
         let storedV3 = try AppSettingsV3Mapper.storedSettings(
             from: originalSettings
@@ -431,10 +466,10 @@ final class AppSettingsStoreTests: XCTestCase {
         XCTAssertEqual(loaded.source, .file)
         XCTAssertEqual(loaded.settings, originalSettings)
         let migrated = try JSONDecoder().decode(
-            StoredAppSettingsV7.self,
+            StoredAppSettingsV10.self,
             from: Data(contentsOf: settingsURL)
         )
-        XCTAssertEqual(migrated.schemaVersion, 7)
+        XCTAssertEqual(migrated.schemaVersion, 10)
         XCTAssertEqual(migrated.overlay.opacity, 1)
         XCTAssertFalse(migrated.overlay.pointerOverlapFadeEnabled)
         XCTAssertEqual(migrated.overlay.pointerOverlapOpacity, 0.2)
@@ -444,7 +479,7 @@ final class AppSettingsStoreTests: XCTestCase {
         )
     }
 
-    func testV4LoadPreservesSingleMotionFallbacksAndRewritesAsV7() throws {
+    func testV4LoadPreservesSingleMotionFallbacksAndRewritesAsV10() throws {
         let originalSettings = makeSettings(speech: .default)
         let storedV4 = try AppSettingsV4Mapper.storedSettings(
             from: originalSettings
@@ -456,10 +491,10 @@ final class AppSettingsStoreTests: XCTestCase {
         XCTAssertEqual(loaded.source, .file)
         XCTAssertEqual(loaded.settings, originalSettings)
         let migrated = try JSONDecoder().decode(
-            StoredAppSettingsV7.self,
+            StoredAppSettingsV10.self,
             from: Data(contentsOf: settingsURL)
         )
-        XCTAssertEqual(migrated.schemaVersion, 7)
+        XCTAssertEqual(migrated.schemaVersion, 10)
         XCTAssertEqual(
             migrated.behaviorProfiles.first?.movement
                 .cursorFollowingAnimation.fallbackMotionID,
@@ -545,7 +580,10 @@ final class AppSettingsStoreTests: XCTestCase {
             pettingMotionID: "petting",
             speech: speech ?? PetSpeechSettings(
                 isEnabled: true,
+                periodicIsEnabled: true,
                 periodicIntervalMilliseconds: 45_000,
+                periodicOrder: .sequential,
+                behaviorChangePolicy: .keep,
                 phrases: [
                     PetSpeechPhrase(
                         id: UUID(
@@ -553,7 +591,8 @@ final class AppSettingsStoreTests: XCTestCase {
                                 "30000000-0000-0000-0000-000000000004"
                         )!,
                         text: "같이 쉬어 갈까요?",
-                        trigger: .periodic
+                        trigger: .periodic,
+                        displayMode: .untilNextPhrase
                     ),
                     PetSpeechPhrase(
                         id: UUID(
@@ -564,7 +603,21 @@ final class AppSettingsStoreTests: XCTestCase {
                         displayDurationMilliseconds: 4_000,
                         trigger: .sequence(focusSequence.id)
                     )
-                ]
+                ],
+                theme: PetSpeechBubbleTheme(
+                    colorStyle: .mint,
+                    backgroundOpacity: 0.9,
+                    fontSize: 16,
+                    contentPadding: 14,
+                    cornerRadius: 18,
+                    showsTail: true,
+                    tailAlignment: .trailing
+                ),
+                placement: PetSpeechBubblePlacementSettings(
+                    preferredPosition: .below,
+                    horizontalOffset: 48,
+                    gap: 18
+                )
             ),
             manualSequenceID: focusSequence.id,
             sequences: [idleSequence, focusSequence],

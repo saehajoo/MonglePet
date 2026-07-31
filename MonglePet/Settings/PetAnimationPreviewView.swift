@@ -4,6 +4,17 @@ import SwiftUI
 struct PetAnimationPreviewView: NSViewRepresentable {
     let item: PetLibraryItem
     let motionID: String
+    let playsAnimation: Bool
+
+    init(
+        item: PetLibraryItem,
+        motionID: String,
+        playsAnimation: Bool = true
+    ) {
+        self.item = item
+        self.motionID = motionID
+        self.playsAnimation = playsAnimation
+    }
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -26,7 +37,12 @@ struct PetAnimationPreviewView: NSViewRepresentable {
     }
 
     func updateNSView(_ view: PetOverlayView, context: Context) {
-        context.coordinator.update(item: item, motionID: motionID, view: view)
+        context.coordinator.update(
+            item: item,
+            motionID: motionID,
+            playsAnimation: playsAnimation,
+            view: view
+        )
     }
 
     static func dismantleNSView(_ view: PetOverlayView, coordinator: Coordinator) {
@@ -39,6 +55,7 @@ struct PetAnimationPreviewView: NSViewRepresentable {
         private var currentSelection: PetLibrarySelection?
         private var currentDefinition: PetDefinition?
         private var currentMotionID: String?
+        private var currentPlaysAnimation: Bool?
 
         func attach(to view: PetOverlayView) {
             framePlayer = FramePlayer { [weak view] frame in
@@ -49,6 +66,7 @@ struct PetAnimationPreviewView: NSViewRepresentable {
         func update(
             item: PetLibraryItem,
             motionID: String,
+            playsAnimation: Bool,
             view: PetOverlayView
         ) {
             let needsResources = currentSelection != item.selection
@@ -63,22 +81,40 @@ struct PetAnimationPreviewView: NSViewRepresentable {
                     currentSelection = item.selection
                     currentDefinition = item.definition
                     currentMotionID = nil
+                    currentPlaysAnimation = nil
                 } catch {
                     framePlayer?.stop()
+                    view.replaceAtlases(
+                        [],
+                        accessibilityLabel:
+                            "\(item.metadata.displayName) 미리보기를 불러올 수 없음"
+                    )
                     currentSelection = nil
                     currentDefinition = nil
                     currentMotionID = nil
+                    currentPlaysAnimation = nil
                     return
                 }
             }
 
-            guard currentMotionID != motionID,
-                  let motion = item.definition.motion(id: motionID)
-                    ?? item.definition.defaultMotion else {
+            guard
+                currentMotionID != motionID
+                    || currentPlaysAnimation != playsAnimation,
+                let motion = item.definition.motion(id: motionID)
+                    ?? item.definition.defaultMotion
+            else {
                 return
             }
             currentMotionID = motion.id
-            framePlayer?.play(motion)
+            currentPlaysAnimation = playsAnimation
+            if playsAnimation {
+                framePlayer?.play(motion)
+            } else {
+                framePlayer?.stop()
+                if let firstFrame = motion.frames.first {
+                    _ = view.display(firstFrame)
+                }
+            }
         }
 
         func stop() {

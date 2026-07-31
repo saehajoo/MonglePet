@@ -363,7 +363,8 @@ final class PetWindowController: NSWindowController {
         }
         speechBubbleController.show(
             text: presentation.text,
-            durationMilliseconds: presentation.displayDurationMilliseconds
+            theme: presentation.theme,
+            placement: presentation.placement
         )
     }
 

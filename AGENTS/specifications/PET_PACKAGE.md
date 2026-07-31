@@ -259,11 +259,11 @@ GIF, APNG 또는 PNG 시퀀스는 다음 기본 manifest를 생성해 내부 패
 
 `recommended-profile.json`은 펫 패키지와 독립적으로 버전을 갖는 선택 데이터다. 받는 사용자의 설정을 강제하지 않으며 적용을 명시적으로 선택한 경우에만 설치 UUID에 연결된 편집 가능한 로컬 행동 프로필로 복사한다.
 
-새 내보내기가 사용하는 schema-v4 예시:
+새 내보내기가 사용하는 schema-v7 예시:
 
 ```json
 {
-  "schemaVersion": 4,
+  "schemaVersion": 7,
   "behavior": {
     "mode": "manual",
     "manualSequenceID": "default",
@@ -337,21 +337,45 @@ GIF, APNG 또는 PNG 시퀀스는 다음 기본 manifest를 생성해 내부 패
   "automaticRules": [],
   "speech": {
     "isEnabled": true,
+    "periodicIsEnabled": true,
     "periodicIntervalMilliseconds": 60000,
+    "periodicOrder": "sequential",
+    "behaviorChangePolicy": "dismiss",
     "phrases": [
       {
         "id": "10000000-0000-0000-0000-000000000001",
         "text": "잠깐 쉬어 갈까요?",
         "displayDurationMilliseconds": 3000,
-        "trigger": { "type": "periodic", "sequenceID": null }
+        "trigger": { "type": "periodic", "sequenceID": null },
+        "displayMode": "untilNextPhrase"
       }
-    ]
+    ],
+    "theme": {
+      "colorStyle": "cream",
+      "customBackgroundColor": { "red": 1, "green": 1, "blue": 1 },
+      "customTextColor": { "red": 0, "green": 0, "blue": 0 },
+      "backgroundOpacity": 0.96,
+      "fontSize": 14,
+      "contentPadding": 12,
+      "cornerRadius": 14,
+      "showsTail": true,
+      "tailAlignment": "center"
+    },
+    "placement": {
+      "preferredPosition": "above",
+      "horizontalOffset": 24,
+      "gap": 12
+    }
   }
 }
 ```
 
 - 행동 모드는 `automatic` 또는 `manual`, 이동 모드는 `fixed`, `cursorFollowing`, `freeRoaming`, `cursorAvoiding`만 허용한다.
+- schema-v7은 말풍선의 `automatic` / `above` / `below` 선호 위치, -160~160pt 좌우 오프셋과 0~64pt 간격을 기록한다. 화면 절대 좌표는 공유하지 않으며 schema-v6은 자동·0pt·8pt 기본값으로 읽는다.
+- schema-v6는 주기 대사 독립 사용 여부, `random` / `sequential` 순서, 행동 전환의 `dismiss` / `keep` 정책과 대사별 `timed` / `untilNextPhrase` 표시 방식을 기록한다.
+- schema-v5는 schema-v4 말풍선 설정에 색상 preset·사용자 지정 색상, 불투명도, 글자 크기, 여백, 모서리와 꼬리 설정을 추가한다. 사용자 지정 색상과 수치 범위는 로컬 설정과 같은 검증을 적용한다.
 - schema-v4는 펫별 말풍선 사용 여부, 주기, 대사별 표시 시간과 `periodic` 또는 실제 행동 루틴을 참조하는 `sequence` 조건을 기록한다.
+- 기존 schema-v5는 주기 조건 대사가 있으면 주기를 사용하며 무작위·닫기·시간 지정 호환 정책으로 읽는다. schema-v4는 시스템 색상과 꼬리 없는 호환 테마로 읽는다.
 - 기존 schema-v1·v2·v3는 말풍선을 사용 안 함과 빈 대사 목록으로 읽는다.
 - schema-v3는 마우스 도망가기의 평상시 행동 `stationary` / `freeRoaming`, 감지 거리, 도망 속도와 독립 방향 애니메이션을 기록한다. 평상시 자유 이동은 기존 자유 이동 수치와 애니메이션을 재사용한다.
 - schema-v2는 마우스 따라가기와 자유 이동에 독립된 공통 fallback, 방향별 사용 여부와 명시적인 8방향 모션 참조를 기록한다. 대각선 사용은 방향별 사용이 켜진 경우에만 허용한다.
@@ -370,7 +394,7 @@ GIF, APNG 또는 PNG 시퀀스는 다음 기본 manifest를 생성해 내부 패
 ### 권장 프로필 가져오기
 
 - 패키지 선택 직후 설치하지 않고 `가져오기 내용 확인` 화면에서 이름, 버전, 제작자, 라이선스와 애니메이션 수를 먼저 표시한다.
-- 유효한 `recommended-profile.json`이 있으면 행동 모드와 선택 루틴, 행동 루틴의 단계, 자동 규칙의 조건·우선순위, 이동 방식·속도·거리·정지 반경·대기 시간, 도망가기 평상시 행동·감지 거리·속도, 모드별 공통·방향 애니메이션, 쓰다듬기 애니메이션, 말풍선 사용 여부·대사 수와 앱별 규칙의 bundle identifier를 공통 요약으로 표시한다.
+- 유효한 `recommended-profile.json`이 있으면 행동 모드와 선택 루틴, 행동 루틴의 단계, 자동 규칙의 조건·우선순위, 이동 방식·속도·거리·정지 반경·대기 시간, 도망가기 평상시 행동·감지 거리·속도, 모드별 공통·방향 애니메이션, 쓰다듬기 애니메이션, 말풍선 사용 여부·행동/주기 대사 수·주기 순서·행동 전환 정책·테마·상대 위치와 앱별 규칙의 bundle identifier를 공통 요약으로 표시한다.
 - 같은 화면에 위치·범위·크기·투명도·클릭 통과·픽셀 표시·로그인 실행은 포함되지 않는 기기 설정임을 안내한다.
 - 새 설치는 사용자가 `펫만 설치` 또는 `권장 설정 적용 후 설치`를 명시적으로 선택한다. 펫만 설치하면 해당 설치 UUID의 표준 기본 프로필을 사용한다.
 - 권장 설정을 적용하면 새 설치 UUID에 맞춘 편집 가능한 로컬 `BehaviorProfile` 사본을 만들고 즉시 `settings.json`에 저장한다. 패키지의 권장 설정 파일은 원본 preset으로 유지되며 이후 로컬 편집과 자동 동기화하지 않는다.

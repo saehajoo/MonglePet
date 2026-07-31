@@ -34,7 +34,7 @@ final class MotionSchedulerTests: XCTestCase {
         XCTAssertEqual(scheduler.activeCycleRemainingDuration, .seconds(1))
     }
 
-    func testDifferentSequenceWaitsOnlyForCurrentAnimationCycleBoundary() throws {
+    func testDifferentSequenceStartsImmediatelyFromFirstCycle() throws {
         var scheduler = MotionScheduler(petDefinition: makePet())
         let current = makeSequence(
             id: "current",
@@ -51,18 +51,13 @@ final class MotionSchedulerTests: XCTestCase {
         XCTAssertEqual(scheduler.activeCycleRemainingDuration, .milliseconds(750))
 
         XCTAssertTrue(scheduler.request(next))
-        XCTAssertEqual(scheduler.activeSequenceID, "current")
-        XCTAssertEqual(scheduler.pendingSequenceID, "next")
-
-        scheduler.advance(by: .milliseconds(749))
-        XCTAssertEqual(scheduler.activeSequenceID, "current")
-        scheduler.advance(by: .milliseconds(1))
         XCTAssertEqual(scheduler.activeSequenceID, "next")
+        XCTAssertNil(scheduler.pendingSequenceID)
         XCTAssertEqual(try playback(from: scheduler).motion.id, "rest")
         XCTAssertEqual(scheduler.activeCycleRemainingDuration, .seconds(2))
     }
 
-    func testEditedSequenceWithSameIDAppliesAtNextAnimationCycleBoundary() throws {
+    func testEditedSequenceWithSameIDRestartsImmediately() throws {
         var scheduler = MotionScheduler(petDefinition: makePet())
         let original = makeSequence(
             id: "work",
@@ -77,11 +72,6 @@ final class MotionSchedulerTests: XCTestCase {
         scheduler.advance(by: .milliseconds(400))
 
         XCTAssertTrue(scheduler.request(edited))
-        XCTAssertEqual(try playback(from: scheduler).motion.id, "focus")
-        XCTAssertEqual(scheduler.activeCycleRemainingDuration, .milliseconds(600))
-        XCTAssertEqual(scheduler.pendingSequenceID, "work")
-
-        scheduler.advance(by: .milliseconds(600))
         XCTAssertEqual(try playback(from: scheduler).motion.id, "rest")
         XCTAssertEqual(scheduler.activeCycleRemainingDuration, .seconds(2))
         XCTAssertNil(scheduler.pendingSequenceID)
@@ -246,6 +236,37 @@ final class MotionSchedulerTests: XCTestCase {
         XCTAssertFalse(scheduler.triggerInteraction(petting))
         scheduler.advance(by: .milliseconds(1))
         XCTAssertTrue(scheduler.triggerInteraction(petting))
+    }
+
+    func testBehaviorRequestedDuringInteractionBecomesLatestBaseImmediately() throws {
+        var scheduler = MotionScheduler(petDefinition: makePet())
+        let focus = makeSequence(
+            id: "focus-sequence",
+            steps: [makeStep(motionID: "focus", repeatCount: 10)]
+        )
+        let rest = makeSequence(
+            id: "rest-sequence",
+            steps: [makeStep(motionID: "rest", repeatCount: 10)]
+        )
+        let petting = makeSequence(
+            id: "petting-sequence",
+            steps: [makeStep(motionID: "petting", repeatCount: 1)],
+            repeats: false
+        )
+
+        scheduler.request(focus)
+        scheduler.advance(by: .milliseconds(400))
+        XCTAssertTrue(scheduler.triggerInteraction(petting))
+
+        XCTAssertTrue(scheduler.request(rest))
+        XCTAssertTrue(try playback(from: scheduler).isInteraction)
+
+        scheduler.advance(by: .seconds(1))
+
+        XCTAssertFalse(scheduler.isInteractionPlaying)
+        XCTAssertEqual(scheduler.activeSequenceID, "rest-sequence")
+        XCTAssertEqual(try playback(from: scheduler).motion.id, "rest")
+        XCTAssertEqual(scheduler.activeCycleRemainingDuration, .seconds(2))
     }
 
     func testLegacyTimingKeepsV1StepBoundaryUntilSchemaV2Migration() throws {

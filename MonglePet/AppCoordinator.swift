@@ -336,6 +336,7 @@ final class AppCoordinator: NSObject {
     private func applySelectedPet(_ item: PetLibraryItem) -> Bool {
         do {
             try petWindowController.applyPet(item)
+            speechRuntime.prepareForPetChange()
             playbackCoordinator.replacePetDefinition(item.definition)
             behaviorRuntime.replacePetDefinition(item.definition)
             if let latestActivitySnapshot {

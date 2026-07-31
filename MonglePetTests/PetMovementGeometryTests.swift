@@ -482,6 +482,57 @@ final class PetMovementGeometryTests: XCTestCase {
         XCTAssertLessThan(route.targetOrigin.x, 580)
     }
 
+    func testCursorAvoidingRouteCanEscapeToAdjacentDisplay() throws {
+        let route = try XCTUnwrap(
+            PetMovementGeometry.cursorAvoidingRoute(
+                pointer: point(700, 350),
+                currentOrigin: point(840, 300),
+                petSize: size(100, 100),
+                safeDistance: 220,
+                screenInset: 20,
+                screens: [
+                    screen("main", 0, 0, 1_000, 800),
+                    screen("right", 1_000, 0, 1_000, 800)
+                ]
+            )
+        )
+
+        XCTAssertGreaterThanOrEqual(route.targetOrigin.x, 1_020)
+        XCTAssertEqual(
+            route.transition,
+            PetMovementScreenTransition(
+                sourceScreenID: "main",
+                targetScreenID: "right",
+                exitOrigin: point(900, 300),
+                entryOrigin: point(1_000, 300)
+            )
+        )
+    }
+
+    func testCursorAvoidingRouteHonorsSelectedDisplayBoundary() throws {
+        let route = try XCTUnwrap(
+            PetMovementGeometry.cursorAvoidingRoute(
+                pointer: point(700, 350),
+                currentOrigin: point(840, 300),
+                petSize: size(100, 100),
+                safeDistance: 220,
+                screenInset: 20,
+                screens: [
+                    screen("main", 0, 0, 1_000, 800),
+                    screen("right", 1_000, 0, 1_000, 800)
+                ],
+                boundary: MovementBoundarySettings(
+                    mode: .selectedDisplay,
+                    screenIdentifier: "main",
+                    normalizedRect: nil
+                )
+            )
+        )
+
+        XCTAssertLessThanOrEqual(route.targetOrigin.x, 880)
+        XCTAssertNil(route.transition)
+    }
+
     func testAdvanceMovesAtConfiguredPointsPerSecond() {
         let result = PetMovementGeometry.advance(
             from: point(0, 0),

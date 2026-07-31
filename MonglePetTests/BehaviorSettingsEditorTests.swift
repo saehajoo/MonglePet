@@ -120,10 +120,15 @@ final class BehaviorSettingsEditorTests: XCTestCase {
                 pettingMotionID: settings.pettingMotionID,
                 speech: PetSpeechSettings(
                     isEnabled: true,
+                    periodicIsEnabled: true,
+                    periodicIntervalMilliseconds: 25_000,
+                    periodicOrder: .sequential,
+                    behaviorChangePolicy: .keep,
                     phrases: [
                         PetSpeechPhrase(
                             text: "남는 대사",
-                            trigger: .periodic
+                            trigger: .periodic,
+                            displayMode: .untilNextPhrase
                         ),
                         PetSpeechPhrase(
                             text: "삭제될 대사",
@@ -148,6 +153,20 @@ final class BehaviorSettingsEditorTests: XCTestCase {
         XCTAssertEqual(
             settings.speechSettings.phrases.map(\.text),
             ["남는 대사"]
+        )
+        XCTAssertTrue(settings.speechSettings.periodicIsEnabled)
+        XCTAssertEqual(
+            settings.speechSettings.periodicIntervalMilliseconds,
+            25_000
+        )
+        XCTAssertEqual(settings.speechSettings.periodicOrder, .sequential)
+        XCTAssertEqual(
+            settings.speechSettings.behaviorChangePolicy,
+            .keep
+        )
+        XCTAssertEqual(
+            settings.speechSettings.phrases.first?.displayMode,
+            .untilNextPhrase
         )
         XCTAssertThrowsError(
             try BehaviorSettingsEditor.removingSequence(

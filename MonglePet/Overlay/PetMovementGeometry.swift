@@ -275,17 +275,12 @@ nonisolated enum PetMovementGeometry {
         )
         guard pointer.isFinite, currentOrigin.isFinite, petSize.isValid,
               safeDistance.isFinite, safeDistance >= 0,
-              let targetScreen = screen(
+              let currentScreen = screen(
                   containingOrNearestTo: PetMovementPoint(
                       x: currentOrigin.x + (petSize.width / 2),
                       y: currentOrigin.y + (petSize.height / 2)
                   ),
                   in: availableScreens
-              ),
-              let bounds = safeOriginBounds(
-                  in: targetScreen.visibleFrame,
-                  petSize: petSize,
-                  inset: screenInset
               ) else {
             return nil
         }
@@ -298,7 +293,7 @@ nonisolated enum PetMovementGeometry {
         var awayY = currentCenter.y - pointer.y
         var awayMagnitude = hypot(awayX, awayY)
         if awayMagnitude <= 0.000_1 {
-            let screenCenter = targetScreen.visibleFrame.center
+            let screenCenter = currentScreen.visibleFrame.center
             awayX = currentCenter.x >= screenCenter.x ? 1 : -1
             awayY = currentCenter.y >= screenCenter.y ? 1 : -1
             awayMagnitude = hypot(awayX, awayY)
@@ -307,11 +302,45 @@ nonisolated enum PetMovementGeometry {
         let unitY = awayY / awayMagnitude
         let travel = safeDistance
             + max(petSize.width, petSize.height)
+        let desiredOrigin = PetMovementPoint(
+            x: currentOrigin.x + (unitX * travel),
+            y: currentOrigin.y + (unitY * travel)
+        )
+        let desiredCenter = PetMovementPoint(
+            x: desiredOrigin.x + (petSize.width / 2),
+            y: desiredOrigin.y + (petSize.height / 2)
+        )
+        let preferredScreen = screen(
+            containingOrNearestTo: desiredCenter,
+            in: availableScreens
+        ) ?? currentScreen
+        let targetScreen: PetMovementScreen
+        if preferredScreen.id != currentScreen.id,
+           let preferredBounds = safeOriginBounds(
+               in: preferredScreen.visibleFrame,
+               petSize: petSize,
+               inset: screenInset
+           ) {
+            let preferredOrigin = preferredBounds.clamped(desiredOrigin)
+            let preferredDeltaX = preferredOrigin.x - currentOrigin.x
+            let preferredDeltaY = preferredOrigin.y - currentOrigin.y
+            let awayProgress =
+                (preferredDeltaX * unitX) + (preferredDeltaY * unitY)
+            targetScreen = awayProgress > 0.000_1
+                ? preferredScreen
+                : currentScreen
+        } else {
+            targetScreen = currentScreen
+        }
+        guard let bounds = safeOriginBounds(
+            in: targetScreen.visibleFrame,
+            petSize: petSize,
+            inset: screenInset
+        ) else {
+            return nil
+        }
         let direct = bounds.clamped(
-            PetMovementPoint(
-                x: currentOrigin.x + (unitX * travel),
-                y: currentOrigin.y + (unitY * travel)
-            )
+            desiredOrigin
         )
         var candidates = [
             direct,

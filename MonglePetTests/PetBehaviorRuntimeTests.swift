@@ -6,7 +6,7 @@ import XCTest
 final class PetBehaviorRuntimeTests: XCTestCase {
     private let frameRect = PixelRect(x: 0, y: 0, width: 100, height: 100)
 
-    func testManualSequenceSwitchesAtCurrentStepBoundary() throws {
+    func testManualSequenceSwitchesImmediately() throws {
         let clock = ManualBehaviorRuntimeClock()
         let tickScheduler = ManualBehaviorTickScheduler()
         var receivedPlaybacks: [ScheduledMotion?] = []
@@ -23,11 +23,6 @@ final class PetBehaviorRuntimeTests: XCTestCase {
 
         settings = makeSettings(mode: .manual, manualSequenceID: "rest")
         runtime.update(settings: settings, snapshot: snapshot())
-        XCTAssertEqual(runtime.currentPlayback?.motion.id, "focus")
-        XCTAssertEqual(receivedPlaybacks.compactMap { $0 }.count, 1)
-
-        clock.advance(by: .seconds(3))
-        tickScheduler.fire()
         XCTAssertEqual(runtime.currentPlayback?.motion.id, "rest")
         XCTAssertEqual(tickScheduler.scheduledDelay, .seconds(3))
         XCTAssertEqual(receivedPlaybacks.compactMap { $0 }.map(\.motion.id), ["focus", "rest"])

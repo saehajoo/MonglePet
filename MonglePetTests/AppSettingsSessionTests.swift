@@ -846,7 +846,7 @@ final class AppSettingsSessionTests: XCTestCase {
 
     @MainActor
     func testNewerSchemaPreservesFileWhileAllowingRuntimePresentationChange() throws {
-        let originalData = Data(#"{"schemaVersion":9,"future":true}"#.utf8)
+        let originalData = Data(#"{"schemaVersion":11,"future":true}"#.utf8)
         try originalData.write(to: settingsURL)
         let session = AppSettingsSession(
             store: AppSettingsStore(settingsURL: settingsURL)
@@ -855,7 +855,7 @@ final class AppSettingsSessionTests: XCTestCase {
         let result = session.load()
         session.setUserPresentation(.tuckedAway)
 
-        XCTAssertEqual(result.source, .newerSchema(9))
+        XCTAssertEqual(result.source, .newerSchema(11))
         XCTAssertFalse(session.isWritingEnabled)
         XCTAssertNotNil(session.loadNotice)
         XCTAssertEqual(session.settings.lastUserPresentation, .tuckedAway)

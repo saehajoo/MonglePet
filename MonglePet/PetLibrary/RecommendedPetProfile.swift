@@ -64,7 +64,7 @@ extension RecommendedPetProfileError: LocalizedError {
 }
 
 nonisolated enum RecommendedPetProfileCodec {
-    static let schemaVersion = 4
+    static let schemaVersion = 7
     static let maximumFileSize = 1 * 1_024 * 1_024
 
     static func encode(
@@ -72,7 +72,7 @@ nonisolated enum RecommendedPetProfileCodec {
         for definition: PetDefinition
     ) throws -> Data {
         try validate(profile, for: definition)
-        let stored = StoredRecommendedPetProfileV4(
+        let stored = StoredRecommendedPetProfileV7(
             schemaVersion: schemaVersion,
             behavior: StoredRecommendedBehaviorV1(
                 mode: storedMode(profile.mode),
@@ -82,7 +82,7 @@ nonisolated enum RecommendedPetProfileCodec {
             movement: storedMovement(profile.movement),
             pettingMotionID: profile.pettingMotionID,
             automaticRules: profile.automaticRules.map(storedRule),
-            speech: storedSpeech(profile.speech)
+            speech: storedSpeechV7(profile.speech)
         )
 
         let data: Data
@@ -162,11 +162,50 @@ nonisolated enum RecommendedPetProfileCodec {
             } catch {
                 throw RecommendedPetProfileError.unreadable
             }
-        case schemaVersion:
+        case 4:
             do {
                 profile = try domainProfile(
                     from: decoder.decode(
                         StoredRecommendedPetProfileV4.self,
+                        from: data
+                    )
+                )
+            } catch let error as RecommendedPetProfileError {
+                throw error
+            } catch {
+                throw RecommendedPetProfileError.unreadable
+            }
+        case 5:
+            do {
+                profile = try domainProfile(
+                    from: decoder.decode(
+                        StoredRecommendedPetProfileV5.self,
+                        from: data
+                    )
+                )
+            } catch let error as RecommendedPetProfileError {
+                throw error
+            } catch {
+                throw RecommendedPetProfileError.unreadable
+            }
+        case 6:
+            do {
+                profile = try domainProfile(
+                    from: decoder.decode(
+                        StoredRecommendedPetProfileV6.self,
+                        from: data
+                    )
+                )
+            } catch let error as RecommendedPetProfileError {
+                throw error
+            } catch {
+                throw RecommendedPetProfileError.unreadable
+            }
+        case schemaVersion:
+            do {
+                profile = try domainProfile(
+                    from: decoder.decode(
+                        StoredRecommendedPetProfileV7.self,
                         from: data
                     )
                 )
@@ -442,11 +481,254 @@ nonisolated enum RecommendedPetProfileCodec {
             pettingMotionID: baseProfile.pettingMotionID,
             speech: PetSpeechSettings(
                 isEnabled: stored.speech.isEnabled,
+                periodicIsEnabled: phrases.contains {
+                    $0.trigger == .periodic
+                },
                 periodicIntervalMilliseconds:
                     stored.speech.periodicIntervalMilliseconds,
+                periodicOrder: .random,
+                behaviorChangePolicy: .dismiss,
                 phrases: phrases
             )
         )
+    }
+
+    private static func domainProfile(
+        from stored: StoredRecommendedPetProfileV5
+    ) throws -> RecommendedPetProfile {
+        let baseProfile = try domainProfile(
+            from: StoredRecommendedPetProfileV4(
+                schemaVersion: 4,
+                behavior: stored.behavior,
+                movement: stored.movement,
+                pettingMotionID: stored.pettingMotionID,
+                automaticRules: stored.automaticRules,
+                speech: StoredRecommendedSpeechV4(
+                    isEnabled: stored.speech.isEnabled,
+                    periodicIntervalMilliseconds:
+                        stored.speech.periodicIntervalMilliseconds,
+                    phrases: stored.speech.phrases
+                )
+            )
+        )
+        return RecommendedPetProfile(
+            mode: baseProfile.mode,
+            manualSequenceID: baseProfile.manualSequenceID,
+            sequences: baseProfile.sequences,
+            automaticRules: baseProfile.automaticRules,
+            movement: baseProfile.movement,
+            pettingMotionID: baseProfile.pettingMotionID,
+            speech: PetSpeechSettings(
+                isEnabled: baseProfile.speech.isEnabled,
+                periodicIsEnabled:
+                    baseProfile.speech.periodicIsEnabled,
+                periodicIntervalMilliseconds:
+                    baseProfile.speech.periodicIntervalMilliseconds,
+                periodicOrder: .random,
+                behaviorChangePolicy: .dismiss,
+                phrases: baseProfile.speech.phrases,
+                theme: try domainTheme(from: stored.speech.theme)
+            )
+        )
+    }
+
+    private static func domainProfile(
+        from stored: StoredRecommendedPetProfileV6
+    ) throws -> RecommendedPetProfile {
+        let baseProfile = try domainProfile(
+            from: StoredRecommendedPetProfileV5(
+                schemaVersion: 5,
+                behavior: stored.behavior,
+                movement: stored.movement,
+                pettingMotionID: stored.pettingMotionID,
+                automaticRules: stored.automaticRules,
+                speech: StoredRecommendedSpeechV5(
+                    isEnabled: stored.speech.isEnabled,
+                    periodicIntervalMilliseconds:
+                        stored.speech.periodicIntervalMilliseconds,
+                    phrases: stored.speech.phrases.map {
+                        StoredRecommendedSpeechPhraseV4(
+                            id: $0.id,
+                            text: $0.text,
+                            displayDurationMilliseconds:
+                                $0.displayDurationMilliseconds,
+                            trigger: $0.trigger
+                        )
+                    },
+                    theme: stored.speech.theme
+                )
+            )
+        )
+        let periodicOrder: PetSpeechPeriodicOrder =
+            switch stored.speech.periodicOrder {
+            case "random": .random
+            case "sequential": .sequential
+            default:
+                throw RecommendedPetProfileError.invalidField(
+                    "speech.periodicOrder"
+                )
+            }
+        let behaviorChangePolicy: PetSpeechBehaviorChangePolicy =
+            switch stored.speech.behaviorChangePolicy {
+            case "dismiss": .dismiss
+            case "keep": .keep
+            default:
+                throw RecommendedPetProfileError.invalidField(
+                    "speech.behaviorChangePolicy"
+                )
+            }
+        let displayModes = try stored.speech.phrases.enumerated().map {
+            index,
+            phrase -> PetSpeechDisplayMode in
+            switch phrase.displayMode {
+            case "timed":
+                .timed
+            case "untilNextPhrase":
+                .untilNextPhrase
+            default:
+                throw RecommendedPetProfileError.invalidField(
+                    "speech.phrases.\(index).displayMode"
+                )
+            }
+        }
+        let phrases = zip(baseProfile.speech.phrases, displayModes).map {
+            phrase,
+            displayMode in
+            PetSpeechPhrase(
+                id: phrase.id,
+                text: phrase.text,
+                displayDurationMilliseconds:
+                    phrase.displayDurationMilliseconds,
+                trigger: phrase.trigger,
+                displayMode: displayMode
+            )
+        }
+        return RecommendedPetProfile(
+            mode: baseProfile.mode,
+            manualSequenceID: baseProfile.manualSequenceID,
+            sequences: baseProfile.sequences,
+            automaticRules: baseProfile.automaticRules,
+            movement: baseProfile.movement,
+            pettingMotionID: baseProfile.pettingMotionID,
+            speech: PetSpeechSettings(
+                isEnabled: baseProfile.speech.isEnabled,
+                periodicIsEnabled: stored.speech.periodicIsEnabled,
+                periodicIntervalMilliseconds:
+                    baseProfile.speech.periodicIntervalMilliseconds,
+                periodicOrder: periodicOrder,
+                behaviorChangePolicy: behaviorChangePolicy,
+                phrases: phrases,
+                theme: baseProfile.speech.theme
+            )
+        )
+    }
+
+    private static func domainProfile(
+        from stored: StoredRecommendedPetProfileV7
+    ) throws -> RecommendedPetProfile {
+        let baseProfile = try domainProfile(
+            from: StoredRecommendedPetProfileV6(
+                schemaVersion: 6,
+                behavior: stored.behavior,
+                movement: stored.movement,
+                pettingMotionID: stored.pettingMotionID,
+                automaticRules: stored.automaticRules,
+                speech: stored.speech.base
+            )
+        )
+        let preferredPosition: PetSpeechBubblePreferredPosition =
+            switch stored.speech.placement.preferredPosition {
+            case "automatic": .automatic
+            case "above": .above
+            case "below": .below
+            default:
+                throw RecommendedPetProfileError.invalidField(
+                    "speech.placement.preferredPosition"
+                )
+            }
+        let placement = PetSpeechBubblePlacementSettings(
+            preferredPosition: preferredPosition,
+            horizontalOffset:
+                stored.speech.placement.horizontalOffset,
+            gap: stored.speech.placement.gap
+        )
+        guard placement.isValid else {
+            throw RecommendedPetProfileError.invalidField(
+                "speech.placement"
+            )
+        }
+        return RecommendedPetProfile(
+            mode: baseProfile.mode,
+            manualSequenceID: baseProfile.manualSequenceID,
+            sequences: baseProfile.sequences,
+            automaticRules: baseProfile.automaticRules,
+            movement: baseProfile.movement,
+            pettingMotionID: baseProfile.pettingMotionID,
+            speech: PetSpeechSettings(
+                isEnabled: baseProfile.speech.isEnabled,
+                periodicIsEnabled:
+                    baseProfile.speech.periodicIsEnabled,
+                periodicIntervalMilliseconds:
+                    baseProfile.speech.periodicIntervalMilliseconds,
+                periodicOrder: baseProfile.speech.periodicOrder,
+                behaviorChangePolicy:
+                    baseProfile.speech.behaviorChangePolicy,
+                phrases: baseProfile.speech.phrases,
+                theme: baseProfile.speech.theme,
+                placement: placement
+            )
+        )
+    }
+
+    private static func domainTheme(
+        from stored: StoredRecommendedSpeechThemeV5
+    ) throws -> PetSpeechBubbleTheme {
+        let colorStyle: PetSpeechBubbleColorStyle =
+            switch stored.colorStyle {
+            case "system": .system
+            case "cream": .cream
+            case "midnight": .midnight
+            case "mint": .mint
+            case "peach": .peach
+            case "custom": .custom
+            default:
+                throw RecommendedPetProfileError.invalidField(
+                    "speech.theme.colorStyle"
+                )
+            }
+        let tailAlignment: PetSpeechBubbleTailAlignment =
+            switch stored.tailAlignment {
+            case "leading": .leading
+            case "center": .center
+            case "trailing": .trailing
+            default:
+                throw RecommendedPetProfileError.invalidField(
+                    "speech.theme.tailAlignment"
+                )
+            }
+        let theme = PetSpeechBubbleTheme(
+            colorStyle: colorStyle,
+            customBackgroundColor: PetSpeechColor(
+                red: stored.customBackgroundColor.red,
+                green: stored.customBackgroundColor.green,
+                blue: stored.customBackgroundColor.blue
+            ),
+            customTextColor: PetSpeechColor(
+                red: stored.customTextColor.red,
+                green: stored.customTextColor.green,
+                blue: stored.customTextColor.blue
+            ),
+            backgroundOpacity: stored.backgroundOpacity,
+            fontSize: stored.fontSize,
+            contentPadding: stored.contentPadding,
+            cornerRadius: stored.cornerRadius,
+            showsTail: stored.showsTail,
+            tailAlignment: tailAlignment
+        )
+        guard theme.isValid else {
+            throw RecommendedPetProfileError.invalidField("speech.theme")
+        }
+        return theme
     }
 
     private static func domainAnimation(
@@ -759,11 +1041,19 @@ nonisolated enum RecommendedPetProfileCodec {
 
     private static func storedSpeech(
         _ speech: PetSpeechSettings
-    ) -> StoredRecommendedSpeechV4 {
-        StoredRecommendedSpeechV4(
+    ) -> StoredRecommendedSpeechV6 {
+        StoredRecommendedSpeechV6(
             isEnabled: speech.isEnabled,
+            periodicIsEnabled: speech.periodicIsEnabled,
             periodicIntervalMilliseconds:
                 speech.periodicIntervalMilliseconds,
+            periodicOrder: speech.periodicOrder == .random
+                ? "random"
+                : "sequential",
+            behaviorChangePolicy:
+                speech.behaviorChangePolicy == .dismiss
+                ? "dismiss"
+                : "keep",
             phrases: speech.phrases.map { phrase in
                 let trigger: StoredRecommendedSpeechTriggerV4 =
                     switch phrase.trigger {
@@ -778,14 +1068,75 @@ nonisolated enum RecommendedPetProfileCodec {
                             sequenceID: sequenceID
                         )
                     }
-                return StoredRecommendedSpeechPhraseV4(
+                return StoredRecommendedSpeechPhraseV6(
                     id: phrase.id.uuidString,
                     text: phrase.text,
                     displayDurationMilliseconds:
                         phrase.displayDurationMilliseconds,
-                    trigger: trigger
+                    trigger: trigger,
+                    displayMode: phrase.displayMode == .timed
+                        ? "timed"
+                        : "untilNextPhrase"
                 )
+            },
+            theme: storedTheme(speech.theme)
+        )
+    }
+
+    private static func storedSpeechV7(
+        _ speech: PetSpeechSettings
+    ) -> StoredRecommendedSpeechV7 {
+        let placement = speech.placement
+        let preferredPosition: String =
+            switch placement.preferredPosition {
+            case .automatic: "automatic"
+            case .above: "above"
+            case .below: "below"
             }
+        return StoredRecommendedSpeechV7(
+            base: storedSpeech(speech),
+            placement: StoredRecommendedSpeechPlacementV7(
+                preferredPosition: preferredPosition,
+                horizontalOffset: placement.horizontalOffset,
+                gap: placement.gap
+            )
+        )
+    }
+
+    private static func storedTheme(
+        _ theme: PetSpeechBubbleTheme
+    ) -> StoredRecommendedSpeechThemeV5 {
+        let colorStyle: String = switch theme.colorStyle {
+        case .system: "system"
+        case .cream: "cream"
+        case .midnight: "midnight"
+        case .mint: "mint"
+        case .peach: "peach"
+        case .custom: "custom"
+        }
+        let tailAlignment: String = switch theme.tailAlignment {
+        case .leading: "leading"
+        case .center: "center"
+        case .trailing: "trailing"
+        }
+        return StoredRecommendedSpeechThemeV5(
+            colorStyle: colorStyle,
+            customBackgroundColor: StoredRecommendedSpeechColorV5(
+                red: theme.customBackgroundColor.red,
+                green: theme.customBackgroundColor.green,
+                blue: theme.customBackgroundColor.blue
+            ),
+            customTextColor: StoredRecommendedSpeechColorV5(
+                red: theme.customTextColor.red,
+                green: theme.customTextColor.green,
+                blue: theme.customTextColor.blue
+            ),
+            backgroundOpacity: theme.backgroundOpacity,
+            fontSize: theme.fontSize,
+            contentPadding: theme.contentPadding,
+            cornerRadius: theme.cornerRadius,
+            showsTail: theme.showsTail,
+            tailAlignment: tailAlignment
         )
     }
 }
@@ -827,10 +1178,119 @@ private nonisolated struct StoredRecommendedPetProfileV4: Codable {
     let speech: StoredRecommendedSpeechV4
 }
 
+private nonisolated struct StoredRecommendedPetProfileV5: Codable {
+    let schemaVersion: Int
+    let behavior: StoredRecommendedBehaviorV1
+    let movement: StoredRecommendedMovementV3
+    let pettingMotionID: String?
+    let automaticRules: [StoredRecommendedAutomaticRuleV1]
+    let speech: StoredRecommendedSpeechV5
+}
+
+private nonisolated struct StoredRecommendedPetProfileV6: Codable {
+    let schemaVersion: Int
+    let behavior: StoredRecommendedBehaviorV1
+    let movement: StoredRecommendedMovementV3
+    let pettingMotionID: String?
+    let automaticRules: [StoredRecommendedAutomaticRuleV1]
+    let speech: StoredRecommendedSpeechV6
+}
+
+private nonisolated struct StoredRecommendedPetProfileV7: Codable {
+    let schemaVersion: Int
+    let behavior: StoredRecommendedBehaviorV1
+    let movement: StoredRecommendedMovementV3
+    let pettingMotionID: String?
+    let automaticRules: [StoredRecommendedAutomaticRuleV1]
+    let speech: StoredRecommendedSpeechV7
+}
+
 private nonisolated struct StoredRecommendedSpeechV4: Codable {
     let isEnabled: Bool
     let periodicIntervalMilliseconds: Int64
     let phrases: [StoredRecommendedSpeechPhraseV4]
+}
+
+private nonisolated struct StoredRecommendedSpeechV5: Codable {
+    let isEnabled: Bool
+    let periodicIntervalMilliseconds: Int64
+    let phrases: [StoredRecommendedSpeechPhraseV4]
+    let theme: StoredRecommendedSpeechThemeV5
+}
+
+private nonisolated struct StoredRecommendedSpeechV6: Codable {
+    let isEnabled: Bool
+    let periodicIsEnabled: Bool
+    let periodicIntervalMilliseconds: Int64
+    let periodicOrder: String
+    let behaviorChangePolicy: String
+    let phrases: [StoredRecommendedSpeechPhraseV6]
+    let theme: StoredRecommendedSpeechThemeV5
+}
+
+private nonisolated struct StoredRecommendedSpeechV7: Codable {
+    let isEnabled: Bool
+    let periodicIsEnabled: Bool
+    let periodicIntervalMilliseconds: Int64
+    let periodicOrder: String
+    let behaviorChangePolicy: String
+    let phrases: [StoredRecommendedSpeechPhraseV6]
+    let theme: StoredRecommendedSpeechThemeV5
+    let placement: StoredRecommendedSpeechPlacementV7
+
+    init(
+        base: StoredRecommendedSpeechV6,
+        placement: StoredRecommendedSpeechPlacementV7
+    ) {
+        isEnabled = base.isEnabled
+        periodicIsEnabled = base.periodicIsEnabled
+        periodicIntervalMilliseconds =
+            base.periodicIntervalMilliseconds
+        periodicOrder = base.periodicOrder
+        behaviorChangePolicy = base.behaviorChangePolicy
+        phrases = base.phrases
+        theme = base.theme
+        self.placement = placement
+    }
+
+    var base: StoredRecommendedSpeechV6 {
+        StoredRecommendedSpeechV6(
+            isEnabled: isEnabled,
+            periodicIsEnabled: periodicIsEnabled,
+            periodicIntervalMilliseconds:
+                periodicIntervalMilliseconds,
+            periodicOrder: periodicOrder,
+            behaviorChangePolicy: behaviorChangePolicy,
+            phrases: phrases,
+            theme: theme
+        )
+    }
+}
+
+private nonisolated struct StoredRecommendedSpeechPlacementV7:
+    Codable
+{
+    let preferredPosition: String
+    let horizontalOffset: Double
+    let gap: Double
+}
+
+private nonisolated struct StoredRecommendedSpeechThemeV5: Codable {
+    let colorStyle: String
+    let customBackgroundColor: StoredRecommendedSpeechColorV5
+    let customTextColor: StoredRecommendedSpeechColorV5
+    let backgroundOpacity: Double
+    let fontSize: Double
+    let contentPadding: Double
+    let cornerRadius: Double
+    let showsTail: Bool
+    let tailAlignment: String
+}
+
+private nonisolated struct StoredRecommendedSpeechColorV5: Codable {
+    let red: Double
+    let green: Double
+    let blue: Double
 }
 
 private nonisolated struct StoredRecommendedSpeechPhraseV4: Codable {
@@ -838,6 +1298,14 @@ private nonisolated struct StoredRecommendedSpeechPhraseV4: Codable {
     let text: String
     let displayDurationMilliseconds: Int64
     let trigger: StoredRecommendedSpeechTriggerV4
+}
+
+private nonisolated struct StoredRecommendedSpeechPhraseV6: Codable {
+    let id: String
+    let text: String
+    let displayDurationMilliseconds: Int64
+    let trigger: StoredRecommendedSpeechTriggerV4
+    let displayMode: String
 }
 
 private nonisolated struct StoredRecommendedSpeechTriggerV4: Codable {

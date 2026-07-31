@@ -1,7 +1,7 @@
 import Foundation
 
 nonisolated enum AppSettingsLimits {
-    static let schemaVersion = 7
+    static let schemaVersion = 10
     static let maximumFileSize = 5 * 1_024 * 1_024
     static let defaultOverlayWidth = 192.0
     static let minimumOverlayWidth = 96.0
@@ -20,6 +20,25 @@ nonisolated enum AppSettingsLimits {
     static let defaultSpeechPeriodicIntervalMilliseconds: Int64 = 60_000
     static let minimumSpeechPeriodicIntervalMilliseconds: Int64 = 5_000
     static let maximumSpeechPeriodicIntervalMilliseconds: Int64 = 3_600_000
+    static let defaultSpeechBubbleBackgroundOpacity = 0.96
+    static let minimumSpeechBubbleBackgroundOpacity = 0.65
+    static let maximumSpeechBubbleBackgroundOpacity = 1.0
+    static let defaultSpeechBubbleFontSize = 14.0
+    static let minimumSpeechBubbleFontSize = 11.0
+    static let maximumSpeechBubbleFontSize = 24.0
+    static let defaultSpeechBubbleContentPadding = 12.0
+    static let minimumSpeechBubbleContentPadding = 6.0
+    static let maximumSpeechBubbleContentPadding = 24.0
+    static let defaultSpeechBubbleCornerRadius = 14.0
+    static let minimumSpeechBubbleCornerRadius = 0.0
+    static let maximumSpeechBubbleCornerRadius = 28.0
+    static let defaultSpeechBubbleGap = 8.0
+    static let minimumSpeechBubbleGap = 0.0
+    static let maximumSpeechBubbleGap = 64.0
+    static let defaultSpeechBubbleHorizontalOffset = 0.0
+    static let minimumSpeechBubbleHorizontalOffset = -160.0
+    static let maximumSpeechBubbleHorizontalOffset = 160.0
+    static let minimumSpeechBubbleTextContrastRatio = 4.5
     static let maximumRepeatCount = 100_000
     static let maximumDurationMilliseconds: Int64 = 86_400_000
     static let defaultMovementSpeed = 160.0
@@ -116,9 +135,286 @@ nonisolated enum CursorAvoidingIdleBehavior: Hashable, Sendable {
     case freeRoaming
 }
 
+nonisolated enum PetSpeechBubbleColorStyle:
+    Hashable,
+    CaseIterable,
+    Sendable
+{
+    case system
+    case cream
+    case midnight
+    case mint
+    case peach
+    case custom
+
+    var displayName: String {
+        switch self {
+        case .system: "시스템"
+        case .cream: "크림"
+        case .midnight: "밤"
+        case .mint: "민트"
+        case .peach: "복숭아"
+        case .custom: "사용자 지정"
+        }
+    }
+}
+
+nonisolated enum PetSpeechBubbleTailAlignment:
+    Hashable,
+    CaseIterable,
+    Sendable
+{
+    case leading
+    case center
+    case trailing
+
+    var displayName: String {
+        switch self {
+        case .leading: "왼쪽"
+        case .center: "가운데"
+        case .trailing: "오른쪽"
+        }
+    }
+}
+
+nonisolated enum PetSpeechBubblePreferredPosition:
+    Hashable,
+    CaseIterable,
+    Sendable
+{
+    case automatic
+    case above
+    case below
+
+    var displayName: String {
+        switch self {
+        case .automatic: "자동"
+        case .above: "위"
+        case .below: "아래"
+        }
+    }
+}
+
+nonisolated struct PetSpeechBubblePlacementSettings:
+    Equatable,
+    Sendable
+{
+    let preferredPosition: PetSpeechBubblePreferredPosition
+    let horizontalOffset: Double
+    let gap: Double
+
+    static let `default` = PetSpeechBubblePlacementSettings(
+        preferredPosition: .automatic,
+        horizontalOffset:
+            AppSettingsLimits.defaultSpeechBubbleHorizontalOffset,
+        gap: AppSettingsLimits.defaultSpeechBubbleGap
+    )
+
+    var isValid: Bool {
+        horizontalOffset.isFinite
+            && (AppSettingsLimits.minimumSpeechBubbleHorizontalOffset
+                ... AppSettingsLimits.maximumSpeechBubbleHorizontalOffset)
+                .contains(horizontalOffset)
+            && gap.isFinite
+            && (AppSettingsLimits.minimumSpeechBubbleGap
+                ... AppSettingsLimits.maximumSpeechBubbleGap)
+                .contains(gap)
+    }
+}
+
+nonisolated struct PetSpeechColor: Equatable, Sendable {
+    let red: Double
+    let green: Double
+    let blue: Double
+
+    static let white = PetSpeechColor(red: 1, green: 1, blue: 1)
+    static let black = PetSpeechColor(red: 0, green: 0, blue: 0)
+
+    var isValid: Bool {
+        red.isFinite && green.isFinite && blue.isFinite
+            && (0...1).contains(red)
+            && (0...1).contains(green)
+            && (0...1).contains(blue)
+    }
+
+    func contrastRatio(with other: PetSpeechColor) -> Double {
+        let lighter = max(relativeLuminance, other.relativeLuminance)
+        let darker = min(relativeLuminance, other.relativeLuminance)
+        return (lighter + 0.05) / (darker + 0.05)
+    }
+
+    static func preferredTextColor(
+        for background: PetSpeechColor
+    ) -> PetSpeechColor {
+        background.contrastRatio(with: .black)
+            >= background.contrastRatio(with: .white)
+            ? .black
+            : .white
+    }
+
+    private var relativeLuminance: Double {
+        0.2126 * linearized(red)
+            + 0.7152 * linearized(green)
+            + 0.0722 * linearized(blue)
+    }
+
+    private func linearized(_ component: Double) -> Double {
+        component <= 0.04045
+            ? component / 12.92
+            : pow((component + 0.055) / 1.055, 2.4)
+    }
+}
+
+nonisolated struct PetSpeechBubbleTheme: Equatable, Sendable {
+    let colorStyle: PetSpeechBubbleColorStyle
+    let customBackgroundColor: PetSpeechColor
+    let customTextColor: PetSpeechColor
+    let backgroundOpacity: Double
+    let fontSize: Double
+    let contentPadding: Double
+    let cornerRadius: Double
+    let showsTail: Bool
+    let tailAlignment: PetSpeechBubbleTailAlignment
+
+    init(
+        colorStyle: PetSpeechBubbleColorStyle,
+        customBackgroundColor: PetSpeechColor = .white,
+        customTextColor: PetSpeechColor = .black,
+        backgroundOpacity: Double =
+            AppSettingsLimits.defaultSpeechBubbleBackgroundOpacity,
+        fontSize: Double = AppSettingsLimits.defaultSpeechBubbleFontSize,
+        contentPadding: Double =
+            AppSettingsLimits.defaultSpeechBubbleContentPadding,
+        cornerRadius: Double =
+            AppSettingsLimits.defaultSpeechBubbleCornerRadius,
+        showsTail: Bool = false,
+        tailAlignment: PetSpeechBubbleTailAlignment = .center
+    ) {
+        self.colorStyle = colorStyle
+        self.customBackgroundColor = customBackgroundColor
+        self.customTextColor = customTextColor
+        self.backgroundOpacity = backgroundOpacity
+        self.fontSize = fontSize
+        self.contentPadding = contentPadding
+        self.cornerRadius = cornerRadius
+        self.showsTail = showsTail
+        self.tailAlignment = tailAlignment
+    }
+
+    static let `default` = PetSpeechBubbleTheme(colorStyle: .system)
+
+    var isValid: Bool {
+        guard
+            customBackgroundColor.isValid,
+            customTextColor.isValid,
+            backgroundOpacity.isFinite,
+            fontSize.isFinite,
+            contentPadding.isFinite,
+            cornerRadius.isFinite,
+            (AppSettingsLimits.minimumSpeechBubbleBackgroundOpacity
+                ... AppSettingsLimits.maximumSpeechBubbleBackgroundOpacity)
+                .contains(backgroundOpacity),
+            (AppSettingsLimits.minimumSpeechBubbleFontSize
+                ... AppSettingsLimits.maximumSpeechBubbleFontSize)
+                .contains(fontSize),
+            (AppSettingsLimits.minimumSpeechBubbleContentPadding
+                ... AppSettingsLimits.maximumSpeechBubbleContentPadding)
+                .contains(contentPadding),
+            (AppSettingsLimits.minimumSpeechBubbleCornerRadius
+                ... AppSettingsLimits.maximumSpeechBubbleCornerRadius)
+                .contains(cornerRadius)
+        else {
+            return false
+        }
+        return colorStyle != .custom
+            || customBackgroundColor.contrastRatio(with: customTextColor)
+                >= AppSettingsLimits.minimumSpeechBubbleTextContrastRatio
+    }
+
+    var presetColors: (
+        background: PetSpeechColor,
+        text: PetSpeechColor
+    )? {
+        switch colorStyle {
+        case .system:
+            nil
+        case .cream:
+            (
+                PetSpeechColor(red: 1.0, green: 0.95, blue: 0.82),
+                PetSpeechColor(red: 0.22, green: 0.14, blue: 0.08)
+            )
+        case .midnight:
+            (
+                PetSpeechColor(red: 0.10, green: 0.14, blue: 0.23),
+                PetSpeechColor(red: 0.96, green: 0.97, blue: 1.0)
+            )
+        case .mint:
+            (
+                PetSpeechColor(red: 0.84, green: 0.96, blue: 0.89),
+                PetSpeechColor(red: 0.06, green: 0.25, blue: 0.16)
+            )
+        case .peach:
+            (
+                PetSpeechColor(red: 1.0, green: 0.86, blue: 0.78),
+                PetSpeechColor(red: 0.35, green: 0.12, blue: 0.06)
+            )
+        case .custom:
+            (customBackgroundColor, customTextColor)
+        }
+    }
+}
+
 nonisolated enum PetSpeechTrigger: Hashable, Sendable {
     case periodic
     case sequence(String)
+}
+
+nonisolated enum PetSpeechDisplayMode:
+    Hashable,
+    CaseIterable,
+    Sendable
+{
+    case timed
+    case untilNextPhrase
+
+    var displayName: String {
+        switch self {
+        case .timed: "시간 지정"
+        case .untilNextPhrase: "다음 대사까지 유지"
+        }
+    }
+}
+
+nonisolated enum PetSpeechBehaviorChangePolicy:
+    Hashable,
+    CaseIterable,
+    Sendable
+{
+    case dismiss
+    case keep
+
+    var displayName: String {
+        switch self {
+        case .dismiss: "현재 말풍선 닫기"
+        case .keep: "현재 말풍선 유지"
+        }
+    }
+}
+
+nonisolated enum PetSpeechPeriodicOrder:
+    Hashable,
+    CaseIterable,
+    Sendable
+{
+    case random
+    case sequential
+
+    var displayName: String {
+        switch self {
+        case .random: "무작위"
+        case .sequential: "순차"
+        }
+    }
 }
 
 nonisolated struct PetSpeechPhrase: Equatable, Identifiable, Sendable {
@@ -126,18 +422,21 @@ nonisolated struct PetSpeechPhrase: Equatable, Identifiable, Sendable {
     let text: String
     let displayDurationMilliseconds: Int64
     let trigger: PetSpeechTrigger
+    let displayMode: PetSpeechDisplayMode
 
     init(
         id: UUID = UUID(),
         text: String,
         displayDurationMilliseconds: Int64 =
             AppSettingsLimits.defaultSpeechDisplayDurationMilliseconds,
-        trigger: PetSpeechTrigger = .periodic
+        trigger: PetSpeechTrigger = .periodic,
+        displayMode: PetSpeechDisplayMode = .timed
     ) {
         self.id = id
         self.text = text
         self.displayDurationMilliseconds = displayDurationMilliseconds
         self.trigger = trigger
+        self.displayMode = displayMode
     }
 
     var isValid: Bool {
@@ -167,28 +466,59 @@ nonisolated struct PetSpeechPhrase: Equatable, Identifiable, Sendable {
 
 nonisolated struct PetSpeechSettings: Equatable, Sendable {
     let isEnabled: Bool
+    let periodicIsEnabled: Bool
     let periodicIntervalMilliseconds: Int64
+    let periodicOrder: PetSpeechPeriodicOrder
+    let behaviorChangePolicy: PetSpeechBehaviorChangePolicy
     let phrases: [PetSpeechPhrase]
+    let theme: PetSpeechBubbleTheme
+    let placement: PetSpeechBubblePlacementSettings
 
     init(
         isEnabled: Bool,
+        periodicIsEnabled: Bool = true,
         periodicIntervalMilliseconds: Int64 =
             AppSettingsLimits.defaultSpeechPeriodicIntervalMilliseconds,
-        phrases: [PetSpeechPhrase]
+        periodicOrder: PetSpeechPeriodicOrder = .random,
+        behaviorChangePolicy: PetSpeechBehaviorChangePolicy = .dismiss,
+        phrases: [PetSpeechPhrase],
+        theme: PetSpeechBubbleTheme = .default,
+        placement: PetSpeechBubblePlacementSettings = .default
     ) {
         self.isEnabled = isEnabled
+        self.periodicIsEnabled = periodicIsEnabled
         self.periodicIntervalMilliseconds = periodicIntervalMilliseconds
+        self.periodicOrder = periodicOrder
+        self.behaviorChangePolicy = behaviorChangePolicy
         self.phrases = phrases
+        self.theme = theme
+        self.placement = placement
     }
 
     static let `default` = PetSpeechSettings(
         isEnabled: false,
+        periodicIsEnabled: false,
         phrases: []
     )
+
+    var periodicPhrases: [PetSpeechPhrase] {
+        phrases.filter { $0.trigger == .periodic }
+    }
+
+    var behaviorPhrases: [PetSpeechPhrase] {
+        phrases.filter {
+            if case .sequence = $0.trigger {
+                return true
+            }
+            return false
+        }
+    }
 
     var isValid: Bool {
         guard
             phrases.count <= AppSettingsLimits.maximumSpeechPhrases,
+            theme.isValid,
+            placement.isValid,
             (AppSettingsLimits.minimumSpeechPeriodicIntervalMilliseconds
                 ... AppSettingsLimits.maximumSpeechPeriodicIntervalMilliseconds)
                 .contains(periodicIntervalMilliseconds),

@@ -8,6 +8,8 @@
 
 | 상태 | 작업명 | 파일 | 마지막 갱신 |
 | --- | --- | --- | --- |
+| in_progress | 행동 대사 우선순위와 주기 대사 목록 분리 | `tasks/2026-07-31-speech-priority-and-periodic-list.md` | 2026-07-31 |
+| in_progress | 말풍선 테마 커스텀 | `tasks/2026-07-30-speech-bubble-themes.md` | 2026-07-31 |
 | in_progress | 펫별 말풍선 1차 기능 | `tasks/2026-07-30-speech-bubbles.md` | 2026-07-30 |
 | in_progress | 스프라이트 시트 애니메이션 가져오기 | `tasks/2026-07-27-sprite-sheet-animation-import.md` | 2026-07-28 |
 | in_progress | Phase 10 공개 준비와 이동 성능 보완 | `tasks/2026-07-24-phase-10-release-preparation.md` | 2026-07-26 |
@@ -16,9 +18,7 @@
 
 ## 계획됨
 
-| 상태 | 작업명 | 파일 | 마지막 갱신 |
-| --- | --- | --- | --- |
-| planned | 말풍선 테마 커스텀 | `tasks/2026-07-30-speech-bubble-themes.md` | 2026-07-30 |
+현재 계획만 작성된 작업은 없다.
 
 ## 보류 / 대기
 
@@ -30,6 +30,7 @@
 
 | 상태 | 작업명 | 파일 | 완료일 |
 | --- | --- | --- | --- |
+| completed | 말풍선 배치·다중 화면 도망·즉시 행동 전환 | `tasks/2026-07-31-speech-placement-escape-and-immediate-behavior.md` | 2026-07-31 |
 | completed | 마우스 도망가기 이동 모드 | `tasks/2026-07-30-cursor-avoiding-movement.md` | 2026-07-30 |
 | completed | Phase 9C 방향별 이동 애니메이션 | `tasks/2026-07-29-directional-movement-animations.md` | 2026-07-30 |
 | completed | 호버 쓰다듬기 상호작용 | `tasks/2026-07-29-hover-petting-interaction.md` | 2026-07-29 |

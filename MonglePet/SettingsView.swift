@@ -45,6 +45,7 @@ struct SettingsView: View {
 
             SpeechBubbleSettingsView(
                 settingsSession: settingsSession,
+                petItem: petLibrarySession.selectedItem,
                 petDisplayName:
                     petLibrarySession.selectedItem.metadata.displayName
             )
@@ -2014,8 +2015,29 @@ private struct RecommendedProfileSummaryView: View {
                 informationRow(
                     "말풍선",
                     value: summary.speech.isEnabled
-                        ? "사용 · 대사 \(summary.speech.phrases.count)개"
-                        : "사용 안 함 · 대사 \(summary.speech.phrases.count)개"
+                        ? "사용 · \(summary.speech.theme.colorStyle.displayName) 테마"
+                        : "사용 안 함 · \(summary.speech.theme.colorStyle.displayName) 테마"
+                )
+                informationRow(
+                    "말풍선 위치",
+                    value:
+                        "\(summary.speech.placement.preferredPosition.displayName) · "
+                        + "좌우 \(Int(summary.speech.placement.horizontalOffset.rounded()))pt · "
+                        + "간격 \(Int(summary.speech.placement.gap.rounded()))pt"
+                )
+                informationRow(
+                    "행동 대사",
+                    value:
+                        "\(summary.speech.behaviorPhrases.count)개 · "
+                        + "전환 시 \(summary.speech.behaviorChangePolicy.displayName)"
+                )
+                informationRow(
+                    "주기 대사",
+                    value: summary.speech.periodicIsEnabled
+                        ? "\(summary.speech.periodicPhrases.count)개 · "
+                            + "\(summary.speech.periodicOrder.displayName) · "
+                            + speechIntervalDescription
+                        : "사용 안 함 · \(summary.speech.periodicPhrases.count)개"
                 )
             }
 
@@ -2227,6 +2249,15 @@ private struct RecommendedProfileSummaryView: View {
                 }
             }
         }
+    }
+
+    private var speechIntervalDescription: String {
+        let seconds =
+            summary.speech.periodicIntervalMilliseconds / 1_000
+        if seconds >= 60, seconds.isMultiple(of: 60) {
+            return "\(seconds / 60)분 간격"
+        }
+        return "\(seconds)초 간격"
     }
 
     private func animationStyleName(

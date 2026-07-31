@@ -39,6 +39,57 @@ final class PetSpeechBubblePlacementTests: XCTestCase {
         XCTAssertEqual(origin, point(0, 562))
     }
 
+    func testPlacementReportsTailEdgeFacingPet() {
+        let above = PetSpeechBubblePlacement.placement(
+            parentFrame: rect(400, 200, 200, 180),
+            bubbleSize: size(240, 80),
+            visibleFrame: rect(0, 0, 1_000, 800)
+        )
+        let below = PetSpeechBubblePlacement.placement(
+            parentFrame: rect(0, 650, 160, 140),
+            bubbleSize: size(240, 80),
+            visibleFrame: rect(0, 0, 1_000, 800)
+        )
+
+        XCTAssertEqual(above.tailEdge, .bottom)
+        XCTAssertEqual(below.tailEdge, .top)
+        XCTAssertNil(above.tailAnchorX)
+        XCTAssertEqual(below.tailAnchorX, 80)
+    }
+
+    func testPreferredBelowPlacementUsesCustomGapAndOffset() {
+        let placement = PetSpeechBubblePlacement.placement(
+            parentFrame: rect(400, 300, 200, 180),
+            bubbleSize: size(240, 80),
+            visibleFrame: rect(0, 0, 1_000, 800),
+            settings: PetSpeechBubblePlacementSettings(
+                preferredPosition: .below,
+                horizontalOffset: 60,
+                gap: 24
+            )
+        )
+
+        XCTAssertEqual(placement.origin, point(440, 196))
+        XCTAssertEqual(placement.tailEdge, .top)
+        XCTAssertEqual(placement.tailAnchorX, 60)
+    }
+
+    func testPlacementClampsOffsetAndKeepsTailPointingAtPet() {
+        let placement = PetSpeechBubblePlacement.placement(
+            parentFrame: rect(0, 200, 160, 140),
+            bubbleSize: size(220, 70),
+            visibleFrame: rect(0, 0, 1_000, 800),
+            settings: PetSpeechBubblePlacementSettings(
+                preferredPosition: .above,
+                horizontalOffset: -120,
+                gap: 16
+            )
+        )
+
+        XCTAssertEqual(placement.origin, point(0, 356))
+        XCTAssertEqual(placement.tailAnchorX, 80)
+    }
+
     func testSupportsNegativeCoordinateDisplay() {
         let origin = PetSpeechBubblePlacement.origin(
             parentFrame: rect(-1_150, 100, 160, 140),

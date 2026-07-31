@@ -414,6 +414,41 @@ final class PetMovementControllerTests: XCTestCase {
         XCTAssertEqual(fixture.scheduler.scheduledDelay, .milliseconds(33))
     }
 
+    func testStationaryCursorAvoidingCanEscapeToAdjacentDisplay() {
+        let fixture = Fixture()
+        fixture.origin = point(840, 300)
+        fixture.pointer = point(700, 350)
+        fixture.screens = [
+            screen("main", 0, 0, 1_000, 800),
+            screen("right", 1_000, 0, 1_000, 800)
+        ]
+        fixture.controller.update(
+            settings: fixture.settings(
+                mode: .cursorAvoiding,
+                stopRadius: 0,
+                avoidingIdleBehavior: .stationary,
+                avoidingDistance: 160,
+                avoidingSpeed: 100,
+                avoidingAnimation: .single("escape")
+            ),
+            isMovementAllowed: true
+        )
+
+        fixture.clock.advance(by: .seconds(1))
+        fixture.scheduler.fire()
+        XCTAssertEqual(fixture.origin, point(900, 300))
+
+        fixture.clock.advance(by: .seconds(1))
+        fixture.scheduler.fire()
+
+        XCTAssertEqual(fixture.origin, point(1_000, 300))
+        XCTAssertEqual(
+            fixture.controller.state,
+            .cursorAvoidingEscaping
+        )
+        XCTAssertEqual(fixture.controller.activity, movement("escape"))
+    }
+
     func testCursorAvoidingReturnsToStationaryAfterReleaseDistance() {
         let fixture = Fixture()
         fixture.origin = point(300, 300)
