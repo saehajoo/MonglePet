@@ -29,6 +29,8 @@
 
 | 상태 | 작업명 | 파일 | 완료일 |
 | --- | --- | --- | --- |
+| completed | 웹 커뮤니티 인계 지침 | `tasks/2026-07-31-web-community-handoff.md` | 2026-07-31 |
+| completed | macOS·Windows 플랫폼 디렉터리 분리 | `tasks/2026-07-31-platform-directory-split.md` | 2026-07-31 |
 | completed | 스프라이트 시트 애니메이션 가져오기 | `tasks/2026-07-27-sprite-sheet-animation-import.md` | 2026-07-31 |
 | completed | 입력 없음 규칙 즉시 해제 | `tasks/2026-07-31-immediate-idle-rule-exit.md` | 2026-07-31 |
 | completed | 상태 메뉴 빠른 제어 | `tasks/2026-07-31-status-menu-quick-controls.md` | 2026-07-31 |

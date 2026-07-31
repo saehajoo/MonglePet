@@ -3,6 +3,8 @@
 이 문서는 Mac App Store 밖에서 MonglePet Preview를 배포하는 두 경로를
 구분합니다.
 
+아래 명령은 저장소 루트에서 실행합니다.
+
 - **Preview ZIP**: 미서명·미공증 제한 테스트 파일
 - **Developer ID DMG**: Developer ID로 서명하고 Apple 공증을 완료한 배포 파일
 
@@ -34,7 +36,7 @@ Apple 공증과 티켓 부착이 모두 필요합니다.
 ## 미서명 Preview ZIP
 
 ```sh
-Scripts/build-preview-zip.zsh
+apps/macos/Scripts/build-preview-zip.zsh
 ```
 
 스크립트는 Release 앱을 코드서명 없이 빌드하고 `dist/`에 다음 파일을
@@ -82,7 +84,7 @@ xcrun notarytool store-credentials "MonglePet-Notary"
 SIGNING_IDENTITY="Developer ID Application: 이름 (TEAMID)" \
 DEVELOPMENT_TEAM="TEAMID" \
 NOTARY_PROFILE="MonglePet-Notary" \
-Scripts/build-notarized-dmg.zsh
+apps/macos/Scripts/build-notarized-dmg.zsh
 ```
 
 스크립트는 다음 순서로 실행됩니다.

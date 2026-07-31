@@ -2,7 +2,50 @@
 
 ## 목표
 
-MonglePet은 상시 실행되는 macOS 앱이므로 제품 규칙, 시스템 감지, 애니메이션 재생, 창 표시와 저장을 분리한다. 핵심 도메인 로직은 운영체제 API 없이 테스트할 수 있어야 한다.
+MonglePet은 플랫폼별로 상시 실행되는 네이티브 앱이므로 제품 규칙, 시스템 감지, 애니메이션 재생, 창 표시와 저장을 분리한다. 핵심 도메인 규칙은 운영체제 API 없이 테스트할 수 있어야 하며 플랫폼 사이에는 소스 코드 대신 데이터 규격과 검증 시나리오를 공유한다.
+
+## 저장소 구조
+
+```text
+MonglePet/
+├── apps/
+│   ├── macos/
+│   │   ├── MonglePet.xcodeproj
+│   │   ├── MonglePet/
+│   │   ├── MonglePetTests/
+│   │   ├── MonglePetUITests/
+│   │   └── Scripts/
+│   └── windows/
+├── shared/
+│   └── Samples/
+├── AGENTS/
+└── AGENTS.md
+```
+
+- macOS와 Windows는 독립적인 네이티브 프로젝트, UI, 시스템 adapter와 배포 체계를 사용한다.
+- 루트 `AGENTS/`는 제품 정의, 공통 데이터 명세와 장기 작업 계획을 관리한다.
+- `shared/`에는 `.monglepet` 샘플과 후속 스키마 fixture·공통 시나리오만 둔다.
+- 화면 좌표, 모니터 식별자와 운영체제별 앱 식별자는 공유 데이터로 취급하지 않는다.
+- 아래 기본 구조와 계층 책임은 현재 구현된 `apps/macos/` 앱을 기준으로 한다.
+
+### Windows 후속 구조
+
+- Windows 앱은 C#·.NET과 Windows App SDK를 기반으로 구현하고 설정 및 일반 앱 UI에는 WinUI 3를 사용한다.
+- 펫 오버레이는 WinUI 창이나 WPF 투명 창에 종속시키지 않고 별도 Win32 `HWND`로 구성한다. 투명·비활성·항상 위·클릭 통과와 다중 모니터 창 정책은 명시적인 Win32 adapter가 담당한다.
+- 펫 프레임, 이동과 말풍선은 `Microsoft.UI.Composition` Visual layer로 합성해 하드웨어 가속과 UI 스레드 독립 애니메이션을 우선한다.
+- notification area, 전면 앱, 입력 없음과 모니터 감지는 Win32 경계로 분리하고 C#에서는 CsWin32 기반의 타입 안전한 interop을 우선한다.
+- 행동 규칙, 패키지, 설정과 마이그레이션은 관리형 C# 계층에 유지한다.
+- WPF layered window는 구현 기준이 아니라 초기 성능 비교 또는 Composition 방식의 치명적인 호환성 문제가 확인된 경우의 대안으로만 검토한다.
+- C++/WinRT는 프로파일링으로 확인한 렌더링·디코딩·메모리 복사 병목이 C#과 Composition 최적화 후에도 성능 기준을 넘는 경우에만 독립 네이티브 모듈로 검토한다.
+
+### 웹 커뮤니티 경계
+
+- 웹 커뮤니티는 MonglePet 저장소의 `apps/` 아래에 추가하지 않고 별도 Git 저장소, 데이터베이스와 배포 체계를 사용한다.
+- MonglePet 저장소는 `.monglepet`, 권장 프로필, JSON Schema와 정상·오류·악성 fixture의 단일 원본이다.
+- 웹 저장소에는 계약의 원본 Git commit과 schema 버전을 명시한 사본만 전달하고 서버에서 규격을 독자적으로 확장하지 않는다.
+- 업로드된 패키지는 비공개 quarantine에서 서버가 다시 검사하고 검증된 immutable 원본과 웹용 파생 미리보기를 분리해 저장한다.
+- 데스크톱 앱은 향후 catalog API를 사용하더라도 다운로드한 패키지의 기존 로컬 검증을 생략하지 않는다.
+- 상세 서비스·보안·배포 경계는 `../guides/WEB_COMMUNITY_HANDOFF.md`를 따른다.
 
 ## 기본 구조
 

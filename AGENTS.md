@@ -8,7 +8,7 @@
 
 ## 프로젝트 소개
 
-MonglePet은 macOS 데스크톱 위에 반려 캐릭터를 표시하고 사용자의 설정과 작업 상황에 따라 애니메이션을 전환하는 네이티브 데스크톱 펫 애플리케이션이다.
+MonglePet은 데스크톱 위에 반려 캐릭터를 표시하고 사용자의 설정과 작업 상황에 따라 애니메이션을 전환하는 네이티브 데스크톱 펫 애플리케이션이다. 현재 macOS 앱을 먼저 개발하고 있으며 Windows 앱은 같은 저장소의 독립 네이티브 프로젝트로 후속 구현한다.
 
 사용자는 펫을 깨우거나 재우고 자동 또는 수동 행동 모드를 선택할 수 있다. 자동 모드에서는 현재 사용 중인 앱과 유휴 시간을 바탕으로 행동을 결정하고, 수동 모드에서는 현재 펫에 맞게 구성한 애니메이션 목록을 반복한다.
 
@@ -18,23 +18,23 @@ MonglePet은 macOS 데스크톱 위에 반려 캐릭터를 표시하고 사용�
 
 - 제품명: **MonglePet** / **몽글펫**
 - 기본 캐릭터: **몽글이**
-- 초기 플랫폼: **macOS 14 이상**
-- 언어: **Swift 6**
-- UI 및 시스템 연동: **SwiftUI, AppKit, Core Animation**
-- 테스트: **XCTest, XCUITest**
-- Bundle Identifier: `kr.mapleroom.MonglePet`
+- 현재 플랫폼: **macOS 14 이상**
+- macOS: **Swift 6, SwiftUI, AppKit, Core Animation, XCTest, XCUITest**
+- macOS Bundle Identifier: `kr.mapleroom.MonglePet`
+- Windows: **C#, .NET, WinUI 3**, 펫 오버레이는 별도 Win32 `HWND`와 `Microsoft.UI.Composition` 사용
 - 저장 방식: SwiftData를 사용하지 않는 버전이 지정된 JSON 및 파일 기반 로컬 저장소
-- 후속 플랫폼: macOS 버전 안정화 후 Windows 앱을 별도 개발
+- 저장소 구조: `apps/macos`, `apps/windows`, `shared`
 
 ## 핵심 개발 원칙
 
-- macOS 네이티브 기술을 우선하고 Electron, WebView, Unity 같은 상시 실행 런타임을 사용하지 않는다.
-- 도메인 로직은 AppKit과 파일 시스템에서 분리해 단위 테스트할 수 있게 만든다.
+- 각 플랫폼의 네이티브 기술을 우선하고 Electron, WebView, Unity 같은 상시 실행 런타임을 사용하지 않는다.
+- 도메인 로직은 플랫폼 UI와 파일 시스템에서 분리해 단위 테스트할 수 있게 만든다.
 - 상시 실행 앱에 맞게 CPU, 메모리, 불필요한 프레임 갱신을 최소화한다.
 - 사용자 활동 정보는 로컬에서 필요한 최소 범위만 처리한다.
 - 외부 펫 패키지에는 이미지와 JSON 데이터만 허용하고 실행 코드나 스크립트를 허용하지 않는다.
 - 유사 프로젝트는 기능과 UX 참고 자료로만 사용하고 소스 코드나 저장소 구조를 복사하지 않는다.
-- Windows 구현과 공유할 부분은 데이터 스키마와 테스트 시나리오로 제한한다.
+- 플랫폼 간 공유는 `.monglepet` 규격, 데이터 스키마, fixture와 테스트 시나리오로 제한한다.
+- macOS와 Windows 앱은 독립적인 프로젝트·소스·배포 체계를 유지한다.
 
 ## 문서 라우팅
 
@@ -44,12 +44,17 @@ MonglePet은 macOS 데스크톱 위에 반려 캐릭터를 표시하고 사용�
 | 제품 목표, 기능 범위, 개인정보 원칙 판단 | `AGENTS/project/PRODUCT.md` |
 | 구조 설계, 계층 분리, 저장소 구현 | `AGENTS/project/ARCHITECTURE.md` |
 | 다음 개발 단계와 완료 조건 확인 | `AGENTS/project/ROADMAP.md` |
+| macOS 우선 개발과 Windows 기능 동등성 현황 | `AGENTS/project/PLATFORM_PARITY.md` |
 | 테스트 작성, 빌드 검증, 성능 QA | `AGENTS/project/TESTING.md` |
 | 확정된 기술·제품 결정 확인 | `AGENTS/project/DECISIONS.md` |
 | 자동·수동 행동 엔진 작업 | `AGENTS/specifications/BEHAVIOR_MODEL.md` |
 | 펫 등록, 패키지, 가져오기 작업 | `AGENTS/specifications/PET_PACKAGE.md` |
 | 설정 저장, 복원, 스키마 마이그레이션 | `AGENTS/specifications/SETTINGS_SCHEMA.md` |
 | 큰 기능, 다중 파일 변경, 장기 작업 | `AGENTS/guides/DEVELOPMENT_WORKFLOW.md`와 `AGENTS/work_plans/INDEX.md` |
+| 웹 펫 공유 커뮤니티 설계·인계 | `AGENTS/guides/WEB_COMMUNITY_HANDOFF.md` |
+| macOS 앱, Xcode, 배포 자동화 | `apps/macos/AGENTS.md` |
+| Windows 앱 설계·구현 | `apps/windows/AGENTS.md` |
+| 플랫폼 공통 샘플·fixture | `shared/README.md` |
 
 ## 작업 규칙
 
@@ -61,13 +66,15 @@ MonglePet은 macOS 데스크톱 위에 반려 캐릭터를 표시하고 사용�
 6. 명세를 추가하거나 이동하면 `AGENTS/INDEX.md`와 이 파일의 문서 라우팅을 함께 확인한다.
 7. 코드 변경 후 가장 좁은 관련 테스트부터 실행하고 필요에 따라 전체 빌드와 UI 테스트로 확장한다.
 8. 앱 코드는 사용자가 구현이나 수정을 요청했을 때 변경한다. 검토 요청은 읽기와 분석을 우선한다.
+9. 신규 기능과 수정은 macOS 기준 구현에서 먼저 완료하고, 공통 규격과 검증 시나리오를 정리한 뒤 Windows 네이티브 앱에 후속 반영한다.
+10. macOS 기능을 완료하거나 Windows에 반영하면 `AGENTS/project/PLATFORM_PARITY.md`의 진행 현황을 함께 갱신한다.
 
 ## 기본 검증 명령
 
 Debug 빌드:
 
 ```sh
-xcodebuild -project MonglePet.xcodeproj \
+xcodebuild -project apps/macos/MonglePet.xcodeproj \
   -scheme MonglePet \
   -configuration Debug \
   -destination 'platform=macOS' \
@@ -79,7 +86,7 @@ xcodebuild -project MonglePet.xcodeproj \
 단위 테스트:
 
 ```sh
-xcodebuild -project MonglePet.xcodeproj \
+xcodebuild -project apps/macos/MonglePet.xcodeproj \
   -scheme MonglePet \
   -configuration Debug \
   -destination 'platform=macOS' \

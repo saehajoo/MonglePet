@@ -1,8 +1,9 @@
 # MonglePet
 
-MonglePet(몽글펫)은 macOS 데스크톱 위에서 움직이는 반려 캐릭터를 표시하는
-네이티브 메뉴 막대 앱입니다. 현재 앱은 기능과 배포 절차를 검증하는
-**Preview** 단계입니다.
+MonglePet(몽글펫)은 데스크톱 위에서 움직이는 반려 캐릭터를 표시하는
+네이티브 데스크톱 펫 프로젝트입니다. 현재 macOS 메뉴 막대 앱을 먼저
+개발하고 있으며 기능과 배포 절차를 검증하는 **Preview** 단계입니다.
+Windows 앱은 같은 저장소에서 독립적인 네이티브 프로젝트로 후속 개발합니다.
 
 ## 주요 기능
 
@@ -18,7 +19,7 @@ MonglePet(몽글펫)은 macOS 데스크톱 위에서 움직이는 반려 캐릭�
 MonglePet은 Dock 아이콘 없이 메뉴 막대에서 실행됩니다. 앱 메뉴의 설정에서
 펫과 행동, 이동 방식을 관리할 수 있습니다.
 
-## 시스템 요구사항
+## 현재 macOS 시스템 요구사항
 
 - macOS 14 Sonoma 이상
 - Apple silicon 또는 Intel Mac
@@ -67,16 +68,32 @@ MonglePet은 행동 결정을 위해 다음 정보만 기기 안에서 일시적
 호환성 규칙은 [PET_PACKAGE.md](AGENTS/specifications/PET_PACKAGE.md)를
 참고하세요.
 
-저장소의 `Samples/ReadOnlySample.monglepet`은 가져오기 검증용 테스트
+저장소의 `shared/Samples/ReadOnlySample.monglepet`은 가져오기 검증용 테스트
 샘플이며 배포용 펫이 아닙니다.
 
-## 개발
+## 저장소 구조
+
+```text
+MonglePet/
+├── apps/
+│   ├── macos/       # 현재 Swift·AppKit 앱
+│   └── windows/     # 후속 Windows 네이티브 앱
+├── shared/          # 공통 패키지 샘플과 향후 schema fixture
+├── AGENTS/          # 제품·아키텍처·명세·작업 계획
+└── AGENTS.md        # 저장소 공통 작업 지침
+```
+
+두 플랫폼은 UI와 운영체제 연동 코드를 공유하지 않습니다. `.monglepet`
+패키지 규격, 권장 프로필, 데이터 fixture와 공통 테스트 시나리오만
+공유합니다.
+
+## macOS 개발
 
 현재 기준 환경은 Xcode 26.6, Swift 6이며 프로젝트는 macOS 14 이상을
 대상으로 합니다.
 
 ```sh
-xcodebuild -project MonglePet.xcodeproj \
+xcodebuild -project apps/macos/MonglePet.xcodeproj \
   -scheme MonglePet \
   -configuration Debug \
   -destination 'platform=macOS' \
@@ -86,7 +103,7 @@ xcodebuild -project MonglePet.xcodeproj \
 ```
 
 ```sh
-xcodebuild -project MonglePet.xcodeproj \
+xcodebuild -project apps/macos/MonglePet.xcodeproj \
   -scheme MonglePet \
   -configuration Debug \
   -destination 'platform=macOS' \
@@ -97,8 +114,10 @@ xcodebuild -project MonglePet.xcodeproj \
 ```
 
 작업 전에는 [AGENTS.md](AGENTS.md)와 작업 유형에 맞는 `AGENTS/` 문서를
-먼저 확인합니다. 배포 파일 생성 절차는 [DISTRIBUTION.md](DISTRIBUTION.md)에
-정리되어 있습니다.
+먼저 확인합니다. macOS 전용 지침은
+[apps/macos/AGENTS.md](apps/macos/AGENTS.md), 배포 파일 생성 절차는
+[apps/macos/DISTRIBUTION.md](apps/macos/DISTRIBUTION.md)에 정리되어
+있습니다.
 
 ## 라이선스
 

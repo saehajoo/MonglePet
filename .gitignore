@@ -17,6 +17,13 @@ dist/
 .build/
 .swiftpm/
 
+# Visual Studio / .NET
+.vs/
+bin/
+obj/
+*.suo
+*.user
+
 # Temporary files
 *.swp
 *~

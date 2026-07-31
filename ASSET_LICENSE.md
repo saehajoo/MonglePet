@@ -8,9 +8,9 @@
 
 - 앱 아이콘과 `MonglePet/Assets.xcassets`의 이미지
 - 기본 또는 임시 캐릭터 이미지
-- `Samples/`의 테스트 펫과 미리보기 이미지
+- `shared/Samples/`의 테스트 펫과 미리보기 이미지
 
-`Samples/ReadOnlySample.monglepet`은 MonglePet의 가져오기 동작을 검증하기
+`shared/Samples/ReadOnlySample.monglepet`은 MonglePet의 가져오기 동작을 검증하기
 위한 테스트 전용 자료이며 배포용 펫이 아닙니다.
 
 사용자가 직접 가져오거나 만든 외부 펫 패키지의 권리는 해당 제작자와 패키지에

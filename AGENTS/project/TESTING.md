@@ -11,7 +11,7 @@
 ## 기본 빌드
 
 ```sh
-xcodebuild -project MonglePet.xcodeproj \
+xcodebuild -project apps/macos/MonglePet.xcodeproj \
   -scheme MonglePet \
   -configuration Debug \
   -destination 'platform=macOS' \
@@ -23,7 +23,7 @@ xcodebuild -project MonglePet.xcodeproj \
 ## 단위 테스트
 
 ```sh
-xcodebuild -project MonglePet.xcodeproj \
+xcodebuild -project apps/macos/MonglePet.xcodeproj \
   -scheme MonglePet \
   -configuration Debug \
   -destination 'platform=macOS' \
@@ -57,7 +57,7 @@ xcodebuild -project MonglePet.xcodeproj \
 ## UI 테스트
 
 ```sh
-xcodebuild -project MonglePet.xcodeproj \
+xcodebuild -project apps/macos/MonglePet.xcodeproj \
   -scheme MonglePet \
   -configuration Debug \
   -destination 'platform=macOS' \
@@ -102,6 +102,16 @@ UI 테스트는 앱 실행과 접근성 자동화가 가능한 macOS 세션에�
 - 이미지 디코딩과 프레임 캐시의 최대 메모리 사용량을 큰 테스트 패키지로 측정한다.
 - Phase 10에서는 독립 실행한 Release 빌드로 마우스 따라가기 2분·정지 1분·자유 이동 2분·대기 1분만 먼저 측정한다.
 - 이동 중 CPU 10% 이상 또는 정지·대기 중 CPU 1~2% 이상이 지속될 때만 Time Profiler 분석과 최적화를 진행한다.
+
+### Windows 오버레이 선행 성능 실험
+
+- Windows 기능 구현을 확장하기 전에 C# Win32 `HWND`와 `Microsoft.UI.Composition`으로 실제 투명 펫 오버레이를 먼저 만든다.
+- 실제와 같은 프레임 크기·알파 이미지·말풍선을 사용해 고정, 마우스 따라가기, 자유 이동, 마우스 도망가기와 다중 모니터 전환을 독립 실행 Release 빌드에서 측정한다.
+- 유휴·이동 상태의 CPU와 GPU, private memory, 프레임 지연, 입력 반응과 장시간 메모리 증가를 각각 기록한다.
+- WPF layered window는 기준 구현이 아니라 Composition 경로의 수치 비교 또는 호환성 문제 재현이 필요할 때만 같은 workload로 실험한다.
+- C#·Composition 경로가 확정한 기준을 만족하지 못하면 allocation, 이미지 디코딩·업로드, 타이머와 composition commit 횟수를 먼저 프로파일링한다.
+- 관리형 최적화 후에도 병목이 남을 때만 해당 렌더링·디코딩·메모리 복사 구간의 C++/WinRT 모듈 실험을 추가한다.
+- 가상 머신은 개발 점검에 사용할 수 있지만 성능·다중 모니터 최종 기준은 실제 Windows 하드웨어에서 확정한다.
 
 ### Phase 10 개인 맥 도구 체인 기준선
 
@@ -595,6 +605,14 @@ UI 테스트는 앱 실행과 접근성 자동화가 가능한 macOS 세션에�
 - 입력 없음 행동의 애니메이션 사이클 도중 입력이 재개되어도 최신 행동의 첫 단계·첫 프레임으로 즉시 교체하는지 확인
 - Resolver·Runtime 대상 XCTest 16개와 전체 단위 XCTest 388개 통과, 선택적 로컬 WebP fixture 1개 건너뜀과 Debug 빌드 성공
 - 실제 앱에서 입력 없음 규칙 진입 후 사용자 입력에 따른 최대 약 1초 이내 전환은 수동 QA 대기
+
+### 플랫폼 디렉터리 분리 검증
+
+- 측정일: 2026-07-31
+- macOS Xcode 프로젝트·소스·테스트를 `apps/macos/`로 함께 이동한 뒤 상대 그룹과 Swift Package 의존성 해석을 확인
+- `apps/macos/MonglePet.xcodeproj` 기준 전체 단위 XCTest 388개 통과, 선택적 로컬 WebP fixture 1개 건너뜀과 Debug 빌드 성공
+- Preview ZIP·Developer ID DMG 스크립트가 저장소 루트와 macOS 프로젝트 루트를 각각 계산하도록 수정하고 zsh 문법 검사 통과
+- 루트 문서·배포 문서·샘플 경로와 작업 계획 인덱스의 새 경로 존재 확인
 
 ## 변경 유형별 최소 검증
 

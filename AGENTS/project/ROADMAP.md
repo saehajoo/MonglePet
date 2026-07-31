@@ -62,6 +62,8 @@
 - 정적 펫 표시 상태 기준 CPU 0.0%, 메모리 약 26MB 측정
 - 임시 내장 모션 표시 상태 CPU 0.0%, 메모리 약 24MB 측정
 - 프로젝트 지침과 상세 문서를 `AGENTS.md` 및 `AGENTS/` 구조로 정리
+- 단일 저장소의 `apps/macos`, `apps/windows`, `shared` 플랫폼 디렉터리 분리 완료
+- macOS 기준 구현 후 Windows에 순차 반영하는 기능 동등성 지침과 진행 현황 문서화 완료
 - 사용자 중심 `README.md`, 비상업적 코드 라이선스, 제3자 고지와 자산 라이선스 분리 완료
 
 ## 0단계: 저장소 기준선
@@ -364,6 +366,19 @@
 ## 11단계: Windows 별도 구현
 
 macOS에서 검증된 펫 패키지, 설정 스키마와 테스트 시나리오만 공유한다. Windows UI와 시스템 감지, 렌더러 및 이동 컨트롤러는 별도 네이티브 앱으로 구현한다.
+
+- [x] 단일 저장소의 `apps/macos`, `apps/windows`, `shared` 디렉터리 분리
+- [x] macOS 우선 개발·Windows 후속 반영 절차와 기능 동등성 상태표 작성
+- [x] C#·.NET·WinUI 3 앱 UI와 Win32 `HWND`·Microsoft.UI.Composition 오버레이 경계 확정
+- [ ] 최소 Windows 버전, 테스트 프레임워크와 개발 환경 확정
+- [ ] Windows 앱 식별자, 저장 위치와 자동 규칙 대상 모델 설계
+- [ ] 실제 Windows Release 환경에서 Composition 오버레이 성능 실험과 기준 확정
+- [ ] 투명 오버레이·시스템 트레이·클릭 통과 최소 셸
+- [ ] `.monglepet` 공통 fixture 기반 패키지 호환 검증
+- [ ] 행동·이동·말풍선 기능을 Windows adapter와 렌더러에 연결
+- [ ] Windows 설치·업데이트·성능·개인정보 QA
+
+현재 상태: macOS는 Preview 기준 구현과 안정화를 진행 중이며 Windows는 디렉터리·지침만 준비된 구현 전 상태다. 세부 기능별 현황은 `PLATFORM_PARITY.md`에서 관리한다.
 
 ## 진행 관리
 

@@ -7,8 +7,9 @@
 | 문서 | 역할 | 상태 |
 | --- | --- | --- |
 | `project/PRODUCT.md` | 제품 목표, 원칙, MVP 범위와 완료 기준 | active |
-| `project/ARCHITECTURE.md` | macOS 구조, 계층 책임과 의존성 규칙 | draft |
+| `project/ARCHITECTURE.md` | 저장소·플랫폼별 구조, 계층 책임과 의존성 규칙 | draft |
 | `project/ROADMAP.md` | 단계별 개발 순서와 현재 진행 단계 | active |
+| `project/PLATFORM_PARITY.md` | macOS 우선 개발 절차와 Windows 기능 동등성 현황 | active |
 | `project/TESTING.md` | 빌드, 테스트, 성능 및 수동 QA 기준 | active |
 | `project/DECISIONS.md` | 확정된 제품·기술 결정 기록 | active |
 
@@ -25,8 +26,17 @@
 | 문서 | 역할 | 상태 |
 | --- | --- | --- |
 | `guides/DEVELOPMENT_WORKFLOW.md` | 큰 작업의 계획·구현·검증 절차 | active |
+| `guides/WEB_COMMUNITY_HANDOFF.md` | 별도 웹 커뮤니티 저장소의 초기 설계·보안·인계 지침 | draft |
 | `work_plans/INDEX.md` | 개별 작업 계획과 진행 상태 목록 | active |
 | `work_plans/tasks/*.md` | 작업별 목표, 체크리스트, 결정 및 결과 | 필요할 때 생성 |
+
+## 플랫폼 지침과 공유 자료
+
+| 문서 | 역할 | 상태 |
+| --- | --- | --- |
+| `../apps/macos/AGENTS.md` | macOS Swift·Xcode·배포 작업 지침 | active |
+| `../apps/windows/AGENTS.md` | 후속 Windows 네이티브 구현 경계와 시작 조건 | planned |
+| `../shared/README.md` | 플랫폼 공통 샘플·fixture 관리 범위 | active |
 
 ## 관리 규칙
 

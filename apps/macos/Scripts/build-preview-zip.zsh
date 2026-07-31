@@ -3,7 +3,8 @@
 set -euo pipefail
 
 script_dir=${0:A:h}
-repo_root=${script_dir:h}
+macos_root=${script_dir:h}
+repo_root=${macos_root:h:h}
 output_dir=${OUTPUT_DIR:-"$repo_root/dist"}
 source_packages_dir=${SOURCE_PACKAGES_DIR:-}
 
@@ -35,7 +36,7 @@ if [[ -n "$source_packages_dir" ]]; then
 fi
 
 xcodebuild \
-    -project "$repo_root/MonglePet.xcodeproj" \
+    -project "$macos_root/MonglePet.xcodeproj" \
     -scheme MonglePet \
     -configuration Release \
     -destination 'generic/platform=macOS' \
