@@ -249,7 +249,6 @@ final class PetLibrarySession: ObservableObject {
                 displayName: builtInDefinition.displayName,
                 version: "내장",
                 author: "MonglePet",
-                license: "Bundled with MonglePet",
                 description: "MonglePet에 기본으로 포함된 펫입니다."
             ),
             previewURL: nil,

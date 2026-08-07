@@ -51,7 +51,7 @@ MonglePet은 데스크톱 위에 반려 캐릭터를 표시하고 사용자의 �
 | 펫 등록, 패키지, 가져오기 작업 | `AGENTS/specifications/PET_PACKAGE.md` |
 | 설정 저장, 복원, 스키마 마이그레이션 | `AGENTS/specifications/SETTINGS_SCHEMA.md` |
 | 큰 기능, 다중 파일 변경, 장기 작업 | `AGENTS/guides/DEVELOPMENT_WORKFLOW.md`와 `AGENTS/work_plans/INDEX.md` |
-| 웹 펫 공유 커뮤니티 설계·인계 | `AGENTS/guides/WEB_COMMUNITY_HANDOFF.md` |
+| 웹 펫 공유 커뮤니티 설계·인계 | `AGENTS/guides/WEB_COMMUNITY_HANDOFF.md`와 `AGENTS/guides/WEB_COMMUNITY_SERVER_PROMPT.md` |
 | macOS 앱, Xcode, 배포 자동화 | `apps/macos/AGENTS.md` |
 | Windows 앱 설계·구현 | `apps/windows/AGENTS.md` |
 | 플랫폼 공통 샘플·fixture | `shared/README.md` |

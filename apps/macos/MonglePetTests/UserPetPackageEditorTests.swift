@@ -33,7 +33,6 @@ final class UserPetPackageEditorTests: XCTestCase {
                 ],
                 version: "1.0.0",
                 author: "테스터",
-                license: "Private Use",
                 description: nil
             )
         )
@@ -165,13 +164,11 @@ final class UserPetPackageEditorTests: XCTestCase {
                 sourceURLs: [frameURL],
                 version: "0.1.0",
                 author: "처음 제작자",
-                license: "Private Use",
                 description: "처음 설명"
             )
         )
         XCTAssertEqual(created.package.metadata.version, "0.1.0")
         XCTAssertEqual(created.package.metadata.author, "처음 제작자")
-        XCTAssertEqual(created.package.metadata.license, "Private Use")
         XCTAssertEqual(created.package.metadata.description, "처음 설명")
         let withSecondAnimation = try editor.addAnimation(
             UserPetAnimationRequest(
@@ -188,7 +185,6 @@ final class UserPetPackageEditorTests: XCTestCase {
                 displayName: "  새 이름  ",
                 version: " 2.0.0 ",
                 author: " 새 제작자 ",
-                license: " CC-BY-4.0 ",
                 description: "  새 설명  ",
                 defaultMotionID: "인사"
             ),
@@ -200,7 +196,6 @@ final class UserPetPackageEditorTests: XCTestCase {
         XCTAssertEqual(updated.package.metadata.displayName, "새 이름")
         XCTAssertEqual(updated.package.metadata.version, "2.0.0")
         XCTAssertEqual(updated.package.metadata.author, "새 제작자")
-        XCTAssertEqual(updated.package.metadata.license, "CC-BY-4.0")
         XCTAssertEqual(updated.package.metadata.description, "새 설명")
         XCTAssertEqual(updated.package.definition.defaultMotionID, "인사")
         XCTAssertEqual(store.installedPackages().count, 1)
@@ -231,7 +226,6 @@ final class UserPetPackageEditorTests: XCTestCase {
                     displayName: "바뀌면 안 됨",
                     version: "2.0.0",
                     author: "제작자",
-                    license: "Test",
                     description: nil,
                     defaultMotionID: "없는 애니메이션"
                 ),
@@ -609,7 +603,6 @@ final class UserPetPackageEditorTests: XCTestCase {
                 sourceURLs: [frameURL],
                 version: "2.3.0",
                 author: "원작자",
-                license: "CC-BY-4.0",
                 description: "원본 설명"
             )
         )
@@ -633,7 +626,6 @@ final class UserPetPackageEditorTests: XCTestCase {
         XCTAssertEqual(copy.package.metadata.displayName, "편집용 펫")
         XCTAssertEqual(copy.package.metadata.version, original.package.metadata.version)
         XCTAssertEqual(copy.package.metadata.author, original.package.metadata.author)
-        XCTAssertEqual(copy.package.metadata.license, original.package.metadata.license)
         XCTAssertEqual(copy.package.metadata.description, original.package.metadata.description)
         XCTAssertEqual(
             copy.package.definition.defaultMotionID,
@@ -653,7 +645,6 @@ final class UserPetPackageEditorTests: XCTestCase {
                 displayName: "수정된 사본",
                 version: copy.package.metadata.version,
                 author: copy.package.metadata.author,
-                license: copy.package.metadata.license,
                 description: copy.package.metadata.description,
                 defaultMotionID: copy.package.definition.defaultMotionID
             ),

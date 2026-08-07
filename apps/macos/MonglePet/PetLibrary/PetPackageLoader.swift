@@ -134,7 +134,6 @@ nonisolated struct PetPackageLoader {
         try requireText(manifest.displayName, field: "displayName")
         try requireText(manifest.version, field: "version")
         try requireText(manifest.author, field: "author")
-        try requireText(manifest.license, field: "license")
         try requireText(manifest.previewPath, field: "previewPath")
         let compatibility = try validateCompatibility(manifest.compatibility)
 
@@ -238,7 +237,6 @@ nonisolated struct PetPackageLoader {
                 displayName: manifest.displayName,
                 version: manifest.version,
                 author: manifest.author,
-                license: manifest.license,
                 description: manifest.description
             ),
             previewURL: previewURL,

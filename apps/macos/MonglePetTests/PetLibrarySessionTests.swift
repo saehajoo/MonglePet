@@ -527,7 +527,6 @@ final class PetLibrarySessionTests: XCTestCase {
             displayName: "새 이름",
             version: "2.0.0",
             author: "새 제작자",
-            license: "Test",
             description: "새 설명",
             defaultMotionID: "idle"
         )
@@ -565,7 +564,6 @@ final class PetLibrarySessionTests: XCTestCase {
                     displayName: "변경",
                     version: "2.0.0",
                     author: "제작자",
-                    license: "Test",
                     description: nil,
                     defaultMotionID: "idle"
                 )
@@ -874,7 +872,6 @@ final class PetLibrarySessionTests: XCTestCase {
                 displayName: name,
                 version: version,
                 author: "Tester",
-                license: "Test",
                 description: nil
             ),
             previewURL: rootURL.appendingPathComponent("preview.png"),

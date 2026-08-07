@@ -81,6 +81,22 @@ final class PetPackageLoaderTests: XCTestCase {
         )
     }
 
+    func testLoadsPackageWithoutLicenseAndIgnoresLegacyLicenseMetadata() throws {
+        var manifestWithoutLicense = validManifest()
+        manifestWithoutLicense.removeValue(forKey: "license")
+        let currentFixture = try makePackage(manifest: manifestWithoutLicense)
+        let legacyFixture = try makePackage(manifest: validManifest())
+
+        let currentPackage = try PetPackageLoader().loadPackage(
+            at: currentFixture.packageURL
+        )
+        let legacyPackage = try PetPackageLoader().loadPackage(
+            at: legacyFixture.packageURL
+        )
+
+        XCTAssertEqual(currentPackage.metadata, legacyPackage.metadata)
+    }
+
     func testRejectsMalformedCompatibilityVersion() throws {
         var manifest = validManifest()
         manifest["compatibility"] = [

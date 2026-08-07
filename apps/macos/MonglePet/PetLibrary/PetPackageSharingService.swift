@@ -1,29 +1,10 @@
 import Foundation
 
-nonisolated enum PetPackageSharingBlockReason: Equatable, Sendable {
-    case privateOrPersonalUse
-    case allRightsReserved
-    case unknownLicense
-
-    var message: String {
-        switch self {
-        case .privateOrPersonalUse:
-            "개인 용도로 제한된 라이선스는 다른 사용자에게 공유할 수 없습니다."
-        case .allRightsReserved:
-            "All Rights Reserved는 재배포 권한을 제공하지 않으므로 공유할 수 없습니다."
-        case .unknownLicense:
-            "공유 권한을 확인할 수 없는 라이선스입니다. 라이선스를 먼저 수정해 주세요."
-        }
-    }
-}
-
 nonisolated struct PetPackageShareReview: Equatable, Identifiable, Sendable {
     let packageID: String
     let displayName: String
     let version: String
     let author: String
-    let license: String
-    let blockingReason: PetPackageSharingBlockReason?
     let recommendedProfile: RecommendedPetProfile?
     let recommendedProfileWithApplicationRules: RecommendedPetProfile?
     let recommendedProfileIssue: String?
@@ -33,10 +14,6 @@ nonisolated struct PetPackageShareReview: Equatable, Identifiable, Sendable {
 
     var id: String {
         packageID
-    }
-
-    var canExport: Bool {
-        blockingReason == nil
     }
 
     var suggestedFileName: String {
@@ -54,7 +31,6 @@ nonisolated struct PetPackageShareReview: Equatable, Identifiable, Sendable {
             && displayName == metadata.displayName
             && version == metadata.version
             && author == metadata.author
-            && license == metadata.license
     }
 }
 
@@ -73,8 +49,6 @@ nonisolated enum PetPackageSharingPolicy {
             displayName: metadata.displayName,
             version: metadata.version,
             author: metadata.author,
-            license: metadata.license,
-            blockingReason: blockingReason(for: metadata.license),
             recommendedProfile: recommendedProfile,
             recommendedProfileWithApplicationRules:
                 recommendedProfileWithApplicationRules,
@@ -85,30 +59,6 @@ nonisolated enum PetPackageSharingPolicy {
         )
     }
 
-    private static func blockingReason(
-        for license: String
-    ) -> PetPackageSharingBlockReason? {
-        let normalized = normalizedLicense(license)
-        switch normalized {
-        case "private use", "private use only", "personal use", "personal use only":
-            return .privateOrPersonalUse
-        case "all rights reserved":
-            return .allRightsReserved
-        case "unknown", "unspecified", "no license", "none":
-            return .unknownLicense
-        default:
-            return nil
-        }
-    }
-
-    private static func normalizedLicense(_ license: String) -> String {
-        license
-            .lowercased()
-            .replacingOccurrences(of: "-", with: " ")
-            .replacingOccurrences(of: "_", with: " ")
-            .split(whereSeparator: \.isWhitespace)
-            .joined(separator: " ")
-    }
 }
 
 nonisolated struct PetPackageShareOptions: Equatable, Sendable {
@@ -132,7 +82,6 @@ nonisolated struct PetPackageShareOptions: Equatable, Sendable {
 
 nonisolated enum PetPackageSharingError: Error, Equatable, Sendable {
     case confirmationRequired
-    case blocked(PetPackageSharingBlockReason)
     case reviewOutdated
     case recommendedProfileUnavailable
     case applicationRulesUnavailable
@@ -142,11 +91,9 @@ extension PetPackageSharingError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .confirmationRequired:
-            "제작자와 라이선스 정보를 확인하고 공유 권한을 확인해 주세요."
-        case let .blocked(reason):
-            reason.message
+            "펫 정보와 게시 권한을 확인해 주세요."
         case .reviewOutdated:
-            "펫 정보가 변경되었습니다. 최신 제작자와 라이선스 정보를 다시 확인해 주세요."
+            "펫 정보가 변경되었습니다. 최신 정보를 다시 확인해 주세요."
         case .recommendedProfileUnavailable:
             "현재 펫 설정은 공유 가능한 권장 설정으로 만들 수 없습니다."
         case .applicationRulesUnavailable:
@@ -215,9 +162,6 @@ nonisolated struct PetPackageSharingService {
         let currentPackage = try loadCurrentPackage(installedPackage)
         guard review.matches(currentPackage.metadata) else {
             throw PetPackageSharingError.reviewOutdated
-        }
-        if let blockingReason = review.blockingReason {
-            throw PetPackageSharingError.blocked(blockingReason)
         }
         guard isConfirmed else {
             throw PetPackageSharingError.confirmationRequired

@@ -25,6 +25,7 @@
 
 | 상태 | 작업명 | 파일 | 완료일 |
 | --- | --- | --- | --- |
+| completed | 펫 라이선스 메타데이터 제거 | `tasks/2026-08-07-remove-pet-license-metadata.md` | 2026-08-07 |
 | completed | 행동 대사 우선순위와 주기 대사 목록 분리 | `tasks/2026-07-31-speech-priority-and-periodic-list.md` | 2026-07-31 |
 | completed | 말풍선 테마 커스텀 | `tasks/2026-07-30-speech-bubble-themes.md` | 2026-07-31 |
 | completed | 펫별 말풍선 1차 기능 | `tasks/2026-07-30-speech-bubbles.md` | 2026-07-31 |

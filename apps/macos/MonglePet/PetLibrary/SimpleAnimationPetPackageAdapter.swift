@@ -8,7 +8,6 @@ nonisolated struct SimplePetImportMetadata: Equatable, Sendable {
     let displayName: String
     let version: String
     let author: String
-    let license: String
     let description: String?
 
     init(
@@ -16,14 +15,12 @@ nonisolated struct SimplePetImportMetadata: Equatable, Sendable {
         displayName: String,
         version: String = "1.0.0",
         author: String = "Unknown",
-        license: String = "Unknown",
         description: String? = nil
     ) {
         self.id = id
         self.displayName = displayName
         self.version = version
         self.author = author
-        self.license = license
         self.description = description
     }
 }
@@ -202,8 +199,7 @@ nonisolated struct SimpleAnimationPetPackageAdapter {
         let displayName = metadata.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
         let version = metadata.version.trimmingCharacters(in: .whitespacesAndNewlines)
         let author = metadata.author.trimmingCharacters(in: .whitespacesAndNewlines)
-        let license = metadata.license.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !id.isEmpty, !displayName.isEmpty, !version.isEmpty, !author.isEmpty, !license.isEmpty else {
+        guard !id.isEmpty, !displayName.isEmpty, !version.isEmpty, !author.isEmpty else {
             throw SimpleAnimationImportError.invalidMetadata
         }
     }
@@ -593,7 +589,6 @@ nonisolated struct SimpleAnimationPetPackageAdapter {
             displayName: metadata.displayName,
             version: metadata.version,
             author: metadata.author,
-            license: metadata.license,
             description: metadata.description,
             previewPath: "preview.png",
             defaultMotion: "idle",

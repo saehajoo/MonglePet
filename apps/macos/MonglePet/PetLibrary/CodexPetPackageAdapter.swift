@@ -493,7 +493,6 @@ nonisolated struct CodexPetPackageAdapter {
             displayName: codexManifest.displayName,
             version: "codex-\(version.rawValue)",
             author: "Unknown",
-            license: "Unknown",
             description: codexManifest.description,
             previewPath: "preview.png",
             defaultMotion: "idle",

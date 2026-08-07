@@ -9,7 +9,6 @@ nonisolated struct UserPetCreationRequest: Equatable, Sendable {
     let loops: Bool
     let version: String
     let author: String
-    let license: String
     let description: String?
     let frames: [UserPetSourceFrameRequest]
 
@@ -21,7 +20,6 @@ nonisolated struct UserPetCreationRequest: Equatable, Sendable {
         sourceURLs: [URL],
         version: String = "1.0.0",
         author: String = "MonglePet 사용자",
-        license: String = "Private Use",
         description: String? = "MonglePet에서 사용자가 만든 펫입니다."
     ) {
         self.displayName = displayName
@@ -29,7 +27,6 @@ nonisolated struct UserPetCreationRequest: Equatable, Sendable {
         self.loops = loops
         self.version = version
         self.author = author
-        self.license = license
         self.description = description
         frames = sourceURLs.map {
             UserPetSourceFrameRequest(
@@ -46,7 +43,6 @@ nonisolated struct UserPetCreationRequest: Equatable, Sendable {
         frames: [UserPetSourceFrameRequest],
         version: String = "1.0.0",
         author: String = "MonglePet 사용자",
-        license: String = "Private Use",
         description: String? = "MonglePet에서 사용자가 만든 펫입니다."
     ) {
         self.displayName = displayName
@@ -54,7 +50,6 @@ nonisolated struct UserPetCreationRequest: Equatable, Sendable {
         self.loops = loops
         self.version = version
         self.author = author
-        self.license = license
         self.description = description
         self.frames = frames
     }
@@ -147,7 +142,6 @@ nonisolated struct UserPetDetailsRequest: Equatable, Sendable {
     let displayName: String
     let version: String
     let author: String
-    let license: String
     let description: String?
     let defaultMotionID: String
 }
@@ -185,7 +179,6 @@ nonisolated enum UserPetEditingError: Error, Equatable, Sendable {
     case invalidPetName
     case invalidVersion
     case invalidAuthor
-    case invalidLicense
     case invalidAnimationName
     case invalidDefaultAnimation(String)
     case animationNotFound(String)
@@ -211,8 +204,6 @@ extension UserPetEditingError: LocalizedError {
             "펫 버전을 입력해 주세요."
         case .invalidAuthor:
             "제작자 이름을 입력해 주세요."
-        case .invalidLicense:
-            "라이선스를 입력해 주세요."
         case .invalidAnimationName:
             "펫 애니메이션 이름을 입력해 주세요."
         case let .invalidDefaultAnimation(name):
@@ -288,7 +279,6 @@ nonisolated struct UserPetPackageEditor {
             displayName: request.displayName,
             version: request.version,
             author: request.author,
-            license: request.license,
             description: request.description
         )
         let animationName = try validatedAnimationName(request.animationName)
@@ -300,7 +290,6 @@ nonisolated struct UserPetPackageEditor {
             displayName: details.displayName,
             version: details.version,
             author: details.author,
-            license: details.license,
             description: details.description,
             previewPath: "preview.png",
             defaultMotion: animationName,
@@ -366,7 +355,6 @@ nonisolated struct UserPetPackageEditor {
                 displayName: displayName,
                 version: currentManifest.version,
                 author: currentManifest.author,
-                license: currentManifest.license,
                 description: currentManifest.description,
                 previewPath: currentManifest.previewPath,
                 defaultMotion: currentManifest.defaultMotion,
@@ -420,7 +408,6 @@ nonisolated struct UserPetPackageEditor {
                 displayName: currentManifest.displayName,
                 version: currentManifest.version,
                 author: currentManifest.author,
-                license: currentManifest.license,
                 description: currentManifest.description,
                 previewPath: currentManifest.previewPath,
                 defaultMotion: currentManifest.defaultMotion,
@@ -462,7 +449,6 @@ nonisolated struct UserPetPackageEditor {
             displayName: request.displayName,
             version: request.version,
             author: request.author,
-            license: request.license,
             description: request.description
         )
         let defaultMotionID = request.defaultMotionID.trimmingCharacters(
@@ -486,7 +472,6 @@ nonisolated struct UserPetPackageEditor {
                 displayName: details.displayName,
                 version: details.version,
                 author: details.author,
-                license: details.license,
                 description: details.description,
                 previewPath: currentManifest.previewPath,
                 defaultMotion: defaultMotionID,
@@ -569,7 +554,6 @@ nonisolated struct UserPetPackageEditor {
                 displayName: currentManifest.displayName,
                 version: currentManifest.version,
                 author: currentManifest.author,
-                license: currentManifest.license,
                 description: currentManifest.description,
                 previewPath: currentManifest.previewPath,
                 defaultMotion: installedPackage.package.definition.defaultMotionID
@@ -639,7 +623,6 @@ nonisolated struct UserPetPackageEditor {
                 displayName: currentManifest.displayName,
                 version: currentManifest.version,
                 author: currentManifest.author,
-                license: currentManifest.license,
                 description: currentManifest.description,
                 previewPath: currentManifest.previewPath,
                 defaultMotion: currentManifest.defaultMotion,
@@ -782,13 +765,11 @@ nonisolated struct UserPetPackageEditor {
         displayName: String,
         version: String,
         author: String,
-        license: String,
         description: String?
     ) throws -> (
         displayName: String,
         version: String,
         author: String,
-        license: String,
         description: String?
     ) {
         let displayName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -803,16 +784,11 @@ nonisolated struct UserPetPackageEditor {
         guard !author.isEmpty else {
             throw UserPetEditingError.invalidAuthor
         }
-        let license = license.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !license.isEmpty else {
-            throw UserPetEditingError.invalidLicense
-        }
         let description = description?.trimmingCharacters(in: .whitespacesAndNewlines)
         return (
             displayName,
             version,
             author,
-            license,
             description?.isEmpty == true ? nil : description
         )
     }

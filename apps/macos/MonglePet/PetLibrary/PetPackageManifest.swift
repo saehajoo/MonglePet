@@ -6,7 +6,6 @@ nonisolated struct PetPackageManifest: Codable, Equatable, Sendable {
     let displayName: String
     let version: String
     let author: String
-    let license: String
     let description: String?
     let previewPath: String
     let defaultMotion: String?
@@ -20,7 +19,6 @@ nonisolated struct PetPackageManifest: Codable, Equatable, Sendable {
         displayName: String,
         version: String,
         author: String,
-        license: String,
         description: String?,
         previewPath: String,
         defaultMotion: String?,
@@ -33,7 +31,6 @@ nonisolated struct PetPackageManifest: Codable, Equatable, Sendable {
         self.displayName = displayName
         self.version = version
         self.author = author
-        self.license = license
         self.description = description
         self.previewPath = previewPath
         self.defaultMotion = defaultMotion
@@ -78,7 +75,6 @@ nonisolated struct PetPackageManifest: Codable, Equatable, Sendable {
             displayName: displayName,
             version: self.version,
             author: author,
-            license: license,
             description: description,
             previewPath: previewPath,
             defaultMotion: defaultMotion,
@@ -102,7 +98,6 @@ nonisolated struct PetPackageMetadata: Equatable, Sendable {
     let displayName: String
     let version: String
     let author: String
-    let license: String
     let description: String?
 }
 

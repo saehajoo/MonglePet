@@ -139,10 +139,6 @@ private struct PetSettingsView: View {
                             "제작자",
                             value: petLibrarySession.selectedItem.metadata.author
                         )
-                        LabeledContent(
-                            "라이선스",
-                            value: petLibrarySession.selectedItem.metadata.license
-                        )
                         if let description = petLibrarySession.selectedItem.metadata.description {
                             LabeledContent("설명", value: description)
                         }
@@ -531,12 +527,6 @@ private struct PetSettingsView: View {
         ) { review in
             PetPackageShareReviewView(
                 review: review,
-                blockedActionTitle: blockedSharingActionTitle,
-                onBlockedAction: {
-                    pendingSharingFollowUp = petLibrarySession.selectedItem.isEditable
-                        ? .editDetails
-                        : .createEditableCopy
-                },
                 onExport: { options in
                     pendingSharingFollowUp = .export(review, options)
                 }
@@ -584,21 +574,12 @@ private struct PetSettingsView: View {
         petLibrarySession.isImporting || petLibrarySession.isExporting
     }
 
-    private var blockedSharingActionTitle: String? {
-        guard !petLibrarySession.selectedItem.isBuiltIn else {
-            return nil
-        }
-        return petLibrarySession.selectedItem.isEditable
-            ? "펫 정보 수정"
-            : "편집 가능한 사본 만들기"
-    }
-
     private var petManagementDescription: String {
         if petLibrarySession.selectedItem.isBuiltIn {
             return "개별 PNG 또는 정적 PNG·WebP 스프라이트 시트로 새 펫을 만들 수 있습니다."
         }
         if petLibrarySession.selectedItem.isEditable {
-            return "현재 펫의 이름, 버전, 제작자와 라이선스를 수정하거나 펫을 삭제할 수 있습니다."
+            return "현재 펫의 이름, 버전과 제작자를 수정하거나 펫을 삭제할 수 있습니다."
         }
         return "가져온 패키지는 원본을 보호하기 위해 직접 수정하지 않으며 필요하면 펫을 삭제할 수 있습니다."
     }
@@ -783,10 +764,6 @@ private struct PetSettingsView: View {
         switch followUp {
         case let .export(review, options):
             preparePetPackageExport(for: review, options: options)
-        case .editDetails:
-            isEditingPetDetails = true
-        case .createEditableCopy:
-            isCreatingEditableCopy = true
         }
     }
 
@@ -1224,8 +1201,6 @@ nonisolated struct MonglePetPackageDocument: FileDocument {
 
 private enum PetSharingFollowUp {
     case export(PetPackageShareReview, PetPackageShareOptions)
-    case editDetails
-    case createEditableCopy
 }
 
 private struct PetImportAction {
@@ -1262,7 +1237,6 @@ private struct PetPackageImportReviewView: View {
                             informationRow("펫 이름", value: review.metadata.displayName)
                             informationRow("버전", value: review.metadata.version)
                             informationRow("제작자", value: review.metadata.author)
-                            informationRow("라이선스", value: review.metadata.license)
                             informationRow("애니메이션", value: "\(review.definition.motions.count)개")
                         }
                         .padding(12)
@@ -1751,8 +1725,6 @@ private struct PetPackageShareReviewView: View {
     @Environment(\.dismiss) private var dismiss
 
     let review: PetPackageShareReview
-    let blockedActionTitle: String?
-    let onBlockedAction: () -> Void
     let onExport: (PetPackageShareOptions) -> Void
 
     @State private var isSharingRightsConfirmed = false
@@ -1778,7 +1750,6 @@ private struct PetPackageShareReviewView: View {
                         shareInformationRow("펫 이름", value: review.displayName)
                         shareInformationRow("버전", value: review.version)
                         shareInformationRow("제작자", value: review.author)
-                        shareInformationRow("라이선스", value: review.license)
                     }
                     .padding(12)
                     .background(
@@ -1786,22 +1757,18 @@ private struct PetPackageShareReviewView: View {
                         in: RoundedRectangle(cornerRadius: 10)
                     )
 
-                    if let blockingReason = review.blockingReason {
-                        blockedContent(reason: blockingReason)
-                    } else {
-                        sharedContentOptions
+                    sharedContentOptions
 
-                        Toggle(
-                            "이 펫과 이미지 자산을 다른 사용자에게 공유할 권한이 있음을 확인합니다.",
-                            isOn: $isSharingRightsConfirmed
-                        )
-                        .accessibilityIdentifier(
-                            "monglepet.share.rightsConfirmation"
-                        )
-                    }
+                    Toggle(
+                        "이 펫과 이미지 자산을 게시하거나 공유할 권한이 있음을 확인합니다.",
+                        isOn: $isSharingRightsConfirmed
+                    )
+                    .accessibilityIdentifier(
+                        "monglepet.share.rightsConfirmation"
+                    )
 
                     Text(
-                        "MonglePet은 입력된 라이선스의 법적 유효성이나 실제 공유 권한을 보증하지 않습니다."
+                        "공유한 콘텐츠의 권리와 책임은 게시자에게 있으며, 받는 사용자는 편집 가능한 사본을 만들 수 있습니다."
                     )
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -1816,28 +1783,20 @@ private struct PetPackageShareReviewView: View {
                     dismiss()
                 }
 
-                if review.canExport {
-                    Button("저장 위치 선택…") {
-                        onExport(
-                            PetPackageShareOptions(
-                                includesRecommendedProfile:
-                                    includesRecommendedProfile,
-                                includesApplicationRules:
-                                    includesApplicationRules
-                            )
+                Button("저장 위치 선택…") {
+                    onExport(
+                        PetPackageShareOptions(
+                            includesRecommendedProfile:
+                                includesRecommendedProfile,
+                            includesApplicationRules:
+                                includesApplicationRules
                         )
-                        dismiss()
-                    }
-                    .keyboardShortcut(.defaultAction)
-                    .disabled(!isSharingRightsConfirmed)
-                    .accessibilityIdentifier("monglepet.share.chooseDestination")
-                } else if let blockedActionTitle {
-                    Button(blockedActionTitle) {
-                        onBlockedAction()
-                        dismiss()
-                    }
-                    .accessibilityIdentifier("monglepet.share.resolveBlock")
+                    )
+                    dismiss()
                 }
+                .keyboardShortcut(.defaultAction)
+                .disabled(!isSharingRightsConfirmed)
+                .accessibilityIdentifier("monglepet.share.chooseDestination")
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 12)
@@ -1850,22 +1809,6 @@ private struct PetPackageShareReviewView: View {
             }
         }
         .accessibilityIdentifier("monglepet.share.review")
-    }
-
-    @ViewBuilder
-    private func blockedContent(
-        reason: PetPackageSharingBlockReason
-    ) -> some View {
-        Label(reason.message, systemImage: "exclamationmark.triangle.fill")
-            .foregroundStyle(.orange)
-            .accessibilityIdentifier("monglepet.share.blockedReason")
-
-        Text(
-            "편집 가능한 펫은 라이선스 정보를 수정할 수 있습니다. "
-                + "가져온 읽기 전용 펫은 먼저 편집 가능한 사본을 만들어 주세요."
-        )
-        .font(.caption)
-        .foregroundStyle(.secondary)
     }
 
     private var sharedContentOptions: some View {
@@ -2387,7 +2330,6 @@ private struct UserPetAnimationEditorView: View {
     @State private var petName = ""
     @State private var version = "1.0.0"
     @State private var author = "MonglePet 사용자"
-    @State private var license = "Private Use"
     @State private var petDescription = "MonglePet에서 사용자가 만든 펫입니다."
     @State private var animationName = ""
     @State private var frameDurationMilliseconds = 120
@@ -2482,12 +2424,6 @@ private struct UserPetAnimationEditorView: View {
                     fieldLabel("버전")
                     TextField("버전", text: $version)
                         .accessibilityIdentifier("monglepet.userPet.version")
-                }
-
-                GridRow {
-                    fieldLabel("라이선스")
-                    TextField("라이선스", text: $license)
-                        .accessibilityIdentifier("monglepet.userPet.license")
                 }
 
                 GridRow {
@@ -2687,8 +2623,7 @@ private struct UserPetAnimationEditorView: View {
             && (mode != .create
                 || (!petName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                     && !version.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    && !author.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    && !license.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
+                    && !author.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
     }
 
     private func choosePNGs() {
@@ -2788,7 +2723,6 @@ private struct UserPetAnimationEditorView: View {
                     frames: sourceFrameRequests,
                     version: version,
                     author: author,
-                    license: license,
                     description: petDescription
                 )
             )
@@ -2895,7 +2829,6 @@ private struct ReadOnlyPetCopyEditorView: View {
                 LabeledContent("원본 펫", value: item.metadata.displayName)
                 LabeledContent("제작자", value: item.metadata.author)
                 LabeledContent("버전", value: item.metadata.version)
-                LabeledContent("라이선스", value: item.metadata.license)
                 LabeledContent("원본 패키지 ID", value: item.metadata.id)
                     .textSelection(.enabled)
             }
@@ -2947,7 +2880,6 @@ private struct UserPetDetailsEditorView: View {
     @State private var displayName: String
     @State private var version: String
     @State private var author: String
-    @State private var license: String
     @State private var petDescription: String
     @State private var defaultMotionID: String
 
@@ -2957,7 +2889,6 @@ private struct UserPetDetailsEditorView: View {
         _displayName = State(initialValue: item.metadata.displayName)
         _version = State(initialValue: item.metadata.version)
         _author = State(initialValue: item.metadata.author)
-        _license = State(initialValue: item.metadata.license)
         _petDescription = State(initialValue: item.metadata.description ?? "")
         _defaultMotionID = State(initialValue: item.definition.defaultMotionID)
     }
@@ -2979,9 +2910,6 @@ private struct UserPetDetailsEditorView: View {
 
                 TextField("버전", text: $version)
                     .accessibilityIdentifier("monglepet.petDetails.version")
-
-                TextField("라이선스", text: $license)
-                    .accessibilityIdentifier("monglepet.petDetails.license")
 
                 TextField("설명", text: $petDescription, axis: .vertical)
                     .lineLimit(2...5)
@@ -3027,7 +2955,6 @@ private struct UserPetDetailsEditorView: View {
         !displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !version.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !author.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && !license.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && item.definition.motion(id: defaultMotionID) != nil
     }
 
@@ -3037,7 +2964,6 @@ private struct UserPetDetailsEditorView: View {
                 displayName: displayName,
                 version: version,
                 author: author,
-                license: license,
                 description: petDescription,
                 defaultMotionID: defaultMotionID
             )
