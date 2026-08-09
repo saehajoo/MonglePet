@@ -741,6 +741,17 @@ UI 테스트는 앱 실행과 접근성 자동화가 가능한 macOS 세션에�
 - extension 실행 파일에 빌드 토큰을 사용하면 MakeAppx가 치환하지 않아 거부하는 문제를 `MonglePet.Windows.exe` 명시로 수정했다.
 - 실제 시작 앱 등록·해제와 다음 로그인 실행은 최종 설치 QA에서 확인한다.
 
+### Windows unpackaged EXE 설치기 검증
+
+- 측정일: 2026-08-09
+- package identity 분기, 인용된 현재 실행 파일 Run 명령과 기존 MSIX LocalState의 비파괴 staging 복사를 Shell 단위 테스트로 확인했다. 대상 데이터가 있으면 덮어쓰지 않고 원본이 없으면 대상도 만들지 않는다.
+- x64 self-contained publish는 AppxManifest 없이 538개 파일 약 225.05MiB를 생성했고 실행 파일 FileVersion `1.0.0.13`, Windows App Runtime 포함과 미서명 상태를 확인했다.
+- Inno Setup 6.7.3으로 약 60.8MiB의 `MonglePet-Windows-1.0.0.13-x64-Setup.exe`와 일치하는 SHA256SUMS를 생성했다.
+- 실제 사용자별 최초 설치에서 540개 파일, 시작 메뉴와 단일 제거 항목을 확인했고 자동 실행과 데이터 폴더는 기본으로 만들지 않았다. 같은 AppId의 동일 버전 설치기로 업그레이드했을 때 설치 EXE와 publish EXE의 SHA-256이 일치했다.
+- `--startup` 실행의 모든 최상위 HWND를 열거해 펫 오버레이만 보이고 `WinUIDesktopWin32WindowClass` 설정창은 숨김인 것을 확인했다. 기존 MSIX 데이터 11개는 `%LOCALAPPDATA%\MonglePet`에 복사되며 원본 11개가 유지됐다.
+- 실행 중 제거는 숨은 notification area HWND의 전용 종료 메시지로 앱의 정상 종료 루틴을 호출했다. 프로세스·설치 폴더·시작 메뉴·제거 항목·정확히 일치하는 Run 값이 모두 없어지고 사용자 `settings.json` SHA-256은 유지됐다.
+- 설치기와 앱은 미서명이므로 SmartScreen·Smart App Control·조직 정책의 경고 또는 차단 가능성이 남는다. 공개 전 공식 웹 다운로드, GitHub Release 사본과 SHA-256 일치, 깨끗한 사용자 계정에서의 대화형 UI를 다시 확인한다.
+
 ## 변경 유형별 최소 검증
 
 ### 후속 단계 필수 검증

@@ -2,7 +2,7 @@
 
 Windows 버전의 플랫폼 디렉터리다. 첫 네이티브 솔루션과 공통 계약 테스트 기반이 준비되었으며 기준 기술은 **C# + .NET 10 LTS + WinUI 3 + Win32/Microsoft.UI.Composition**이다.
 
-초기 지원 기준은 Windows 11 25H2 build 26200 이상과 x64다. Windows App SDK 2.3.1 Stable을 사용하는 packaged WinUI 3·MSIX 앱으로 시작하고, 순수 Domain과 패키지 계약은 xUnit으로 검증한다.
+초기 지원 기준은 Windows 11 25H2 build 26200 이상과 x64다. Windows App SDK 2.3.1 Stable을 사용하며 개발·향후 자동 업데이트용 packaged MSIX와 첫 웹 Preview용 unpackaged self-contained EXE를 함께 지원한다. 순수 Domain과 패키지 계약은 xUnit으로 검증한다.
 
 Windows 앱은 macOS 앱과 기능 동등성을 목표로 하되 네이티브 프로젝트로 별도 구현한다. 공유 범위는 `.monglepet` 패키지 규격, 권장 프로필, 스키마 fixture와 공통 테스트 시나리오로 제한한다.
 
@@ -19,7 +19,7 @@ WPF는 초기 성능 비교 또는 호환성 대안일 뿐 최종 기준 기술�
 - `src/MonglePet.PetLibrary`: LocalState 기반 설치·목록·교체·삭제와 ZIP importer
 - `src/MonglePet.Settings`: schema-v1~v10 순차 마이그레이션, schema-v10 전체 Domain 매핑·항목 복구와 원자적 JSON 저장
 - `src/MonglePet.Shell`: notification area 메뉴와 모니터 작업 영역 배치의 Windows 전용 adapter
-- `src/MonglePet.Windows`: packaged WinUI 3·MSIX 앱
+- `src/MonglePet.Windows`: packaged MSIX와 unpackaged self-contained 배포를 지원하는 WinUI 3 앱
 - `tests`: Activity·Core·Packages·PetLibrary·Settings·Shell xUnit 테스트
 
 현재 패키지 계층은 `pet.json` 구조 검증에 더해 디렉터리·ZIP의 경로 탈출, 링크, 허용 확장자, 압축·해제 크기, 엔트리 수와 압축률을 검사한다. 참조 파일의 존재와 PNG·WebP 컨테이너 형식·정적 이미지·크기·알파 선언도 검사하며, 선택한 atlas는 Windows 이미지 디코더가 `LoadedImageSurface`로 실제 디코딩한다. 설치 전 모든 미리보기·atlas의 실제 디코딩과 공통 WebP 오류 fixture는 후속 보강 범위다.
@@ -42,7 +42,7 @@ WinUI 화면에서 96–384px 펫 너비, 10–100% 기본 투명도, 입력 통
 
 `MonglePet.Shell`은 `Shell_NotifyIcon` 아이콘과 네이티브 메뉴를 제공한다. 메뉴는 현재 펫 이름, 깨우기·재우기, 클릭 통과, 포인터가 있는 현재 화면으로 가져오기, 설정과 `MonglePet 종료` 순서이며 열 때마다 실제 앱 상태로 다시 구성한다. Explorer가 재시작되면 숨은 callback HWND의 `TaskbarCreated` 처리에서 같은 GUID의 아이콘을 다시 등록한다.
 
-일반 설정의 로그인 자동 실행은 별도 JSON 값을 저장하지 않고 MSIX `MonglePetStartupTask`의 실제 Windows 상태를 사용한다. 사용자가 Windows 시작 앱 설정에서 끈 상태는 앱이 강제로 덮어쓰지 않으며 해당 설정 화면을 여는 복구 버튼을 표시한다.
+일반 설정의 로그인 자동 실행은 별도 JSON 값을 저장하지 않는다. packaged 앱은 MSIX `MonglePetStartupTask`, unpackaged 앱은 현재 사용자 Run 레지스트리의 인용된 현재 EXE 경로와 `--startup`을 사용한다. Run 값이 다른 경로를 가리키면 덮어쓰지 않고 비활성으로 표시하며, 로그인 실행에서는 설정창을 숨기고 펫과 notification area만 시작한다.
 
 설정창 X 버튼은 창만 숨기므로 펫과 행동 runtime, notification area는 계속 실행한다. 아이콘 활성화 또는 설정 메뉴로 같은 WinUI 창을 다시 열고, 명시적 종료에서만 설정 Page의 timer·event와 장기 실행 자원·overlay를 정리한 뒤 마지막 WinUI 창을 닫는다. 종료 명령은 notification area의 native callback이 반환된 다음 UI queue에서 실행한다. packaged Release에서 모든 메뉴 상태와 명령, X 숨김·재열기, 현재 화면 위치의 재실행 복원과 완전 종료를 확인했다. 실제 Explorer 재시작과 혼합 DPI 다중 모니터 장비의 수동 QA는 남아 있다.
 
@@ -66,7 +66,7 @@ Windows 앱 규칙 식별자는 package identity가 있으면 소문자 `pfn:<pa
 
 ## 로컬 펫 라이브러리
 
-packaged 앱은 `ApplicationData.Current.LocalFolder\MonglePet\Library\<installation-uuid>`에 검증된 패키지를 설치한다. 일반 `%LOCALAPPDATA%\MonglePet` 경로는 MSIX가 `LocalCache`로 가상화하므로 직접 사용하지 않는다.
+packaged 앱은 `ApplicationData.Current.LocalFolder\MonglePet\Library\<installation-uuid>`, unpackaged 앱은 `%LOCALAPPDATA%\MonglePet\Library\<installation-uuid>`에 검증된 패키지를 설치한다. unpackaged 대상이 비어 있으면 알려진 기존 개발 MSIX `LocalState\MonglePet`을 staging으로 한 번만 복사하고 원본은 남긴다.
 
 설치는 라이브러리와 같은 볼륨의 숨은 staging 디렉터리로 복사한 뒤 전체 패키지를 다시 검증하고 UUID 최종 경로로 rename한다. 같은 패키지 ID는 기본적으로 중복을 거부하며 별도 설치와 같은 ID 설치 교체를 명시적으로 지원한다. 교체 중 실패하면 기존 설치 backup을 복구하고, 손상된 설치와 남은 staging·backup은 사용 가능한 목록에서 제외한다.
 
@@ -97,6 +97,24 @@ dotnet test apps/windows/MonglePet.slnx --configuration Debug --no-build --no-re
 
 SDK는 루트 `global.json`의 .NET 10.0.302로 고정한다. .NET 10이 제공하는 안정 Windows API 계약은 build 26100을 대상으로 컴파일하며, 실제 제품 설치 최소 버전 build 26200은 `Package.appxmanifest`의 MSIX 대상 제품군에서 적용한다.
 
-2026-08-09 기준 x64 Debug·Release 전체 빌드와 Activity 27개, Core 38개, Packages 18개, PetLibrary 18개, Settings 58개, Shell 8개로 총 167개 xUnit 테스트가 통과했다. startup task와 펫 편집·로컬 공유 기능을 포함한 1.0.0.13 x64 Release MSIX도 생성됐으며 로컬 `mspdbcmf.exe` 부재로 symbols package만 생략됐다. Windows 설정 화면은 macOS와 같은 6개 기능 구조와 사용자 문구를 따르고, 펫·애니메이션 관리, 모드별 이동 설정, 행동·입력 없음 규칙과 말풍선 대사·위치 미리보기를 제공한다. 설정 콘텐츠는 Mica 위의 중앙 반응형 최대 폭, 탭별 아이콘 헤더와 20px 카드·14px 하위 카드 계층을 사용해 넓은 창의 빈 공간과 왼쪽 쏠림을 줄인다. 말풍선 본체와 꼬리는 하나의 연속 외곽선으로 그리며, 꼬리는 고정 높이를 유지한 채 설정 간격에 따라 말풍선과 함께 이동한다. XAML Island 측정 실패는 글자·여백 기반 안전 크기로 복구한다. `다음 대사까지 유지` 행동 대사 중에도 주기 대사가 예약되며 주기 대기 timer는 설정창 가시성과 분리한다. 서로 다른 이미지 atlas의 행동 전환은 이전 프레임을 유지한 채 새 surface를 준비해 투명 번쩍임을 막고, notification area 메뉴가 닫힌 뒤 설정창을 전면 활성화한다.
+2026-08-09 기준 x64 Debug·Release 전체 빌드와 Activity 27개, Core 38개, Packages 18개, PetLibrary 18개, Settings 58개, Shell 12개로 총 171개 xUnit 테스트가 통과했다. startup task와 펫 편집·로컬 공유 기능을 포함한 1.0.0.13 x64 Release MSIX도 생성됐으며 로컬 `mspdbcmf.exe` 부재로 symbols package만 생략됐다. Windows 설정 화면은 macOS와 같은 6개 기능 구조와 사용자 문구를 따르고, 펫·애니메이션 관리, 모드별 이동 설정, 행동·입력 없음 규칙과 말풍선 대사·위치 미리보기를 제공한다. 설정 콘텐츠는 Mica 위의 중앙 반응형 최대 폭, 탭별 아이콘 헤더와 20px 카드·14px 하위 카드 계층을 사용해 넓은 창의 빈 공간과 왼쪽 쏠림을 줄인다. 말풍선 본체와 꼬리는 하나의 연속 외곽선으로 그리며, 꼬리는 고정 높이를 유지한 채 설정 간격에 따라 말풍선과 함께 이동한다. XAML Island 측정 실패는 글자·여백 기반 안전 크기로 복구한다. `다음 대사까지 유지` 행동 대사 중에도 주기 대사가 예약되며 주기 대기 timer는 설정창 가시성과 분리한다. 서로 다른 이미지 atlas의 행동 전환은 이전 프레임을 유지한 채 새 surface를 준비해 투명 번쩍임을 막고, notification area 메뉴가 닫힌 뒤 설정창을 전면 활성화한다.
 
 Windows 기반부터 로컬 공유까지의 완료 기록은 `../../AGENTS/work_plans/INDEX.md`에서 확인한다. 이번 가져오기 검토·권장 설정·내보내기 구현은 `../../AGENTS/work_plans/tasks/2026-08-09-windows-local-sharing.md`에 정리했다. 다음 구현을 시작하기 전 이 디렉터리의 `AGENTS.md`와 새 작업 계획을 함께 확인한다.
+
+## EXE 설치기 만들기
+
+Inno Setup 6.7.3 이상을 설치한 뒤 저장소 루트에서 실행한다. 첫 실행은 self-contained publish를 새로 만들며, 이미 검증된 publish를 재사용할 때만 `-SkipPublish`를 사용한다.
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+    -File '.\apps\windows\scripts\New-WindowsExeInstaller.ps1' `
+    -AllowUnsigned
+```
+
+기본 출력은 `dist\windows-exe\<version>\MonglePet-Windows-<version>-x64-Setup.exe`와 `SHA256SUMS.txt`다. 같은 버전을 의도적으로 다시 만들 때만 `-OverwriteVersion`을 추가한다. 미서명 Preview는 SmartScreen 경고가 표시될 수 있으며 설치기와 앱의 게시자 신원을 증명하지 못한다.
+
+설치기는 관리자 권한 없이 `%LOCALAPPDATA%\Programs\MonglePet`에 앱과 .NET·Windows App SDK 런타임을 설치한다. 사용자는 새 버전 설치기를 다시 실행해 수동 업데이트하며, 제거해도 `%LOCALAPPDATA%\MonglePet`의 설정과 펫은 남는다.
+
+## 웹 배포 준비
+
+자체 웹사이트와 GitHub Releases용 Windows 배포 구조, 첫 EXE Preview와 향후 코드 서명·App Installer 자동 업데이트 절차는 `distribution/README.md`에 정리했다. `scripts/New-WindowsExeInstaller.ps1`은 EXE와 SHA256SUMS를 만들고, `scripts/New-WindowsReleaseArtifacts.ps1`은 서명된 MSIX 내부 identity를 기준으로 App Installer 산출물을 만들며 개발용 Publisher, 미서명 패키지와 타임스탬프 누락을 기본적으로 거부한다.
