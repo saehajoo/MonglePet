@@ -8,6 +8,11 @@
 
 | 상태 | 작업명 | 파일 | 마지막 갱신 |
 | --- | --- | --- | --- |
+| in_progress | Windows 말풍선 타이밍과 설정 UI 다듬기 | `tasks/2026-08-09-windows-speech-timing-and-ui-polish.md` | 2026-08-09 |
+| completed | Windows macOS 기능 동등성 완성 | `tasks/2026-08-09-windows-macos-feature-parity-completion.md` | 2026-08-09 |
+| completed | Windows 로그인 시 자동 실행 | `tasks/2026-08-09-windows-login-launch.md` | 2026-08-09 |
+| completed | Windows 로컬 가져오기 검토와 내보내기 | `tasks/2026-08-09-windows-local-sharing.md` | 2026-08-09 |
+| complete | Windows 개발 기준선·공통 계약·오버레이 실험 | `tasks/2026-08-08-windows-foundation-and-overlay.md` | 2026-08-08 |
 | in_progress | Phase 10 공개 준비와 이동 성능 보완 | `tasks/2026-07-24-phase-10-release-preparation.md` | 2026-07-31 |
 | in_progress | 개인 맥 Preview 배포 파일 생성 | `tasks/2026-07-24-personal-mac-preview-artifact.md` | 2026-07-26 |
 
@@ -25,6 +30,22 @@
 
 | 상태 | 작업명 | 파일 | 완료일 |
 | --- | --- | --- | --- |
+| completed | Windows 설정 화면 시각적 동등성 | `tasks/2026-08-09-windows-settings-visual-parity.md` | 2026-08-09 |
+| completed | Windows 아이콘과 설정 디자인 정렬 | `tasks/2026-08-09-windows-icon-and-settings-design.md` | 2026-08-09 |
+| completed | Windows 말풍선 런타임과 설정 UI | `tasks/2026-08-09-windows-speech-bubbles.md` | 2026-08-09 |
+| completed | Windows 전면 앱 대표 창 선호 이동 | `tasks/2026-08-09-windows-frontmost-window-preference.md` | 2026-08-09 |
+| completed | Windows 알파 호버와 겹침 투명화 | `tasks/2026-08-09-windows-alpha-hover-and-overlap-fade.md` | 2026-08-09 |
+| completed | Windows 이동·드래그·쓰다듬기 런타임 | `tasks/2026-08-09-windows-movement-and-petting-runtime.md` | 2026-08-09 |
+| completed | Windows notification area 빠른 제어 | `tasks/2026-08-09-windows-notification-area-quick-controls.md` | 2026-08-09 |
+| completed | Windows 자동 규칙 앱 선택기 | `tasks/2026-08-09-windows-application-rule-picker.md` | 2026-08-09 |
+| completed | Windows 행동 루틴과 자동 규칙 편집기 | `tasks/2026-08-09-windows-behavior-editors.md` | 2026-08-09 |
+| completed | Windows 활동 감지와 자동 규칙 연결 | `tasks/2026-08-09-windows-activity-monitoring.md` | 2026-08-09 |
+| completed | Windows 행동 런타임과 기본 설정 UI | `tasks/2026-08-09-windows-behavior-runtime-basic-ui.md` | 2026-08-09 |
+| completed | Windows 화면 표시 설정 런타임 적용 | `tasks/2026-08-08-windows-display-settings-runtime.md` | 2026-08-08 |
+| completed | Windows schema-v10 Domain 매핑과 항목 복구 | `tasks/2026-08-08-windows-settings-domain-mapping.md` | 2026-08-08 |
+| completed | Windows 설정 schema-v1~v9 마이그레이션 | `tasks/2026-08-08-windows-settings-migration.md` | 2026-08-08 |
+| completed | Windows 설정 저장과 펫 라이브러리 관리 UI | `tasks/2026-08-08-windows-settings-and-library-ui.md` | 2026-08-08 |
+| completed | Windows 로컬 펫 라이브러리와 실행 중 전환 | `tasks/2026-08-08-windows-pet-library.md` | 2026-08-08 |
 | completed | 펫 라이선스 메타데이터 제거 | `tasks/2026-08-07-remove-pet-license-metadata.md` | 2026-08-07 |
 | completed | 행동 대사 우선순위와 주기 대사 목록 분리 | `tasks/2026-07-31-speech-priority-and-periodic-list.md` | 2026-07-31 |
 | completed | 말풍선 테마 커스텀 | `tasks/2026-07-30-speech-bubble-themes.md` | 2026-07-31 |

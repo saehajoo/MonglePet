@@ -12,6 +12,11 @@ DerivedData/
 build/
 dist/
 *.xcresult
+AppPackages/
+*.msix
+*.msixbundle
+*.msixupload
+*.appxsym
 
 # Swift Package Manager
 .build/

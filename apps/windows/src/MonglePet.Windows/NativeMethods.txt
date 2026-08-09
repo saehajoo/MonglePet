@@ -1,0 +1,14 @@
+CreateWindowEx
+DefWindowProc
+DestroyWindow
+GetModuleHandle
+GetSystemMetrics
+GetWindowRect
+GetWindowLongPtr
+GetDpiForWindow
+RegisterClassEx
+SetWindowLongPtr
+SetWindowPos
+ShowWindow
+WTSRegisterSessionNotification
+WTSUnRegisterSessionNotification

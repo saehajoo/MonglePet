@@ -1,0 +1,119 @@
+using MonglePet.Core.Behavior;
+
+namespace MonglePet.Core.Tests;
+
+public sealed class MotionSchedulerTests
+{
+    [Fact]
+    public void AdvancesCyclesRepeatCountsStepsAndRepeatingSequence()
+    {
+        var scheduler = Scheduler();
+        var sequence = new BehaviorSequence(
+            "routine",
+            [new("idle", 2), new("focus", 1)],
+            true);
+
+        Assert.True(scheduler.Request(sequence));
+        scheduler.Advance(TimeSpan.FromMilliseconds(100));
+        AssertPlaying(scheduler, "routine", 0, "idle");
+        Assert.Equal(TimeSpan.FromMilliseconds(100), scheduler.ActiveCycleRemainingDuration);
+
+        scheduler.Advance(TimeSpan.FromMilliseconds(100));
+        AssertPlaying(scheduler, "routine", 1, "focus");
+        Assert.Equal(TimeSpan.FromMilliseconds(250), scheduler.ActiveCycleRemainingDuration);
+
+        scheduler.Advance(TimeSpan.FromMilliseconds(250));
+        AssertPlaying(scheduler, "routine", 0, "idle");
+    }
+
+    [Fact]
+    public void EquivalentRequestPreservesProgressAndEditedRequestRestarts()
+    {
+        var scheduler = Scheduler();
+        var original = new BehaviorSequence("routine", [new("idle", 2)], true);
+        scheduler.Request(original);
+        scheduler.Advance(TimeSpan.FromMilliseconds(75));
+
+        Assert.False(scheduler.Request(
+            new BehaviorSequence("routine", [new("idle", 2)], true)));
+        Assert.Equal(TimeSpan.FromMilliseconds(25), scheduler.ActiveCycleRemainingDuration);
+
+        Assert.True(scheduler.Request(
+            new BehaviorSequence("routine", [new("focus", 1)], true)));
+        AssertPlaying(scheduler, "routine", 0, "focus");
+        Assert.Equal(TimeSpan.FromMilliseconds(250), scheduler.ActiveCycleRemainingDuration);
+    }
+
+    [Fact]
+    public void CurrentDefaultAndMissingMotionResolveToPackageDefault()
+    {
+        var scheduler = Scheduler();
+        scheduler.Request(new BehaviorSequence(
+            "routine",
+            [
+                new(BehaviorMotionReferences.CurrentPetDefault, 1),
+                new("missing", 1),
+            ],
+            false));
+
+        ScheduledMotion current = AssertPlaying(scheduler, "routine", 0, "idle");
+        Assert.False(current.UsesFallback);
+        scheduler.Advance(TimeSpan.FromMilliseconds(100));
+        ScheduledMotion missing = AssertPlaying(scheduler, "routine", 1, "idle");
+        Assert.True(missing.UsesFallback);
+    }
+
+    [Fact]
+    public void PausePreservesRemainingTimeUntilResume()
+    {
+        var scheduler = Scheduler();
+        scheduler.Request(new BehaviorSequence("routine", [new("idle", 1)], true));
+        scheduler.Advance(TimeSpan.FromMilliseconds(40));
+
+        scheduler.Pause();
+        scheduler.Advance(TimeSpan.FromSeconds(10));
+        Assert.Equal(TimeSpan.FromMilliseconds(60), scheduler.ActiveCycleRemainingDuration);
+
+        scheduler.Resume();
+        scheduler.Advance(TimeSpan.FromMilliseconds(60));
+        Assert.Equal(TimeSpan.FromMilliseconds(100), scheduler.ActiveCycleRemainingDuration);
+    }
+
+    [Fact]
+    public void NonRepeatingSequenceCompletesAndInvalidInitialRequestIsUnavailable()
+    {
+        var scheduler = Scheduler();
+        Assert.False(scheduler.Request(new BehaviorSequence("invalid", [], false)));
+        Assert.IsType<MotionSchedulerStatus.Unavailable>(scheduler.Status);
+
+        Assert.True(scheduler.Request(
+            new BehaviorSequence("once", [new("focus", 1)], false)));
+        scheduler.Advance(TimeSpan.FromMilliseconds(250));
+
+        Assert.Equal(
+            new MotionSchedulerStatus.Completed("once"),
+            scheduler.Status);
+        Assert.Null(scheduler.ActiveCycleRemainingDuration);
+    }
+
+    private static MotionScheduler Scheduler() => new(
+        "idle",
+        new Dictionary<string, TimeSpan>(StringComparer.Ordinal)
+        {
+            ["idle"] = TimeSpan.FromMilliseconds(100),
+            ["focus"] = TimeSpan.FromMilliseconds(250),
+        });
+
+    private static ScheduledMotion AssertPlaying(
+        MotionScheduler scheduler,
+        string sequenceId,
+        int stepIndex,
+        string motionId)
+    {
+        ScheduledMotion motion = Assert.IsType<MotionSchedulerStatus.Playing>(scheduler.Status).Motion;
+        Assert.Equal(sequenceId, motion.SequenceId);
+        Assert.Equal(stepIndex, motion.StepIndex);
+        Assert.Equal(motionId, motion.ResolvedMotionId);
+        return motion;
+    }
+}

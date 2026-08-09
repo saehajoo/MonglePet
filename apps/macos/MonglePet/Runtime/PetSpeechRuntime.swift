@@ -238,11 +238,6 @@ final class PetSpeechRuntime {
             cancelPeriodic()
             return
         }
-        if let activePresentation,
-           case let .behavior(sequenceID) = activePresentation.source,
-           sequenceID == lastSequenceID {
-            return
-        }
         guard let phrase = nextPeriodicPhrase() else {
             return
         }
@@ -280,9 +275,7 @@ final class PetSpeechRuntime {
                 after: phrase.displayDurationMilliseconds
             )
         case .untilNextPhrase:
-            if source == .periodic {
-                scheduleNextPeriodicPresentation()
-            }
+            scheduleNextPeriodicPresentation()
         }
     }
 

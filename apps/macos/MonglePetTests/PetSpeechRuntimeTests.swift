@@ -291,9 +291,9 @@ final class PetSpeechRuntimeTests: XCTestCase {
         runtime.behaviorSequenceDidChange("focus")
 
         XCTAssertEqual(receivedTexts.last!, "집중 시작")
-        XCTAssertNil(periodicScheduler.scheduledDelay)
+        XCTAssertEqual(periodicScheduler.scheduledDelay, .seconds(10))
         periodicScheduler.fire()
-        XCTAssertEqual(receivedTexts.last!, "집중 시작")
+        XCTAssertEqual(receivedTexts.last!, "주기 대사")
     }
 
     func testBehaviorChangeWithoutPhraseUsesDismissPolicy() {

@@ -1,0 +1,19 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/MonglePet.Activity/MonglePet.Activity.csproj" />
+    <Project Path="src/MonglePet.Core/MonglePet.Core.csproj" />
+    <Project Path="src/MonglePet.Packages/MonglePet.Packages.csproj" />
+    <Project Path="src/MonglePet.PetLibrary/MonglePet.PetLibrary.csproj" />
+    <Project Path="src/MonglePet.Settings/MonglePet.Settings.csproj" />
+    <Project Path="src/MonglePet.Shell/MonglePet.Shell.csproj" />
+    <Project Path="src/MonglePet.Windows/MonglePet.Windows.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/MonglePet.Activity.Tests/MonglePet.Activity.Tests.csproj" />
+    <Project Path="tests/MonglePet.Core.Tests/MonglePet.Core.Tests.csproj" />
+    <Project Path="tests/MonglePet.Packages.Tests/MonglePet.Packages.Tests.csproj" />
+    <Project Path="tests/MonglePet.PetLibrary.Tests/MonglePet.PetLibrary.Tests.csproj" />
+    <Project Path="tests/MonglePet.Settings.Tests/MonglePet.Settings.Tests.csproj" />
+    <Project Path="tests/MonglePet.Shell.Tests/MonglePet.Shell.Tests.csproj" />
+  </Folder>
+</Solution>

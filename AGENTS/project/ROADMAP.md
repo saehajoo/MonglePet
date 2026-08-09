@@ -370,15 +370,19 @@ macOS에서 검증된 펫 패키지, 설정 스키마와 테스트 시나리오�
 - [x] 단일 저장소의 `apps/macos`, `apps/windows`, `shared` 디렉터리 분리
 - [x] macOS 우선 개발·Windows 후속 반영 절차와 기능 동등성 상태표 작성
 - [x] C#·.NET·WinUI 3 앱 UI와 Win32 `HWND`·Microsoft.UI.Composition 오버레이 경계 확정
-- [ ] 최소 Windows 버전, 테스트 프레임워크와 개발 환경 확정
-- [ ] Windows 앱 식별자, 저장 위치와 자동 규칙 대상 모델 설계
-- [ ] 실제 Windows Release 환경에서 Composition 오버레이 성능 실험과 기준 확정
-- [ ] 투명 오버레이·시스템 트레이·클릭 통과 최소 셸
-- [ ] `.monglepet` 공통 fixture 기반 패키지 호환 검증
-- [ ] 행동·이동·말풍선 기능을 Windows adapter와 렌더러에 연결
+- [x] 최소 Windows 버전, 테스트 프레임워크와 개발 환경 확정
+- [x] Windows 앱 식별자, 저장 위치와 자동 규칙 대상 모델 설계 — MSIX LocalState·UUID 라이브러리와 PFN/실행 파일명 기반 로컬 앱 식별자 구현
+- [ ] 실제 Windows Release 환경에서 Composition 오버레이 성능 실험과 기준 확정 — 고정 PNG workload 기준선 통과, 이동·말풍선·프레임 지연 남음
+- [x] 투명 오버레이·시스템 트레이·클릭 통과 최소 셸
+- [ ] `.monglepet` 공통 fixture 기반 패키지 호환 검증 — 디렉터리·ZIP·PNG 기본 모션 통과, WebP·교차 왕복 남음
+- [x] 행동·이동·말풍선 기능을 Windows adapter와 렌더러에 연결
 - [ ] Windows 설치·업데이트·성능·개인정보 QA
 
-현재 상태: macOS는 Preview 기준 구현과 안정화를 진행 중이며 Windows는 디렉터리·지침만 준비된 구현 전 상태다. 세부 기능별 현황은 `PLATFORM_PARITY.md`에서 관리한다.
+현재 상태: macOS는 Preview 기준 구현과 안정화를 진행 중이다. Windows는 Visual Studio·.NET·WinUI 개발 환경, 첫 솔루션, 행동 결정기·cycle scheduler, Windows activity adapter, 안전한 디렉터리·ZIP 패키지 로더, MSIX LocalState UUID 펫 라이브러리, schema-v1~v10 순차 마이그레이션, schema-v10 전체 Domain 매핑·항목 복구·원자적 전체 저장, 가져오기·활성화·삭제 개발 UI를 만들고 x64 Debug·Release 빌드와 단위 테스트 136개를 통과했다. 별도 Win32 HWND·ContentIsland Composition 오버레이에서 공통 PNG 모션을 동적으로 재생하고 화면 표시, 자동·수동 설정, 루틴 단계와 전면 앱·입력 없음 자동 규칙 전체 편집, 실행 중 일반 앱의 이름·아이콘 선택, 현재 앱 채우기, 명시적 `.exe` 선택, 잠금·절전 pause, 숨김 polling 중지와 저장·재실행 복원을 실제 packaged Release에서 확인했으며 고정 workload 성능 기준선도 통과했다. notification area 네이티브 메뉴와 네 이동 모드, 음수 좌표 듀얼 모니터 작업 영역, 드래그 위치 저장, 방향 이동 표시, 실제 frame 알파 기반 호버 쓰다듬기·클릭 통과 겹침 투명화와 창 제목 없는 전면 앱 대표 창 선호도 연결했다. 전체 화면 전면 앱 fallback과 전면 창 감지 자유 이동 workload 성능을 실제 Release에서 확인했고 `.exe` 표준 파일 선택과 일반 Win32 전면 앱 규칙 전환도 실제 사용자 QA를 통과했다. 다음 단계는 실제 Explorer 재시작·혼합 DPI 다중 모니터와 물리 잠금·절전 복귀 QA, 알파 쓰다듬기와 일반 창 foreground의 최종 물리 QA, 가져오기 검토·내보내기, 다중 프레임·WebP 호환과 말풍선 workload다. 세부 기능별 현황은 `PLATFORM_PARITY.md`에서 관리한다.
+
+2026-08-09 말풍선 후속 구현에서 schema-v10 펫별 대사·주기/행동 정책·테마·상대 배치를 Windows scheduler, 입력 통과 Win32/XAML Island 창과 전체 설정 UI에 연결했다. Settings 대상 테스트 46개와 x64 Debug 앱 빌드가 통과했으며 실제 말풍선 시각·혼합 DPI·workload와 전체 회귀는 최종 검증 단계에 남긴다.
+
+2026-08-09 로컬 공유와 로그인 실행 후속 구현에서 설치 전 검토·schema-v1~v7 권장 프로필·canonical ZIP 내보내기와 MSIX `StartupTask` 일반 설정을 연결했다. Debug·Release 전체 153개 테스트와 두 구성 빌드, startup task를 포함한 Release MSIX 생성이 통과했다. 남은 작업은 실제 picker·다중 프레임/WebP·말풍선/혼합 DPI·로그인 실행 수동 QA와 Publisher·서명·업데이트 채널 확정이다.
 
 ## 진행 관리
 
@@ -389,4 +393,4 @@ macOS에서 검증된 펫 패키지, 설정 스키마와 테스트 시나리오�
 ---
 
 문서 상태: active
-마지막 갱신: 2026-07-31
+마지막 갱신: 2026-08-09

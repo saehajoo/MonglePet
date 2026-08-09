@@ -113,6 +113,116 @@ UI 테스트는 앱 실행과 접근성 자동화가 가능한 macOS 세션에�
 - 관리형 최적화 후에도 병목이 남을 때만 해당 렌더링·디코딩·메모리 복사 구간의 C++/WinRT 모듈 실험을 추가한다.
 - 가상 머신은 개발 점검에 사용할 수 있지만 성능·다중 모니터 최종 기준은 실제 Windows 하드웨어에서 확정한다.
 
+#### Windows 고정 PNG 기준선 (2026-08-08)
+
+- 환경: x64 Windows 11 25H2 build 26200.8875, 논리 프로세서 6개, .NET 10.0.302, Windows App SDK 2.3.1, packaged Release 빌드
+- workload: 220×220 항상 위·클릭 통과 오버레이에서 공통 fixture의 1254×1254 투명 PNG 단일 프레임 표시, 5초 warm-up 뒤 30초 측정
+- 결과: CPU 전체 시스템 기준 평균 0.017%, 단일 코어 환산 0.103%, private memory 평균·최대 100.2 MiB, working set 평균 144.9 MiB, 3D GPU 평균·최대 0%
+- 첫 측정의 manifest 외 무한 scale 애니메이션은 전체 시스템 CPU 3.133%를 사용해 제거했다. 단일 프레임은 timer와 지속 Composition animation을 만들지 않는 것을 기준으로 한다.
+- 판정: 고정 PNG workload의 CPU 1%·private memory 200 MiB 초기 기준 통과. 실제 다중 프레임·WebP, 이동·말풍선, 프레임 지연 p95와 1시간 메모리 증가는 미측정이다.
+
+#### Windows 설정·펫 라이브러리 검증 (2026-08-08)
+
+- x64 Debug·Release 전체 솔루션 빌드가 경고·오류 없이 통과했고 Core 8개, Packages 17개, PetLibrary 10개, Settings 24개로 총 59개 xUnit 테스트가 두 구성에서 모두 통과했다.
+- Settings 테스트에서 schema-v10 기본 문서, 선택 UUID 왕복, 미사용 필드 보존, 잘못된 UUID 항목 복구, 손상·5MiB 초과 격리, v1부터 v9까지의 순차 마이그레이션, 미래 schema 원본 보호와 임시 파일 정리를 확인했다.
+- macOS schema-v1 fixture를 공유해 focus·기본 모션의 유지 시간을 주입한 800ms·600ms 사이클로 각각 3회·2회 반복으로 변환하고, 누락 모션은 현재 펫 기본 모션 1회로 복구하는지 확인했다. 선택 펫 정의를 얻을 수 없는 v1은 원본과 쓰기 차단 상태를 유지한다.
+- 실제 packaged Debug 앱의 `LocalState`에서도 같은 fixture를 v10으로 원자적 교체하고 반복 횟수 3·2·1, 이동 모드 `fixed`, 말풍선 배치 `automatic`, 임시 파일 0개와 앱 정상 응답을 확인했다. 단위 테스트에서는 마이그레이션된 파일을 다시 로드할 때 추가로 쓰지 않는 것도 확인했다.
+- schema-v10 전체 Domain 매핑 테스트에서 overlay, 행동 루틴·자동 규칙, 이동·방향 모션, 쓰다듬기와 말풍선 대사·정책·테마·배치 왕복을 확인했다. 전체 저장 뒤 상위·overlay·프로필·루틴·규칙·조건·대사·트리거 확장 marker가 유지된다.
+- 부분 손상 테스트에서 잘못된 enum·범위·참조·방향 모션·말풍선 대비·배치를 각각 복구하고, 잘못된 단계·규칙·대사·중복 프로필만 제외하거나 비활성화하며 로드만으로 원본을 다시 쓰지 않는 것을 확인했다.
+- 101개 행동 루틴을 저장 순서의 앞 100개로 제한하고 typed issue를 반환하며, 유효하지 않은 Domain 전체 저장은 기존 파일과 임시 파일을 변경하지 않고 거부하는 것을 확인했다.
+- typed schema-v10 로더를 포함한 Release loose AppX를 깨끗한 LocalState에 개발 등록해 앱 프로세스의 정상 응답을 확인했다.
+- 실제 packaged Debug 앱의 `LocalState`에서 사라진 선택 UUID를 사용 가능한 설치 UUID로 복구하면서 미사용 JSON marker를 보존하고, 재실행 시 파일을 다시 쓰지 않고 같은 UUID를 복원하는 것을 확인했다.
+- 설치가 없어진 다음 실행에서 선택 UUID를 `null`로 정리하고 bundled 샘플로 fallback했으며, 최종 Release packaged 앱이 깨끗한 데이터에서 정상 응답하는 프로세스로 시작하는 것을 확인했다.
+- WinUI `.monglepet` 파일 선택기와 중복 교체·별도 설치, 목록 활성화·삭제 XAML은 Debug·Release 빌드로 검증했다. OS 파일 선택 대화상자의 실제 선택 조작은 수동 QA가 남아 있다.
+- 화면 표시 typed 설정의 `tuckedAway`, 304px, 65%, 클릭 통과와 픽셀 렌더링 저장 왕복을 xUnit으로 확인했다. 실제 packaged Release 시작에서는 304×304 HWND가 `awake`에서 표시되고 `tuckedAway`에서 숨겨지며 `WS_EX_TRANSPARENT`가 복원되는 것을 확인했다.
+- 실제 packaged Release WinUI를 UI Automation으로 조작해 272px·55%·클릭 통과·픽셀 렌더링 변경이 HWND와 LocalState에 반영되고 숨김 버튼이 `tuckedAway`와 비표시 상태를 함께 저장하는 것을 확인했다. QA 뒤 프로세스·패키지 등록·LocalState·임시 레이아웃이 모두 제거됐다.
+
+#### Windows 행동 런타임과 기본 설정 검증 (2026-08-09)
+
+- x64 Debug·Release 전체 솔루션 빌드가 경고·오류 없이 통과했고 Core 13개, Packages 18개, PetLibrary 10개, Settings 25개로 총 66개 xUnit 테스트가 두 구성에서 모두 통과했다.
+- Core scheduler 테스트에서 모션 사이클, 단계별 `repeatCount`, 여러 단계·루틴 반복, 같은 요청의 진행 유지, 편집·다른 요청의 즉시 재시작, pause 중 시간 보존, 비반복 완료와 누락 모션 fallback을 확인했다.
+- Packages 테스트에서 manifest가 비반복으로 선언한 모션도 행동 단계에서는 scheduler의 cycle 반복 지시에 맞춰 재생 상태가 순환하는 것을 확인했고, Settings 테스트에서 내장·설치 UUID별 기본 행동 프로필 생성을 확인했다.
+- 두 모션 QA fixture를 포함한 실제 packaged Release WinUI를 UI Automation으로 조작해 자동 기본 루틴에서 수동 `focus` 루틴으로 즉시 전환되고 schema-v10 LocalState에 저장되는 것을 확인했다.
+- 수동 `focus` 실행 중 숨김이 `tuckedAway`와 비표시 상태를 함께 저장하고, 앱을 완전히 종료·재실행해 숨김 상태와 수동 선택을 복원한 뒤 다시 표시하면 `focus`가 재개되는 것을 확인했다. 자동 모드로 돌아가면 기본 루틴을 재생하면서 수동 선택 `focus`는 보존됐다.
+- QA 뒤 앱 프로세스, 임시 패키지 등록, LocalState와 임시 추출 폴더가 모두 제거된 것을 확인했다.
+
+#### Windows 활동 감지와 자동 규칙 검증 (2026-08-09)
+
+- x64 Debug·Release 전체 솔루션 빌드가 경고·오류 없이 통과했고 Activity 9개, Core 13개, Packages 18개, PetLibrary 10개, Settings 25개로 총 75개 xUnit 테스트가 두 구성에서 모두 통과했다.
+- Activity 테스트에서 PFN·실행 파일명 정규화와 경로 제거, 화면 사용 가능 상태에서만 idle·전면 앱 source 조회, 음수 idle 보정, lock/unlock·suspend/resume 상태 전이를 확인했다.
+- 실제 packaged Release에서 MonglePet을 `pfn:4b7e245f-a59a-4e0f-84d7-52b511356256_1z32rh13vfry6`, Notepad를 `pfn:microsoft.windowsnotepad_8wekyb3d8bbwe`로 감지하고 창 제목·경로를 상태에 노출하지 않는 것을 확인했다.
+- MonglePet 전면 앱 규칙이 `focus`, Notepad로 전환한 뒤 2초 입력 없음 규칙이 `rest`를 선택하고 MonglePet 복귀 시 높은 우선순위의 앱 규칙으로 즉시 돌아오는 것을 확인했다.
+- 오버레이 HWND에 Windows 세션 잠금·해제와 전원 suspend·resume 메시지를 보내 runtime·frame playback이 일시 정지·복귀하고, 펫 숨김 중 1초 activity polling이 멈추는 것을 확인했다. 실제 컴퓨터 잠금·절전 복귀 수동 QA는 공개 배포 전 검증으로 남긴다.
+- QA 뒤 앱 프로세스, 임시 패키지 등록, LocalState와 임시 추출 폴더가 모두 제거된 것을 확인했다.
+
+#### Windows 행동 루틴과 자동 규칙 편집기 검증 (2026-08-09)
+
+- x64 Debug·Release 전체 솔루션 빌드가 경고·오류 없이 통과했고 Activity 9개, Core 13개, Packages 18개, PetLibrary 10개, Settings 37개로 총 87개 xUnit 테스트가 두 구성에서 모두 통과했다.
+- Settings 편집기 테스트 12개에서 루틴 이름 정규화·중복·100개 한계, 기본 루틴 보호, 최소 한 단계, 단계 교체·이동·삭제, 반복 여부, 앱·입력 없음 규칙 생성·교체·삭제와 대상 참조를 확인했다.
+- 실제 packaged Release WinUI에서 `focusRoutine`을 만들고 `rest×2 → focus×3`, 루틴 반복 끔으로 편집했으며 단계 순서 변경과 schema-v10 LocalState 저장을 확인했다.
+- 현재 전면 앱 채우기로 MonglePet PFN을 입력해 `focusRoutine` 규칙을 만들자 runtime이 즉시 전환됐고, 같은 규칙을 비활성·우선순위 42·입력 없음 5분·기본 루틴으로 바꾼 뒤 다시 PFN 규칙으로 복원했다.
+- 두 번째 규칙의 생성·삭제와 임시 루틴 삭제 시 연결 규칙 cascade를 확인하고, 완전 종료·재실행 뒤 설정 파일을 다시 쓰지 않은 채 루틴·단계·규칙과 즉시 실행 상태를 복원했다.
+- 단계 편집 이벤트 중 목록을 동기 재생성할 때 발생한 WinUI native 충돌을 재현해 UI 큐 갱신으로 수정했으며, 수정 뒤 같은 조작 전체에서 앱 응답 유지·충돌 이벤트 0개·설정 임시 파일 0개를 확인했다.
+
+#### Windows 자동 규칙 앱 선택기 검증 (2026-08-09)
+
+- x64 Debug·Release 전체 솔루션 빌드가 경고·오류 없이 통과했고 Activity 21개, Core 13개, Packages 18개, PetLibrary 10개, Settings 37개로 총 99개 xUnit 테스트가 두 구성에서 모두 통과했다.
+- Activity 테스트에서 background·tool·owned·cloaked 창과 MonglePet 자체 제외, 식별자 중복 제거·선호·정렬, `.exe` 파일 검사와 누락·잘못된 형식·현재 프로세스 거부를 확인했다.
+- 실제 packaged Release에서 MonglePet을 제외한 실행 앱 5개의 이름·아이콘·식별자를 표시하고 Notepad를 선택해 `pfn:microsoft.windowsnotepad_8wekyb3d8bbwe` 규칙으로 저장했다.
+- 저장 JSON에는 Notepad 표시 이름이나 실행 파일 전체 경로가 남지 않았고, 앱 응답 유지·충돌 이벤트 0개·설정 임시 파일 0개를 확인했다.
+- 자동화 환경에서는 OS 파일 선택 대화상자를 조작할 수 없어 파일 검사 경계와 식별자 저장을 단위 테스트로 먼저 검증했다. 이어 실제 사용자 QA에서 KakaoTalk `.exe` 선택, `exe:kakaotalk.exe` 저장과 전면 앱 전환 시 대상 루틴 실행을 확인했다. Windows Terminal이 호스팅하는 `cmd.exe`는 직접 전면 창을 소유하지 않으므로 Terminal 앱 규칙으로 선택해야 하는 동작도 확인했다.
+- QA 뒤 MonglePet·Notepad 프로세스, 임시 패키지 등록과 LocalState를 제거했다.
+
+#### Windows notification area 빠른 제어 검증 (2026-08-09)
+
+- x64 Debug·Release 전체 솔루션 빌드가 경고·오류 없이 통과했고 Activity 21개, Core 13개, Packages 18개, PetLibrary 10개, Settings 37개, Shell 8개로 총 107개 xUnit 테스트가 두 구성에서 모두 통과했다.
+- Shell 테스트에서 메뉴 항목 순서·제목·체크·명령, 긴 펫 이름 말줄임과 fallback, 음수 가상 데스크톱을 포함한 작업 영역 우하단 배치와 작은 화면·화면 밖 좌표 clamp를 확인했다.
+- 실제 packaged Release에서 `MonglePet · 짱구` 아이콘과 현재 펫, 깨우기·재우기, 클릭 통과, 현재 화면으로 가져오기, 설정과 종료 순서의 네이티브 메뉴를 확인했다.
+- 메뉴 명령으로 `awake`/`tuckedAway`와 overlay 표시, `WS_EX_TRANSPARENT`, 현재 화면 식별자·원점 저장을 각각 전환했으며 재실행 뒤 같은 overlay 좌표를 복원했다.
+- 설정창 X 닫기 뒤 프로세스·펫·아이콘이 유지되고 아이콘 활성화와 설정 명령으로 같은 창을 다시 열었으며, 명시적 종료 뒤 프로세스와 아이콘이 제거되는 것을 확인했다. 최근 앱 충돌 이벤트와 설정 임시 파일은 없었다.
+- `TaskbarCreated` 재등록 코드는 구현했지만 실제 Explorer 재시작과 서로 다른 DPI가 섞인 다중 모니터 장비의 수동 QA는 공개 배포 전 검증으로 남긴다.
+
+#### Windows 이동·드래그·쓰다듬기 검증 (2026-08-09)
+
+- x64 Debug·Release 전체 솔루션 빌드가 경고·오류 없이 통과했고 Activity 21개, Core 27개, Packages 18개, PetLibrary 10개, Settings 37개, Shell 8개로 총 121개 xUnit 테스트가 두 구성에서 모두 통과했다.
+- Core 이동 테스트에서 음수 좌표 safe bounds, 마우스 따라가기 목표 거리, 결정적 자유 이동 목표, 도망 목표와 포인터 거리, 속도·경과 시간·정지 반경 advance, Windows 좌상단 좌표의 4·8방향 분류를 확인했다.
+- 호버 상태 테스트에서 포인터 주도 진입 뒤 300ms 한 번 실행, 같은 호버 중 중복 억제, 이탈 뒤 재활성화, 정지 포인터 아래로 이동한 펫과 사용자 드래그·비활성 상태 억제를 확인했다.
+- 실제 packaged Release에서 마우스 따라가기와 자유 이동의 좌표 변화, 포인터 접근 시 도망가기, `HTCAPTION` 드래그·완료 위치 저장과 재실행 복원을 확인했다. 자동 이동 중에는 저장된 사용자 원점이 바뀌지 않았다.
+- `DISPLAY1(-1920, 297)`과 `DISPLAY2(0, 0)` 듀얼 모니터에서 선택 DISPLAY1 자유 이동이 양수 좌표에서 `-1589, 447`까지 진입하고 펫 전체가 작업 영역 안에 유지되는 것을 확인했다.
+- 실제 호버에서 `이예~` 쓰다듬기 모션이 한 사이클 재생되고 기존 행동 단계로 복귀했다. 클릭 통과 상태의 HWND는 `HTTRANSPARENT`를 반환하며 호버 감시는 click-through와 독립된 polling 경계를 사용한다.
+- 자유 이동 중 오버레이 HWND에 WTS 잠금 메시지를 보내자 좌표 `743, 652`가 1초 이상 유지됐고 해제 메시지 뒤 `44, 23`으로 이동을 재개해 movement timer 생명주기 연결을 확인했다.
+- 위치 고정·쓰다듬기 미지정 상태 10초 측정은 전체 시스템 환산 CPU 0.182%, 단일 코어 환산 1.092%, private memory 134.2MiB로 초기 상시 실행 기준을 통과했다.
+- QA 설정은 위치 고정·속도 160·모든 화면·이동/쓰다듬기 모션 미지정·클릭 통과 꺼짐과 기존 DISPLAY2 원점으로 복원했다.
+- UI Automation이 이동 모드 ComboBox popup을 열린 채 강제 종료하면 `Microsoft.UI.Xaml.dll` 접근 위반이 재현되어, 이동 중 33ms UI 상태 알림을 제거하고 종료 시작 시 Page timer·event를 먼저 분리하며 notification area callback 밖에서 마지막 WinUI 창을 닫도록 생명주기를 보강했다. 자동화도 실제 사용자 선택처럼 popup을 닫도록 교정한 뒤 이동 모드·속도 변경 직후 명시적 종료 3회와 설정 복원 종료 1회에서 새 충돌 이벤트 0개를 확인했다. 설정을 건드리지 않은 명시적 종료도 새 충돌 이벤트 0개였다.
+
+#### Windows 알파 호버와 겹침 투명화 검증 (2026-08-09)
+
+- Core 테스트에서 투명·불투명 알파, 경계 밖 좌표, aspect-fit 여백, RGBA 추출, 좌상단 atlas crop과 최대 64px 축소 영역을 확인했다. 호버 상태는 표시 픽셀 진입 후 300ms 한 번 실행, 투명 픽셀 진입·전환 취소, 패널 이탈 전 중복 억제, 정지 포인터 아래로 이동한 펫과 드래그 억제를 검증했다.
+- x64 Debug 빌드는 경고·오류 없이 통과했다. Activity 21개, Core 34개, Packages 18개, PetLibrary 10개, Settings 37개, Shell 8개로 총 128개 xUnit 테스트가 통과했다.
+- x64 Release와 `MonglePet.Windows_1.0.0.0_x64.msix` 생성이 성공했다. 로컬 도구 체인에 `mspdbcmf.exe`가 없어 symbols package만 생성되지 않았고 앱 패키지에는 오류가 없었다.
+- 실제 packaged Release를 기능이 꺼진 설정으로 시작했을 때 frame player는 `알파 마스크 대기`를 보고했다. 입력 통과와 겹침 투명화를 켜면 현재 모션을 순차 preload해 `알파 마스크 준비 59×64`로 전환했다.
+- 포인터를 고정하고 overlay를 같은 frame의 모서리와 중앙 아래로 이동한 QA에서 모서리는 `투명 픽셀`·겹침 없음·기본 100%를 유지했고, 중앙은 `표시 픽셀`·겹침 적용 20%를 보고했다.
+- 활성 위치 고정 workload 10초는 전체 시스템 CPU 0.442%, 단일 코어 환산 2.652%, private memory 118.4MiB로 초기 기준을 통과했다. 클릭 통과·겹침 기능·위치·쓰다듬기 설정을 복원해 notification area 명령으로 정상 종료했고 최근 앱 충돌 이벤트는 0건이었다.
+- 자동화 환경이 실제 포인터 위치 변경을 거부해 알파 표시 픽셀의 쓰다듬기 진입은 상태 모델 테스트로 검증했다. 물리 포인터와 혼합 DPI 다중 모니터 수동 QA, 실제 WebP alpha fixture는 공개 배포 전 검증으로 남긴다.
+
+#### Windows 전면 앱 대표 창 선호 이동 검증 (2026-08-09)
+
+- Activity resolver 테스트에서 다른 PID, 숨김·owned·tool·cloaked·64px 미만·화면 밖 창을 제외하고 가시 면적이 가장 큰 창을 선택하며, 전체 화면 후보가 있으면 대표 창을 사용하지 않는 것을 확인했다.
+- provider 테스트에서 같은 foreground HWND·PID의 1초 캐시, foreground 변경 즉시 갱신, 환경 무효화와 MonglePet 자체 전면 시 창 열거 생략을 확인했다.
+- Core Geometry 테스트에서 대표 창과 작업 영역 교집합 안에 펫 전체가 들어가는 목표를 만들고, 창이 펫보다 작으면 기존 화면 무작위 목표로 복구하는 것을 확인했다.
+- x64 Debug 빌드는 경고·오류 없이 통과했다. Activity 27개, Core 36개, Packages 18개, PetLibrary 10개, Settings 37개, Shell 8개로 총 136개 xUnit 테스트가 통과했다.
+- x64 Release 앱과 MSIX 생성이 성공했다. `mspdbcmf.exe` 부재로 symbols package만 생략됐다.
+- 실제 packaged Release에서 사용자의 전체 화면 전면 앱을 `전면 창: 대표 창 없음 또는 전체 화면`으로 판정해 작업 영역 자유 이동으로 복구했다. 선호 토글을 끄면 `전면 창 선호 꺼짐`으로 즉시 전환하고 native 대표 창 조회를 건너뛰었다.
+- 자유 이동·전면 창 감지 10초 workload는 전체 시스템 CPU 0.364%, 단일 코어 환산 2.184%, private memory 126.2MiB로 이동 기준을 통과했다. 위치 고정·속도 160·머무름 6초·선호 켜짐·기존 원점으로 복원해 정상 종료했고 최근 충돌 이벤트는 0건이었다.
+- 자동화 세션에서는 사용자의 전체 화면 앱이 일반 QA 창의 foreground 전환을 차단했다. 일반 창 내부 목표는 native snapshot resolver와 Geometry 자동 테스트로 검증했으며, 사용자 조작 일반 창·혼합 DPI 다중 모니터 최종 수동 QA는 공개 배포 전 수행한다.
+
+#### Windows 말풍선 런타임과 설정 UI 검증 (2026-08-09)
+
+- Settings 테스트 9개를 추가해 대상 테스트 46개가 통과했다. 행동 대사의 주기 대사 선점, 동일 행동 루틴 중복 억제, 시간 지정 종료 뒤 주기 재예약, 닫기·유지 정책, 순차 주기 목록 순환, 재우기·잠금·절전·펫 전환 timer 정리를 확인했다.
+- Windows 좌상단 좌표에서 자동 위 배치와 상단 경계 아래 전환, 음수 좌표 화면, 좌우 오프셋 clamp와 펫을 향하는 꼬리 기준점 계산을 순수 geometry 테스트로 확인했다.
+- x64 Debug 앱 빌드는 경고·오류 없이 통과해 별도 non-activating·click-through 말풍선 Win32 HWND, WinUI 3 `DesktopWindowXamlSource`, 행동·활동 생명주기와 대사·정책·테마·배치 설정 UI의 컴파일 연결을 확인했다.
+- 전체 Windows 145개 단위 테스트, x64 Release·MSIX와 실제 말풍선의 밝은·어두운 배경, 긴 대사, 혼합 DPI·다중 모니터, 이동 중 위치 추적 및 workload 측정은 남은 구현 완료 뒤 최종 검증에서 수행한다.
+
 ### Phase 10 개인 맥 도구 체인 기준선
 
 - 점검일: 2026-07-26
@@ -614,6 +724,23 @@ UI 테스트는 앱 실행과 접근성 자동화가 가능한 macOS 세션에�
 - Preview ZIP·Developer ID DMG 스크립트가 저장소 루트와 macOS 프로젝트 루트를 각각 계산하도록 수정하고 zsh 문법 검사 통과
 - 루트 문서·배포 문서·샘플 경로와 작업 계획 인덱스의 새 경로 존재 확인
 
+### Windows 로컬 공유 대상 자동 검증
+
+- 측정일: 2026-08-09
+- 권장 프로필 schema-v1 이동 모션 승격, schema-v4 말풍선 기본값 승격, schema-v7 왕복·앱 규칙 선택 제외와 누락 모션·1 MiB 제한을 확인했다.
+- 가져오기 검토의 유효·잘못된·과대 권장 프로필 격리, 검토 후 원본 변경 거부와 일반 설치의 editor marker 제거를 확인했다.
+- 내보내기의 canonical 파일 선별, compatibility 갱신, loader·ZIP 왕복과 재가져오기 검토를 확인했다.
+- Settings 대상 테스트 50개, PetLibrary 대상 테스트 14개와 x64 Debug 앱 빌드가 경고·오류 없이 통과했다.
+- Debug·Release 전체 153개 테스트와 Release 전체 빌드·MSIX 생성을 통과했다. 실제 파일 열기·저장 picker와 macOS 교차 왕복은 수동 QA에서 수행한다.
+
+### Windows 로그인 자동 실행 구현 검증
+
+- 측정일: 2026-08-09
+- 기본 비활성 `desktop:StartupTask` 선언이 생성 AppxManifest에 유지되고 StartupTask 실제 상태를 일반 설정 UI에 매핑하는지 확인했다.
+- x64 Debug·Release 앱 빌드, 두 구성 전체 153개 테스트와 startup task가 포함된 Release MSIX 생성이 통과했다.
+- extension 실행 파일에 빌드 토큰을 사용하면 MakeAppx가 치환하지 않아 거부하는 문제를 `MonglePet.Windows.exe` 명시로 수정했다.
+- 실제 시작 앱 등록·해제와 다음 로그인 실행은 최종 설치 QA에서 확인한다.
+
 ## 변경 유형별 최소 검증
 
 ### 후속 단계 필수 검증
@@ -640,4 +767,4 @@ UI 테스트는 앱 실행과 접근성 자동화가 가능한 macOS 세션에�
 ---
 
 문서 상태: active
-마지막 갱신: 2026-07-31
+마지막 갱신: 2026-08-09
