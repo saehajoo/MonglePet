@@ -1,0 +1,26 @@
+* text=auto
+
+*.md text eol=lf
+*.json text eol=lf
+*.resolved text eol=lf
+*.pbxproj text eol=lf
+*.xcworkspacedata text eol=lf
+*.xcscheme text eol=lf
+*.swift text eol=lf
+*.cs text eol=lf
+*.csproj text eol=lf
+*.props text eol=lf
+*.targets text eol=lf
+*.slnx text eol=lf
+*.xaml text eol=lf
+*.zsh text eol=lf
+.gitignore text eol=lf
+LICENSE text eol=lf
+NOTICE text eol=lf
+
+*.png binary
+*.webp binary
+*.gif binary
+*.apng binary
+*.zip binary
+*.monglepet binary

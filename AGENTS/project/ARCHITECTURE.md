@@ -31,10 +31,25 @@ MonglePet/
 ### Windows 후속 구조
 
 - Windows 앱은 C#·.NET과 Windows App SDK를 기반으로 구현하고 설정 및 일반 앱 UI에는 WinUI 3를 사용한다.
+- Windows `MonglePet.Activity` 계층은 WinUI와 설정 저장에서 분리해 전면 앱 식별자, 입력 없음 시간과 세션·전원 상태를 `ActivitySnapshot`으로 변환한다. 같은 계층의 application catalog는 창 제목을 읽지 않고 보이는 소유자 없는 일반 최상위 창의 프로세스만 후보화하며, 선택용 이름·아이콘·실행 파일 경로는 메모리에만 두고 `pfn:` 또는 `exe:` 식별자만 설정 경계로 전달한다. `MonglePet.Windows`의 1초 monitor가 activity source와 오버레이 HWND 메시지의 생명주기만 연결한다.
+- Windows `WindowsFrontmostWindowProvider`는 창 제목을 읽지 않고 `GetForegroundWindow`의 PID와 `EnumWindows`·DWM의 표시 여부, owner·tool·cloaked 속성 및 frame bounds만 사용한다. 같은 foreground HWND·PID의 대표 창은 최대 1초 캐시하며 화면 환경이나 이동 범위 변경에서 무효화한다. 순수 resolver가 알려진 작업 영역과 겹치는 일반 창 중 가시 면적이 가장 큰 창을 고르고, 전체 화면·작은 창·조회 실패는 작업 영역 자유 이동으로 복구한다.
 - 펫 오버레이는 WinUI 창이나 WPF 투명 창에 종속시키지 않고 별도 Win32 `HWND`로 구성한다. 투명·비활성·항상 위·클릭 통과와 다중 모니터 창 정책은 명시적인 Win32 adapter가 담당한다.
 - 펫 프레임, 이동과 말풍선은 `Microsoft.UI.Composition` Visual layer로 합성해 하드웨어 가속과 UI 스레드 독립 애니메이션을 우선한다.
+- Windows 말풍선은 펫 HWND가 소유하는 별도 non-activating·click-through Win32 `WS_POPUP`이며 WinUI 3 `DesktopWindowXamlSource`의 투명 XAML Island로 동적 텍스트·테마·꼬리를 합성한다. 순수 `PetSpeechRuntime`과 좌상단 좌표 `PetSpeechBubblePlacement`가 행동 우선·일회성 timer와 모니터 작업 영역 경계 보정을 담당하고, 표시 창은 현재 presentation을 렌더링하고 부모 이동을 추적하는 역할만 맡는다.
 - notification area, 전면 앱, 입력 없음과 모니터 감지는 Win32 경계로 분리하고 C#에서는 CsWin32 기반의 타입 안전한 interop을 우선한다.
+- Windows `MonglePet.Shell` 계층은 `Shell_NotifyIcon` 아이콘, 네이티브 popup menu와 모니터 작업 영역 배치를 WinUI 화면에서 분리한다. 숨은 callback `HWND`가 Explorer의 `TaskbarCreated` 메시지에서 아이콘을 다시 등록하고, 메뉴를 열 때마다 앱이 제공한 현재 상태 snapshot으로 항목을 구성한다.
+- 설정 WinUI 창의 X 닫기는 `AppWindow.Hide`로 창만 숨기고 overlay·행동 runtime·notification area는 유지한다. notification area의 명시적 종료는 native callback이 반환된 다음 UI queue에서 실행한다. 설정 Page의 timer·event 구독을 먼저 끊고 장기 실행 자원을 정리한 뒤 마지막 WinUI 창을 닫아 앱 생명주기가 프로세스를 끝내게 하며, 창이 없는 예외 경로에서만 `Application.Exit`을 사용한다.
+- Windows 순수 이동 Geometry는 WinUI·Win32와 분리해 작업 영역 safe bounds, 마우스 따라가기·자유 이동·도망 목표, 속도 advance와 좌상단 원점 방향을 계산한다. `PetMovementRuntime`만 현재 포인터·모니터 adapter와 33ms 이동 tick을 연결하며 위치 고정 또는 비활성 상태에는 지속 이동 timer를 두지 않는다.
+- 자유 이동의 전면 창 선호 목표는 대표 창 bounds와 현재 이동 범위 작업 영역의 교집합 안에서 펫 전체가 들어가는 원점만 사용한다. 설정이 꺼졌거나 창이 펫보다 작고 교집합이 없으면 native 창 열거 없이 기존 화면 무작위 목표를 사용한다.
+- Windows `PetFrameAlphaMask`는 현재 frame을 최대 64px RGBA 마스크로 축소해 aspect-fit 여백을 제외한 실제 표시 픽셀을 판정한다. `PetFrameAlphaMaskLoader`는 Windows Imaging decoder로 atlas의 frame 영역을 비동기·순차 preload하고 캐시하며 실패 시 상호작용만 비활성화해 Composition 재생을 유지한다. 쓰다듬기와 클릭 통과 겹침 투명화는 `PetMovementRuntime`의 단일 100ms 포인터 관찰을 공유하고, 두 기능이 모두 꺼지면 timer와 알파 디코딩을 시작하지 않는다.
+- 자동 이동 원점은 설정에 저장하지 않는다. overlay의 비활성 `HTCAPTION` 드래그 완료와 notification area의 명시적 현재 화면 이동만 화면 식별자·원점을 저장하며 화면 구성 변경에서 위치 고정 원점만 작업 영역 안으로 보정한다.
+- 화면 표시 우선순위는 쓰다듬기, 이동 모션, 행동 모션 순이다. 이동 모션은 행동 scheduler의 시간축을 계속 진행하고, 쓰다듬기는 한 모션 사이클 동안 행동 시간축을 멈춘 뒤 최신 이동 또는 중단한 행동으로 복귀한다.
 - 행동 규칙, 패키지, 설정과 마이그레이션은 관리형 C# 계층에 유지한다.
+- packaged 앱의 설정과 펫 라이브러리는 `ApplicationData.Current.LocalFolder\MonglePet` 아래에 두고 MSIX가 일반 AppData 쓰기를 `LocalCache`로 가상화하는 경로에 의존하지 않는다.
+- Windows `PetLibraryStore`는 같은 `LocalState` 볼륨의 staging 사본을 전체 재검증한 뒤 UUID 최종 경로로 rename하고, 교체 시 backup rename과 rollback을 사용한다.
+- Windows `PetPackageImporter`는 설치 전 원본 전체 SHA-256과 패키지·권장 프로필 검토 결과를 만들고 설치 직전에 다시 검토해 변경된 원본을 거부한다. 일반 가져오기 staging에서는 `monglepet-editor.json`을 제거한다.
+- Windows `PetPackageExporter`는 설치 폴더를 직접 압축하지 않고 현재 manifest와 참조 미리보기·atlas, 선택한 schema-v7 권장 프로필만 임시 payload에 구성한다. loader 재검증과 안전한 archive extractor 왕복 뒤 목적지와 같은 디렉터리의 임시 파일을 원자적으로 교체한다.
+- Windows `AppSettingsStore`는 schema-v1부터 v9까지 순차 구조 변환한 결과, schema-v10 전체 Domain 설정과 선택 UUID 변경을 같은 볼륨 임시 파일의 flush 뒤 overwrite rename으로 교체한다. 구조 보존 JSON mapper는 overlay, 행동 프로필·루틴·규칙, 이동·방향 모션, 쓰다듬기와 말풍선 정책·대사·테마·배치를 항목 단위로 복구하고 살아남은 항목의 알 수 없는 확장 필드를 유지한다. Domain 전체 저장은 자동 복구하지 않고 범위·컬렉션·참조·대비를 검증해 잘못된 상태를 거부한다. v1은 선택 펫 manifest에서 모션 주기를 해석하며 필요한 펫 정의를 얻지 못하면 원본과 쓰기 차단 상태를 유지한다. 손상·초과 크기 파일은 격리하고 미래 schema는 원본 보호를 위해 쓰기를 차단한다.
 - WPF layered window는 구현 기준이 아니라 초기 성능 비교 또는 Composition 방식의 치명적인 호환성 문제가 확인된 경우의 대안으로만 검토한다.
 - C++/WinRT는 프로파일링으로 확인한 렌더링·디코딩·메모리 복사 병목이 C#과 Composition 최적화 후에도 성능 기준을 넘는 경우에만 독립 네이티브 모듈로 검토한다.
 
@@ -145,8 +160,9 @@ MonglePetApp
 - 프레임별 `duration`이 재생 속도의 단일 원본이며 행동 단계에는 별도 배속을 저장하지 않는다.
 - 같은 행동이 유지될 때 불필요하게 재시작하지 않는다.
 - 입력 없음 규칙은 설정한 시간 임계값으로 진입하고, 1초 활동 polling에서 입력 재개가 확인되면 별도 이탈 지연 없이 최신 일반 행동으로 즉시 교체한다.
-- `PetSpeechRuntime`은 표시 종료와 주기 대기 timer를 각각 소유한다. 실제 행동 루틴 ID가 바뀌면 연결된 행동 대사를 주기 대사보다 우선해 한 번 표시하고, 연결된 대사가 없을 때는 펫별 닫기·유지 정책을 적용한다. 이동 애니메이션과 쓰다듬기 덮어쓰기는 새 행동 진입으로 취급하지 않는다.
-- 주기 대사는 독립 사용 여부와 순차·무작위 순서를 가진다. 시간 지정 대사는 숨은 뒤 전체 주기를 다시 기다리고, 다음 대사까지 유지하는 대사는 표시 시점부터 주기를 계산해 교체한다.
+- `PetSpeechRuntime`은 표시 종료와 주기 대기 timer를 각각 소유한다. Windows adapter는 설정창 가시성에 영향받지 않는 one-shot thread timer로 기다린 뒤 generation을 확인하고 DispatcherQueue에서 presentation을 적용한다. 실제 행동 루틴 ID가 바뀌면 연결된 행동 대사를 주기 대사보다 우선해 한 번 표시하고, 연결된 대사가 없을 때는 펫별 닫기·유지 정책을 적용한다. 이동 애니메이션과 쓰다듬기 덮어쓰기는 새 행동 진입으로 취급하지 않는다.
+- Windows `PetFrameCompositionPlayer`는 서로 다른 atlas의 행동으로 전환할 때 새 `LoadedImageSurface`가 디코딩될 때까지 현재 surface와 마지막 프레임을 유지한다. 새 surface의 로드가 성공한 뒤 brush를 한 번에 교체하고 이전 surface를 해제해 행동 경계의 투명 프레임을 만들지 않는다.
+- 주기 대사는 독립 사용 여부와 순차·무작위 순서를 가진다. 시간 지정 대사는 숨은 뒤 전체 주기를 다시 기다리고, 다음 대사까지 유지하는 대사는 행동·주기 출처와 관계없이 표시 시점부터 주기를 계산해 교체한다. 설정에서 주기를 변경하면 이전 예약을 취소하고 새 간격으로 다시 예약한다.
 - 말풍선은 재우기·잠금·절전에서 두 timer와 현재 표시를 즉시 중지하고 활성 상태로 돌아왔을 때 필요한 주기 timer만 다시 예약한다.
 
 ### Overlay
@@ -171,7 +187,8 @@ MonglePetApp
 - 다중 모니터 경로는 목적지만 대상 화면으로 보정하지 않고 펫 전체가 통과할 수 있는 화면 경계 지점을 경유한다. 화면 사이에 연속 영역이 없으면 기존 화면 경계에서 대상 화면 진입점으로 한 번만 전환하며, 요청한 진입점과 적용 후 실제 패널 원점이 일치하지 않으면 대상 화면의 안전한 최종 목표로 복구하고 다음 tick에서 경로를 다시 계산한다.
 - 자동 이동 범위는 전역 overlay 환경으로 해석한다. 마우스 따라가기와 도망가기 목표는 범위 경계로 제한하고 자유 이동 목표는 범위 안에서만 생성하며 위치 고정에는 적용하지 않는다.
 - 기본 투명도는 `PetWindowController`가 적용한다. `PetPointerOverlapLifecycle`은 클릭 통과 중 겹침 투명화와 호버 쓰다듬기가 하나라도 필요한 awake·화면 사용 가능 상태에서만 100ms 일회성 포인터 확인을 공유한다. 겹침 투명화는 동작 줄이기에서 중지하되 쓰다듬기는 유지한다. 호버는 화면 포인터 자체의 이동과 사용자 드래그 상태를 비교해 자동 이동 중에도 포인터 주도 진입은 허용하고, 펫이 정지 포인터 아래로 이동한 경우는 억제한다. 마우스 도망가기 모드에서는 호버 감지와 실행을 모두 차단하지만 클릭 통과와 겹침 투명화는 독립적으로 유지한다. 겹침과 호버 판정은 현재 프레임별 최대 64×64 알파 마스크를 최대 256개까지 캐시해 사용하며 두 기능이 모두 비활성 상태이면 timer를 유지하지 않는다.
-- `PetSpeechBubbleWindowController`는 표시 중에만 펫 패널에 붙는 non-activating child panel을 사용한다. 항상 마우스 이벤트를 통과시키고 부모 창 이동을 따르며 펫별 자동·위·아래 선호 위치, 좌우 오프셋과 간격을 적용한다. 실제 결과는 현재 화면 visible frame 안으로 보정하고, 좌우 이동이나 화면 경계 보정이 발생하면 꼬리가 펫을 향하도록 기준점을 다시 계산한다. 설정 미리보기와 같은 SwiftUI 렌더러로 테마를 적용하고 말풍선 몸체와 꼬리는 하나의 연속 경로로 그린다.
+- `PetSpeechBubbleWindowController`는 표시 중에만 펫 패널에 붙는 non-activating child panel을 사용한다. 항상 마우스 이벤트를 통과시키고 부모 창 이동을 따르며 펫별 자동·위·아래 선호 위치, 좌우 오프셋과 간격을 적용한다. 꼬리는 고정 높이를 유지한 채 말풍선과 함께 이동하며, 간격은 꼬리 끝과 펫 사이의 배치 거리로 사용한다. 실제 결과는 현재 화면 visible frame 안으로 보정하고, 좌우 이동이나 화면 경계 보정이 발생하면 꼬리가 펫을 향하도록 기준점을 다시 계산한다. 설정 미리보기와 같은 SwiftUI 렌더러로 테마를 적용하고 말풍선 몸체와 꼬리는 하나의 연속 경로로 그린다.
+- Windows 말풍선 XAML Island는 content를 호스트에 연결한 뒤 본체 크기를 측정하고, 연결 전 `DesiredSize`가 0인 경우에도 글자 크기·여백·줄 수 기반의 최소 본체 크기로 복구한다. 계산된 DIP 크기를 HWND DPI에 맞춰 변환해 1px 창이나 본체 클리핑을 방지한다. 본체와 꼬리의 채움·테두리는 하나의 연속 `PathGeometry`로 그려 접합부 내부선을 만들지 않는다.
 
 ### Settings
 
@@ -275,4 +292,4 @@ SwiftData나 Core Data를 사용하지 않고 JSON 설정과 파일 기반 펫 �
 ---
 
 문서 상태: draft
-마지막 갱신: 2026-07-31
+마지막 갱신: 2026-08-09

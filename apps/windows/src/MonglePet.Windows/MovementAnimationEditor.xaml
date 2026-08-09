@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<UserControl
+    x:Class="MonglePet.Windows.MovementAnimationEditor"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <StackPanel Spacing="10">
+        <TextBlock x:Name="EditorTitleText" Style="{StaticResource BodyStrongTextBlockStyle}" Text="이동 애니메이션" />
+        <ComboBox
+            x:Name="AnimationStyleComboBox"
+            Header="애니메이션 구성"
+            SelectionChanged="AnimationControl_Changed">
+            <ComboBoxItem Content="공통 하나" />
+            <ComboBoxItem Content="방향별" />
+        </ComboBox>
+        <ComboBox
+            x:Name="FallbackMotionComboBox"
+            DisplayMemberPath="DisplayName"
+            Header="이동 중 애니메이션"
+            SelectedValuePath="Id"
+            SelectionChanged="AnimationControl_Changed" />
+        <StackPanel x:Name="DirectionalPanel" Spacing="10" Visibility="Collapsed">
+            <ToggleSwitch
+                x:Name="UsesDiagonalsToggle"
+                Header="대각선도 따로 설정"
+                Toggled="AnimationControl_Changed" />
+            <Grid ColumnSpacing="12" RowSpacing="8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <ComboBox x:Name="LeftMotionComboBox" Header="왼쪽" DisplayMemberPath="DisplayName" SelectedValuePath="Id" SelectionChanged="AnimationControl_Changed" />
+                <ComboBox x:Name="RightMotionComboBox" Grid.Column="1" Header="오른쪽" DisplayMemberPath="DisplayName" SelectedValuePath="Id" SelectionChanged="AnimationControl_Changed" />
+                <ComboBox x:Name="UpMotionComboBox" Grid.Row="1" Header="위쪽" DisplayMemberPath="DisplayName" SelectedValuePath="Id" SelectionChanged="AnimationControl_Changed" />
+                <ComboBox x:Name="DownMotionComboBox" Grid.Row="1" Grid.Column="1" Header="아래쪽" DisplayMemberPath="DisplayName" SelectedValuePath="Id" SelectionChanged="AnimationControl_Changed" />
+                <ComboBox x:Name="UpLeftMotionComboBox" Grid.Row="2" Header="왼쪽 위" DisplayMemberPath="DisplayName" SelectedValuePath="Id" SelectionChanged="AnimationControl_Changed" />
+                <ComboBox x:Name="UpRightMotionComboBox" Grid.Row="2" Grid.Column="1" Header="오른쪽 위" DisplayMemberPath="DisplayName" SelectedValuePath="Id" SelectionChanged="AnimationControl_Changed" />
+                <ComboBox x:Name="DownLeftMotionComboBox" Grid.Row="3" Header="왼쪽 아래" DisplayMemberPath="DisplayName" SelectedValuePath="Id" SelectionChanged="AnimationControl_Changed" />
+                <ComboBox x:Name="DownRightMotionComboBox" Grid.Row="3" Grid.Column="1" Header="오른쪽 아래" DisplayMemberPath="DisplayName" SelectedValuePath="Id" SelectionChanged="AnimationControl_Changed" />
+            </Grid>
+            <TextBlock
+                Style="{StaticResource CaptionTextBlockStyle}"
+                Text="자동 선택 방향은 실제 이동과 같은 쪽의 애니메이션을 사용합니다. 지정하지 않은 방향은 기본 이동 애니메이션이나 기존 행동으로 돌아갑니다."
+                TextWrapping="Wrap" />
+        </StackPanel>
+    </StackPanel>
+</UserControl>

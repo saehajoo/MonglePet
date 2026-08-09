@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "MonglePet.Windows (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "MonglePet.Windows (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}

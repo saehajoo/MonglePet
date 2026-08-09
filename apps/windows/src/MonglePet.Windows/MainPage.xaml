@@ -1,0 +1,1381 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Page
+    x:Class="MonglePet.Windows.MainPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:local="using:MonglePet.Windows"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    Background="Transparent"
+    mc:Ignorable="d">
+
+    <Page.Resources>
+        <Style x:Key="SettingsSubcardStyle" TargetType="Border">
+            <Setter Property="Padding" Value="20" />
+            <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorSecondaryBrush}" />
+            <Setter Property="BorderBrush" Value="{ThemeResource DividerStrokeColorDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="14" />
+        </Style>
+        <Style x:Key="SettingsCardStyle" TargetType="Border">
+            <Setter Property="Padding" Value="26" />
+            <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
+            <Setter Property="BorderBrush" Value="{ThemeResource DividerStrokeColorDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="20" />
+        </Style>
+        <Style x:Key="SettingsHeroStyle" TargetType="Border">
+            <Setter Property="Padding" Value="22,20" />
+            <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorSecondaryBrush}" />
+            <Setter Property="BorderBrush" Value="{ThemeResource DividerStrokeColorDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="20" />
+        </Style>
+        <Style x:Key="SettingsDividerStyle" TargetType="Border">
+            <Setter Property="Height" Value="1" />
+            <Setter Property="Margin" Value="0,2" />
+            <Setter Property="Background" Value="{ThemeResource DividerStrokeColorDefaultBrush}" />
+            <Setter Property="Opacity" Value="0.65" />
+        </Style>
+        <Style x:Key="SettingsCaptionStyle" TargetType="TextBlock" BasedOn="{StaticResource CaptionTextBlockStyle}">
+            <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <DataTemplate x:Key="ApplicationPickerItemTemplate">
+            <Grid Padding="4,8" ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="36" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid Width="32" Height="32" VerticalAlignment="Center">
+                    <FontIcon FontSize="22" Glyph="&#xE8A5;" />
+                    <Image Source="{Binding Icon}" Stretch="Uniform" />
+                </Grid>
+                <StackPanel Grid.Column="1" Spacing="2">
+                    <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="{Binding DisplayName}" />
+                    <TextBlock
+                        Style="{StaticResource CaptionTextBlockStyle}"
+                        Text="{Binding Identifier}"
+                        TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+            </Grid>
+        </DataTemplate>
+    </Page.Resources>
+
+    <NavigationView
+        x:Name="SettingsNavigationView"
+        Background="Transparent"
+        IsBackButtonVisible="Collapsed"
+        IsSettingsVisible="False"
+        PaneDisplayMode="Top"
+        SelectionChanged="SettingsNavigationView_SelectionChanged">
+        <NavigationView.MenuItems>
+            <NavigationViewItem Content="펫" IsSelected="True" Tag="pet">
+                <NavigationViewItem.Icon><SymbolIcon Symbol="Contact" /></NavigationViewItem.Icon>
+            </NavigationViewItem>
+            <NavigationViewItem Content="일반" Tag="general">
+                <NavigationViewItem.Icon><SymbolIcon Symbol="Setting" /></NavigationViewItem.Icon>
+            </NavigationViewItem>
+            <NavigationViewItem Content="이동" Tag="movement">
+                <NavigationViewItem.Icon><SymbolIcon Symbol="Map" /></NavigationViewItem.Icon>
+            </NavigationViewItem>
+            <NavigationViewItem Content="행동 루틴" Tag="routines">
+                <NavigationViewItem.Icon><SymbolIcon Symbol="Bullets" /></NavigationViewItem.Icon>
+            </NavigationViewItem>
+            <NavigationViewItem Content="말풍선" Tag="speech">
+                <NavigationViewItem.Icon><SymbolIcon Symbol="Comment" /></NavigationViewItem.Icon>
+            </NavigationViewItem>
+            <NavigationViewItem Content="자동 규칙" Tag="automaticRules">
+                <NavigationViewItem.Icon><SymbolIcon Symbol="Clock" /></NavigationViewItem.Icon>
+            </NavigationViewItem>
+        </NavigationView.MenuItems>
+        <ScrollViewer
+            HorizontalContentAlignment="Stretch"
+            HorizontalScrollBarVisibility="Disabled"
+            HorizontalScrollMode="Disabled"
+            VerticalScrollBarVisibility="Auto">
+            <Grid Padding="32,12,32,48">
+                <StackPanel
+                    MaxWidth="960"
+                    HorizontalAlignment="Stretch"
+                    Spacing="20">
+
+            <Border Style="{StaticResource SettingsHeroStyle}">
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="48" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border
+                        Width="48"
+                        Height="48"
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        CornerRadius="24">
+                        <Image Margin="9" Source="Assets/AppIcon.ico" Stretch="Uniform" />
+                    </Border>
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
+                        <TextBlock x:Name="SettingsSectionTitle" Style="{StaticResource TitleTextBlockStyle}" Text="펫" />
+                        <TextBlock
+                            x:Name="SettingsSectionDescription"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            Style="{StaticResource BodyTextBlockStyle}"
+                            Text="현재 펫을 선택하고 .monglepet 패키지를 가져오거나 내보냅니다."
+                            TextWrapping="Wrap" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <InfoBar
+                x:Name="OverlayInfoBar"
+                IsClosable="False"
+                IsOpen="True"
+                Message="공통 샘플 패키지를 읽고 Composition 이미지 표면을 준비하는 중입니다."
+                Severity="Informational"
+                Title="펫 오버레이 실험" />
+
+            <Border
+                x:Name="GeneralSettingsCard"
+                Style="{StaticResource SettingsCardStyle}"
+                Visibility="Collapsed">
+                <StackPanel Spacing="16">
+                    <StackPanel Spacing="4">
+                        <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="펫 표시" />
+                        <TextBlock
+                            Style="{StaticResource SettingsCaptionStyle}"
+                            Text="몽글이를 깨우거나 잠시 재울 수 있습니다. 재워도 시스템 트레이에서 언제든 다시 깨울 수 있습니다." />
+                    </StackPanel>
+                    <Button
+                        x:Name="VisibilityButton"
+                        Click="VisibilityButton_Click"
+                        Content="펫 재우기"
+                        HorizontalAlignment="Left" />
+                    <Border Style="{StaticResource SettingsDividerStyle}" />
+                    <StackPanel x:Name="BehaviorOverviewPanel" Spacing="12">
+                        <StackPanel Spacing="4">
+                            <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="행동 모드" />
+                            <TextBlock
+                                Style="{StaticResource SettingsCaptionStyle}"
+                                Text="자동 모드에서는 사용 중인 앱과 입력 없음 시간을 살피고, 수동 모드에서는 선택한 행동 루틴을 반복합니다." />
+                        </StackPanel>
+                        <ComboBox
+                            x:Name="BehaviorModeComboBox"
+                            Header="행동 모드"
+                            SelectionChanged="BehaviorModeComboBox_SelectionChanged">
+                            <ComboBoxItem Content="자동" Tag="Automatic" />
+                            <ComboBoxItem Content="수동" Tag="Manual" />
+                        </ComboBox>
+                        <ComboBox
+                            x:Name="ManualSequenceComboBox"
+                            DisplayMemberPath="DisplayName"
+                            Header="수동 행동 루틴"
+                            SelectedValuePath="Id"
+                            SelectionChanged="ManualSequenceComboBox_SelectionChanged" />
+                        <TextBlock
+                            x:Name="BehaviorDescriptionText"
+                            Style="{StaticResource SettingsCaptionStyle}" />
+                        <Expander Header="행동 상태 진단">
+                            <StackPanel Spacing="4">
+                                <TextBlock x:Name="BehaviorStatusText" Style="{StaticResource SettingsCaptionStyle}" />
+                                <TextBlock x:Name="ActivityStatusText" Style="{StaticResource SettingsCaptionStyle}" />
+                            </StackPanel>
+                        </Expander>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <Border
+                x:Name="OverlaySettingsCard"
+                Style="{StaticResource SettingsCardStyle}"
+                Visibility="Collapsed">
+                <StackPanel Spacing="16">
+                    <StackPanel Spacing="4">
+                        <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="화면 표시" />
+                        <TextBlock
+                            Style="{StaticResource SettingsCaptionStyle}"
+                            Text="펫의 크기와 선명도, 화면 위에서 마우스와 겹칠 때의 표시 방법을 정합니다." />
+                    </StackPanel>
+                    <ToggleSwitch
+                        x:Name="ClickThroughToggle"
+                        Header="클릭 통과"
+                        IsOn="True"
+                        Toggled="ClickThroughToggle_Toggled" />
+                    <ToggleSwitch
+                        x:Name="PointerOverlapFadeToggle"
+                        Header="마우스가 펫과 겹치면 흐리게"
+                        Toggled="PointerOverlapFadeToggle_Toggled" />
+                    <Grid ColumnSpacing="12" RowSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="56" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <TextBlock VerticalAlignment="Center" Text="펫 크기" />
+                        <Slider
+                            x:Name="OverlayWidthSlider"
+                            Grid.Column="1"
+                            Maximum="384"
+                            Minimum="96"
+                            SmallChange="8"
+                            StepFrequency="8"
+                            ValueChanged="DisplaySlider_ValueChanged" />
+                        <TextBlock
+                            x:Name="OverlayWidthValueText"
+                            Grid.Column="2"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center" />
+                        <TextBlock Grid.Row="1" VerticalAlignment="Center" Text="투명도" />
+                        <Slider
+                            x:Name="OverlayOpacitySlider"
+                            Grid.Row="1"
+                            Grid.Column="1"
+                            Maximum="1"
+                            Minimum="0.1"
+                            SmallChange="0.05"
+                            StepFrequency="0.05"
+                            ValueChanged="DisplaySlider_ValueChanged" />
+                        <TextBlock
+                            x:Name="OverlayOpacityValueText"
+                            Grid.Row="1"
+                            Grid.Column="2"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center" />
+                        <TextBlock Grid.Row="2" VerticalAlignment="Center" Text="겹침 투명도" />
+                        <Slider
+                            x:Name="PointerOverlapOpacitySlider"
+                            Grid.Row="2"
+                            Grid.Column="1"
+                            Maximum="1"
+                            Minimum="0.05"
+                            SmallChange="0.05"
+                            StepFrequency="0.05"
+                            ValueChanged="DisplaySlider_ValueChanged" />
+                        <TextBlock
+                            x:Name="PointerOverlapOpacityValueText"
+                            Grid.Row="2"
+                            Grid.Column="2"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center" />
+                    </Grid>
+                    <TextBlock
+                        Style="{StaticResource SettingsCaptionStyle}"
+                        Text="클릭 통과가 켜진 동안 마우스가 펫의 보이는 부분에 닿았을 때만 겹침 투명도를 적용합니다." />
+                    <ToggleSwitch
+                        x:Name="PixelArtToggle"
+                        Header="픽셀 아트 선명하게"
+                        Toggled="PixelArtToggle_Toggled" />
+                    <TextBlock
+                        Style="{StaticResource SettingsCaptionStyle}"
+                        Text="픽셀 아트는 nearest 보간으로 또렷하게 표시합니다. 일반 일러스트에서는 끄는 편이 자연스럽습니다."
+                        TextWrapping="Wrap" />
+                    <Border Style="{StaticResource SettingsDividerStyle}" />
+                    <StackPanel Spacing="10">
+                        <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="앱 실행" />
+                        <ToggleSwitch
+                            x:Name="LoginLaunchToggle"
+                            Header="로그인 시 MonglePet 자동 실행"
+                            Toggled="LoginLaunchToggle_Toggled" />
+                        <TextBlock
+                            x:Name="LoginLaunchStatusText"
+                            Style="{StaticResource SettingsCaptionStyle}"
+                            Text="Windows 시작 앱 상태를 확인하는 중입니다." />
+                        <Button
+                            x:Name="OpenStartupAppsSettingsButton"
+                            Click="OpenStartupAppsSettingsButton_Click"
+                            Content="Windows 시작 앱 설정 열기"
+                            HorizontalAlignment="Left"
+                            Visibility="Collapsed" />
+                    </StackPanel>
+                    <Border Style="{StaticResource SettingsDividerStyle}" />
+                    <StackPanel Spacing="4">
+                        <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="앱 정보" />
+                        <TextBlock x:Name="AppVersionText" Text="MonglePet 버전을 확인하는 중입니다." />
+                        <TextBlock
+                            Style="{StaticResource SettingsCaptionStyle}"
+                            Text="Windows 11에서 동작하는 네이티브 데스크톱 펫입니다. 설정과 활동 정보는 이 기기 안에 저장됩니다." />
+                    </StackPanel>
+                    <Expander Header="진단 정보">
+                        <TextBlock x:Name="OverlayStatusText" Style="{StaticResource SettingsCaptionStyle}" />
+                    </Expander>
+                    <InfoBar
+                        x:Name="DisplaySettingsInfoBar"
+                        IsClosable="True"
+                        IsOpen="False" />
+                </StackPanel>
+            </Border>
+
+            <Border
+                x:Name="SpeechSettingsCard"
+                Style="{StaticResource SettingsCardStyle}"
+                Visibility="Collapsed">
+                <StackPanel Spacing="14">
+                    <StackPanel Spacing="4">
+                        <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="말풍선" />
+                        <TextBlock
+                            Style="{StaticResource SettingsCaptionStyle}"
+                            Text="현재 펫이 행동을 바꾸거나 일정 시간이 지났을 때 보여 줄 말을 정합니다." />
+                    </StackPanel>
+                    <Border Style="{StaticResource SettingsSubcardStyle}">
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="설정 대상 펫" />
+                            <TextBlock
+                                x:Name="SpeechTargetPetText"
+                                Grid.Column="1"
+                                Style="{StaticResource BodyStrongTextBlockStyle}" />
+                        </Grid>
+                    </Border>
+                    <ToggleSwitch
+                        x:Name="SpeechEnabledToggle"
+                        Header="말풍선 사용"
+                        Toggled="SpeechSettings_Changed" />
+                    <ComboBox
+                        x:Name="SpeechBehaviorChangePolicyComboBox"
+                        Header="행동이 바뀌었는데 연결된 대사가 없을 때"
+                        SelectionChanged="SpeechSettings_Changed">
+                        <ComboBoxItem Content="현재 말풍선 닫기" Tag="Dismiss" />
+                        <ComboBoxItem Content="다음 대사까지 유지" Tag="Keep" />
+                    </ComboBox>
+
+                    <Border Style="{StaticResource SettingsSubcardStyle}">
+                        <StackPanel Spacing="12">
+                            <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="주기적으로 말하기" />
+                            <ToggleSwitch
+                                x:Name="SpeechPeriodicEnabledToggle"
+                                Header="주기 대사 사용"
+                                Toggled="SpeechSettings_Changed" />
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <NumberBox
+                                    x:Name="SpeechPeriodicIntervalNumberBox"
+                                    Header="표시 간격 (초)"
+                                    Maximum="3600"
+                                    Minimum="5"
+                                    SmallChange="5"
+                                    SpinButtonPlacementMode="Inline"
+                                    ValueChanged="SpeechSettings_Changed" />
+                                <ComboBox
+                                    x:Name="SpeechPeriodicOrderComboBox"
+                                    Grid.Column="1"
+                                    Header="재생 순서"
+                                    SelectionChanged="SpeechSettings_Changed">
+                                    <ComboBoxItem Content="무작위" Tag="Random" />
+                                    <ComboBoxItem Content="순차" Tag="Sequential" />
+                                </ComboBox>
+                            </Grid>
+                            <TextBlock
+                                Style="{StaticResource SettingsCaptionStyle}"
+                                Text="시간 지정 대사는 말풍선이 숨은 뒤부터 기다리고, 유지 대사는 표시된 시점부터 기다린 뒤 다음 대사로 교체합니다." />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource SettingsSubcardStyle}">
+                        <StackPanel Spacing="12">
+                            <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="행동 대사" />
+                            <ListView
+                                x:Name="BehaviorSpeechPhrasesList"
+                                SelectionChanged="BehaviorSpeechPhrasesList_SelectionChanged"
+                                SelectionMode="Single">
+                                <ListView.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Padding="0,6" Spacing="2">
+                                            <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="{Binding Text}" TextWrapping="Wrap" />
+                                            <TextBlock Style="{StaticResource CaptionTextBlockStyle}" Text="{Binding Detail}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListView.ItemTemplate>
+                            </ListView>
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button x:Name="AddBehaviorSpeechPhraseButton" Click="AddBehaviorSpeechPhraseButton_Click" Content="행동 대사 추가…" />
+                                <Button x:Name="EditBehaviorSpeechPhraseButton" Click="EditBehaviorSpeechPhraseButton_Click" Content="수정…" />
+                                <Button x:Name="DeleteBehaviorSpeechPhraseButton" Click="DeleteBehaviorSpeechPhraseButton_Click" Content="삭제" />
+                            </StackPanel>
+                            <TextBlock
+                                Style="{StaticResource SettingsCaptionStyle}"
+                                Text="행동 루틴이 시작될 때 우선해서 보여 줄 대사입니다." />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource SettingsSubcardStyle}">
+                        <StackPanel Spacing="12">
+                            <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="주기 대사" />
+                            <ListView
+                                x:Name="PeriodicSpeechPhrasesList"
+                                SelectionChanged="PeriodicSpeechPhrasesList_SelectionChanged"
+                                SelectionMode="Single">
+                                <ListView.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Padding="0,6" Spacing="2">
+                                            <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="{Binding Text}" TextWrapping="Wrap" />
+                                            <TextBlock Style="{StaticResource CaptionTextBlockStyle}" Text="{Binding Detail}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListView.ItemTemplate>
+                            </ListView>
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button x:Name="AddPeriodicSpeechPhraseButton" Click="AddPeriodicSpeechPhraseButton_Click" Content="주기 대사 추가…" />
+                                <Button x:Name="EditPeriodicSpeechPhraseButton" Click="EditPeriodicSpeechPhraseButton_Click" Content="수정…" />
+                                <Button x:Name="DeletePeriodicSpeechPhraseButton" Click="DeletePeriodicSpeechPhraseButton_Click" Content="삭제" />
+                            </StackPanel>
+                            <TextBlock
+                                Style="{StaticResource SettingsCaptionStyle}"
+                                Text="행동 대사가 없을 때 설정한 간격과 순서로 보여 줄 대사입니다." />
+                        </StackPanel>
+                    </Border>
+
+                    <Border
+                        x:Name="SpeechPhraseEditorPanel"
+                        Style="{StaticResource SettingsSubcardStyle}"
+                        Visibility="Collapsed">
+                        <StackPanel Spacing="12">
+                            <TextBlock x:Name="SpeechPhraseEditorTitleText" Style="{StaticResource BodyStrongTextBlockStyle}" Text="대사 편집" />
+                            <TextBox
+                                x:Name="SpeechPhraseTextBox"
+                                Header="대사"
+                                MaxLength="120"
+                                PlaceholderText="펫이 표시할 짧은 문장을 입력하세요."
+                                TextChanged="SpeechPhraseTextBox_TextChanged"
+                                TextWrapping="Wrap" />
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <ComboBox
+                                    x:Name="SpeechTriggerComboBox"
+                                    Header="표시 조건"
+                                    Visibility="Collapsed"
+                                    SelectionChanged="SpeechPhraseForm_Changed">
+                                    <ComboBoxItem Content="주기 대사" Tag="Periodic" />
+                                    <ComboBoxItem Content="행동 루틴 진입" Tag="Sequence" />
+                                </ComboBox>
+                                <ComboBox
+                                    x:Name="SpeechSequenceComboBox"
+                                    Grid.Column="1"
+                                    DisplayMemberPath="DisplayName"
+                                    Header="행동 루틴"
+                                    SelectedValuePath="Id" />
+                            </Grid>
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <ComboBox
+                                    x:Name="SpeechDisplayModeComboBox"
+                                    Header="표시 방식"
+                                    SelectionChanged="SpeechPhraseForm_Changed">
+                                    <ComboBoxItem Content="지정 시간 뒤 닫기" Tag="Timed" />
+                                    <ComboBoxItem Content="다음 대사까지 유지" Tag="UntilNextPhrase" />
+                                </ComboBox>
+                                <NumberBox
+                                    x:Name="SpeechDisplayDurationNumberBox"
+                                    Grid.Column="1"
+                                    Header="표시 시간 (초)"
+                                    Maximum="30"
+                                    Minimum="1"
+                                    SmallChange="1"
+                                    SpinButtonPlacementMode="Compact" />
+                            </Grid>
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button x:Name="SaveSpeechPhraseButton" Click="SaveSpeechPhraseButton_Click" Content="대사 저장" />
+                                <Button x:Name="CancelSpeechPhraseButton" Click="CancelSpeechPhraseButton_Click" Content="취소" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource SettingsSubcardStyle}">
+                        <StackPanel Spacing="12">
+                            <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="모양과 미리보기" />
+                            <ComboBox
+                                x:Name="SpeechThemeStyleComboBox"
+                                Header="색상 테마"
+                                SelectionChanged="SpeechSettings_Changed">
+                                <ComboBoxItem Content="시스템" Tag="System" />
+                                <ComboBoxItem Content="크림" Tag="Cream" />
+                                <ComboBoxItem Content="밤" Tag="Midnight" />
+                                <ComboBoxItem Content="민트" Tag="Mint" />
+                                <ComboBoxItem Content="복숭아" Tag="Peach" />
+                                <ComboBoxItem Content="사용자 지정" Tag="Custom" />
+                            </ComboBox>
+                            <Grid x:Name="SpeechCustomColorsGrid" ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Spacing="6">
+                                    <TextBlock Text="배경 색상" />
+                                    <ColorPicker
+                                        x:Name="SpeechBackgroundColorPicker"
+                                        ColorChanged="SpeechSettings_Changed"
+                                        IsAlphaEnabled="False" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Spacing="6">
+                                    <TextBlock Text="글자 색상" />
+                                    <ColorPicker
+                                        x:Name="SpeechTextColorPicker"
+                                        ColorChanged="SpeechSettings_Changed"
+                                        IsAlphaEnabled="False" />
+                                </StackPanel>
+                            </Grid>
+                            <Grid ColumnSpacing="12" RowSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <NumberBox
+                                    x:Name="SpeechBackgroundOpacityNumberBox"
+                                    Header="배경 불투명도 (%)"
+                                    Maximum="100"
+                                    Minimum="65"
+                                    SmallChange="5"
+                                    SpinButtonPlacementMode="Compact"
+                                    ValueChanged="SpeechSettings_Changed" />
+                                <NumberBox
+                                    x:Name="SpeechFontSizeNumberBox"
+                                    Grid.Column="1"
+                                    Header="글자 크기"
+                                    Maximum="24"
+                                    Minimum="11"
+                                    SmallChange="1"
+                                    SpinButtonPlacementMode="Compact"
+                                    ValueChanged="SpeechSettings_Changed" />
+                                <NumberBox
+                                    x:Name="SpeechPaddingNumberBox"
+                                    Grid.Row="1"
+                                    Header="안쪽 여백"
+                                    Maximum="24"
+                                    Minimum="6"
+                                    SmallChange="1"
+                                    SpinButtonPlacementMode="Compact"
+                                    ValueChanged="SpeechSettings_Changed" />
+                                <NumberBox
+                                    x:Name="SpeechCornerRadiusNumberBox"
+                                    Grid.Row="1"
+                                    Grid.Column="1"
+                                    Header="모서리 반경"
+                                    Maximum="28"
+                                    Minimum="0"
+                                    SmallChange="1"
+                                    SpinButtonPlacementMode="Compact"
+                                    ValueChanged="SpeechSettings_Changed" />
+                            </Grid>
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <ToggleSwitch
+                                    x:Name="SpeechTailToggle"
+                                    Header="말풍선 꼬리 표시"
+                                    Toggled="SpeechSettings_Changed" />
+                                <ComboBox
+                                    x:Name="SpeechTailAlignmentComboBox"
+                                    Grid.Column="1"
+                                    Header="꼬리 정렬"
+                                    SelectionChanged="SpeechSettings_Changed">
+                                    <ComboBoxItem Content="왼쪽" Tag="Leading" />
+                                    <ComboBoxItem Content="가운데" Tag="Center" />
+                                    <ComboBoxItem Content="오른쪽" Tag="Trailing" />
+                                </ComboBox>
+                            </Grid>
+                            <Border
+                                Padding="20"
+                                Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                CornerRadius="12">
+                                <Grid x:Name="SpeechPlacementPreviewGrid">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="10" />
+                                        <RowDefinition Height="104" />
+                                        <RowDefinition Height="10" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Border
+                                        x:Name="SpeechThemePreviewBorder"
+                                        MaxWidth="360"
+                                        Padding="12"
+                                        HorizontalAlignment="Center"
+                                        CornerRadius="14">
+                                        <TextBlock
+                                            x:Name="SpeechThemePreviewText"
+                                            Text="오늘도 같이 있어요!"
+                                            TextWrapping="Wrap" />
+                                    </Border>
+                                    <Polygon
+                                        x:Name="SpeechThemePreviewTail"
+                                        Grid.Row="1"
+                                        Width="18"
+                                        Height="10"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Top"
+                                        Points="0,0 18,0 9,10" />
+                                    <Grid Grid.Row="2" HorizontalAlignment="Center">
+                                        <FontIcon
+                                            x:Name="SpeechPetPreviewPlaceholder"
+                                            FontSize="44"
+                                            Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                                            Glyph="&#xEB55;" />
+                                        <Image
+                                            x:Name="SpeechPetPreviewImage"
+                                            Width="104"
+                                            Height="104"
+                                            Stretch="Uniform" />
+                                    </Grid>
+                                </Grid>
+                            </Border>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource SettingsSubcardStyle}">
+                        <StackPanel Spacing="12">
+                            <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="위치" />
+                            <ComboBox
+                                x:Name="SpeechPreferredPositionComboBox"
+                                Header="선호 위치"
+                                SelectionChanged="SpeechSettings_Changed">
+                                <ComboBoxItem Content="자동" Tag="Automatic" />
+                                <ComboBoxItem Content="펫 위" Tag="Above" />
+                                <ComboBoxItem Content="펫 아래" Tag="Below" />
+                            </ComboBox>
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <NumberBox
+                                    x:Name="SpeechHorizontalOffsetNumberBox"
+                                    Header="좌우 오프셋"
+                                    Maximum="160"
+                                    Minimum="-160"
+                                    SmallChange="4"
+                                    SpinButtonPlacementMode="Compact"
+                                    ValueChanged="SpeechSettings_Changed" />
+                                <NumberBox
+                                    x:Name="SpeechGapNumberBox"
+                                    Grid.Column="1"
+                                    Header="펫 사이 간격"
+                                    Maximum="64"
+                                    Minimum="0"
+                                    SmallChange="2"
+                                    SpinButtonPlacementMode="Compact"
+                                    ValueChanged="SpeechSettings_Changed" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                    <Button
+                        x:Name="SaveSpeechSettingsButton"
+                        Click="SaveSpeechSettingsButton_Click"
+                        Content="말풍선 설정 저장"
+                        HorizontalAlignment="Left" />
+                    <TextBlock x:Name="SpeechRuntimeStatusText" Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap" />
+                    <InfoBar
+                        x:Name="SpeechSettingsInfoBar"
+                        IsClosable="True"
+                        IsOpen="False" />
+                </StackPanel>
+            </Border>
+
+            <Border
+                x:Name="MovementSettingsCard"
+                Style="{StaticResource SettingsCardStyle}"
+                Visibility="Collapsed">
+                <StackPanel Spacing="14">
+                    <StackPanel Spacing="4">
+                        <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="이동" />
+                        <TextBlock
+                            Style="{StaticResource SettingsCaptionStyle}"
+                            Text="현재 펫이 데스크톱에서 움직이는 방식과 사용할 애니메이션을 정합니다." />
+                    </StackPanel>
+                    <Border Style="{StaticResource SettingsSubcardStyle}">
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="설정 대상 펫" />
+                            <TextBlock x:Name="MovementTargetPetText" Grid.Column="1" HorizontalAlignment="Right" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                        </Grid>
+                    </Border>
+                    <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="이동 방식" />
+                    <Grid ColumnSpacing="10" RowSpacing="10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <RadioButton
+                            x:Name="FixedMovementModeRadio"
+                            GroupName="MovementMode"
+                            Tag="0"
+                            Checked="MovementModeRadioButton_Checked">
+                            <Border MinWidth="280" Style="{StaticResource SettingsSubcardStyle}">
+                                <StackPanel Spacing="3">
+                                    <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="위치 고정" />
+                                    <TextBlock Style="{StaticResource SettingsCaptionStyle}" Text="원하는 자리에 머물며 직접 드래그해 옮깁니다." />
+                                </StackPanel>
+                            </Border>
+                        </RadioButton>
+                        <RadioButton
+                            x:Name="FreeRoamingMovementModeRadio"
+                            Grid.Column="1"
+                            GroupName="MovementMode"
+                            Tag="2"
+                            Checked="MovementModeRadioButton_Checked">
+                            <Border MinWidth="280" Style="{StaticResource SettingsSubcardStyle}">
+                                <StackPanel Spacing="3">
+                                    <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="자유 이동" />
+                                    <TextBlock Style="{StaticResource SettingsCaptionStyle}" Text="화면 안을 천천히 돌아다니며 잠시 머뭅니다." />
+                                </StackPanel>
+                            </Border>
+                        </RadioButton>
+                        <RadioButton
+                            x:Name="CursorFollowingMovementModeRadio"
+                            Grid.Row="1"
+                            GroupName="MovementMode"
+                            Tag="1"
+                            Checked="MovementModeRadioButton_Checked">
+                            <Border MinWidth="280" Style="{StaticResource SettingsSubcardStyle}">
+                                <StackPanel Spacing="3">
+                                    <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="마우스 따라가기" />
+                                    <TextBlock Style="{StaticResource SettingsCaptionStyle}" Text="마우스 포인터를 일정 거리를 두고 따라갑니다." />
+                                </StackPanel>
+                            </Border>
+                        </RadioButton>
+                        <RadioButton
+                            x:Name="CursorAvoidingMovementModeRadio"
+                            Grid.Row="1"
+                            Grid.Column="1"
+                            GroupName="MovementMode"
+                            Tag="3"
+                            Checked="MovementModeRadioButton_Checked">
+                            <Border MinWidth="280" Style="{StaticResource SettingsSubcardStyle}">
+                                <StackPanel Spacing="3">
+                                    <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="마우스 도망가기" />
+                                    <TextBlock Style="{StaticResource SettingsCaptionStyle}" Text="마우스가 가까이 오면 반대 방향으로 달아납니다." />
+                                </StackPanel>
+                            </Border>
+                        </RadioButton>
+                    </Grid>
+                    <ComboBox
+                        x:Name="MovementModeComboBox"
+                        Header="이동 모드"
+                        Visibility="Collapsed"
+                        SelectionChanged="MovementControls_Changed">
+                        <ComboBoxItem Content="위치 고정" Tag="Fixed" />
+                        <ComboBoxItem Content="마우스 따라가기" Tag="CursorFollowing" />
+                        <ComboBoxItem Content="자유 이동" Tag="FreeRoaming" />
+                        <ComboBoxItem Content="마우스 도망가기" Tag="CursorAvoiding" />
+                    </ComboBox>
+                    <StackPanel x:Name="FixedMovementHelpPanel" Spacing="4">
+                        <TextBlock
+                            x:Name="FixedMovementHelpText"
+                            Style="{StaticResource SettingsCaptionStyle}"
+                            Text="펫을 직접 드래그한 위치에 그대로 둡니다." />
+                    </StackPanel>
+                    <StackPanel x:Name="MovementSensePanel" Spacing="10">
+                        <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="이동 감각" />
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <NumberBox
+                                x:Name="MovementSpeedNumberBox"
+                                Header="이동 속도 (px/s)"
+                                Maximum="1000"
+                                Minimum="20"
+                                SmallChange="10"
+                                ValueChanged="MovementControls_Changed" />
+                            <NumberBox
+                                x:Name="MovementStopRadiusNumberBox"
+                                Grid.Column="1"
+                                Header="정지 반경 (px)"
+                                Maximum="128"
+                                Minimum="0"
+                                SmallChange="4"
+                                ValueChanged="MovementControls_Changed" />
+                        </Grid>
+                    </StackPanel>
+                    <StackPanel x:Name="MovementBoundaryPanel" Spacing="10">
+                        <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="이동 범위" />
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <ComboBox
+                                x:Name="MovementBoundaryModeComboBox"
+                                Header="이동 범위"
+                                SelectionChanged="MovementControls_Changed">
+                                <ComboBoxItem Content="모든 화면" Tag="AllDisplays" />
+                                <ComboBoxItem Content="선택 모니터" Tag="SelectedDisplay" />
+                                <ComboBoxItem Content="사용자 지정" Tag="CustomArea" />
+                            </ComboBox>
+                            <ComboBox
+                                x:Name="MovementScreenComboBox"
+                                Grid.Column="1"
+                                DisplayMemberPath="DisplayName"
+                                Header="대상 모니터"
+                                SelectedValuePath="Identifier"
+                                SelectionChanged="MovementControls_Changed" />
+                        </Grid>
+                        <Grid x:Name="MovementCustomAreaPanel" ColumnSpacing="12" RowSpacing="8" Visibility="Collapsed">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <NumberBox x:Name="MovementAreaXNumberBox" Header="왼쪽 여백 (%)" Minimum="0" Maximum="99" SmallChange="5" ValueChanged="MovementControls_Changed" />
+                            <NumberBox x:Name="MovementAreaYNumberBox" Grid.Column="1" Header="아래쪽 여백 (%)" Minimum="0" Maximum="99" SmallChange="5" ValueChanged="MovementControls_Changed" />
+                            <NumberBox x:Name="MovementAreaWidthNumberBox" Grid.Row="1" Header="영역 너비 (%)" Minimum="1" Maximum="100" SmallChange="5" ValueChanged="MovementControls_Changed" />
+                            <NumberBox x:Name="MovementAreaHeightNumberBox" Grid.Row="1" Grid.Column="1" Header="영역 높이 (%)" Minimum="1" Maximum="100" SmallChange="5" ValueChanged="MovementControls_Changed" />
+                        </Grid>
+                    </StackPanel>
+                    <StackPanel x:Name="CursorFollowingOptionsPanel" Spacing="10" Visibility="Collapsed">
+                        <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="마우스 따라가기" />
+                        <NumberBox
+                            x:Name="CursorDistanceNumberBox"
+                            Header="마우스와 거리 (px)"
+                            Maximum="512"
+                            Minimum="0"
+                            SmallChange="8"
+                            ValueChanged="MovementControls_Changed" />
+                        <local:MovementAnimationEditor x:Name="CursorFollowingAnimationEditor" SettingsChanged="MovementAnimationEditor_SettingsChanged" />
+                        <TextBlock Style="{StaticResource SettingsCaptionStyle}" Text="마우스 포인터와 지정한 거리를 유지하며 화면 안에서 따라갑니다." />
+                    </StackPanel>
+                    <StackPanel x:Name="FreeRoamingOptionsPanel" Spacing="10" Visibility="Collapsed">
+                        <TextBlock x:Name="FreeRoamingSectionTitle" Style="{StaticResource BodyStrongTextBlockStyle}" Text="자유 이동" />
+                        <NumberBox
+                            x:Name="FreeRoamingDwellNumberBox"
+                            Header="머무는 시간 (초)"
+                            Maximum="300"
+                            Minimum="0.5"
+                            SmallChange="0.5"
+                            ValueChanged="MovementControls_Changed" />
+                        <ToggleSwitch
+                            x:Name="PrefersFrontmostWindowToggle"
+                            Header="현재 사용 중인 앱의 창 근처를 우선"
+                            Toggled="MovementControls_Changed" />
+                        <local:MovementAnimationEditor x:Name="FreeRoamingAnimationEditor" SettingsChanged="MovementAnimationEditor_SettingsChanged" />
+                        <TextBlock Style="{StaticResource SettingsCaptionStyle}" Text="창 정보를 얻을 수 없거나 전체 화면이면 현재 화면 안에서 안전한 위치를 선택합니다." />
+                    </StackPanel>
+                    <StackPanel x:Name="CursorAvoidingOptionsPanel" Spacing="10" Visibility="Collapsed">
+                        <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="마우스 도망가기" />
+                        <ComboBox
+                            x:Name="AvoidingIdleBehaviorComboBox"
+                            Header="평상시 행동"
+                            SelectionChanged="MovementControls_Changed">
+                            <ComboBoxItem Content="가만히 있기" Tag="Stationary" />
+                            <ComboBoxItem Content="자유 이동" Tag="FreeRoaming" />
+                        </ComboBox>
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <NumberBox
+                                x:Name="AvoidingDetectionNumberBox"
+                                Header="마우스 감지 거리 (px)"
+                                Maximum="1024"
+                                Minimum="32"
+                                SmallChange="8"
+                                ValueChanged="MovementControls_Changed" />
+                            <NumberBox
+                                x:Name="AvoidingSpeedNumberBox"
+                                Grid.Column="1"
+                                Header="도망가는 속도 (px/s)"
+                                Maximum="1000"
+                                Minimum="20"
+                                SmallChange="10"
+                                ValueChanged="MovementControls_Changed" />
+                        </Grid>
+                        <local:MovementAnimationEditor x:Name="CursorAvoidingAnimationEditor" SettingsChanged="MovementAnimationEditor_SettingsChanged" />
+                        <TextBlock Style="{StaticResource SettingsCaptionStyle}" Text="안전한 거리까지 멀어지면 선택한 평상시 행동으로 돌아갑니다." />
+                    </StackPanel>
+                    <StackPanel x:Name="MovementInteractionPanel" Spacing="8">
+                        <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="상호작용" />
+                        <ComboBox
+                            x:Name="PettingMotionComboBox"
+                            DisplayMemberPath="DisplayName"
+                            Header="쓰다듬기 애니메이션"
+                            SelectedValuePath="Id"
+                            SelectionChanged="MovementControls_Changed" />
+                        <TextBlock x:Name="PettingDescriptionText" Style="{StaticResource SettingsCaptionStyle}" />
+                    </StackPanel>
+                    <Expander Header="이동 상태 진단">
+                        <TextBlock x:Name="MovementStatusText" Style="{StaticResource SettingsCaptionStyle}" />
+                    </Expander>
+                    <InfoBar
+                        x:Name="MovementSettingsInfoBar"
+                        IsClosable="True"
+                        IsOpen="False" />
+                </StackPanel>
+            </Border>
+
+            <Border
+                x:Name="PetLibraryCard"
+                Style="{StaticResource SettingsCardStyle}">
+                <StackPanel Spacing="14">
+                    <StackPanel Spacing="4">
+                        <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="현재 펫" />
+                        <TextBlock
+                            Style="{StaticResource SettingsCaptionStyle}"
+                            Text="지금 데스크톱에서 함께하고 있는 펫과 사용할 수 있는 애니메이션입니다." />
+                    </StackPanel>
+                    <ComboBox
+                        x:Name="CurrentPetComboBox"
+                        DisplayMemberPath="DisplayName"
+                        Header="현재 펫"
+                        SelectedValuePath="InstallationId"
+                        SelectionChanged="CurrentPetComboBox_SelectionChanged" />
+                    <Border Style="{StaticResource SettingsSubcardStyle}">
+                        <Grid ColumnSpacing="20">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="160" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Border
+                                Width="160"
+                                Height="160"
+                                Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                CornerRadius="12">
+                                <Grid>
+                                    <FontIcon
+                                        x:Name="CurrentPetPreviewPlaceholder"
+                                        FontSize="52"
+                                        Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                                        Glyph="&#xEB55;" />
+                                    <Image
+                                        x:Name="CurrentPetPreviewImage"
+                                        Margin="8"
+                                        Stretch="Uniform" />
+                                </Grid>
+                            </Border>
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="6">
+                                <TextBlock
+                                    x:Name="CurrentPetNameText"
+                                    Style="{StaticResource SubtitleTextBlockStyle}"
+                                    Text="펫을 불러오는 중입니다." />
+                                <TextBlock x:Name="CurrentPetAuthorVersionText" Style="{StaticResource SettingsCaptionStyle}" />
+                                <TextBlock x:Name="CurrentPetDescriptionText" TextWrapping="Wrap" />
+                                <TextBlock x:Name="CurrentPetMotionText" Style="{StaticResource SettingsCaptionStyle}" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                    <Border Style="{StaticResource SettingsDividerStyle}" />
+
+                    <StackPanel Spacing="8">
+                        <StackPanel Spacing="2">
+                            <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="애니메이션" />
+                            <TextBlock
+                                x:Name="AnimationEditingCaptionText"
+                                Style="{StaticResource SettingsCaptionStyle}"
+                                Text="현재 펫에서 사용할 수 있는 애니메이션입니다." />
+                        </StackPanel>
+                        <ListView
+                            x:Name="PetAnimationsList"
+                            MaxHeight="260"
+                            SelectionChanged="PetAnimationsList_SelectionChanged"
+                            SelectionMode="Single">
+                            <ListView.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Padding="0,7" ColumnSpacing="12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Spacing="2">
+                                            <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="{Binding DisplayName}" />
+                                            <TextBlock Style="{StaticResource CaptionTextBlockStyle}" Text="{Binding Detail}" />
+                                        </StackPanel>
+                                        <TextBlock
+                                            Grid.Column="1"
+                                            VerticalAlignment="Center"
+                                            Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                                            Text="{Binding DefaultBadge}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button
+                                x:Name="AddPetAnimationButton"
+                                Click="AddPetAnimationButton_Click"
+                                Content="애니메이션 추가…" />
+                            <Button
+                                x:Name="EditPetAnimationButton"
+                                Click="EditPetAnimationButton_Click"
+                                Content="수정…" />
+                            <Button
+                                x:Name="DeletePetAnimationButton"
+                                Click="DeletePetAnimationButton_Click"
+                                Content="삭제" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <Border Style="{StaticResource SettingsDividerStyle}" />
+                    <StackPanel Spacing="8">
+                        <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="MonglePet 패키지" />
+                        <TextBlock
+                            x:Name="PetPackageCaptionText"
+                            Style="{StaticResource SettingsCaptionStyle}"
+                            Text="macOS와 Windows에서 동일한 .monglepet 패키지를 가져오거나 공유합니다."
+                            TextWrapping="Wrap" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button
+                                x:Name="ImportPackageButton"
+                                Click="ImportPackageButton_Click"
+                                Content="패키지 가져오기…" />
+                            <Button
+                                x:Name="ExportPackageButton"
+                                Click="ExportPackageButton_Click"
+                                Content="현재 펫 내보내기…" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <Border Style="{StaticResource SettingsDividerStyle}" />
+                    <StackPanel Spacing="8">
+                        <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="펫 관리" />
+                        <TextBlock
+                            x:Name="PetManagementCaptionText"
+                            Style="{StaticResource SettingsCaptionStyle}"
+                            TextWrapping="Wrap" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button
+                                x:Name="CreatePetButton"
+                                Click="CreatePetButton_Click"
+                                Content="새 펫 만들기…" />
+                            <Button
+                                x:Name="EditPetDetailsButton"
+                                Click="EditPetDetailsButton_Click"
+                                Content="펫 정보 수정…" />
+                            <Button
+                                x:Name="CreateEditablePetCopyButton"
+                                Click="CreateEditablePetCopyButton_Click"
+                                Content="편집 가능한 사본 만들기…" />
+                            <Button
+                                x:Name="DeleteCurrentPetButton"
+                                Click="DeleteCurrentPetButton_Click"
+                                Content="펫 삭제…" />
+                        </StackPanel>
+                        <Expander Header="다른 설치된 펫 선택" Visibility="Collapsed">
+                            <ListView
+                                x:Name="InstalledPetsList"
+                                IsItemClickEnabled="False"
+                                SelectionMode="None">
+                                <ListView.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Padding="0,8" ColumnSpacing="12">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Spacing="2">
+                                                <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="{Binding DisplayName}" />
+                                                <TextBlock Style="{StaticResource CaptionTextBlockStyle}" Text="{Binding Detail}" TextWrapping="Wrap" />
+                                            </StackPanel>
+                                            <Button
+                                                Grid.Column="1"
+                                                Click="ActivatePetButton_Click"
+                                                Content="사용"
+                                                IsEnabled="{Binding CanActivate}"
+                                                Tag="{Binding InstallationId}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListView.ItemTemplate>
+                            </ListView>
+                        </Expander>
+                        <Button
+                            x:Name="InstallSampleButton"
+                            HorizontalAlignment="Left"
+                            Click="InstallSampleButton_Click"
+                            Content="기본 몽글이 복원"
+                            Visibility="Collapsed" />
+                    </StackPanel>
+                    <Expander Header="저장 위치 및 진단 정보">
+                        <StackPanel Spacing="4">
+                            <TextBlock x:Name="LibraryStatusText" Style="{StaticResource SettingsCaptionStyle}" />
+                            <TextBlock x:Name="SettingsStatusText" Style="{StaticResource SettingsCaptionStyle}" />
+                        </StackPanel>
+                    </Expander>
+                    <InfoBar
+                        x:Name="LibraryInfoBar"
+                        IsClosable="True"
+                        IsOpen="False" />
+                </StackPanel>
+            </Border>
+
+            <Border
+                x:Name="BehaviorSettingsCard"
+                Style="{StaticResource SettingsCardStyle}"
+                Visibility="Collapsed">
+                <StackPanel Spacing="14">
+                    <Border Style="{StaticResource SettingsSubcardStyle}">
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="설정 대상 펫" />
+                            <TextBlock
+                                x:Name="BehaviorTargetPetText"
+                                Grid.Column="1"
+                                Style="{StaticResource BodyStrongTextBlockStyle}" />
+                        </Grid>
+                    </Border>
+                    <Border
+                        x:Name="RoutineEditorCard"
+                        Style="{StaticResource SettingsSubcardStyle}"
+                        Visibility="Collapsed">
+                        <StackPanel Spacing="12">
+                            <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="편집할 행동 루틴" />
+                            <ComboBox
+                                x:Name="RoutineEditorComboBox"
+                                DisplayMemberPath="DisplayName"
+                                Header="편집할 루틴"
+                                SelectedValuePath="Id"
+                                SelectionChanged="RoutineEditorComboBox_SelectionChanged" />
+                            <Grid ColumnSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox x:Name="NewSequenceNameTextBox" Header="새 행동 루틴 만들기" PlaceholderText="루틴 이름" />
+                                <Button
+                                    x:Name="AddSequenceButton"
+                                    Grid.Column="1"
+                                    Margin="0,24,0,0"
+                                    Click="AddSequenceButton_Click"
+                                    Content="만들기" />
+                                <Button
+                                    x:Name="DeleteSequenceButton"
+                                    Grid.Column="2"
+                                    Margin="0,24,0,0"
+                                    Click="DeleteSequenceButton_Click"
+                                    Content="선택 삭제" />
+                            </Grid>
+                            <ToggleSwitch
+                                x:Name="SequenceRepeatsToggle"
+                                Header="마지막 단계 후 처음부터 반복"
+                                Toggled="SequenceRepeatsToggle_Toggled" />
+                            <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="애니메이션 단계" />
+                            <ListView
+                                x:Name="BehaviorStepsList"
+                                SelectionMode="None">
+                                <ListView.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border
+                                            Margin="0,0,0,8"
+                                            Padding="12"
+                                            Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                            CornerRadius="10">
+                                            <Grid ColumnSpacing="12">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="36" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="124" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <Border
+                                                    Width="32"
+                                                    Height="32"
+                                                    VerticalAlignment="Bottom"
+                                                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                                    CornerRadius="16">
+                                                    <TextBlock
+                                                        HorizontalAlignment="Center"
+                                                        VerticalAlignment="Center"
+                                                        FontWeight="SemiBold"
+                                                        Text="{Binding DisplayIndex}" />
+                                                </Border>
+                                                <StackPanel Grid.Column="1" Spacing="5">
+                                                    <TextBlock Style="{StaticResource SettingsCaptionStyle}" Text="애니메이션" />
+                                                    <ComboBox
+                                                        MinWidth="220"
+                                                        HorizontalAlignment="Stretch"
+                                                        ItemsSource="{Binding MotionOptions}"
+                                                        DisplayMemberPath="DisplayName"
+                                                        SelectedValue="{Binding MotionId, Mode=OneWay}"
+                                                        SelectedValuePath="Id"
+                                                        SelectionChanged="StepMotionComboBox_SelectionChanged"
+                                                        Tag="{Binding Index}" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="2" Spacing="5">
+                                                    <TextBlock Style="{StaticResource SettingsCaptionStyle}" Text="반복 횟수" />
+                                                    <NumberBox
+                                                        Maximum="100000"
+                                                        Minimum="1"
+                                                        SmallChange="1"
+                                                        SpinButtonPlacementMode="Compact"
+                                                        Tag="{Binding Index}"
+                                                        Value="{Binding RepeatCount, Mode=OneWay}"
+                                                        ValueChanged="StepRepeatCountNumberBox_ValueChanged" />
+                                                </StackPanel>
+                                                <StackPanel
+                                                    Grid.Column="3"
+                                                    VerticalAlignment="Bottom"
+                                                    Orientation="Horizontal"
+                                                    Spacing="6">
+                                                    <Button
+                                                        Width="36"
+                                                        Click="MoveStepUpButton_Click"
+                                                        Content="↑"
+                                                        IsEnabled="{Binding CanMoveUp}"
+                                                        Tag="{Binding Index}"
+                                                        ToolTipService.ToolTip="위로 이동" />
+                                                    <Button
+                                                        Width="36"
+                                                        Click="MoveStepDownButton_Click"
+                                                        Content="↓"
+                                                        IsEnabled="{Binding CanMoveDown}"
+                                                        Tag="{Binding Index}"
+                                                        ToolTipService.ToolTip="아래로 이동" />
+                                                    <Button
+                                                        Click="RemoveStepButton_Click"
+                                                        Content="삭제"
+                                                        IsEnabled="{Binding CanDelete}"
+                                                        Tag="{Binding Index}" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ListView.ItemTemplate>
+                            </ListView>
+                            <Button x:Name="AddStepButton" Click="AddStepButton_Click" Content="애니메이션 단계 추가" />
+                            <TextBlock
+                                Style="{StaticResource SettingsCaptionStyle}"
+                                Text="현재 펫이 가진 애니메이션을 순서대로 조합합니다. 루틴 이름은 생성 후에는 바꿀 수 없습니다." />
+                        </StackPanel>
+                    </Border>
+
+                    <Border
+                        x:Name="AutomaticRulesCard"
+                        Style="{StaticResource SettingsSubcardStyle}"
+                        Visibility="Collapsed">
+                        <StackPanel Spacing="12">
+                            <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="등록된 규칙" />
+                            <ListView
+                                x:Name="AutomaticRulesList"
+                                SelectionChanged="AutomaticRulesList_SelectionChanged"
+                                SelectionMode="Single">
+                                <ListView.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Padding="0,6" Spacing="2">
+                                            <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="{Binding Summary}" />
+                                            <TextBlock Style="{StaticResource CaptionTextBlockStyle}" Text="{Binding Detail}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListView.ItemTemplate>
+                            </ListView>
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button x:Name="NewApplicationRuleButton" Click="NewApplicationRuleButton_Click" Content="앱 규칙 추가" />
+                                <Button x:Name="NewIdleRuleButton" Click="NewIdleRuleButton_Click" Content="입력 없음 규칙 추가" />
+                                <Button x:Name="DeleteRuleButton" Click="DeleteRuleButton_Click" Content="선택 규칙 삭제" />
+                            </StackPanel>
+                            <ToggleSwitch x:Name="RuleEnabledToggle" Header="규칙 사용" IsOn="True" />
+                            <NumberBox
+                                x:Name="RulePriorityNumberBox"
+                                Header="우선순위 (큰 숫자 먼저)"
+                                Maximum="2147483647"
+                                Minimum="-2147483648"
+                                SmallChange="1"
+                                SpinButtonPlacementMode="Compact" />
+                            <ComboBox
+                                x:Name="RuleConditionTypeComboBox"
+                                Header="조건 종류"
+                                SelectionChanged="RuleConditionTypeComboBox_SelectionChanged">
+                                <ComboBoxItem Content="전면 앱" Tag="Application" />
+                                <ComboBoxItem Content="입력 없음" Tag="Idle" />
+                            </ComboBox>
+                            <StackPanel x:Name="ApplicationRuleEditorGrid" Spacing="8">
+                                <Border
+                                    Padding="12"
+                                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                    CornerRadius="6">
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Style="{StaticResource CaptionTextBlockStyle}" Text="선택한 대상 앱" />
+                                        <TextBlock
+                                            x:Name="RuleApplicationSelectionText"
+                                            Text="선택되지 않음"
+                                            TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Border>
+                                <TextBox
+                                    x:Name="RuleApplicationIdTextBox"
+                                    Header="Windows 앱 식별자"
+                                    PlaceholderText="pfn:... 또는 exe:notepad.exe"
+                                    TextChanged="RuleApplicationIdTextBox_TextChanged" />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button
+                                        x:Name="ChooseApplicationButton"
+                                        Click="ChooseApplicationButton_Click"
+                                        Content="실행 중 앱 선택…" />
+                                    <Button
+                                        x:Name="ChooseExecutableButton"
+                                        Click="ChooseExecutableButton_Click"
+                                        Content="실행 파일 선택…" />
+                                    <Button
+                                        x:Name="UseCurrentApplicationButton"
+                                        Click="UseCurrentApplicationButton_Click"
+                                        Content="현재 전면 앱 사용" />
+                                </StackPanel>
+                            </StackPanel>
+                            <NumberBox
+                                x:Name="RuleIdleMinutesNumberBox"
+                                Header="입력 없음 시간 (분)"
+                                Maximum="1440"
+                                Minimum="1"
+                                SmallChange="1"
+                                SpinButtonPlacementMode="Compact"
+                                Value="1" />
+                            <ComboBox
+                                x:Name="RuleTargetSequenceComboBox"
+                                DisplayMemberPath="DisplayName"
+                                Header="실행할 루틴"
+                                SelectedValuePath="Id" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button x:Name="AddRuleButton" Click="AddRuleButton_Click" Content="새 규칙 추가" />
+                                <Button
+                                    x:Name="SaveRuleButton"
+                                    Click="SaveRuleButton_Click"
+                                    Content="선택 규칙 저장" />
+                            </StackPanel>
+                            <TextBlock
+                                Style="{StaticResource SettingsCaptionStyle}"
+                                Text="숫자가 큰 우선순위부터 검사하며, 조건을 만족하는 첫 번째 규칙을 사용합니다." />
+                        </StackPanel>
+                    </Border>
+                    <InfoBar
+                        x:Name="BehaviorSettingsInfoBar"
+                        IsClosable="True"
+                        IsOpen="False" />
+                </StackPanel>
+            </Border>
+
+                </StackPanel>
+            </Grid>
+        </ScrollViewer>
+    </NavigationView>
+</Page>

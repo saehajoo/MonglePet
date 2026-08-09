@@ -477,3 +477,99 @@
 - 결정: 펫 만들기·정보 수정·가져오기·내보내기와 웹 metadata에서 펫별 라이선스 입력·표시·문자열 판별을 제거한다. 가져온 원본은 읽기 전용으로 보호하지만 사용자는 항상 새 package ID의 편집 가능한 사본을 만들 수 있다.
 - 이유: 자유 입력 문자열로 법적 권한을 정확히 판별할 수 없고, 라이선스와 앱 내부 편집 가능 상태를 연결하면 실제로 보장할 수 없는 제한을 사용자에게 약속하게 되기 때문이다.
 - 비고: schema-v1의 기존 `license` 필드는 디코딩 호환을 위한 선택적 레거시 값으로만 허용하고 Domain, UI, 공유 정책과 새로 쓰는 manifest에서는 무시한다. 공유와 웹 업로드는 라이선스 문자열 대신 게시 권한 확인, 인증된 소유자, 신고·숨김·삭제 절차와 관리자 검토를 사용한다. 저장소 소스 라이선스와 제3자 고지는 변경하지 않는다.
+
+## D-062 Windows 첫 구현 기준선
+
+- 상태: accepted
+- 날짜: 2026-08-08
+- 결정: Windows 첫 구현은 Windows 11 25H2 build 26200 이상, .NET 10 LTS, Windows App SDK 2.3.1 Stable과 Visual Studio 2026을 기준으로 한다. 초기 아키텍처는 x64 packaged WinUI 3·MSIX 단일 full-trust 프로세스이며 설정 UI, notification area와 별도 Win32 `HWND` 오버레이의 수명주기를 분리한다. 순수 Domain과 패키지 계약은 C# 프로젝트로 분리하고 xUnit으로 검증한다.
+- 이유: 지원이 종료된 Windows 10과 곧 지원이 끝나는 Windows 11 24H2를 새 프로젝트 기준에 포함하지 않고, 지원 기간이 남은 LTS 런타임과 Stable UI 프레임워크에서 상시 실행 오버레이의 성능·배포 기준을 재현 가능하게 고정하기 위해서다.
+- 비고: packaged Windows 사용자 데이터의 구체적인 저장 루트는 D-064의 `ApplicationData.Current.LocalFolder\MonglePet`을 따른다. 화면·앱 식별자는 Windows 로컬 설정으로만 유지한다. 초기 대상은 x64이며 ARM64, 최종 MSIX Package Identity·Publisher, 서명과 업데이트 채널은 x64 Release 기준선과 배포 요구를 확인한 뒤 별도 결정한다. 오버레이 초기 합격 기준은 유휴 CPU 평균 1% 미만, 이동 CPU 평균 5% 미만·10% 이상 지속 없음, warm-up 뒤 private memory 200MiB 이하·1시간 증가 10MiB 이하와 프레임 표시 지연 p95 33ms 이하로 시작한다.
+
+## D-063 Windows Composition 오버레이의 ContentIsland 연결
+
+- 상태: accepted
+- 날짜: 2026-08-08
+- 결정: Windows 펫 오버레이는 최상위 투명 Win32 `WS_POPUP` 부모 `HWND`를 앱이 직접 소유하고, `Microsoft.UI.Composition` Visual tree는 `ContentIsland`와 `DesktopChildSiteBridge`를 통해 그 창의 자식 HWND에 연결한다. 부모 창은 항상 위·비활성·도구 창·클릭 통과 정책을 소유하고, ContentIsland는 프레임·이동·말풍선 합성 표면을 소유한다.
+- 이유: Windows App SDK 2.3.1의 C# 런타임에서 `Microsoft.UI.Composition.Compositor`를 시스템 `ICompositorDesktopInterop`으로 조회하는 경로가 `E_NOINTERFACE`로 실패했다. 같은 설치 환경의 공개 Windows App SDK API인 ContentIsland 경로는 원시 COM vtable 없이 별도 HWND에 Composition 비주얼을 연결하고 실제 x64 packaged 앱에서 정상 표시됐다.
+- 비고: 최소 실험에서 220×220 최상위 오버레이와 같은 크기의 `Microsoft.UI.Content.DesktopChildSiteBridge` 자식 창, 투명 배경, `WS_EX_TOPMOST`·`WS_EX_NOACTIVATE`·`WS_EX_TOOLWINDOW`·`WS_EX_TRANSPARENT`와 숨김·표시를 확인했다. 이는 이미지 프레임 재생, 다중 모니터, 드래그·쓰다듬기, 시스템 트레이와 Release 성능 기준을 완료한 결정이 아니며 후속 측정은 계속한다.
+
+## D-064 Windows packaged 앱의 로컬 데이터 루트
+
+- 상태: accepted
+- 날짜: 2026-08-08
+- 결정: packaged Windows 앱의 설정과 펫 라이브러리는 `Windows.Storage.ApplicationData.Current.LocalFolder` 아래 `MonglePet/settings.json`과 `MonglePet/Library/<installation-uuid>`에 저장한다. UI와 로그에는 API가 반환한 실제 `LocalState` 경로를 표시한다.
+- 이유: MSIX는 일반 `%LOCALAPPDATA%\MonglePet` 쓰기를 package `LocalCache`로 가상화한다. 이를 해제하려면 Store 심사와 보안 범위를 넓히는 `unvirtualizedResources` 제한 capability가 필요하므로 사용하지 않고, Microsoft가 packaged 앱 데이터에 제공하는 package-local `LocalState`를 명시적으로 사용한다.
+- 비고: D-062의 `%LOCALAPPDATA%\MonglePet` 저장 비고는 unpackaged 경로 초안이며 현재 packaged 기준에서는 이 결정으로 대체한다. 로컬 데이터는 패키지 패밀리별로 격리되고 앱 제거 정책의 영향을 받으므로 공개 배포의 백업·제거 안내에서 설명한다.
+
+## D-065 Windows 자동 규칙의 앱 식별자와 활동 감지
+
+- 상태: accepted
+- 날짜: 2026-08-09
+- 결정: Windows 전면 앱 규칙은 packaged 앱의 소문자 `pfn:<package-family-name>` 또는 일반 Win32 앱의 소문자 `exe:<file-name>`을 로컬 식별자로 사용한다. 입력 없음 시간은 `GetLastInputInfo`를 1초 간격으로 확인하고, 세션 잠금·해제와 시스템 절전·복귀는 오버레이 HWND의 공개 WTS·전원 메시지로 감지한다.
+- 이유: package family는 설치 위치가 바뀌어도 안정적이고, 일반 Win32 앱은 package identity가 없으므로 실행 파일명만 사용하는 것이 경로 저장 없이 자동 규칙 대상을 구분할 수 있는 최소 범위다. 1초 polling은 입력 없음 규칙의 최대 전환 지연과 상시 실행 CPU 비용 사이의 기존 제품 기준에 맞는다.
+- 비고: 창 제목, 문서명, 브라우저 주소, 실제 입력 내용과 실행 파일 전체 경로는 snapshot·설정·로그에 저장하지 않는다. 앱 식별자는 Windows 로컬 설정에만 유지하고 권장 프로필이나 다른 플랫폼으로 내보내지 않는다. 숨김·잠금·절전 중에는 polling을 중지하고 복귀 시 즉시 새 snapshot을 발행한다.
+
+## D-066 Windows 행동 프로필 편집과 현재 앱 입력 경계
+
+- 상태: accepted
+- 날짜: 2026-08-09
+- 결정: Windows 행동 루틴·단계·자동 규칙 편집은 UI와 분리한 순수 `BehaviorProfile` 편집기를 거쳐 현재 펫 프로필 전체를 schema-v10 원자 저장 경계에 한 번에 반영한다. 앱 규칙은 `pfn:`·`exe:` 직접 입력과 현재 감지 중인 전면 앱 식별자 채우기를 제공한다.
+- 이유: 기본 루틴 보호, 최소 한 단계, 참조 cascade와 항목 한계를 화면 이벤트와 독립적으로 검증하고, 저장된 프로필과 실행 중 runtime이 부분 변경으로 어긋나지 않게 하기 위해서다. 현재 전면 앱 채우기는 전체 설치 앱 열람 권한이나 경로 저장 없이 일반적인 규칙 생성을 지원한다.
+- 비고: 각 사용자 편집은 즉시 저장·실행하되 WinUI 목록 재구성은 컨트롤 이벤트가 반환된 뒤 UI queue에서 수행한다. 앱 선택 UX의 열거 범위와 개인정보 경계는 D-067을 따른다.
+
+## D-067 Windows 자동 규칙 앱 선택 범위와 개인정보 경계
+
+- 상태: accepted
+- 날짜: 2026-08-09
+- 결정: Windows 자동 규칙 대상 선택기는 창 제목을 읽지 않고 보이는 소유자 없는 일반 최상위 창의 프로세스만 실행 중 앱 후보로 열거한다. 전체 설치 앱이나 디스크·레지스트리·시작 메뉴를 스캔하지 않으며, 목록 밖 앱은 사용자가 표준 파일 선택기에서 `.exe`를 명시적으로 고른다. 직접 식별자 입력과 현재 전면 앱 채우기도 유지한다.
+- 이유: 사용자가 PFN이나 실행 파일명을 몰라도 일반적인 앱 규칙을 만들 수 있게 하면서, 백그라운드 프로세스와 설치 이력을 불필요하게 수집하지 않고 전체 경로 저장도 피하기 위해서다.
+- 비고: 후보의 표시 이름·아이콘·실행 파일 경로는 선택 UI가 열린 동안 메모리에서만 사용하고 설정에는 소문자 `pfn:<package-family-name>` 또는 `exe:<file-name>`만 저장한다. MonglePet 자체와 중복 식별자는 제외하며 이름·아이콘 접근 실패는 식별자와 일반 glyph로 복구한다. Windows Terminal처럼 다른 프로세스가 창을 호스팅하는 실행 파일은 호스트 앱의 PFN 또는 실행 파일 식별자를 선택한다.
+
+## D-068 Windows notification area와 설정창 생명주기
+
+- 상태: accepted
+- 날짜: 2026-08-09
+- 결정: Windows 앱의 상시 실행 진입점은 고정 GUID의 `Shell_NotifyIcon` notification area 아이콘으로 제공한다. 설정창의 X 닫기는 `AppWindow.Hide`로 창만 숨긴다. 아이콘의 명시적 `MonglePet 종료`는 native callback에서 직접 자원을 파괴하지 않고 UI queue로 넘겨 설정 Page와 장기 실행 자원을 정리한 뒤 마지막 WinUI 창을 닫아 프로세스를 끝낸다. 메뉴는 현재 펫, 깨우기·재우기, 클릭 통과, 포인터가 있는 현재 화면으로 가져오기, 설정과 종료를 제공한다.
+- 이유: 데스크톱 펫은 설정창이 닫혀도 계속 실행되어야 하며, 사용자가 펫을 숨긴 뒤에도 다시 깨우거나 앱을 완전히 끝낼 복구 경로가 필요하다. Windows의 notification area와 숨김 설정창 조합이 macOS 상태 메뉴와 같은 사용자 결과를 네이티브 UX로 제공한다.
+- 비고: notification area adapter와 메뉴·모니터 배치 모델은 `MonglePet.Shell`에 격리한다. 아이콘은 Explorer 재시작 뒤 `TaskbarCreated`에서 다시 등록하며, 현재 화면 이동은 포인터가 있는 모니터의 작업 영역 우하단으로 보정한 좌표를 기존 overlay 화면 식별자와 원점 필드에 저장한다. notification area 전용 설정 schema는 만들지 않는다. 마지막 WinUI 창이 없는 예외 종료 경로에서만 `Application.Exit`을 사용한다.
+
+## D-069 Windows 이동·드래그·쓰다듬기 실행 경계
+
+- 상태: accepted
+- 날짜: 2026-08-09
+- 결정: Windows 이동은 좌상단 원점 가상 데스크톱 좌표를 사용하는 순수 Geometry와 `PetMovementRuntime`으로 분리하고 schema-v10의 기존 펫별 네 이동 모드·방향 모션·쓰다듬기 및 전역 이동 범위 필드를 그대로 사용한다. 자동 이동 좌표는 저장하지 않으며, 클릭 통과가 꺼진 overlay의 `HTCAPTION` 사용자 드래그 완료와 명시적 현재 화면 이동만 화면 식별자·원점을 저장한다.
+- 이유: 이동 규칙을 Win32 메시지와 UI에서 분리해 음수 좌표·다중 모니터·속도 경계를 결정적으로 테스트하고, 자유 이동이 사용자 위치 기록을 계속 덮어쓰지 않게 하기 위해서다. 전체 overlay를 비활성 caption으로 취급하면 설정창 포커스를 빼앗지 않고 네이티브 창 이동을 사용할 수 있다.
+- 비고: 표시 우선순위는 쓰다듬기, 이동, 행동 순이다. 이동 표시는 행동 시간축을 유지하고 300ms 포인터 주도 호버 쓰다듬기는 한 사이클 동안 행동 시간축을 보존한 뒤 복귀한다. 투명 픽셀을 제외하는 알파 마스크는 D-070, 전면 앱 대표 창 선호는 D-071에서 후속 구현했고 사용자 지정 영역 시각 편집은 남은 보강 범위다.
+
+## D-070 Windows 알파 픽셀 포인터 관찰 경계
+
+- 상태: accepted
+- 날짜: 2026-08-09
+- 결정: Windows 호버 쓰다듬기와 클릭 통과 중 겹침 투명화는 현재 atlas frame을 Windows Imaging decoder로 최대 64px RGBA 마스크로 축소한 뒤 알파가 0보다 큰 실제 표시 픽셀만 대상으로 한다. aspect-fit 여백을 제외하고 manifest의 좌상단 frame 좌표를 사용한다. 두 기능은 이동 runtime의 단일 100ms 포인터 관찰을 공유하며, 쓰다듬기와 겹침 투명화가 모두 꺼진 상태에는 timer와 알파 디코딩을 시작하지 않는다.
+- 이유: 사각형 패널의 투명 여백에서 상호작용이 발생하는 오작동을 없애면서도 매 tick GPU readback이나 원본 크기 디코딩을 피하고, 상시 실행 앱의 비활성 비용을 0에 가깝게 유지하기 위해서다.
+- 비고: 겹침 투명화는 클릭 통과가 켜진 awake 상태에서만 `min(baseOpacity, pointerOverlapOpacity)`를 Composition root에 적용하고 조건이 해제되면 즉시 기본 투명도로 복원한다. 마스크가 준비되지 않았거나 디코딩에 실패하면 표시 픽셀 아님으로 안전하게 처리하되 애니메이션은 계속 재생한다. 정지 포인터 아래로 펫이 이동한 경우 쓰다듬기를 시작하지 않고, 포인터 주도 표시 픽셀 진입 후 300ms에 한 번 실행하며 패널 이탈 뒤 재활성화한다.
+
+## D-071 Windows 전면 앱 대표 창 선호 경계
+
+- 상태: accepted
+- 날짜: 2026-08-09
+- 결정: Windows 자유 이동의 `prefersFrontmostWindow`는 `GetForegroundWindow`의 PID와 `EnumWindows`·DWM이 제공하는 창 표시 속성·frame bounds만으로 대표 창을 고른다. 보이는 owner 없는 non-tool·non-cloaked 최상위 창 중 현재 이동 작업 영역과 겹치는 가시 면적이 가장 큰 창을 선택하고, 같은 foreground HWND·PID 결과는 최대 1초 캐시한다.
+- 이유: 접근성 권한이나 창 제목·내용 수집 없이 사용자가 작업 중인 일반 창 주변에서 자연스럽게 움직이게 하면서, 여러 창·다중 화면과 상시 실행 비용을 결정적으로 제한하기 위해서다.
+- 비고: 후보 중 알려진 작업 영역의 98% 이상을 덮는 창이 있거나 대표 창이 펫보다 작고 이동 범위와 교집합이 없거나 조회가 실패하면 기존 작업 영역 자유 이동으로 복구한다. 설정이 꺼진 경우 native 창 열거를 하지 않는다. PID, HWND와 bounds는 메모리에서만 사용하고 설정·로그에는 창 제목·경로·이력을 저장하지 않는다.
+
+## D-072 Windows 사용자 펫 편집과 이동 좌표 동등성
+
+- 상태: accepted
+- 날짜: 2026-08-09
+- 결정: Windows 사용자 펫 편집은 macOS와 같은 schema-v1 `monglepet-editor.json`의 `packageID` 소유권 marker를 사용하고, 가져온 패키지는 읽기 전용으로 유지해 편집 시 새 package ID의 독립 사본을 만든다. 편집 결과는 staging에서 전체 패키지 검증 후 동일 설치 UUID를 원자적으로 교체하며 내보내기에는 marker를 포함하지 않는다. 모션 이름 변경·삭제는 행동 단계, 이동 방향 모션과 쓰다듬기 참조를 함께 보정한다. 자동 이동은 `double` 논리 좌표를 누적하고 HWND 반영 시에만 반올림하며 모든 화면 범위에서 모니터별 작업 영역 clamp를 적용하지 않는다.
+- 이유: 두 플랫폼이 같은 `.monglepet` 의미를 유지하면서 가져온 원본과 편집 소유권을 혼동하지 않고, 모션 편집 뒤 깨진 로컬 설정 참조를 남기지 않기 위해서다. 논리 좌표 누적은 저속 이동량의 정수 반올림 손실을 제거하고 모든 화면 이동이 모니터 경계에 고착되는 문제를 해결한다.
+- 비고: 선택 모니터와 사용자 지정 영역은 계속 해당 경계로 제한한다. atlas 생성은 PNG/WebP 입력을 Windows Imaging으로 디코딩해 투명 PNG로 구성하며 loader 크기 제한을 통과해야 한다. 실제 혼합 DPI 모니터 횡단과 macOS·Windows 실제 파일 교차 왕복은 자동 계약 테스트에 더해 수동 QA로 확인한다.
+
+## D-073 Windows 말풍선 간격과 주기 예약 의미
+
+- 상태: accepted
+- 날짜: 2026-08-09
+- 결정: 말풍선 꼬리를 표시하면 `placement.gap`은 빈 공간이 아니라 기본 꼬리 높이에 더해지는 연결 길이로 사용해 꼬리 끝이 펫 경계에 닿게 한다. 꼬리를 숨긴 경우에만 같은 값만큼 말풍선과 펫 사이를 비운다. `다음 대사까지 유지` 행동 대사는 주기 대사가 활성이고 하나 이상 존재하면 주기 timer를 예약하고, timer가 끝나면 현재 행동 대사를 주기 대사로 교체한다. 주기 간격 설정 변경은 이전 예약을 취소하고 변경 시점부터 새 간격으로 다시 예약한다.
+- 이유: 간격을 키웠을 때 꼬리가 본체나 펫에서 떨어져 보이지 않게 하고, 유지형 행동 대사가 주기 대사 전체를 영구적으로 막는 상태를 없애기 위해서다. 설정 변경 뒤 이전 timer가 남지 않게 해 화면 값과 runtime 동작을 일치시킨다.
+- 비고: 꼬리의 기본 높이는 Windows에서 13 DIP이며 최대 gap 64 DIP를 더한다. 화면 경계와 좌우 오프셋 보정은 늘어난 전체 말풍선 크기로 다시 계산한다. 설정 미리보기도 같은 가변 꼬리 길이와 펫 방향 anchor를 사용한다.
