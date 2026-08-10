@@ -378,6 +378,8 @@ macOS에서 검증된 펫 패키지, 설정 스키마와 테스트 시나리오�
 - [x] 행동·이동·말풍선 기능을 Windows adapter와 렌더러에 연결
 - [ ] Windows 설치·업데이트·성능·개인정보 QA
 
+Windows 웹 배포는 자체 웹사이트를 기본 다운로드 경로, GitHub Releases를 버전 기록과 보조 경로로 사용한다. 첫 Preview용 x64 self-contained EXE 설치기와 SHA-256 생성, 사용자별 설치·업그레이드·MSIX 데이터 이전·로그인 실행·실행 중 제거 QA를 완료했다. 서명된 MSIX의 App Installer 자동화도 보존하며 공개 코드 서명, HTTPS 게시, 깨끗한 PC와 이후 버전 업데이트 QA가 남아 있다.
+
 현재 상태: macOS는 Preview 기준 구현과 안정화를 진행 중이다. Windows는 Visual Studio·.NET·WinUI 개발 환경, 첫 솔루션, 행동 결정기·cycle scheduler, Windows activity adapter, 안전한 디렉터리·ZIP 패키지 로더, MSIX LocalState UUID 펫 라이브러리, schema-v1~v10 순차 마이그레이션, schema-v10 전체 Domain 매핑·항목 복구·원자적 전체 저장, 가져오기·활성화·삭제 개발 UI를 만들고 x64 Debug·Release 빌드와 단위 테스트 136개를 통과했다. 별도 Win32 HWND·ContentIsland Composition 오버레이에서 공통 PNG 모션을 동적으로 재생하고 화면 표시, 자동·수동 설정, 루틴 단계와 전면 앱·입력 없음 자동 규칙 전체 편집, 실행 중 일반 앱의 이름·아이콘 선택, 현재 앱 채우기, 명시적 `.exe` 선택, 잠금·절전 pause, 숨김 polling 중지와 저장·재실행 복원을 실제 packaged Release에서 확인했으며 고정 workload 성능 기준선도 통과했다. notification area 네이티브 메뉴와 네 이동 모드, 음수 좌표 듀얼 모니터 작업 영역, 드래그 위치 저장, 방향 이동 표시, 실제 frame 알파 기반 호버 쓰다듬기·클릭 통과 겹침 투명화와 창 제목 없는 전면 앱 대표 창 선호도 연결했다. 전체 화면 전면 앱 fallback과 전면 창 감지 자유 이동 workload 성능을 실제 Release에서 확인했고 `.exe` 표준 파일 선택과 일반 Win32 전면 앱 규칙 전환도 실제 사용자 QA를 통과했다. 다음 단계는 실제 Explorer 재시작·혼합 DPI 다중 모니터와 물리 잠금·절전 복귀 QA, 알파 쓰다듬기와 일반 창 foreground의 최종 물리 QA, 가져오기 검토·내보내기, 다중 프레임·WebP 호환과 말풍선 workload다. 세부 기능별 현황은 `PLATFORM_PARITY.md`에서 관리한다.
 
 2026-08-09 말풍선 후속 구현에서 schema-v10 펫별 대사·주기/행동 정책·테마·상대 배치를 Windows scheduler, 입력 통과 Win32/XAML Island 창과 전체 설정 UI에 연결했다. Settings 대상 테스트 46개와 x64 Debug 앱 빌드가 통과했으며 실제 말풍선 시각·혼합 DPI·workload와 전체 회귀는 최종 검증 단계에 남긴다.

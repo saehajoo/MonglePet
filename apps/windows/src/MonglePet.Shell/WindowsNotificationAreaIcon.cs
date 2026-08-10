@@ -12,6 +12,9 @@ public sealed class NotificationAreaErrorEventArgs(Exception exception) : EventA
 public sealed class WindowsNotificationAreaIcon : IDisposable
 {
     private const string WindowClassName = "MonglePet.NotificationArea.Window";
+    private const string PackagedWindowName = "MonglePet Notification Area";
+    private const string UnpackagedWindowName = "MonglePet Unpackaged Notification Area";
+    private const string QuitMessageName = "MonglePet.Quit.1";
     private const uint CallbackMessage = WmApp + 17;
     private const uint WmApp = 0x8000;
     private const uint WmContextMenu = 0x007B;
@@ -49,6 +52,7 @@ public sealed class WindowsNotificationAreaIcon : IDisposable
 
     private readonly Action<NotificationAreaCommand> _onCommand;
     private readonly uint _taskbarCreatedMessage;
+    private readonly uint _quitMessage;
     private nint _window;
     private nint _icon;
     private NotificationAreaState _state;
@@ -71,6 +75,7 @@ public sealed class WindowsNotificationAreaIcon : IDisposable
         _state = state;
         _onCommand = onCommand;
         _taskbarCreatedMessage = RegisterWindowMessage("TaskbarCreated");
+        _quitMessage = RegisterWindowMessage(QuitMessageName);
         _window = CreateMessageWindow();
         Instances[_window] = this;
 
@@ -215,7 +220,9 @@ public sealed class WindowsNotificationAreaIcon : IDisposable
         nint window = CreateWindowEx(
             0,
             WindowClassName,
-            "MonglePet Notification Area",
+            WindowsPackageIdentity.IsCurrentProcessPackaged()
+                ? PackagedWindowName
+                : UnpackagedWindowName,
             WsPopup,
             0,
             0,
@@ -338,6 +345,12 @@ public sealed class WindowsNotificationAreaIcon : IDisposable
                 if (message == owner._taskbarCreatedMessage)
                 {
                     owner.ReAddIconAfterExplorerRestart();
+                    return 0;
+                }
+
+                if (message == owner._quitMessage)
+                {
+                    owner._onCommand(NotificationAreaCommand.Quit);
                     return 0;
                 }
 

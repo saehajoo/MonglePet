@@ -45,8 +45,10 @@ MonglePet/
 - 자동 이동 원점은 설정에 저장하지 않는다. overlay의 비활성 `HTCAPTION` 드래그 완료와 notification area의 명시적 현재 화면 이동만 화면 식별자·원점을 저장하며 화면 구성 변경에서 위치 고정 원점만 작업 영역 안으로 보정한다.
 - 화면 표시 우선순위는 쓰다듬기, 이동 모션, 행동 모션 순이다. 이동 모션은 행동 scheduler의 시간축을 계속 진행하고, 쓰다듬기는 한 모션 사이클 동안 행동 시간축을 멈춘 뒤 최신 이동 또는 중단한 행동으로 복귀한다.
 - 행동 규칙, 패키지, 설정과 마이그레이션은 관리형 C# 계층에 유지한다.
-- packaged 앱의 설정과 펫 라이브러리는 `ApplicationData.Current.LocalFolder\MonglePet` 아래에 두고 MSIX가 일반 AppData 쓰기를 `LocalCache`로 가상화하는 경로에 의존하지 않는다.
-- Windows `PetLibraryStore`는 같은 `LocalState` 볼륨의 staging 사본을 전체 재검증한 뒤 UUID 최종 경로로 rename하고, 교체 시 backup rename과 rollback을 사용한다.
+- 실행 시 package identity를 먼저 감지한다. packaged 앱은 `ApplicationData.Current.LocalFolder\MonglePet`, unpackaged EXE는 `%LOCALAPPDATA%\MonglePet`을 설정과 펫 라이브러리 루트로 사용한다. unpackaged 대상이 비어 있을 때만 알려진 기존 MSIX `LocalState\MonglePet`을 임시 staging으로 복사한 뒤 원자적으로 이동하며 원본은 삭제하지 않는다.
+- Windows `PetLibraryStore`는 선택한 데이터 루트와 같은 볼륨의 staging 사본을 전체 재검증한 뒤 UUID 최종 경로로 rename하고, 교체 시 backup rename과 rollback을 사용한다.
+- 자동 실행은 packaged 앱에서 MSIX `StartupTask`, unpackaged 앱에서 현재 사용자 `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`을 사용한다. unpackaged 값은 인용된 현재 실행 파일 경로와 `--startup` 인수가 정확히 일치할 때만 활성 상태로 취급하고 제거한다.
+- unpackaged 배포는 .NET과 Windows App SDK를 포함한 x64 self-contained 다중 파일 publish를 `%LOCALAPPDATA%\Programs\MonglePet`에 설치한다. Inno Setup AppId와 데이터 경로는 버전 사이에 고정하며 제거는 설치 파일·바로가기·일치하는 자동 실행 값만 지우고 사용자 데이터를 보존한다.
 - Windows `PetPackageImporter`는 설치 전 원본 전체 SHA-256과 패키지·권장 프로필 검토 결과를 만들고 설치 직전에 다시 검토해 변경된 원본을 거부한다. 일반 가져오기 staging에서는 `monglepet-editor.json`을 제거한다.
 - Windows `PetPackageExporter`는 설치 폴더를 직접 압축하지 않고 현재 manifest와 참조 미리보기·atlas, 선택한 schema-v7 권장 프로필만 임시 payload에 구성한다. loader 재검증과 안전한 archive extractor 왕복 뒤 목적지와 같은 디렉터리의 임시 파일을 원자적으로 교체한다.
 - Windows `AppSettingsStore`는 schema-v1부터 v9까지 순차 구조 변환한 결과, schema-v10 전체 Domain 설정과 선택 UUID 변경을 같은 볼륨 임시 파일의 flush 뒤 overwrite rename으로 교체한다. 구조 보존 JSON mapper는 overlay, 행동 프로필·루틴·규칙, 이동·방향 모션, 쓰다듬기와 말풍선 정책·대사·테마·배치를 항목 단위로 복구하고 살아남은 항목의 알 수 없는 확장 필드를 유지한다. Domain 전체 저장은 자동 복구하지 않고 범위·컬렉션·참조·대비를 검증해 잘못된 상태를 거부한다. v1은 선택 펫 manifest에서 모션 주기를 해석하며 필요한 펫 정의를 얻지 못하면 원본과 쓰기 차단 상태를 유지한다. 손상·초과 크기 파일은 격리하고 미래 schema는 원본 보호를 위해 쓰기를 차단한다.

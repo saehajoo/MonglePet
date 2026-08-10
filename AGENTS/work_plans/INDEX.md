@@ -8,6 +8,7 @@
 
 | 상태 | 작업명 | 파일 | 마지막 갱신 |
 | --- | --- | --- | --- |
+| in_progress | Windows 웹 배포와 자동 업데이트 준비 | `tasks/2026-08-09-windows-web-distribution.md` | 2026-08-09 |
 | in_progress | Windows 말풍선 타이밍과 설정 UI 다듬기 | `tasks/2026-08-09-windows-speech-timing-and-ui-polish.md` | 2026-08-09 |
 | completed | Windows macOS 기능 동등성 완성 | `tasks/2026-08-09-windows-macos-feature-parity-completion.md` | 2026-08-09 |
 | completed | Windows 로그인 시 자동 실행 | `tasks/2026-08-09-windows-login-launch.md` | 2026-08-09 |
@@ -30,6 +31,7 @@
 
 | 상태 | 작업명 | 파일 | 완료일 |
 | --- | --- | --- | --- |
+| completed | Windows unpackaged EXE 설치기 | `tasks/2026-08-09-windows-exe-installer.md` | 2026-08-09 |
 | completed | Windows 설정 화면 시각적 동등성 | `tasks/2026-08-09-windows-settings-visual-parity.md` | 2026-08-09 |
 | completed | Windows 아이콘과 설정 디자인 정렬 | `tasks/2026-08-09-windows-icon-and-settings-design.md` | 2026-08-09 |
 | completed | Windows 말풍선 런타임과 설정 UI | `tasks/2026-08-09-windows-speech-bubbles.md` | 2026-08-09 |

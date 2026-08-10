@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using Microsoft.UI;
 using Microsoft.UI.Dispatching;
@@ -1540,6 +1541,15 @@ public sealed partial class MainPage : Page
 
     private static string ApplicationVersionText()
     {
+        if (!WindowsPackageIdentity.IsCurrentProcessPackaged())
+        {
+            Version? unpackagedVersion = Assembly.GetEntryAssembly()?.GetName().Version;
+            return unpackagedVersion is null
+                ? "MonglePet 개발 빌드"
+                : $"MonglePet {unpackagedVersion.Major}.{unpackagedVersion.Minor}." +
+                  $"{unpackagedVersion.Build}.{unpackagedVersion.Revision}";
+        }
+
         try
         {
             global::Windows.ApplicationModel.PackageVersion version =

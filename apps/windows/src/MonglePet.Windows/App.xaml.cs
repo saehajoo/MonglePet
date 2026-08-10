@@ -12,6 +12,8 @@ namespace MonglePet.Windows;
 
 public partial class App : Application
 {
+    private const string DevelopmentPackageFamilyName =
+        "4B7E245F-A59A-4E0F-84D7-52B511356256_1z32rh13vfry6";
     private Window? _window;
     private PetBehaviorRuntime? _behaviorRuntime;
     private PetSpeechRuntime? _speechRuntime;
@@ -25,8 +27,23 @@ public partial class App : Application
     public App()
     {
         InitializeComponent();
-        string appLocalDataRoot =
-            global::Windows.Storage.ApplicationData.Current.LocalFolder.Path;
+        IsPackaged = WindowsPackageIdentity.IsCurrentProcessPackaged();
+        string appLocalDataRoot;
+        if (IsPackaged)
+        {
+            appLocalDataRoot =
+                global::Windows.Storage.ApplicationData.Current.LocalFolder.Path;
+        }
+        else
+        {
+            appLocalDataRoot = Environment.GetFolderPath(
+                Environment.SpecialFolder.LocalApplicationData,
+                Environment.SpecialFolderOption.Create);
+            DataMigrationResult =
+                WindowsAppDataMigration.TryMigrateFromPackageLocalState(
+                    appLocalDataRoot,
+                    [DevelopmentPackageFamilyName]);
+        }
         PetLibrary = new PetLibraryStore(
             PetLibraryPaths.FromAppLocalDataRoot(appLocalDataRoot));
         PetImporter = new PetPackageImporter(PetLibrary);
@@ -42,6 +59,10 @@ public partial class App : Application
     }
 
     public PetLibraryStore PetLibrary { get; }
+
+    public bool IsPackaged { get; }
+
+    public WindowsAppDataMigrationResult? DataMigrationResult { get; }
 
     public PetPackageImporter PetImporter { get; }
 
@@ -118,13 +139,25 @@ public partial class App : Application
 
     protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
     {
+        bool isStartupLaunch = WindowsRunAtLoginCommand.IsStartupLaunch(
+            Environment.GetCommandLineArgs().Skip(1));
         var mainWindow = new MainWindow();
         _window = mainWindow;
-        mainWindow.Activate();
+        if (!isStartupLaunch)
+        {
+            mainWindow.Activate();
+        }
         mainWindow.ApplyWindowIcons();
         InitializeOverlay();
         InitializeNotificationArea();
         InitializationCompleted?.Invoke(this, EventArgs.Empty);
+        if (isStartupLaunch)
+        {
+            mainWindow.AppWindow.Hide();
+            Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread().TryEnqueue(
+                Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,
+                mainWindow.AppWindow.Hide);
+        }
     }
 
     public string InstallOrActivateBundledSample()
