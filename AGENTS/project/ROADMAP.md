@@ -391,8 +391,8 @@ Windows 웹 배포는 자체 웹사이트를 기본 다운로드 경로, GitHub 
 - [ ] 동일 원본 인스턴스별 독립 설정과 원본 편집 시 copy-on-write 사본 전환
 - [x] macOS `PetInstanceManager`와 instance ID별 독립 런타임 context 소유권 분리
 - [x] macOS 위치 고정 다중 오버레이와 인스턴스별 표시 상태·위치 복원
-- [ ] 전역 activity·pointer·screen snapshot과 이미지·알파 캐시 공유
-- [ ] 활성 펫 중심 sidebar 설정 UX, 사용자 지정 앞뒤 순서와 상태 메뉴 전체·개별 제어
+- [x] 전역 activity·pointer·screen snapshot과 이미지·알파 캐시 공유
+- [x] 활성 펫 중심 sidebar 설정 UX, 사용자 지정 앞뒤 순서와 상태 메뉴 전체·개별 제어
 - [ ] 비차단 성능 경고, 사용자 제어 일시정지와 비정상 종료 안전 시작
 - [ ] macOS 다수 펫 Release·장시간·다중 모니터 QA
 - [ ] Windows portable schema·Domain 반영 후 다중 Win32/Composition 런타임과 NavigationView 구현

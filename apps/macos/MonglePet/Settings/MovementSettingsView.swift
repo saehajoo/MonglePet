@@ -17,6 +17,10 @@ struct MovementSettingsView: View {
                     )
             }
 
+            PetDisplaySettingsSections(
+                settingsSession: settingsSession
+            )
+
             Section("이동 방식") {
                 LazyVGrid(
                     columns: [

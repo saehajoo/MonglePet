@@ -1,45 +1,50 @@
 import AppKit
 
+nonisolated struct MenuBarPetState: Equatable, Sendable {
+    let instanceID: UUID
+    let displayName: String
+    let isAwake: Bool
+    let isClickThrough: Bool
+    let isSelected: Bool
+}
+
 @MainActor
 final class MenuBarController: NSObject {
-    private let onTogglePetAwakeState: () -> Void
-    private let onSetClickThrough: (Bool) -> Void
-    private let onBringPetToCurrentScreen: () -> Void
+    private let onSelectPet: (UUID) -> Void
+    private let onSetPetAwake: (UUID, Bool) -> Void
+    private let onSetPetClickThrough: (UUID, Bool) -> Void
+    private let onBringPetToCurrentScreen: (UUID) -> Void
+    private let onSetAllPetsAwake: (Bool) -> Void
     private let onOpenSettings: () -> Void
     private let onQuit: () -> Void
-    private var isPetAwake: Bool
-    private var petDisplayName: String
-    private var isClickThrough: Bool
-    private weak var currentPetItem: NSMenuItem?
-    private weak var petAwakeStateItem: NSMenuItem?
-    private weak var clickThroughItem: NSMenuItem?
+    private var pets: [MenuBarPetState]
     private(set) var statusItem = NSStatusBar.system.statusItem(
         withLength: NSStatusItem.variableLength
     )
 
     init(
-        isPetAwake: Bool,
-        petDisplayName: String,
-        isClickThrough: Bool,
-        onTogglePetAwakeState: @escaping () -> Void,
-        onSetClickThrough: @escaping (Bool) -> Void,
-        onBringPetToCurrentScreen: @escaping () -> Void,
+        pets: [MenuBarPetState],
+        onSelectPet: @escaping (UUID) -> Void,
+        onSetPetAwake: @escaping (UUID, Bool) -> Void,
+        onSetPetClickThrough: @escaping (UUID, Bool) -> Void,
+        onBringPetToCurrentScreen: @escaping (UUID) -> Void,
+        onSetAllPetsAwake: @escaping (Bool) -> Void,
         onOpenSettings: @escaping () -> Void,
         onQuit: @escaping () -> Void
     ) {
-        self.isPetAwake = isPetAwake
-        self.petDisplayName = petDisplayName
-        self.isClickThrough = isClickThrough
-        self.onTogglePetAwakeState = onTogglePetAwakeState
-        self.onSetClickThrough = onSetClickThrough
+        self.pets = pets
+        self.onSelectPet = onSelectPet
+        self.onSetPetAwake = onSetPetAwake
+        self.onSetPetClickThrough = onSetPetClickThrough
         self.onBringPetToCurrentScreen = onBringPetToCurrentScreen
+        self.onSetAllPetsAwake = onSetAllPetsAwake
         self.onOpenSettings = onOpenSettings
         self.onQuit = onQuit
     }
 
     func start() {
         configureStatusButton()
-        statusItem.menu = makeMenu()
+        rebuildMenu()
     }
 
     func stop() {
@@ -47,19 +52,12 @@ final class MenuBarController: NSObject {
         NSStatusBar.system.removeStatusItem(statusItem)
     }
 
-    func setPetAwake(_ isAwake: Bool) {
-        isPetAwake = isAwake
-        updatePetAwakeStateItem()
-    }
-
-    func setCurrentPetDisplayName(_ displayName: String) {
-        petDisplayName = displayName
-        currentPetItem?.title = currentPetTitle
-    }
-
-    func setClickThrough(_ isEnabled: Bool) {
-        isClickThrough = isEnabled
-        clickThroughItem?.state = isEnabled ? .on : .off
+    func setPets(_ pets: [MenuBarPetState]) {
+        guard self.pets != pets else {
+            return
+        }
+        self.pets = pets
+        rebuildMenu()
     }
 
     private func configureStatusButton() {
@@ -77,54 +75,44 @@ final class MenuBarController: NSObject {
         button.setAccessibilityIdentifier("monglepet.statusItem")
     }
 
+    private func rebuildMenu() {
+        statusItem.menu = makeMenu()
+    }
+
     private func makeMenu() -> NSMenu {
         let menu = NSMenu(title: "MonglePet")
-
-        let currentPetItem = NSMenuItem(
-            title: currentPetTitle,
+        let summaryItem = NSMenuItem(
+            title: "활성 펫 \(pets.count)마리",
             action: nil,
             keyEquivalent: ""
         )
-        currentPetItem.isEnabled = false
-        currentPetItem.setAccessibilityIdentifier("monglepet.menu.currentPet")
-        menu.addItem(currentPetItem)
-        self.currentPetItem = currentPetItem
+        summaryItem.isEnabled = false
+        summaryItem.setAccessibilityIdentifier("monglepet.menu.petSummary")
+        menu.addItem(summaryItem)
+
+        let wakeAllItem = NSMenuItem(
+            title: "모든 펫 깨우기",
+            action: #selector(wakeAllPets),
+            keyEquivalent: ""
+        )
+        wakeAllItem.target = self
+        wakeAllItem.isEnabled = pets.contains { !$0.isAwake }
+        menu.addItem(wakeAllItem)
+
+        let sleepAllItem = NSMenuItem(
+            title: "모든 펫 재우기",
+            action: #selector(sleepAllPets),
+            keyEquivalent: ""
+        )
+        sleepAllItem.target = self
+        sleepAllItem.isEnabled = pets.contains { $0.isAwake }
+        menu.addItem(sleepAllItem)
 
         menu.addItem(.separator())
 
-        let petAwakeStateItem = NSMenuItem(
-            title: petAwakeStateTitle,
-            action: #selector(togglePetAwakeState),
-            keyEquivalent: ""
-        )
-        petAwakeStateItem.target = self
-        petAwakeStateItem.setAccessibilityIdentifier("monglepet.menu.petAwakeState")
-        menu.addItem(petAwakeStateItem)
-        self.petAwakeStateItem = petAwakeStateItem
-
-        let clickThroughItem = NSMenuItem(
-            title: "클릭 통과",
-            action: #selector(toggleClickThrough),
-            keyEquivalent: ""
-        )
-        clickThroughItem.target = self
-        clickThroughItem.state = isClickThrough ? .on : .off
-        clickThroughItem.setAccessibilityIdentifier(
-            "monglepet.menu.clickThrough"
-        )
-        menu.addItem(clickThroughItem)
-        self.clickThroughItem = clickThroughItem
-
-        let bringToCurrentScreenItem = NSMenuItem(
-            title: "펫을 현재 화면으로 가져오기",
-            action: #selector(bringPetToCurrentScreen),
-            keyEquivalent: ""
-        )
-        bringToCurrentScreenItem.target = self
-        bringToCurrentScreenItem.setAccessibilityIdentifier(
-            "monglepet.menu.bringToCurrentScreen"
-        )
-        menu.addItem(bringToCurrentScreenItem)
+        for pet in pets {
+            menu.addItem(makePetMenuItem(pet))
+        }
 
         menu.addItem(.separator())
 
@@ -151,39 +139,122 @@ final class MenuBarController: NSObject {
         return menu
     }
 
-    private var currentPetTitle: String {
+    private func makePetMenuItem(_ pet: MenuBarPetState) -> NSMenuItem {
+        let item = NSMenuItem(
+            title: visibleName(pet.displayName),
+            action: nil,
+            keyEquivalent: ""
+        )
+        item.state = pet.isSelected ? .on : .off
+        item.representedObject = pet.instanceID
+
+        let submenu = NSMenu(title: pet.displayName)
+        submenu.addItem(
+            actionItem(
+                title: "이 펫 설정 편집",
+                action: #selector(selectPet),
+                pet: pet
+            )
+        )
+        submenu.addItem(
+            actionItem(
+                title: pet.isAwake ? "펫 재우기" : "펫 깨우기",
+                action: #selector(togglePetAwake),
+                pet: pet
+            )
+        )
+        let clickThrough = actionItem(
+            title: "클릭 통과",
+            action: #selector(togglePetClickThrough),
+            pet: pet
+        )
+        clickThrough.state = pet.isClickThrough ? .on : .off
+        submenu.addItem(clickThrough)
+        submenu.addItem(
+            actionItem(
+                title: "현재 화면으로 가져오기",
+                action: #selector(bringPetToCurrentScreen),
+                pet: pet
+            )
+        )
+        item.submenu = submenu
+        return item
+    }
+
+    private func actionItem(
+        title: String,
+        action: Selector,
+        pet: MenuBarPetState
+    ) -> NSMenuItem {
+        let item = NSMenuItem(
+            title: title,
+            action: action,
+            keyEquivalent: ""
+        )
+        item.target = self
+        item.representedObject = pet.instanceID
+        return item
+    }
+
+    private func visibleName(_ name: String) -> String {
         let maximumLength = 40
-        let visibleName: String
-        if petDisplayName.count > maximumLength {
-            visibleName = "\(petDisplayName.prefix(maximumLength))…"
-        } else {
-            visibleName = petDisplayName
+        guard name.count > maximumLength else {
+            return name
         }
-        return "현재 펫: \(visibleName)"
+        return "\(name.prefix(maximumLength))…"
     }
 
-    private var petAwakeStateTitle: String {
-        isPetAwake ? "펫 재우기" : "펫 깨우기"
-    }
-
-    private func updatePetAwakeStateItem() {
-        petAwakeStateItem?.title = petAwakeStateTitle
+    private func instanceID(from sender: NSMenuItem) -> UUID? {
+        sender.representedObject as? UUID
     }
 
     @objc
-    private func togglePetAwakeState() {
-        onTogglePetAwakeState()
+    private func wakeAllPets() {
+        onSetAllPetsAwake(true)
     }
 
     @objc
-    private func toggleClickThrough() {
-        setClickThrough(!isClickThrough)
-        onSetClickThrough(isClickThrough)
+    private func sleepAllPets() {
+        onSetAllPetsAwake(false)
     }
 
     @objc
-    private func bringPetToCurrentScreen() {
-        onBringPetToCurrentScreen()
+    private func selectPet(_ sender: NSMenuItem) {
+        guard let instanceID = instanceID(from: sender) else {
+            return
+        }
+        onSelectPet(instanceID)
+        onOpenSettings()
+    }
+
+    @objc
+    private func togglePetAwake(_ sender: NSMenuItem) {
+        guard
+            let instanceID = instanceID(from: sender),
+            let pet = pets.first(where: { $0.instanceID == instanceID })
+        else {
+            return
+        }
+        onSetPetAwake(instanceID, !pet.isAwake)
+    }
+
+    @objc
+    private func togglePetClickThrough(_ sender: NSMenuItem) {
+        guard
+            let instanceID = instanceID(from: sender),
+            let pet = pets.first(where: { $0.instanceID == instanceID })
+        else {
+            return
+        }
+        onSetPetClickThrough(instanceID, !pet.isClickThrough)
+    }
+
+    @objc
+    private func bringPetToCurrentScreen(_ sender: NSMenuItem) {
+        guard let instanceID = instanceID(from: sender) else {
+            return
+        }
+        onBringPetToCurrentScreen(instanceID)
     }
 
     @objc

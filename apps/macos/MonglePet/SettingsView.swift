@@ -6,63 +6,156 @@ struct SettingsView: View {
     @ObservedObject var settingsSession: AppSettingsSession
     @ObservedObject var petLibrarySession: PetLibrarySession
     @ObservedObject var loginLaunchSettings: LoginLaunchSettings
+    @State private var destination = SettingsDestination.activePets
 
     var body: some View {
-        TabView {
-            PetSettingsView(
+        NavigationSplitView {
+            List(selection: $destination) {
+                Section("데스크톱") {
+                    navigationRow(
+                        "활성 펫",
+                        systemImage: "pawprint.fill",
+                        destination: .activePets
+                    )
+                    navigationRow(
+                        "일반",
+                        systemImage: "gearshape",
+                        destination: .general
+                    )
+                }
+
+                Section("선택한 펫") {
+                    navigationRow(
+                        "표시 및 이동",
+                        systemImage: "location",
+                        destination: .movement
+                    )
+                    navigationRow(
+                        "행동 루틴",
+                        systemImage: "list.bullet.rectangle",
+                        destination: .behavior
+                    )
+                    navigationRow(
+                        "말풍선",
+                        systemImage: "text.bubble",
+                        destination: .speech
+                    )
+                    navigationRow(
+                        "자동 규칙",
+                        systemImage: "bolt.badge.clock",
+                        destination: .automaticRules
+                    )
+                }
+
+                Section("보관함") {
+                    navigationRow(
+                        "펫 보관함",
+                        systemImage: "shippingbox",
+                        destination: .petLibrary
+                    )
+                }
+            }
+            .listStyle(.sidebar)
+            .navigationSplitViewColumnWidth(
+                min: 180,
+                ideal: 210,
+                max: 250
+            )
+            .accessibilityIdentifier("monglepet.settings.sidebar")
+        } detail: {
+            detailView
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .frame(minWidth: 840, minHeight: 620)
+        .accessibilityIdentifier("monglepet.settings.root")
+    }
+
+    @ViewBuilder
+    private var detailView: some View {
+        switch destination {
+        case .activePets:
+            ActivePetsSettingsView(
                 settingsSession: settingsSession,
                 petLibrarySession: petLibrarySession
             )
-                .tabItem {
-                    Label("펫", systemImage: "pawprint")
-                }
-
+        case .general:
             GeneralSettingsView(
                 settingsSession: settingsSession,
                 loginLaunchSettings: loginLaunchSettings
             )
-                .tabItem {
-                    Label("일반", systemImage: "gearshape")
-                }
-
+        case .movement:
             MovementSettingsView(
                 settingsSession: settingsSession,
                 petDefinition: petLibrarySession.selectedItem.definition,
-                petDisplayName: petLibrarySession.selectedItem.metadata.displayName
+                petDisplayName: selectedPetDisplayName
             )
-                .tabItem {
-                    Label("이동", systemImage: "location")
-                }
-
+        case .behavior:
             BehaviorSequencesSettingsView(
                 settingsSession: settingsSession,
                 petDefinition: petLibrarySession.selectedItem.definition,
-                petDisplayName: petLibrarySession.selectedItem.metadata.displayName
+                petDisplayName: selectedPetDisplayName
             )
-                .tabItem {
-                    Label("행동 루틴", systemImage: "list.bullet.rectangle")
-                }
-
+        case .speech:
             SpeechBubbleSettingsView(
                 settingsSession: settingsSession,
                 petItem: petLibrarySession.selectedItem,
-                petDisplayName:
-                    petLibrarySession.selectedItem.metadata.displayName
+                petDisplayName: selectedPetDisplayName
             )
-                .tabItem {
-                    Label("말풍선", systemImage: "text.bubble")
-                }
-
+        case .automaticRules:
             AutomaticRulesSettingsView(
                 settingsSession: settingsSession,
-                petDisplayName: petLibrarySession.selectedItem.metadata.displayName
+                petDisplayName: selectedPetDisplayName
             )
-                .tabItem {
-                    Label("자동 규칙", systemImage: "bolt.badge.clock")
-                }
+        case .petLibrary:
+            PetSettingsView(
+                settingsSession: settingsSession,
+                petLibrarySession: petLibrarySession
+            )
         }
-        .frame(minWidth: 680, minHeight: 540)
-        .accessibilityIdentifier("monglepet.settings.root")
+    }
+
+    private func navigationRow(
+        _ title: String,
+        systemImage: String,
+        destination: SettingsDestination
+    ) -> some View {
+        Label(title, systemImage: systemImage)
+            .tag(destination)
+            .accessibilityIdentifier(destination.accessibilityIdentifier)
+    }
+
+    private var selectedPetDisplayName: String {
+        settingsSession.settings.selectedPetInstance?.nickname
+            ?? petLibrarySession.selectedItem.metadata.displayName
+    }
+}
+
+private enum SettingsDestination: Hashable {
+    case activePets
+    case general
+    case movement
+    case behavior
+    case speech
+    case automaticRules
+    case petLibrary
+
+    var accessibilityIdentifier: String {
+        switch self {
+        case .activePets:
+            "monglepet.settings.navigation.activePets"
+        case .general:
+            "monglepet.settings.navigation.general"
+        case .movement:
+            "monglepet.settings.navigation.movement"
+        case .behavior:
+            "monglepet.settings.navigation.behavior"
+        case .speech:
+            "monglepet.settings.navigation.speech"
+        case .automaticRules:
+            "monglepet.settings.navigation.automaticRules"
+        case .petLibrary:
+            "monglepet.settings.navigation.petLibrary"
+        }
     }
 }
 
@@ -795,154 +888,6 @@ private struct GeneralSettingsView: View {
                 )
             }
 
-            Section("펫 표시") {
-                Toggle("펫 깨우기", isOn: awakeBinding)
-                    .accessibilityIdentifier("monglepet.settings.awake")
-
-                Text("재워도 메뉴 막대에서 언제든 다시 깨울 수 있습니다.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Section("행동 모드") {
-                Picker("행동 모드", selection: behaviorModeBinding) {
-                    Text("자동").tag(BehaviorMode.automatic.rawValue)
-                    Text("수동").tag(BehaviorMode.manual.rawValue)
-                }
-                .pickerStyle(.segmented)
-                .accessibilityIdentifier("monglepet.settings.behaviorMode")
-
-                if settingsSession.settings.behaviorMode == .manual {
-                    Picker(
-                        "수동 행동 루틴",
-                        selection: manualSequenceBinding
-                    ) {
-                        ForEach(settingsSession.settings.sequences) { sequence in
-                            Text(
-                                BuiltInBehaviorPresets.displayName(
-                                    for: sequence.id
-                                )
-                            )
-                            .tag(sequence.id)
-                        }
-                    }
-                    .accessibilityIdentifier(
-                        "monglepet.settings.manualSequence"
-                    )
-                }
-
-                Text(modeDescription)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            .disabled(!settingsSession.isWritingEnabled)
-
-            Section("화면 표시") {
-                HStack {
-                    Text("펫 크기")
-                    Slider(
-                        value: overlayWidthBinding,
-                        in: AppSettingsLimits.minimumOverlayWidth
-                            ... AppSettingsLimits.maximumOverlayWidth,
-                        step: 8,
-                        onEditingChanged: persistSliderWhenEditingEnds
-                    )
-                    .accessibilityIdentifier(
-                        "monglepet.settings.overlayWidth"
-                    )
-                    Text(
-                        "\(Int(settingsSession.settings.overlay.width)) pt"
-                    )
-                    .monospacedDigit()
-                    .frame(width: 52, alignment: .trailing)
-                }
-
-                Toggle(
-                    "픽셀 아트 선명하게",
-                    isOn: pixelArtRenderingBinding
-                )
-                .accessibilityIdentifier(
-                    "monglepet.settings.pixelArtRendering"
-                )
-
-                Text(
-                    "픽셀 아트의 확대 경계를 또렷하게 표시합니다. 일반 일러스트에서는 계단 현상이 보일 수 있습니다."
-                )
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-                HStack {
-                    Text("기본 투명도")
-                    Slider(
-                        value: overlayOpacityBinding,
-                        in: AppSettingsLimits.minimumOverlayOpacity
-                            ... AppSettingsLimits.maximumOverlayOpacity,
-                        step: 0.05,
-                        onEditingChanged: persistSliderWhenEditingEnds
-                    )
-                    .accessibilityIdentifier(
-                        "monglepet.settings.overlayOpacity"
-                    )
-                    Text(
-                        opacityText(settingsSession.settings.overlay.opacity)
-                    )
-                    .monospacedDigit()
-                    .frame(width: 48, alignment: .trailing)
-                }
-
-                Toggle("클릭 통과", isOn: clickThroughBinding)
-                    .accessibilityIdentifier(
-                        "monglepet.settings.clickThrough"
-                    )
-
-                Text(
-                    settingsSession.settings.overlay.clickThrough
-                        ? "펫을 직접 드래그할 수 없습니다. 이 설정창에서 클릭 통과를 끌 수 있습니다."
-                        : "켜면 펫 아래의 앱을 바로 클릭할 수 있습니다."
-                )
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-                Toggle(
-                    "마우스가 펫과 겹치면 더 투명하게",
-                    isOn: pointerOverlapFadeBinding
-                )
-                .accessibilityIdentifier(
-                    "monglepet.settings.pointerOverlapFade"
-                )
-
-                if settingsSession.settings.overlay.pointerOverlapFadeEnabled {
-                    HStack {
-                        Text("겹침 투명도")
-                        Slider(
-                            value: pointerOverlapOpacityBinding,
-                            in:
-                                AppSettingsLimits.minimumPointerOverlapOpacity
-                                ... AppSettingsLimits
-                                    .maximumPointerOverlapOpacity,
-                            step: 0.05,
-                            onEditingChanged: persistSliderWhenEditingEnds
-                        )
-                        .accessibilityIdentifier(
-                            "monglepet.settings.pointerOverlapOpacity"
-                        )
-                        Text(
-                            opacityText(
-                                settingsSession.settings.overlay
-                                    .pointerOverlapOpacity
-                            )
-                        )
-                        .monospacedDigit()
-                        .frame(width: 48, alignment: .trailing)
-                    }
-
-                    Text(pointerOverlapDescription)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .disabled(!settingsSession.isWritingEnabled)
-
             Section("앱 실행") {
                 Toggle(
                     "로그인 시 MonglePet 자동 실행",
@@ -994,19 +939,6 @@ private struct GeneralSettingsView: View {
         }
     }
 
-    private var awakeBinding: Binding<Bool> {
-        Binding(
-            get: {
-                settingsSession.settings.lastUserPresentation == .awake
-            },
-            set: {
-                settingsSession.setUserPresentation(
-                    $0 ? .awake : .tuckedAway
-                )
-            }
-        )
-    }
-
     private var loginLaunchBinding: Binding<Bool> {
         Binding(
             get: { loginLaunchSettings.isRequestedEnabled },
@@ -1048,114 +980,6 @@ private struct GeneralSettingsView: View {
             .accessibilityIdentifier(
                 "monglepet.settings.loginItemUnavailable"
             )
-        }
-    }
-
-    private var behaviorModeBinding: Binding<String> {
-        Binding(
-            get: { settingsSession.settings.behaviorMode.rawValue },
-            set: { rawValue in
-                guard let mode = BehaviorMode(rawValue: rawValue) else {
-                    return
-                }
-                settingsSession.setBehaviorMode(mode)
-            }
-        )
-    }
-
-    private var overlayWidthBinding: Binding<Double> {
-        Binding(
-            get: { settingsSession.settings.overlay.width },
-            set: { settingsSession.setOverlayWidth($0, persist: false) }
-        )
-    }
-
-    private var overlayOpacityBinding: Binding<Double> {
-        Binding(
-            get: { settingsSession.settings.overlay.opacity },
-            set: {
-                settingsSession.setOverlayOpacity($0, persist: false)
-            }
-        )
-    }
-
-    private var pixelArtRenderingBinding: Binding<Bool> {
-        Binding(
-            get: { settingsSession.settings.overlay.pixelArtRendering },
-            set: { settingsSession.setPixelArtRendering($0) }
-        )
-    }
-
-    private var manualSequenceBinding: Binding<String> {
-        Binding(
-            get: {
-                settingsSession.settings.manualSequenceID
-                    ?? settingsSession.settings.sequences.first?.id
-                    ?? ""
-            },
-            set: { settingsSession.setManualSequenceID($0) }
-        )
-    }
-
-    private var clickThroughBinding: Binding<Bool> {
-        Binding(
-            get: { settingsSession.settings.overlay.clickThrough },
-            set: { settingsSession.setClickThrough($0) }
-        )
-    }
-
-    private var pointerOverlapFadeBinding: Binding<Bool> {
-        Binding(
-            get: {
-                settingsSession.settings.overlay.pointerOverlapFadeEnabled
-            },
-            set: {
-                settingsSession.setPointerOverlapFadeEnabled($0)
-            }
-        )
-    }
-
-    private var pointerOverlapOpacityBinding: Binding<Double> {
-        Binding(
-            get: {
-                settingsSession.settings.overlay.pointerOverlapOpacity
-            },
-            set: {
-                settingsSession.setPointerOverlapOpacity(
-                    $0,
-                    persist: false
-                )
-            }
-        )
-    }
-
-    private var pointerOverlapDescription: String {
-        guard settingsSession.settings.overlay.clickThrough else {
-            return "클릭 통과를 켜면 마우스와 실제로 보이는 펫 영역이 겹칠 때만 적용됩니다."
-        }
-        let effectiveOpacity = min(
-            settingsSession.settings.overlay.opacity,
-            settingsSession.settings.overlay.pointerOverlapOpacity
-        )
-        return "투명한 여백은 제외하며 겹칠 때 실제 투명도는 \(opacityText(effectiveOpacity))입니다."
-    }
-
-    private func opacityText(_ opacity: Double) -> String {
-        "\(Int((opacity * 100).rounded()))%"
-    }
-
-    private func persistSliderWhenEditingEnds(_ isEditing: Bool) {
-        if !isEditing {
-            settingsSession.persistCurrentSettings()
-        }
-    }
-
-    private var modeDescription: String {
-        switch settingsSession.settings.behaviorMode {
-        case .automatic:
-            "활성화된 자동 규칙 중 우선순위가 가장 높은 행동을 재생합니다."
-        case .manual:
-            "선택한 행동 루틴의 펫 애니메이션을 순서대로 재생합니다."
         }
     }
 

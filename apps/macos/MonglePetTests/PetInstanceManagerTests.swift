@@ -52,6 +52,28 @@ final class PetInstanceManagerTests: XCTestCase {
         }
     }
 
+    func testSynchronizeRestoresFrontToBackDisplayOrder() throws {
+        let settings = try twoInstanceSettings()
+        var orderedFrontCalls: [UUID] = []
+        let manager = PetInstanceManager { instanceID in
+            FakePetRuntimeContext(
+                instanceID: instanceID,
+                onOrderFront: { orderedFrontCalls.append(instanceID) }
+            )
+        }
+
+        try manager.synchronizeActiveRuntimes(
+            settings: settings,
+            itemProvider: { _ in self.builtInItem() },
+            reason: .settingsChange
+        )
+
+        XCTAssertEqual(
+            orderedFrontCalls,
+            settings.activePetInstances.reversed().map(\.instanceID)
+        )
+    }
+
     func testSynchronizeReusesUnchangedContextsWithoutReapplying() throws {
         let settings = try twoInstanceSettings()
         var createdContexts: [FakePetRuntimeContext] = []
@@ -407,6 +429,7 @@ final class PetInstanceManagerTests: XCTestCase {
 @MainActor
 private final class FakePetRuntimeContext: PetRuntimeContextType {
     let instanceID: UUID
+    private let onOrderFront: () -> Void
     private(set) var activeInstallationID: UUID?
     private(set) var isAwake = false
     private(set) var currentMotionID: String?
@@ -437,8 +460,12 @@ private final class FakePetRuntimeContext: PetRuntimeContextType {
         )
     }
 
-    init(instanceID: UUID) {
+    init(
+        instanceID: UUID,
+        onOrderFront: @escaping () -> Void = {}
+    ) {
         self.instanceID = instanceID
+        self.onOrderFront = onOrderFront
     }
 
     func replacePet(_ item: PetLibraryItem) throws {
@@ -469,6 +496,10 @@ private final class FakePetRuntimeContext: PetRuntimeContextType {
 
     func requestPettingInteraction() -> Bool {
         false
+    }
+
+    func orderFront() {
+        onOrderFront()
     }
 
     func moveToVisibleFrame(_ visibleFrame: NSRect) {}

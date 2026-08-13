@@ -193,17 +193,29 @@ final class AppCoordinator: NSObject {
             self?.activitySnapshotDidChange(snapshot)
         }
         let menuBarController = MenuBarController(
-            isPetAwake: isPetAwake,
-            petDisplayName: petLibrarySession.selectedItem.metadata.displayName,
-            isClickThrough: settingsSession.settings.overlay.clickThrough,
-            onTogglePetAwakeState: { [weak self] in
-                self?.togglePetAwakeState()
+            pets: menuBarPetStates(for: settingsSession.settings),
+            onSelectPet: { [weak settingsSession] instanceID in
+                settingsSession?.selectPetInstance(instanceID)
             },
-            onSetClickThrough: { [weak settingsSession] isEnabled in
-                settingsSession?.setClickThrough(isEnabled)
+            onSetPetAwake: {
+                [weak settingsSession] instanceID, isAwake in
+                settingsSession?.setUserPresentation(
+                    isAwake ? .awake : .tuckedAway,
+                    for: instanceID
+                )
             },
-            onBringPetToCurrentScreen: { [weak self] in
-                self?.bringPetToCurrentScreen()
+            onSetPetClickThrough: {
+                [weak settingsSession] instanceID, isEnabled in
+                settingsSession?.setClickThrough(
+                    isEnabled,
+                    for: instanceID
+                )
+            },
+            onBringPetToCurrentScreen: { [weak self] instanceID in
+                self?.bringPetToCurrentScreen(instanceID: instanceID)
+            },
+            onSetAllPetsAwake: { [weak self] isAwake in
+                self?.setAllPetsAwake(isAwake)
             },
             onOpenSettings: { [weak self] in
                 self?.settingsWindowController.show()
@@ -234,15 +246,19 @@ final class AppCoordinator: NSObject {
         menuBarController = nil
     }
 
-    private func togglePetAwakeState() {
-        if isPetAwake {
-            settingsSession.setUserPresentation(.tuckedAway)
-        } else {
-            settingsSession.setUserPresentation(.awake)
+    private func setAllPetsAwake(_ isAwake: Bool) {
+        let presentation: PetPresentation = isAwake
+            ? .awake
+            : .tuckedAway
+        for instance in settingsSession.settings.activePetInstances {
+            settingsSession.setUserPresentation(
+                presentation,
+                for: instance.instanceID
+            )
         }
     }
 
-    private func bringPetToCurrentScreen() {
+    private func bringPetToCurrentScreen(instanceID: UUID) {
         let snapshot = desktopEnvironmentMonitor.currentSnapshot
         let targetDisplay = snapshot.pointerLocation.flatMap { pointer in
             snapshot.displays.first { display in
@@ -253,7 +269,7 @@ final class AppCoordinator: NSObject {
             return
         }
 
-        petInstanceManager.selectedContext?.moveToVisibleFrame(
+        petInstanceManager.context(for: instanceID)?.moveToVisibleFrame(
             NSRect(
                 x: targetDisplay.visibleFrame.minX,
                 y: targetDisplay.visibleFrame.minY,
@@ -368,21 +384,34 @@ final class AppCoordinator: NSObject {
                 reason: reason,
                 reloadPetInstanceIDs: reloadPetInstanceIDs
             )
-            let selectedItem = petLibrarySession.item(
-                for: settings.selectedPetKey
-            ) ?? petLibrarySession.selectedItem
-            menuBarController?.setCurrentPetDisplayName(
-                selectedItem.metadata.displayName
-            )
-            menuBarController?.setPetAwake(isPetAwake)
-            menuBarController?.setClickThrough(
-                settings.overlay.clickThrough
+            menuBarController?.setPets(
+                menuBarPetStates(for: settings)
             )
             return !result.unavailableInstanceIDs.contains(
                 settings.selectedPetInstanceID
             )
         } catch {
             return false
+        }
+    }
+
+    private func menuBarPetStates(
+        for settings: AppSettings
+    ) -> [MenuBarPetState] {
+        settings.activePetInstances.sorted {
+            $0.displayOrder < $1.displayOrder
+        }.map { instance in
+            let item = petLibrarySession.item(for: instance.petKey)
+            return MenuBarPetState(
+                instanceID: instance.instanceID,
+                displayName: instance.nickname
+                    ?? item?.metadata.displayName
+                    ?? "사용할 수 없는 펫",
+                isAwake: instance.presentation == .awake,
+                isClickThrough: instance.overlay.clickThrough,
+                isSelected: instance.instanceID
+                    == settings.selectedPetInstanceID
+            )
         }
     }
 

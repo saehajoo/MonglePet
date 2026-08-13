@@ -21,20 +21,43 @@ final class MonglePetTests: XCTestCase {
 
     @MainActor
     func testMenuBarContainsQuickPetControlsSettingsAndQuitActions() throws {
-        var didTogglePetAwakeState = false
-        var selectedClickThrough: Bool?
-        var didBringPetToCurrentScreen = false
+        let firstID = UUID(
+            uuidString: "81000000-0000-0000-0000-000000000001"
+        )!
+        let secondID = UUID(
+            uuidString: "81000000-0000-0000-0000-000000000002"
+        )!
+        var selectedPetID: UUID?
+        var awakeSelection: (UUID, Bool)?
+        var clickThroughSelection: (UUID, Bool)?
+        var broughtPetID: UUID?
+        var allPetsAwake: Bool?
         var didOpenSettings = false
         var didQuit = false
         let controller = MenuBarController(
-            isPetAwake: true,
-            petDisplayName: "테스트 펫",
-            isClickThrough: false,
-            onTogglePetAwakeState: { didTogglePetAwakeState = true },
-            onSetClickThrough: { selectedClickThrough = $0 },
-            onBringPetToCurrentScreen: {
-                didBringPetToCurrentScreen = true
+            pets: [
+                MenuBarPetState(
+                    instanceID: firstID,
+                    displayName: "첫 번째 펫",
+                    isAwake: true,
+                    isClickThrough: false,
+                    isSelected: true
+                ),
+                MenuBarPetState(
+                    instanceID: secondID,
+                    displayName: "두 번째 펫",
+                    isAwake: false,
+                    isClickThrough: true,
+                    isSelected: false
+                )
+            ],
+            onSelectPet: { selectedPetID = $0 },
+            onSetPetAwake: { awakeSelection = ($0, $1) },
+            onSetPetClickThrough: {
+                clickThroughSelection = ($0, $1)
             },
+            onBringPetToCurrentScreen: { broughtPetID = $0 },
+            onSetAllPetsAwake: { allPetsAwake = $0 },
             onOpenSettings: { didOpenSettings = true },
             onQuit: { didQuit = true }
         )
@@ -45,11 +68,12 @@ final class MonglePetTests: XCTestCase {
         XCTAssertEqual(
             menu.items.map(\.title),
             [
-                "현재 펫: 테스트 펫",
+                "활성 펫 2마리",
+                "모든 펫 깨우기",
+                "모든 펫 재우기",
                 "",
-                "펫 재우기",
-                "클릭 통과",
-                "펫을 현재 화면으로 가져오기",
+                "첫 번째 펫",
+                "두 번째 펫",
                 "",
                 "설정…",
                 "",
@@ -57,27 +81,58 @@ final class MonglePetTests: XCTestCase {
             ]
         )
         XCTAssertFalse(menu.items[0].isEnabled)
-        XCTAssertEqual(menu.items[3].state, .off)
+        XCTAssertEqual(menu.items[4].state, .on)
+        XCTAssertEqual(menu.items[5].state, .off)
+        let firstPetMenu = try XCTUnwrap(menu.items[4].submenu)
+        XCTAssertEqual(
+            firstPetMenu.items.map(\.title),
+            [
+                "이 펫 설정 편집",
+                "펫 재우기",
+                "클릭 통과",
+                "현재 화면으로 가져오기"
+            ]
+        )
 
+        menu.performActionForItem(at: 1)
         menu.performActionForItem(at: 2)
-        menu.performActionForItem(at: 3)
-        menu.performActionForItem(at: 4)
-        menu.performActionForItem(at: 6)
-        menu.performActionForItem(at: 8)
+        firstPetMenu.performActionForItem(at: 0)
+        firstPetMenu.performActionForItem(at: 1)
+        firstPetMenu.performActionForItem(at: 2)
+        firstPetMenu.performActionForItem(at: 3)
+        menu.performActionForItem(at: 7)
+        menu.performActionForItem(at: 9)
 
-        XCTAssertTrue(didTogglePetAwakeState)
-        XCTAssertEqual(selectedClickThrough, true)
-        XCTAssertEqual(menu.items[3].state, .on)
-        XCTAssertTrue(didBringPetToCurrentScreen)
+        XCTAssertEqual(allPetsAwake, false)
+        XCTAssertEqual(selectedPetID, firstID)
+        XCTAssertEqual(awakeSelection?.0, firstID)
+        XCTAssertEqual(awakeSelection?.1, false)
+        XCTAssertEqual(clickThroughSelection?.0, firstID)
+        XCTAssertEqual(clickThroughSelection?.1, true)
+        XCTAssertEqual(broughtPetID, firstID)
         XCTAssertTrue(didOpenSettings)
         XCTAssertTrue(didQuit)
 
-        controller.setPetAwake(false)
-        controller.setCurrentPetDisplayName("바뀐 펫")
-        controller.setClickThrough(false)
-        XCTAssertEqual(menu.items[0].title, "현재 펫: 바뀐 펫")
-        XCTAssertEqual(menu.items[2].title, "펫 깨우기")
-        XCTAssertEqual(menu.items[3].state, .off)
+        controller.setPets([
+            MenuBarPetState(
+                instanceID: firstID,
+                displayName: "바뀐 펫",
+                isAwake: false,
+                isClickThrough: true,
+                isSelected: true
+            )
+        ])
+        let updatedMenu = try XCTUnwrap(controller.statusItem.menu)
+        XCTAssertEqual(updatedMenu.items[0].title, "활성 펫 1마리")
+        XCTAssertEqual(updatedMenu.items[4].title, "바뀐 펫")
+        XCTAssertEqual(
+            updatedMenu.items[4].submenu?.items[1].title,
+            "펫 깨우기"
+        )
+        XCTAssertEqual(
+            updatedMenu.items[4].submenu?.items[2].state,
+            .on
+        )
     }
 
     @MainActor

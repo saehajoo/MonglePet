@@ -396,6 +396,38 @@ struct BehaviorSequencesSettingsView: View {
                     )
             }
 
+            Section("행동 모드") {
+                Picker("행동 모드", selection: behaviorModeBinding) {
+                    Text("자동").tag(BehaviorMode.automatic.rawValue)
+                    Text("수동").tag(BehaviorMode.manual.rawValue)
+                }
+                .pickerStyle(.segmented)
+                .accessibilityIdentifier("monglepet.settings.behaviorMode")
+
+                if settingsSession.settings.behaviorMode == .manual {
+                    Picker(
+                        "수동 행동 루틴",
+                        selection: manualSequenceBinding
+                    ) {
+                        ForEach(settingsSession.settings.sequences) { sequence in
+                            Text(
+                                BuiltInBehaviorPresets.displayName(
+                                    for: sequence.id
+                                )
+                            )
+                            .tag(sequence.id)
+                        }
+                    }
+                    .accessibilityIdentifier(
+                        "monglepet.settings.manualSequence"
+                    )
+                }
+
+                Text(modeDescription)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Section("편집할 행동 루틴") {
                 HStack {
                     Picker("선택한 루틴", selection: $selectedSequenceID) {
@@ -491,6 +523,38 @@ struct BehaviorSequencesSettingsView: View {
 
     private var selectedSequence: BehaviorSequence? {
         settingsSession.settings.sequences.first { $0.id == selectedSequenceID }
+    }
+
+    private var behaviorModeBinding: Binding<String> {
+        Binding(
+            get: { settingsSession.settings.behaviorMode.rawValue },
+            set: { rawValue in
+                guard let mode = BehaviorMode(rawValue: rawValue) else {
+                    return
+                }
+                settingsSession.setBehaviorMode(mode)
+            }
+        )
+    }
+
+    private var manualSequenceBinding: Binding<String> {
+        Binding(
+            get: {
+                settingsSession.settings.manualSequenceID
+                    ?? settingsSession.settings.sequences.first?.id
+                    ?? ""
+            },
+            set: { settingsSession.setManualSequenceID($0) }
+        )
+    }
+
+    private var modeDescription: String {
+        switch settingsSession.settings.behaviorMode {
+        case .automatic:
+            "활성화된 자동 규칙 중 우선순위가 가장 높은 행동을 재생합니다."
+        case .manual:
+            "선택한 행동 루틴의 펫 애니메이션을 순서대로 재생합니다."
+        }
     }
 
     private var selectedSequenceDisplayName: String {

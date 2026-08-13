@@ -353,6 +353,13 @@ final class PetWindowController: NSWindowController {
         isAwake = false
     }
 
+    func orderFront() {
+        guard isAwake else {
+            return
+        }
+        panel?.orderFrontRegardless()
+    }
+
     func setSystemSuspended(_ isSuspended: Bool) {
         guard isSuspended != isSystemSuspended else {
             return

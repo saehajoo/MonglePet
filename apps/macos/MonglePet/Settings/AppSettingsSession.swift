@@ -122,6 +122,73 @@ final class AppSettingsSession: ObservableObject {
         )
     }
 
+    func selectPetInstance(_ instanceID: UUID) {
+        update(settings.selectingPetInstance(instanceID))
+    }
+
+    @discardableResult
+    func addPetInstance(
+        for petKey: PetBehaviorKey,
+        copyingSettingsFrom sourceInstanceID: UUID? = nil
+    ) -> UUID? {
+        guard isWritingEnabled else {
+            return nil
+        }
+        let instanceID = UUID()
+        let profileID = UUID()
+        let updated = settings.addingPetInstance(
+            for: petKey,
+            copyingSettingsFrom: sourceInstanceID,
+            instanceID: instanceID,
+            profileID: profileID
+        )
+        guard updated != settings else {
+            return nil
+        }
+        update(BuiltInBehaviorPresets.normalizedDefaults(in: updated))
+        return instanceID
+    }
+
+    @discardableResult
+    func removePetInstance(_ instanceID: UUID) -> Bool {
+        guard isWritingEnabled else {
+            return false
+        }
+        let updated = settings.removingPetInstance(instanceID)
+        guard updated != settings else {
+            return false
+        }
+        update(updated)
+        return true
+    }
+
+    func setPetInstanceNickname(
+        _ nickname: String?,
+        for instanceID: UUID
+    ) {
+        guard isWritingEnabled else {
+            return
+        }
+        update(
+            settings.replacingPetInstanceNickname(
+                nickname,
+                for: instanceID
+            )
+        )
+    }
+
+    func movePetInstance(_ instanceID: UUID, to destinationIndex: Int) {
+        guard isWritingEnabled else {
+            return
+        }
+        update(
+            settings.movingPetInstance(
+                instanceID,
+                to: destinationIndex
+            )
+        )
+    }
+
     @discardableResult
     func applyRecommendedProfile(
         _ profile: RecommendedPetProfile,
@@ -383,21 +450,37 @@ final class AppSettingsSession: ObservableObject {
     }
 
     func setClickThrough(_ clickThrough: Bool) {
+        setClickThrough(
+            clickThrough,
+            for: settings.selectedPetInstanceID
+        )
+    }
+
+    func setClickThrough(
+        _ clickThrough: Bool,
+        for instanceID: UUID
+    ) {
+        guard let instance = settings.activePetInstances.first(where: {
+            $0.instanceID == instanceID
+        }) else {
+            return
+        }
         replaceOverlay(
             OverlaySettings(
-                screenIdentifier: settings.overlay.screenIdentifier,
-                originX: settings.overlay.originX,
-                originY: settings.overlay.originY,
-                width: settings.overlay.width,
+                screenIdentifier: instance.overlay.screenIdentifier,
+                originX: instance.overlay.originX,
+                originY: instance.overlay.originY,
+                width: instance.overlay.width,
                 clickThrough: clickThrough,
-                opacity: settings.overlay.opacity,
+                opacity: instance.overlay.opacity,
                 pointerOverlapFadeEnabled:
-                    settings.overlay.pointerOverlapFadeEnabled,
+                    instance.overlay.pointerOverlapFadeEnabled,
                 pointerOverlapOpacity:
-                    settings.overlay.pointerOverlapOpacity,
-                pixelArtRendering: settings.overlay.pixelArtRendering,
-                movementBoundary: settings.overlay.movementBoundary
-            )
+                    instance.overlay.pointerOverlapOpacity,
+                pixelArtRendering: instance.overlay.pixelArtRendering,
+                movementBoundary: instance.overlay.movementBoundary
+            ),
+            for: instanceID
         )
     }
 
@@ -553,6 +636,17 @@ final class AppSettingsSession: ObservableObject {
 
     private func replaceOverlay(_ overlay: OverlaySettings, persist: Bool = true) {
         update(settingsReplacingOverlay(overlay), persist: persist)
+    }
+
+    private func replaceOverlay(
+        _ overlay: OverlaySettings,
+        for instanceID: UUID,
+        persist: Bool = true
+    ) {
+        update(
+            settings.replacingOverlay(overlay, for: instanceID),
+            persist: persist
+        )
     }
 
     @discardableResult

@@ -101,9 +101,13 @@ final class PetInstanceManager {
                         runtimeSettings
                     )
                     || reason.isInitialLoad {
+                    let applicationReason: PetOverlayApplicationReason =
+                        existingContext == nil && !reason.isInitialLoad
+                            ? .initialLoad(shouldRestorePosition: true)
+                            : reason
                     context.apply(
                         settings: runtimeSettings,
-                        reason: reason
+                        reason: applicationReason
                     )
                 }
                 if existingContext == nil, let latestActivitySnapshot {
@@ -134,6 +138,7 @@ final class PetInstanceManager {
         } else {
             selectedInstanceID = synchronizedInstanceIDs.first
         }
+        restoreDisplayOrder()
         return PetInstanceSynchronizationResult(
             unavailableInstanceIDs: unavailableInstanceIDs
         )
@@ -156,6 +161,12 @@ final class PetInstanceManager {
     func desktopEnvironmentDidChange() {
         for context in contextsByID.values {
             context.desktopEnvironmentDidChange()
+        }
+    }
+
+    func restoreDisplayOrder() {
+        for instanceID in orderedInstanceIDs.reversed() {
+            contextsByID[instanceID]?.orderFront()
         }
     }
 

@@ -31,8 +31,8 @@ final class SettingsWindowController {
 
     private func makeWindowController() -> NSWindowController {
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 720, height: 620),
-            styleMask: [.titled, .closable, .miniaturizable],
+            contentRect: NSRect(x: 0, y: 0, width: 960, height: 700),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
         )
@@ -46,6 +46,7 @@ final class SettingsWindowController {
             )
         )
         window.isReleasedWhenClosed = false
+        window.minSize = NSSize(width: 840, height: 620)
         window.center()
 
         return NSWindowController(window: window)

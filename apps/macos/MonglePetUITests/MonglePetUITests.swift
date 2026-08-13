@@ -19,6 +19,11 @@ final class MonglePetUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(app.windows["MonglePet 설정"].waitForExistence(timeout: 5))
+
+        selectSettingsDestination(
+            "monglepet.settings.navigation.petLibrary",
+            in: app
+        )
         XCTAssertTrue(
             app.images["monglepet.settings.petPreview"]
                 .waitForExistence(timeout: 5)
@@ -45,29 +50,14 @@ final class MonglePetUITests: XCTestCase {
             app.buttons["monglepet.settings.createEditablePetCopy"].exists
         )
 
-        let generalTab = app.radioButtons["일반"]
-        XCTAssertTrue(generalTab.exists)
-        generalTab.click()
+        selectSettingsDestination(
+            "monglepet.settings.navigation.general",
+            in: app
+        )
 
         XCTAssertTrue(
-            app.descendants(matching: .any)["monglepet.settings.awake"]
-                .waitForExistence(timeout: 5)
-        )
-        XCTAssertTrue(
-            app.descendants(matching: .any)["monglepet.settings.behaviorMode"]
-                .exists
-        )
-        XCTAssertTrue(
-            app.descendants(matching: .any)["monglepet.settings.overlayWidth"]
-                .exists
-        )
-        XCTAssertTrue(
-            app.descendants(matching: .any)["monglepet.settings.clickThrough"]
-                .exists
-        )
-        XCTAssertTrue(
             app.descendants(matching: .any)["monglepet.settings.appVersion"]
-                .exists
+                .waitForExistence(timeout: 5)
         )
         XCTAssertTrue(
             app.descendants(matching: .any)["monglepet.settings.launchAtLogin"]
@@ -87,14 +77,44 @@ final class MonglePetUITests: XCTestCase {
     }
 
     @MainActor
+    func testActivePetsIsDefaultAndOffersManagementActions() throws {
+        let app = XCUIApplication()
+        app.launchArguments.append("--ui-testing-open-settings")
+        app.launch()
+
+        XCTAssertTrue(
+            app.descendants(matching: .any)["monglepet.settings.activePets"]
+                .waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(app.buttons["모두 깨우기"].exists)
+        XCTAssertTrue(app.buttons["모두 재우기"].exists)
+        XCTAssertTrue(
+            app.descendants(matching: .any)[
+                "monglepet.settings.activePetCard"
+            ].exists
+        )
+
+        let addButton = app.buttons["monglepet.settings.addActivePet"]
+        XCTAssertTrue(addButton.exists)
+        addButton.click()
+
+        XCTAssertTrue(
+            app.staticTexts["활성 펫 추가"].waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(app.buttons["추가"].exists)
+        XCTAssertTrue(app.buttons["취소"].exists)
+    }
+
+    @MainActor
     func testMovementSettingsTabShowsCurrentPetAndMode() throws {
         let app = XCUIApplication()
         app.launchArguments.append("--ui-testing-open-settings")
         app.launch()
 
-        let movementTab = app.radioButtons["이동"]
-        XCTAssertTrue(movementTab.waitForExistence(timeout: 5))
-        movementTab.click()
+        selectSettingsDestination(
+            "monglepet.settings.navigation.movement",
+            in: app
+        )
 
         XCTAssertTrue(
             app.descendants(matching: .any)["monglepet.settings.movementPetName"]
@@ -102,6 +122,18 @@ final class MonglePetUITests: XCTestCase {
         )
         XCTAssertTrue(
             app.descendants(matching: .any)["monglepet.settings.movementMode"]
+                .exists
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)["monglepet.settings.awake"]
+                .exists
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)["monglepet.settings.overlayWidth"]
+                .exists
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)["monglepet.settings.clickThrough"]
                 .exists
         )
         XCTAssertTrue(
@@ -116,9 +148,10 @@ final class MonglePetUITests: XCTestCase {
         app.launchArguments.append("--ui-testing-open-settings")
         app.launch()
 
-        let automaticRulesTab = app.radioButtons["자동 규칙"]
-        XCTAssertTrue(automaticRulesTab.waitForExistence(timeout: 5))
-        automaticRulesTab.click()
+        selectSettingsDestination(
+            "monglepet.settings.navigation.automaticRules",
+            in: app
+        )
 
         XCTAssertTrue(
             app.descendants(matching: .any)[
@@ -149,6 +182,10 @@ final class MonglePetUITests: XCTestCase {
         app.launchArguments.append("--ui-testing-open-settings")
         app.launch()
 
+        selectSettingsDestination(
+            "monglepet.settings.navigation.petLibrary",
+            in: app
+        )
         scrollPetTab(in: app, by: -280)
 
         let createButton = app.buttons["monglepet.settings.createUserPet"]
@@ -186,5 +223,15 @@ final class MonglePetUITests: XCTestCase {
         let scrollView = app.scrollViews.firstMatch
         XCTAssertTrue(scrollView.waitForExistence(timeout: 5))
         scrollView.scroll(byDeltaX: 0, deltaY: deltaY)
+    }
+
+    @MainActor
+    private func selectSettingsDestination(
+        _ identifier: String,
+        in app: XCUIApplication
+    ) {
+        let destination = app.descendants(matching: .any)[identifier]
+        XCTAssertTrue(destination.waitForExistence(timeout: 5))
+        destination.click()
     }
 }

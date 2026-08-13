@@ -51,6 +51,7 @@ protocol PetRuntimeContextType: AnyObject {
     func desktopEnvironmentDidChange()
     @discardableResult
     func requestPettingInteraction() -> Bool
+    func orderFront()
     func moveToVisibleFrame(_ visibleFrame: NSRect)
     func stop()
 }
@@ -291,6 +292,10 @@ final class PetRuntimeContext: PetRuntimeContextType {
             return false
         }
         return behaviorRuntime.triggerInteraction(motionID: motionID)
+    }
+
+    func orderFront() {
+        petWindowController.orderFront()
     }
 
     func moveToVisibleFrame(_ visibleFrame: NSRect) {

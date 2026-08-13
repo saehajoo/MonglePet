@@ -920,6 +920,158 @@ nonisolated struct AppSettings: Equatable, Sendable {
         activePetInstances.first { $0.instanceID == selectedPetInstanceID }
     }
 
+    func selectingPetInstance(_ instanceID: UUID) -> AppSettings {
+        guard activePetInstances.contains(where: {
+            $0.instanceID == instanceID
+        }) else {
+            return self
+        }
+        return AppSettings(
+            selectedPetInstanceID: instanceID,
+            activePetInstances: activePetInstances,
+            petBehaviorProfiles: petBehaviorProfiles
+        )
+    }
+
+    func addingPetInstance(
+        for petKey: PetBehaviorKey,
+        copyingSettingsFrom sourceInstanceID: UUID? = nil,
+        instanceID: UUID = UUID(),
+        profileID: UUID = UUID()
+    ) -> AppSettings {
+        guard
+            !activePetInstances.contains(where: {
+                $0.instanceID == instanceID
+            }),
+            !petBehaviorProfiles.contains(where: {
+                $0.profileID == profileID
+            })
+        else {
+            return self
+        }
+
+        let sourceInstance = sourceInstanceID.flatMap { sourceID in
+            activePetInstances.first { instance in
+                instance.instanceID == sourceID
+                    && instance.petKey == petKey
+            }
+        }
+        let sourceProfile = sourceInstance.flatMap { source in
+            petBehaviorProfiles.first {
+                $0.profileID == source.behaviorProfileID
+            }?.profile
+        }
+        let profile = sourceProfile ?? Self.defaultProfile(for: petKey)
+        let sourceOverlay = sourceInstance?.overlay ?? selectedPetInstance?.overlay
+        let overlay = sourceOverlay.map(Self.offsetOverlay) ?? .default
+        let newInstance = PetInstanceSettings(
+            instanceID: instanceID,
+            petKey: petKey,
+            nickname: nil,
+            presentation: .awake,
+            overlay: overlay,
+            behaviorProfileID: profileID,
+            displayOrder: activePetInstances.count
+        )
+        return AppSettings(
+            selectedPetInstanceID: instanceID,
+            activePetInstances: activePetInstances + [newInstance],
+            petBehaviorProfiles: petBehaviorProfiles + [
+                PetBehaviorProfileSettings(
+                    profileID: profileID,
+                    profile: profile
+                )
+            ]
+        )
+    }
+
+    func removingPetInstance(_ instanceID: UUID) -> AppSettings {
+        guard
+            activePetInstances.count > 1,
+            let removedIndex = activePetInstances.firstIndex(where: {
+                $0.instanceID == instanceID
+            })
+        else {
+            return self
+        }
+
+        let removedProfileID = activePetInstances[removedIndex]
+            .behaviorProfileID
+        var remainingInstances = activePetInstances
+        remainingInstances.remove(at: removedIndex)
+        remainingInstances = remainingInstances.enumerated().map {
+            index, instance in
+            Self.replacing(instance, displayOrder: index)
+        }
+        let selectedID: UUID
+        if selectedPetInstanceID == instanceID {
+            selectedID = remainingInstances[
+                min(removedIndex, remainingInstances.count - 1)
+            ].instanceID
+        } else {
+            selectedID = selectedPetInstanceID
+        }
+        let referencedProfileIDs = Set(
+            remainingInstances.map(\.behaviorProfileID)
+        )
+        let remainingProfiles = petBehaviorProfiles.filter {
+            $0.profileID != removedProfileID
+                || referencedProfileIDs.contains($0.profileID)
+        }
+        return AppSettings(
+            selectedPetInstanceID: selectedID,
+            activePetInstances: remainingInstances,
+            petBehaviorProfiles: remainingProfiles
+        )
+    }
+
+    func replacingPetInstanceNickname(
+        _ nickname: String?,
+        for instanceID: UUID
+    ) -> AppSettings {
+        let normalizedNickname = nickname.flatMap { value -> String? in
+            let trimmed = value.trimmingCharacters(
+                in: .whitespacesAndNewlines
+            )
+            guard !trimmed.isEmpty else {
+                return nil
+            }
+            return String(
+                trimmed.prefix(AppSettingsLimits.maximumPetNicknameLength)
+            )
+        }
+        return replacingInstance(instanceID: instanceID) { instance in
+            Self.replacing(instance, nickname: normalizedNickname)
+        }
+    }
+
+    func movingPetInstance(
+        _ instanceID: UUID,
+        to destinationIndex: Int
+    ) -> AppSettings {
+        guard
+            let sourceIndex = activePetInstances.firstIndex(where: {
+                $0.instanceID == instanceID
+            }),
+            activePetInstances.indices.contains(destinationIndex),
+            sourceIndex != destinationIndex
+        else {
+            return self
+        }
+
+        var reordered = activePetInstances
+        let moved = reordered.remove(at: sourceIndex)
+        reordered.insert(moved, at: destinationIndex)
+        reordered = reordered.enumerated().map { index, instance in
+            Self.replacing(instance, displayOrder: index)
+        }
+        return AppSettings(
+            selectedPetInstanceID: selectedPetInstanceID,
+            activePetInstances: reordered,
+            petBehaviorProfiles: petBehaviorProfiles
+        )
+    }
+
     func runtimeSettings(for instanceID: UUID) -> AppSettings? {
         guard activePetInstances.contains(where: {
             $0.instanceID == instanceID
@@ -961,7 +1113,7 @@ nonisolated struct AppSettings: Equatable, Sendable {
                     profile: profile
                 )
             )
-            instances[instanceIndex] = replacing(
+            instances[instanceIndex] = Self.replacing(
                 instances[instanceIndex],
                 behaviorProfileID: profileID
             )
@@ -987,7 +1139,7 @@ nonisolated struct AppSettings: Equatable, Sendable {
         for instanceID: UUID
     ) -> AppSettings {
         replacingInstance(instanceID: instanceID) { instance in
-            replacing(instance, presentation: presentation)
+            Self.replacing(instance, presentation: presentation)
         }
     }
 
@@ -1000,7 +1152,7 @@ nonisolated struct AppSettings: Equatable, Sendable {
         for instanceID: UUID
     ) -> AppSettings {
         replacingInstance(instanceID: instanceID) { instance in
-            replacing(instance, overlay: overlay)
+            Self.replacing(instance, overlay: overlay)
         }
     }
 
@@ -1043,7 +1195,7 @@ nonisolated struct AppSettings: Equatable, Sendable {
                 )
             )
         }
-        instances[instanceIndex] = replacing(
+        instances[instanceIndex] = Self.replacing(
             instances[instanceIndex],
             petKey: petKey,
             behaviorProfileID: profileID
@@ -1124,7 +1276,7 @@ nonisolated struct AppSettings: Equatable, Sendable {
                     )
                 )
             }
-            instances[index] = replacing(
+            instances[index] = Self.replacing(
                 instances[index],
                 petKey: .builtIn,
                 behaviorProfileID: profileID
@@ -1165,22 +1317,41 @@ nonisolated struct AppSettings: Equatable, Sendable {
         )
     }
 
-    private func replacing(
+    private static func replacing(
         _ instance: PetInstanceSettings,
         petKey: PetBehaviorKey? = nil,
+        nickname: String?? = nil,
         presentation: PetPresentation? = nil,
         overlay: OverlaySettings? = nil,
-        behaviorProfileID: UUID? = nil
+        behaviorProfileID: UUID? = nil,
+        displayOrder: Int? = nil
     ) -> PetInstanceSettings {
         PetInstanceSettings(
             instanceID: instance.instanceID,
             petKey: petKey ?? instance.petKey,
-            nickname: instance.nickname,
+            nickname: nickname ?? instance.nickname,
             presentation: presentation ?? instance.presentation,
             overlay: overlay ?? instance.overlay,
             behaviorProfileID:
                 behaviorProfileID ?? instance.behaviorProfileID,
-            displayOrder: instance.displayOrder
+            displayOrder: displayOrder ?? instance.displayOrder
+        )
+    }
+
+    private static func offsetOverlay(
+        _ overlay: OverlaySettings
+    ) -> OverlaySettings {
+        OverlaySettings(
+            screenIdentifier: overlay.screenIdentifier,
+            originX: overlay.originX + 28,
+            originY: overlay.originY - 28,
+            width: overlay.width,
+            clickThrough: overlay.clickThrough,
+            opacity: overlay.opacity,
+            pointerOverlapFadeEnabled: overlay.pointerOverlapFadeEnabled,
+            pointerOverlapOpacity: overlay.pointerOverlapOpacity,
+            pixelArtRendering: overlay.pixelArtRendering,
+            movementBoundary: overlay.movementBoundary
         )
     }
 
