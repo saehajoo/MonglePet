@@ -760,6 +760,7 @@ UI 테스트는 앱 실행과 접근성 자동화가 가능한 macOS 세션에�
 - schema-v10 선택 펫을 첫 활성 인스턴스로 이관하고, 선택되지 않은 프로필 보존·선택 프로필 연결·누락 기본 프로필 생성·UUID 안정 왕복을 검증하는 v11 마이그레이션 테스트 4개를 통과했다.
 - 버전·v11 마이그레이션·패키지 내보내기 대상 XCTest 22개가 통과했다. 설정 화면 버전과 기존 패키지 가져오기 수동 QA는 멀티펫 런타임 연결 뒤 수행한다.
 - macOS 전체 `MonglePetTests` 회귀가 통과했다.
+- `shared/Fixtures/Settings`의 schema-v10 입력과 고정 UUID schema-v11 기대 결과를 macOS codec으로 비교하는 공통 계약 테스트를 추가했다. 해당 테스트를 포함한 `AppSettingsV11MigrationTests` 5개가 통과했다.
 
 ## 변경 유형별 최소 검증
 

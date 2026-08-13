@@ -3,6 +3,39 @@ import XCTest
 @testable import MonglePet
 
 final class AppSettingsV11MigrationTests: XCTestCase {
+    func testSharedV10FixtureMatchesV11ExpectedDocument() throws {
+        let storedV10 = try JSONDecoder().decode(
+            StoredAppSettingsV10.self,
+            from: Data(
+                contentsOf: fixtureURL("schema-v10-single-pet.json")
+            )
+        )
+        let expected = try JSONDecoder().decode(
+            StoredAppSettingsV11.self,
+            from: Data(
+                contentsOf: fixtureURL(
+                    "schema-v11-single-instance.expected.json"
+                )
+            )
+        )
+        var generatedIDs = [
+            UUID(
+                uuidString: "22222222-2222-2222-2222-222222222222"
+            )!,
+            UUID(
+                uuidString: "33333333-3333-3333-3333-333333333333"
+            )!
+        ].makeIterator()
+
+        let migrated = try AppSettingsV10ToV11Migrator.migrate(
+            storedV10,
+            idGenerator: { generatedIDs.next()! }
+        )
+
+        XCTAssertEqual(migrated.settings, expected)
+        XCTAssertTrue(migrated.issues.isEmpty)
+    }
+
     func testV10MigrationCreatesOneIndependentSelectedInstance() throws {
         let installationID = UUID(
             uuidString: "11111111-1111-1111-1111-111111111111"
@@ -210,5 +243,17 @@ final class AppSettingsV11MigrationTests: XCTestCase {
                 behaviorProfiles: profiles
             )
         )
+    }
+
+    private func fixtureURL(_ fileName: String) -> URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("shared", isDirectory: true)
+            .appendingPathComponent("Fixtures", isDirectory: true)
+            .appendingPathComponent("Settings", isDirectory: true)
+            .appendingPathComponent(fileName, isDirectory: false)
     }
 }
