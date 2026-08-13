@@ -920,6 +920,19 @@ nonisolated struct AppSettings: Equatable, Sendable {
         activePetInstances.first { $0.instanceID == selectedPetInstanceID }
     }
 
+    func runtimeSettings(for instanceID: UUID) -> AppSettings? {
+        guard activePetInstances.contains(where: {
+            $0.instanceID == instanceID
+        }) else {
+            return nil
+        }
+        return AppSettings(
+            selectedPetInstanceID: instanceID,
+            activePetInstances: activePetInstances,
+            petBehaviorProfiles: petBehaviorProfiles
+        )
+    }
+
     func replacingActiveBehaviorProfile(
         _ profile: BehaviorProfile
     ) -> AppSettings {
@@ -969,7 +982,14 @@ nonisolated struct AppSettings: Equatable, Sendable {
     }
 
     func replacingSelectedOverlay(_ overlay: OverlaySettings) -> AppSettings {
-        replacingSelectedInstance { instance in
+        replacingOverlay(overlay, for: selectedPetInstanceID)
+    }
+
+    func replacingOverlay(
+        _ overlay: OverlaySettings,
+        for instanceID: UUID
+    ) -> AppSettings {
+        replacingInstance(instanceID: instanceID) { instance in
             replacing(instance, overlay: overlay)
         }
     }
@@ -1042,8 +1062,18 @@ nonisolated struct AppSettings: Equatable, Sendable {
     private func replacingSelectedInstance(
         _ transform: (PetInstanceSettings) -> PetInstanceSettings
     ) -> AppSettings {
+        replacingInstance(
+            instanceID: selectedPetInstanceID,
+            transform
+        )
+    }
+
+    private func replacingInstance(
+        instanceID: UUID,
+        _ transform: (PetInstanceSettings) -> PetInstanceSettings
+    ) -> AppSettings {
         guard let index = activePetInstances.firstIndex(where: {
-            $0.instanceID == selectedPetInstanceID
+            $0.instanceID == instanceID
         }) else {
             return self
         }

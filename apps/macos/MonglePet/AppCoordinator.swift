@@ -1,37 +1,22 @@
 import AppKit
 
-nonisolated enum PetOverlayApplicationReason: Equatable, Sendable {
-    case initialLoad(shouldRestorePosition: Bool)
-    case settingsChange
-
-    var shouldRestorePosition: Bool {
-        switch self {
-        case let .initialLoad(shouldRestorePosition):
-            return shouldRestorePosition
-        case .settingsChange:
-            return false
-        }
-    }
-}
-
 @MainActor
 final class AppCoordinator: NSObject {
     private let settingsSession: AppSettingsSession
     private let petLibrarySession: PetLibrarySession
     private let loginLaunchSettings: LoginLaunchSettings
     private let settingsWindowController: SettingsWindowController
-    private let petWindowController: PetWindowController
-    private let playbackCoordinator: PetPlaybackCoordinator
-    private let behaviorRuntime: PetBehaviorRuntime
-    private let speechRuntime: PetSpeechRuntime
-    private let movementController: PetMovementController
-    private let movementLifecycle: PetMovementLifecycle
+    private let petInstanceManager: PetInstanceManager
     private let activityMonitor: any ActivitySnapshotMonitoring
     private let workspaceNotificationCenter: NotificationCenter
     private let reduceMotionProvider: () -> Bool
     private var menuBarController: MenuBarController?
     private(set) var latestActivitySnapshot: ActivitySnapshot?
-    private(set) var latestMovementActivity = PetMovementActivity.stationary
+
+    var latestMovementActivity: PetMovementActivity {
+        petInstanceManager.selectedContext?.latestMovementActivity
+            ?? .stationary
+    }
 
     init(
         settingsStore: AppSettingsStore,
@@ -44,24 +29,10 @@ final class AppCoordinator: NSObject {
         }
     ) {
         let settingsSession = AppSettingsSession(store: settingsStore)
-        let petWindowController = PetWindowController()
+        let bootstrapWindowController = PetWindowController()
         let petLibrarySession = PetLibrarySession(
             store: petLibraryStore,
-            builtInDefinition: petWindowController.petDefinition
-        )
-        let movementController = PetMovementController(
-            originProvider: { [weak petWindowController] in
-                petWindowController?.movementOrigin
-            },
-            petSizeProvider: { [weak petWindowController] in
-                petWindowController?.movementSize
-            },
-            applyOrigin: { [weak petWindowController] origin in
-                petWindowController?.setMovementOrigin(origin)
-            },
-            movementBoundaryProvider: { [weak settingsSession] in
-                settingsSession?.settings.overlay.movementBoundary ?? .default
-            }
+            builtInDefinition: bootstrapWindowController.petDefinition
         )
         self.settingsSession = settingsSession
         self.petLibrarySession = petLibrarySession
@@ -72,42 +43,36 @@ final class AppCoordinator: NSObject {
             petLibrarySession: petLibrarySession,
             loginLaunchSettings: loginLaunchSettings
         )
-        self.petWindowController = petWindowController
-        let playbackCoordinator = PetPlaybackCoordinator(
-            petDefinition: petWindowController.petDefinition
-        ) { [weak petWindowController] playback in
-            petWindowController?.setScheduledMotion(playback)
+        var availableBootstrapController: PetWindowController? =
+            bootstrapWindowController
+        petInstanceManager = PetInstanceManager { [weak settingsSession] instanceID in
+            let windowController = availableBootstrapController
+                ?? PetWindowController()
+            availableBootstrapController = nil
+            return PetRuntimeContext(
+                instanceID: instanceID,
+                petWindowController: windowController,
+                onOverlayGeometryDidChange: {
+                    [weak settingsSession] instanceID, overlay in
+                    settingsSession?.setOverlayGeometry(
+                        overlay,
+                        for: instanceID
+                    )
+                },
+                onOverlayGeometryDidSynchronize: {
+                    [weak settingsSession] instanceID, overlay in
+                    settingsSession?.synchronizeOverlayGeometry(
+                        overlay,
+                        for: instanceID
+                    )
+                }
+            )
         }
-        self.playbackCoordinator = playbackCoordinator
-        let speechRuntime = PetSpeechRuntime {
-            [weak petWindowController] presentation in
-            if let presentation {
-                petWindowController?.showSpeechBubble(presentation)
-            } else {
-                petWindowController?.hideSpeechBubble()
-            }
-        }
-        self.speechRuntime = speechRuntime
-        behaviorRuntime = PetBehaviorRuntime(
-            petDefinition: petWindowController.petDefinition
-        ) { [weak playbackCoordinator, weak speechRuntime] playback in
-            playbackCoordinator?.setBehaviorPlayback(playback)
-            if playback?.isInteraction != true {
-                speechRuntime?.behaviorSequenceDidChange(playback?.sequenceID)
-            }
-        }
-        self.movementController = movementController
-        movementLifecycle = PetMovementLifecycle(controller: movementController)
         self.activityMonitor = activityMonitor
         self.workspaceNotificationCenter = workspaceNotificationCenter
         self.reduceMotionProvider = reduceMotionProvider
 
         super.init()
-
-        movementController.setActivityChangeHandler { [weak self] activity in
-            self?.latestMovementActivity = activity
-            self?.playbackCoordinator.setMovementActivity(activity)
-        }
 
         settingsSession.onChange = { [weak self] settings in
             self?.settingsDidChange(settings)
@@ -128,18 +93,6 @@ final class AppCoordinator: NSObject {
                 to: installationID
             )
         }
-        petWindowController.onOverlayGeometryDidChange = { [weak self] in
-            self?.persistCurrentOverlayGeometry()
-        }
-        petWindowController.onUserDragStateDidChange = { [weak self] isDragging in
-            self?.movementLifecycle.setUserDragging(isDragging)
-        }
-        petWindowController.onMovementEnvironmentDidChange = { [weak self] in
-            self?.movementEnvironmentDidChange()
-        }
-        petWindowController.onPettingRequested = { [weak self] in
-            self?.pettingDidRequest()
-        }
     }
 
     var currentSettings: AppSettings {
@@ -147,15 +100,15 @@ final class AppCoordinator: NSObject {
     }
 
     var isPetAwake: Bool {
-        petWindowController.isAwake
+        petInstanceManager.selectedContext?.isAwake ?? false
     }
 
     var currentMotionID: String? {
-        petWindowController.currentMotionID
+        petInstanceManager.selectedContext?.currentMotionID
     }
 
     var isPetMovementAllowed: Bool {
-        movementLifecycle.isMovementAllowed
+        petInstanceManager.selectedContext?.isMovementAllowed ?? false
     }
 
     func start(openSettingsOnLaunch: Bool = false) {
@@ -170,8 +123,7 @@ final class AppCoordinator: NSObject {
             object: nil
         )
         let shouldReduceMotion = reduceMotionProvider()
-        movementLifecycle.setReduceMotion(shouldReduceMotion)
-        petWindowController.setReduceMotion(shouldReduceMotion)
+        petInstanceManager.setReduceMotion(shouldReduceMotion)
 
         let loadResult = settingsSession.load { [petLibrarySession] installationID in
             _ = petLibrarySession.reload(
@@ -183,25 +135,35 @@ final class AppCoordinator: NSObject {
         var effectiveInstallationID = petLibrarySession.reload(
             preferredInstallationID: settingsSession.settings.selectedPetInstallationID
         )
-        if !applySelectedPet(petLibrarySession.selectedItem) {
+        if !synchronizeSelectedRuntime(
+            item: petLibrarySession.selectedItem,
+            settings: settingsSession.settings,
+            reason: .initialLoad(
+                shouldRestorePosition:
+                    loadResult.shouldRestoreOverlayPosition
+            ),
+            reloadPet: true
+        ) {
             _ = petLibrarySession.select(.builtIn)
             effectiveInstallationID = nil
         }
         if effectiveInstallationID != settingsSession.settings.selectedPetInstallationID {
             settingsSession.setSelectedPetInstallationID(effectiveInstallationID)
         }
-        apply(
+        _ = synchronizeSelectedRuntime(
+            item: petLibrarySession.selectedItem,
             settings: settingsSession.settings,
             reason: .initialLoad(
                 shouldRestorePosition:
                     loadResult.shouldRestoreOverlayPosition
-            )
+            ),
+            reloadPet: false
         )
         activityMonitor.start { [weak self] snapshot in
             self?.activitySnapshotDidChange(snapshot)
         }
         let menuBarController = MenuBarController(
-            isPetAwake: petWindowController.isAwake,
+            isPetAwake: isPetAwake,
             petDisplayName: petLibrarySession.selectedItem.metadata.displayName,
             isClickThrough: settingsSession.settings.overlay.clickThrough,
             onTogglePetAwakeState: { [weak self] in
@@ -235,18 +197,13 @@ final class AppCoordinator: NSObject {
             object: nil
         )
         activityMonitor.stop()
-        behaviorRuntime.stop()
-        speechRuntime.stop()
-        movementLifecycle.setAwake(false)
-        movementLifecycle.setSystemSuspended(true)
-        movementLifecycle.stop()
+        petInstanceManager.stopAll()
         menuBarController?.stop()
         menuBarController = nil
-        petWindowController.sleep()
     }
 
     private func togglePetAwakeState() {
-        if petWindowController.isAwake {
+        if isPetAwake {
             settingsSession.setUserPresentation(.tuckedAway)
         } else {
             settingsSession.setUserPresentation(.awake)
@@ -263,54 +220,48 @@ final class AppCoordinator: NSObject {
             return
         }
 
-        petWindowController.moveToVisibleFrame(targetScreen.visibleFrame)
-        movementLifecycle.invalidateEnvironment()
-        persistCurrentOverlayGeometry()
+        petInstanceManager.selectedContext?.moveToVisibleFrame(
+            targetScreen.visibleFrame
+        )
     }
 
     private func activitySnapshotDidChange(_ snapshot: ActivitySnapshot) {
         latestActivitySnapshot = snapshot
-        petWindowController.setSystemSuspended(
-            snapshot.isScreenLocked || snapshot.isSystemSleeping
-        )
-        speechRuntime.setSystemSuspended(
-            snapshot.isScreenLocked || snapshot.isSystemSleeping
-        )
-        movementLifecycle.setSystemSuspended(
-            snapshot.isScreenLocked || snapshot.isSystemSleeping
-        )
-        behaviorRuntime.update(
-            settings: settingsSession.settings,
-            snapshot: snapshot
-        )
+        petInstanceManager.updateActivitySnapshot(snapshot)
     }
 
     private func settingsDidChange(_ settings: AppSettings) {
+        var shouldReloadPet = false
         if settings.selectedPetInstallationID != petLibrarySession.selectedInstallationID {
             let effectiveInstallationID = petLibrarySession.reload(
                 preferredInstallationID: settings.selectedPetInstallationID
             )
-            if !applySelectedPet(petLibrarySession.selectedItem) {
-                _ = petLibrarySession.select(.builtIn)
-                return
-            }
+            shouldReloadPet = true
             if effectiveInstallationID != settings.selectedPetInstallationID {
-                settingsSession.setSelectedPetInstallationID(effectiveInstallationID)
+                _ = petLibrarySession.select(.builtIn)
+                settingsSession.setSelectedPetInstallationID(
+                    effectiveInstallationID
+                )
                 return
             }
         }
-        apply(settings: settings, reason: .settingsChange)
-        guard let latestActivitySnapshot else {
-            return
+        if !synchronizeSelectedRuntime(
+            item: petLibrarySession.selectedItem,
+            settings: settings,
+            reason: .settingsChange,
+            reloadPet: shouldReloadPet
+        ) {
+            _ = petLibrarySession.select(.builtIn)
         }
-        behaviorRuntime.update(
-            settings: settingsSession.settings,
-            snapshot: latestActivitySnapshot
-        )
     }
 
     private func selectedPetDidChange(_ item: PetLibraryItem) {
-        guard applySelectedPet(item) else {
+        guard synchronizeSelectedRuntime(
+            item: item,
+            settings: settingsSession.settings,
+            reason: .settingsChange,
+            reloadPet: true
+        ) else {
             _ = petLibrarySession.select(.builtIn)
             return
         }
@@ -343,34 +294,26 @@ final class AppCoordinator: NSObject {
         }
     }
 
-    private func pettingDidRequest() {
-        guard
-            settingsSession.settings.movementSettings.mode
-                != .cursorAvoiding,
-            let motionID = settingsSession.settings.pettingMotionID,
-            petLibrarySession.selectedItem.definition.motion(id: motionID) != nil
-        else {
-            return
-        }
-        behaviorRuntime.triggerInteraction(motionID: motionID)
-    }
-
     @discardableResult
-    private func applySelectedPet(_ item: PetLibraryItem) -> Bool {
+    private func synchronizeSelectedRuntime(
+        item: PetLibraryItem,
+        settings: AppSettings,
+        reason: PetOverlayApplicationReason,
+        reloadPet: Bool
+    ) -> Bool {
         do {
-            try petWindowController.applyPet(item)
-            speechRuntime.prepareForPetChange()
-            playbackCoordinator.replacePetDefinition(item.definition)
-            behaviorRuntime.replacePetDefinition(item.definition)
-            if let latestActivitySnapshot {
-                behaviorRuntime.update(
-                    settings: settingsSession.settings,
-                    snapshot: latestActivitySnapshot
-                )
-            }
-            movementLifecycle.invalidateEnvironment()
+            try petInstanceManager.synchronizeSelectedRuntime(
+                settings: settings,
+                item: item,
+                reason: reason,
+                reloadPet: reloadPet
+            )
             menuBarController?.setCurrentPetDisplayName(
                 item.metadata.displayName
+            )
+            menuBarController?.setPetAwake(isPetAwake)
+            menuBarController?.setClickThrough(
+                settings.overlay.clickThrough
             )
             return true
         } catch {
@@ -378,70 +321,11 @@ final class AppCoordinator: NSObject {
         }
     }
 
-    private func apply(
-        settings: AppSettings,
-        reason: PetOverlayApplicationReason
-    ) {
-        petWindowController.applyOverlaySettings(
-            settings.overlay,
-            restorePosition: reason.shouldRestorePosition
-        )
-        speechRuntime.update(settings: settings.speechSettings)
-        let pettingMotionExists = settings.pettingMotionID.flatMap {
-            petLibrarySession.selectedItem.definition.motion(id: $0)
-        } != nil
-        petWindowController.setPettingEnabled(
-            pettingMotionExists
-                && settings.movementSettings.mode != .cursorAvoiding
-        )
-        switch settings.lastUserPresentation {
-        case .awake:
-            if !petWindowController.isAwake {
-                petWindowController.wake()
-            }
-        case .tuckedAway:
-            if petWindowController.isAwake {
-                petWindowController.sleep()
-            }
-        case .suspended:
-            break
-        }
-        movementLifecycle.setSettings(settings.movementSettings)
-        movementLifecycle.setAwake(petWindowController.isAwake)
-        speechRuntime.setAwake(petWindowController.isAwake)
-        movementLifecycle.invalidateEnvironment()
-        if settings.movementSettings.mode == .fixed,
-           let appliedOverlay = petWindowController.currentOverlaySettings() {
-            settingsSession.synchronizeOverlayGeometry(appliedOverlay)
-        }
-        menuBarController?.setPetAwake(petWindowController.isAwake)
-        menuBarController?.setClickThrough(settings.overlay.clickThrough)
-        menuBarController?.setCurrentPetDisplayName(
-            petLibrarySession.selectedItem.metadata.displayName
-        )
-    }
-
-    private func persistCurrentOverlayGeometry() {
-        guard let overlay = petWindowController.currentOverlaySettings() else {
-            return
-        }
-        settingsSession.setOverlayGeometry(overlay)
-    }
-
-    private func movementEnvironmentDidChange() {
-        movementLifecycle.invalidateEnvironment()
-        guard settingsSession.settings.movementSettings.mode == .fixed else {
-            return
-        }
-        persistCurrentOverlayGeometry()
-    }
-
     @objc
     private func accessibilityDisplayOptionsDidChange(
         _ notification: Notification
     ) {
         let shouldReduceMotion = reduceMotionProvider()
-        movementLifecycle.setReduceMotion(shouldReduceMotion)
-        petWindowController.setReduceMotion(shouldReduceMotion)
+        petInstanceManager.setReduceMotion(shouldReduceMotion)
     }
 }

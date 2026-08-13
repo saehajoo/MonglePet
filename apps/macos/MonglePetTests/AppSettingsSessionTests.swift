@@ -580,6 +580,80 @@ final class AppSettingsSessionTests: XCTestCase {
     }
 
     @MainActor
+    func testRuntimeGeometryUpdatesOnlyMatchingPetInstance() throws {
+        let defaults = AppSettings.default
+        let firstInstance = try XCTUnwrap(
+            defaults.activePetInstances.first
+        )
+        let firstProfile = try XCTUnwrap(
+            defaults.petBehaviorProfiles.first
+        )
+        let secondInstanceID = UUID(
+            uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA"
+        )!
+        let secondProfileID = UUID(
+            uuidString: "BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB"
+        )!
+        let initialSettings = AppSettings(
+            selectedPetInstanceID: firstInstance.instanceID,
+            activePetInstances: [
+                firstInstance,
+                PetInstanceSettings(
+                    instanceID: secondInstanceID,
+                    petKey: .builtIn,
+                    nickname: "두 번째",
+                    presentation: .awake,
+                    overlay: .default,
+                    behaviorProfileID: secondProfileID,
+                    displayOrder: 1
+                )
+            ],
+            petBehaviorProfiles: [
+                firstProfile,
+                PetBehaviorProfileSettings(
+                    profileID: secondProfileID,
+                    profile: firstProfile.profile
+                )
+            ]
+        )
+        let store = AppSettingsStore(settingsURL: settingsURL)
+        try store.save(initialSettings)
+        let session = AppSettingsSession(store: store)
+        XCTAssertEqual(session.load().source, .file)
+        let firstOverlay = firstInstance.overlay
+        let secondOverlay = OverlaySettings(
+            screenIdentifier: "display-secondary",
+            originX: -640,
+            originY: 120,
+            width: 256,
+            clickThrough: true,
+            opacity: 0.7,
+            pointerOverlapFadeEnabled: true,
+            pointerOverlapOpacity: 0.2,
+            pixelArtRendering: true,
+            movementBoundary: .default
+        )
+
+        session.setOverlayGeometry(
+            secondOverlay,
+            for: secondInstanceID
+        )
+
+        XCTAssertEqual(session.settings.selectedPetInstanceID, firstInstance.instanceID)
+        XCTAssertEqual(
+            session.settings.activePetInstances[0].overlay,
+            firstOverlay
+        )
+        XCTAssertEqual(
+            session.settings.activePetInstances[1].overlay,
+            secondOverlay
+        )
+        let reloaded = store.load().settings
+        XCTAssertEqual(reloaded.activePetInstances[0].overlay, firstOverlay)
+        XCTAssertEqual(reloaded.activePetInstances[1].overlay, secondOverlay)
+    }
+
+    @MainActor
     func testSystemDefaultBehaviorInstallsInMemoryAndCustomSelectionPersists() {
         let session = AppSettingsSession(
             store: AppSettingsStore(settingsURL: settingsURL)

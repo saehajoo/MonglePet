@@ -10,6 +10,8 @@ MonglePet은 플랫폼별로 상시 실행되는 네이티브 앱이므로 제�
 
 각 runtime context는 오버레이 창, 프레임·행동 playback, 이동, 쓰다듬기와 말풍선 상태를 소유한다. 전면 앱·입력 없음·잠금·절전, 포인터·모니터 snapshot과 디코딩 이미지·알파 마스크 캐시는 프로세스 전체 서비스가 한 번만 만들고 활성 context에 배포한다. 같은 설치 펫의 여러 인스턴스는 불변 펫 정의와 자산을 공유하지만 사용자 구분 이름, 위치, 표시 상태, 스케줄러와 설정 프로필은 독립적으로 유지한다. 원본 정의를 편집할 때는 새 패키지 ID의 편집 가능한 사본을 만들고 선택한 인스턴스만 재연결해 공유 자산 변경이 다른 인스턴스로 전파되지 않게 한다.
 
+macOS 3단계에서 `PetRuntimeContext`가 `PetWindowController`, playback·behavior·speech runtime과 movement controller·lifecycle을 묶어 소유하고, `PetInstanceManager`가 `instanceID`별 context와 공통 activity·reduce motion 전달을 관리하도록 구현했다. 다중 창 활성화 전 회귀 경계에서는 선택 context 하나만 유지하며, 저장된 모든 활성 인스턴스를 display order대로 동기화하는 것은 다음 다중 overlay 단계에서 확장한다.
+
 설정 복원은 모든 창을 동시에 만들지 않고 저장된 활성 순서로 단계적으로 수행한다. 각 인스턴스 활성화 전후의 복구 marker를 기록해 비정상 종료 뒤 문제 후보를 자동 재시도하지 않고 안전 시작 화면에서 개별 복원한다. 고정된 사용자 마릿수 제한은 두지 않되 설정 파일 크기·구조 검증과 성능 경고를 유지한다. CPU·메모리 기준 초과 시 runtime manager가 인스턴스를 임의로 중지하지 않으며 사용자가 개별 또는 전체 일시정지를 선택한다.
 
 각 인스턴스는 영속적인 `displayOrder`를 가지며 마지막 클릭이나 드래그와 무관하게 사용자가 정한 앞뒤 순서를 유지한다. macOS는 여러 `NSPanel`의 window ordering을, Windows는 여러 topmost `HWND`의 `SetWindowPos` 순서를 이 값으로 다시 적용한다. 펫끼리의 충돌과 말풍선끼리의 충돌 회피는 이 단계의 실행 계층에 포함하지 않는다.

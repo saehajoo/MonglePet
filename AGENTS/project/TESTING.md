@@ -770,6 +770,14 @@ UI 테스트는 앱 실행과 접근성 자동화가 가능한 macOS 세션에�
 - 현재 단일 런타임 설정 편집이 선택 인스턴스만 바꾸고 저장·재실행 뒤 다른 인스턴스 데이터를 보존하도록 Store·Session 회귀를 통과했다.
 - Debug 빌드 성공, 전체 `MonglePetTests` 398개 통과, 선택형 로컬 WebP fixture 1개 건너뜀을 확인했다.
 
+### macOS 멀티펫 3단계 런타임 소유권 분리 검증
+
+- 측정일: 2026-08-13
+- `PetInstanceManager`가 선택 instance ID별 context를 생성·재사용하고 선택 변경에서 이전 단일 context를 정리하며, 잘못된 선택 참조에는 창을 만들지 않는지 확인했다.
+- 프로세스 공통 activity snapshot과 reduce motion 상태를 기존 context와 새 context에 전달하고, Coordinator의 기존 잠금·절전·접근성 이동 제한 동작을 유지하는지 검증했다.
+- 런타임 좌표 변경이 전달한 instance ID의 overlay만 저장하고 선택된 다른 인스턴스와 행동 프로필을 바꾸지 않는지 저장·재로드로 확인했다.
+- Debug 빌드 성공, 전체 `MonglePetTests` 404개 통과, 선택형 로컬 WebP fixture 1개 건너뜀을 확인했다. 다중 overlay를 실제로 동시에 만드는 동작은 4단계 검증 범위다.
+
 ## 변경 유형별 최소 검증
 
 ### 후속 단계 필수 검증

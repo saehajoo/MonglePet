@@ -487,6 +487,13 @@ final class AppSettingsSession: ObservableObject {
         replaceOverlay(overlay)
     }
 
+    func setOverlayGeometry(
+        _ overlay: OverlaySettings,
+        for instanceID: UUID
+    ) {
+        update(settings.replacingOverlay(overlay, for: instanceID))
+    }
+
     func setPixelArtRendering(_ isEnabled: Bool) {
         replaceOverlay(
             OverlaySettings(
@@ -508,6 +515,20 @@ final class AppSettingsSession: ObservableObject {
 
     func synchronizeOverlayGeometry(_ overlay: OverlaySettings) {
         let synchronizedSettings = settingsReplacingOverlay(overlay)
+        guard synchronizedSettings != settings else {
+            return
+        }
+        settings = synchronizedSettings
+    }
+
+    func synchronizeOverlayGeometry(
+        _ overlay: OverlaySettings,
+        for instanceID: UUID
+    ) {
+        let synchronizedSettings = settings.replacingOverlay(
+            overlay,
+            for: instanceID
+        )
         guard synchronizedSettings != settings else {
             return
         }
