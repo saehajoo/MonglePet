@@ -19,14 +19,17 @@ public enum AppSettingsError
 }
 
 public sealed record AppSettingsLoadResult(
-    Guid? SelectedPetInstallationId,
+    Guid? SelectedPetInstanceId,
     AppSettingsLoadSource Source,
     IReadOnlyList<string> Issues,
     bool IsWritingEnabled,
     int? PreservedSchemaVersion = null,
     int? MigratedFromSchemaVersion = null,
     AppSettings? Settings = null,
-    IReadOnlyList<SettingsRecoveryIssue>? RecoveryIssues = null);
+    IReadOnlyList<SettingsRecoveryIssue>? RecoveryIssues = null)
+{
+    public Guid? SelectedPetInstallationId => Settings?.SelectedPetInstallationId;
+}
 
 public sealed class AppSettingsException : Exception
 {

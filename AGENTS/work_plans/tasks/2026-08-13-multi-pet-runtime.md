@@ -162,7 +162,7 @@ macOS 9단계를 완료하면 확정 동작, schema-v11·공통 fixture, Windows
 
 ### Windows
 
-- [ ] 10단계: Windows에서 portable Domain·Settings·Packages 테스트와 schema-v11 계약 반영
+- [x] 10단계: Windows에서 portable Domain·Settings·Packages 테스트와 schema-v11 계약 반영
 - [ ] 11단계: Windows `PetInstanceManager`, 다중 Win32/Composition 오버레이와 NavigationView UX 구현
 - [ ] 12단계: 실제 Windows PC에서 다수 펫 Release·혼합 DPI·잠금·절전·설치 업데이트 QA
 
@@ -227,10 +227,12 @@ macOS 9단계를 완료하면 확정 동작, schema-v11·공통 fixture, Windows
 - 2026-08-13: 실제 앱에서 기존 1마리 회귀, 같은 펫 3마리 이상의 독립 설정·동작, 두 모니터 사이 마우스 따라가기·자유 이동·도망가기, 화면 분리·재연결 복귀, 전체 일시정지·재개와 영속 앞뒤 순서를 사용자 확인했다. 남은 9단계 검증은 1시간 메모리 증가와 그 구간의 GPU·프레임 지연 관찰이다.
 - 2026-08-13: 8마리 마우스 따라가기 Release 장시간 workload를 약 5분 동안 일반 작업과 함께 실행해 시각적 끊김이나 기능 이상이 없음을 사용자 확인하고 정상 중단했다. 1시간 측정은 사용자 판단으로 이번 단계의 필수 조건에서 제외하고 공개 배포 전 안정화 QA로 이관했다. 중단 뒤 테스트 앱·측정 프로세스와 임시 프로파일이 남지 않았으며 미완성 TSV는 측정값으로 사용하지 않았다.
 - 2026-08-13: Windows 인계 기준을 확정했다. schema-v11의 인스턴스·독립 프로필·overlay·표시 순서와 v10→v11 공통 fixture를 먼저 portable 계층에 반영하고, 이후 WinUI `NavigationView`, 다중 Win32/Composition overlay, notification area 제어, 사용자 일시정지·비차단 경고와 시작 복구를 Windows 네이티브로 구현한다. 실제 Windows PC에서 혼합 DPI 다중 모니터·잠금/절전·Release 자원·1.1.0 업데이트 복원을 검증하기 전에는 동등으로 표시하지 않는다.
+- 2026-08-13: Windows 앱 마케팅 버전을 `1.1.0`으로 올리고 C# `AppSettings`를 `activePetInstances`, 식별된 독립 `behaviorProfiles`, `selectedPetInstanceID`를 가진 schema-v11 Domain으로 전환했다. v1~v10 순차 이관의 최종 결과를 v11로 연결하고 중복·잘못된 UUID, 누락·공유 프로필, 펫 키 불일치, 잘못된 선택·별명·표시 순서를 항목별로 복구한다.
+- 2026-08-13: Windows Settings 테스트가 공통 v10 입력과 고정 UUID v11 기대 fixture를 정확히 비교하고, 같은 설치 펫 두 인스턴스의 서로 다른 profile·overlay 재로드 독립성, 손상 복구와 알 수 없는 확장 필드 보존을 검증한다. 기존 단일 펫 WinUI·런타임은 선택 인스턴스 호환 view로 유지했으며 다중 HWND·관리 UI·notification area·자원 경고·안전 시작은 시작하지 않았다.
 
 ## 완료 결과
 
-- macOS 기준 구현 완료: 공통 계약 1~2단계와 macOS 3~9단계의 schema-v11, 독립 다중 런타임, 관리 UX, 안전 복원, 전체 단위 회귀, Release CPU·RSS 기준선과 실제 1마리·다중 모니터·약 5분 장시간 스모크를 통과했다. 다음 구현 단계는 Windows 환경에서 수행하는 10단계 portable 계약 반영이다.
+- macOS 기준 구현과 Windows 10단계 portable 계약 반영 완료: 두 플랫폼이 schema-v11과 공통 v10→v11 fixture를 사용한다. 다음 구현 단계는 Windows `PetInstanceManager`, 다중 Win32/Composition overlay와 NavigationView UX를 연결하는 11단계다.
 
 ## 남은 위험 / 후속 작업
 

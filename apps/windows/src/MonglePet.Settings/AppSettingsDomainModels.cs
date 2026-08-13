@@ -11,7 +11,9 @@ public static class AppSettingsLimits
     public const int MaximumSequences = 100;
     public const int MaximumStepsPerSequence = 100;
     public const int MaximumAutomaticRules = 100;
-    public const int MaximumBehaviorProfiles = 1_000;
+    public const int MaximumActivePetInstances = 10_000;
+    public const int MaximumBehaviorProfiles = 10_000;
+    public const int MaximumPetNicknameLength = 80;
     public const int MaximumSpeechPhrases = 100;
     public const int MaximumSpeechTextLength = 120;
     public const long DefaultSpeechDisplayDurationMilliseconds = 3_000;
@@ -269,6 +271,7 @@ public abstract record PetBehaviorKey
 }
 
 public sealed record BehaviorProfile(
+    Guid ProfileId,
     PetBehaviorKey PetKey,
     BehaviorMode Mode,
     string? ManualSequenceId,
@@ -277,6 +280,15 @@ public sealed record BehaviorProfile(
     PetMovementSettings Movement,
     string? PettingMotionId,
     PetSpeechSettings Speech);
+
+public sealed record ActivePetInstance(
+    Guid InstanceId,
+    Guid BehaviorProfileId,
+    PetBehaviorKey PetKey,
+    string? Nickname,
+    PetPresentation Presentation,
+    OverlaySettings Overlay,
+    int DisplayOrder);
 
 public sealed record OverlaySettings(
     string? ScreenIdentifier,
@@ -304,16 +316,139 @@ public sealed record OverlaySettings(
 }
 
 public sealed record AppSettings(
-    Guid? SelectedPetInstallationId,
-    PetPresentation LastUserPresentation,
-    OverlaySettings Overlay,
-    IReadOnlyList<BehaviorProfile> BehaviorProfiles)
+    IReadOnlyList<ActivePetInstance> ActivePetInstances,
+    IReadOnlyList<BehaviorProfile> BehaviorProfiles,
+    Guid SelectedPetInstanceId)
 {
-    public static readonly AppSettings Default = new(
-        null,
-        PetPresentation.Awake,
-        OverlaySettings.Default,
-        []);
+    public static AppSettings Default => CreateDefault();
+
+    public ActivePetInstance? SelectedPetInstance =>
+        ActivePetInstances.FirstOrDefault(instance => instance.InstanceId == SelectedPetInstanceId)
+        ?? ActivePetInstances.FirstOrDefault();
+
+    public BehaviorProfile? SelectedBehaviorProfile => SelectedPetInstance is { } instance
+        ? BehaviorProfiles.FirstOrDefault(profile => profile.ProfileId == instance.BehaviorProfileId)
+        : null;
+
+    // Temporary schema-v10 compatibility view for the existing single-pet WinUI/runtime.
+    public Guid? SelectedPetInstallationId => SelectedPetInstance?.PetKey is PetBehaviorKey.Installed installed
+        ? installed.InstallationId
+        : null;
+
+    public PetPresentation LastUserPresentation =>
+        SelectedPetInstance?.Presentation ?? PetPresentation.Awake;
+
+    public OverlaySettings Overlay => SelectedPetInstance?.Overlay ?? OverlaySettings.Default;
+
+    public static AppSettings CreateDefault(Func<Guid>? idGenerator = null)
+    {
+        idGenerator ??= Guid.NewGuid;
+        Guid instanceId = NextNonEmptyId(idGenerator);
+        BehaviorProfile profile = BehaviorProfileDefaults.Create(
+            PetBehaviorKey.BuiltInKey,
+            NextNonEmptyId(idGenerator));
+        return new AppSettings(
+            [new ActivePetInstance(
+                instanceId,
+                profile.ProfileId,
+                PetBehaviorKey.BuiltInKey,
+                null,
+                PetPresentation.Awake,
+                OverlaySettings.Default,
+                0)],
+            [profile],
+            instanceId);
+    }
+
+    public AppSettings WithSelectedPresentation(PetPresentation presentation) =>
+        WithSelectedInstance(instance => instance with { Presentation = presentation });
+
+    public AppSettings WithSelectedOverlay(OverlaySettings overlay) =>
+        WithSelectedInstance(instance => instance with { Overlay = overlay });
+
+    public AppSettings WithSelectedPetInstallationId(
+        Guid? installationId,
+        Func<Guid>? idGenerator = null)
+    {
+        ActivePetInstance? selected = SelectedPetInstance;
+        if (selected is null)
+        {
+            return this;
+        }
+
+        PetBehaviorKey key = BehaviorProfileDefaults.KeyForInstallation(installationId);
+        if (selected.PetKey == key)
+        {
+            return this;
+        }
+
+        idGenerator ??= Guid.NewGuid;
+        var referencedByOtherInstances = ActivePetInstances
+            .Where(instance => instance.InstanceId != selected.InstanceId)
+            .Select(instance => instance.BehaviorProfileId)
+            .ToHashSet();
+        BehaviorProfile? profile = BehaviorProfiles.FirstOrDefault(candidate =>
+            candidate.PetKey == key && !referencedByOtherInstances.Contains(candidate.ProfileId));
+        IReadOnlyList<BehaviorProfile> profiles = BehaviorProfiles;
+        if (profile is null)
+        {
+            profile = BehaviorProfileDefaults.Create(key, NextNonEmptyId(idGenerator));
+            profiles = [.. BehaviorProfiles, profile];
+        }
+
+        AppSettings updated = WithSelectedInstance(instance => instance with
+        {
+            PetKey = key,
+            BehaviorProfileId = profile.ProfileId,
+        });
+        return updated with { BehaviorProfiles = profiles };
+    }
+
+    public AppSettings WithSelectedBehaviorProfile(BehaviorProfile profile)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        ActivePetInstance? selected = SelectedPetInstance;
+        if (selected is null || selected.BehaviorProfileId != profile.ProfileId || selected.PetKey != profile.PetKey)
+        {
+            throw new ArgumentException("The behavior profile does not belong to the selected pet instance.", nameof(profile));
+        }
+
+        return this with
+        {
+            BehaviorProfiles = BehaviorProfiles
+                .Select(existing => existing.ProfileId == profile.ProfileId ? profile : existing)
+                .ToList(),
+        };
+    }
+
+    private AppSettings WithSelectedInstance(Func<ActivePetInstance, ActivePetInstance> update)
+    {
+        ActivePetInstance? selected = SelectedPetInstance;
+        if (selected is null)
+        {
+            return this;
+        }
+        return this with
+        {
+            ActivePetInstances = ActivePetInstances
+                .Select(instance => instance.InstanceId == selected.InstanceId ? update(instance) : instance)
+                .ToList(),
+            SelectedPetInstanceId = selected.InstanceId,
+        };
+    }
+
+    internal static Guid NextNonEmptyId(Func<Guid> idGenerator)
+    {
+        for (int attempt = 0; attempt < 100; attempt++)
+        {
+            Guid id = idGenerator();
+            if (id != Guid.Empty)
+            {
+                return id;
+            }
+        }
+        throw new InvalidOperationException("A non-empty settings identifier could not be generated.");
+    }
 }
 
 public enum SettingsRecoveryKind

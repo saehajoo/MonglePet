@@ -9,31 +9,76 @@ internal sealed record AppSettingsDocumentMappingResult(
 
 internal static class AppSettingsDocumentMapper
 {
-    public static AppSettingsDocumentMappingResult FromDocument(JsonObject document)
+    public static AppSettingsDocumentMappingResult FromDocument(
+        JsonObject document,
+        Func<Guid>? settingsIdGenerator = null)
     {
+        settingsIdGenerator ??= Guid.NewGuid;
         var issues = new List<SettingsRecoveryIssue>();
-        Guid? selectedId = ReadOptionalGuid(
-            document,
-            "selectedPetInstallationID",
-            "selectedPetInstallationID",
-            issues);
-        PetPresentation presentation = ReadEnum(
-            document,
-            "lastUserPresentation",
-            new Dictionary<string, PetPresentation>(StringComparer.Ordinal)
+        var profileIds = new HashSet<Guid>();
+        var instanceIds = new HashSet<Guid>();
+        Guid NextId(HashSet<Guid> usedIds)
+        {
+            for (int attempt = 0; attempt < 100; attempt++)
             {
-                ["awake"] = PetPresentation.Awake,
-                ["tuckedAway"] = PetPresentation.TuckedAway,
-            },
-            PetPresentation.Awake,
-            "lastUserPresentation",
-            issues);
-        OverlaySettings overlay = ReadOverlay(document["overlay"], issues);
-        IReadOnlyList<BehaviorProfile> profiles = ReadProfiles(
+                Guid id = settingsIdGenerator();
+                if (id != Guid.Empty && usedIds.Add(id))
+                {
+                    return id;
+                }
+            }
+            throw new InvalidOperationException("A unique settings identifier could not be generated.");
+        }
+
+        List<BehaviorProfile> profiles = ReadProfiles(
             document["behaviorProfiles"],
-            issues);
+            issues,
+            profileIds,
+            () => NextId(profileIds));
+        List<ActivePetInstance> instances = ReadActivePetInstances(
+            document["activePetInstances"],
+            profiles,
+            issues,
+            instanceIds,
+            () => NextId(instanceIds),
+            () => NextId(profileIds));
+        if (instances.Count == 0)
+        {
+            if (profiles.Count >= AppSettingsLimits.MaximumBehaviorProfiles)
+            {
+                profiles.RemoveAt(profiles.Count - 1);
+            }
+            BehaviorProfile profile = BehaviorProfileDefaults.Create(
+                PetBehaviorKey.BuiltInKey,
+                NextId(profileIds));
+            profiles.Add(profile);
+            instances.Add(new ActivePetInstance(
+                NextId(instanceIds),
+                profile.ProfileId,
+                profile.PetKey,
+                null,
+                PetPresentation.Awake,
+                OverlaySettings.Default,
+                0));
+            Invalid("activePetInstances", issues);
+        }
+
+        Guid selectedId = ReadOptionalGuid(
+            document,
+            "selectedPetInstanceID",
+            "selectedPetInstanceID",
+            issues) is Guid storedSelected &&
+            instances.Any(instance => instance.InstanceId == storedSelected)
+                ? storedSelected
+                : instances[0].InstanceId;
+        if (document["selectedPetInstanceID"] is not null &&
+            (!TryGuid(document["selectedPetInstanceID"], out Guid candidate) ||
+             !instances.Any(instance => instance.InstanceId == candidate)))
+        {
+            Invalid("selectedPetInstanceID", issues);
+        }
         return new AppSettingsDocumentMappingResult(
-            new AppSettings(selectedId, presentation, overlay, profiles),
+            new AppSettings(instances, profiles, selectedId),
             issues);
     }
 
@@ -42,18 +87,27 @@ internal static class AppSettingsDocumentMapper
         Validate(settings);
         JsonObject document = template?.DeepClone().AsObject() ?? new JsonObject();
         document["schemaVersion"] = AppSettingsStore.CurrentSchemaVersion;
-        document["selectedPetInstallationID"] = settings.SelectedPetInstallationId?.ToString("D");
-        document["lastUserPresentation"] = settings.LastUserPresentation == PetPresentation.Awake
-            ? "awake"
-            : "tuckedAway";
-        document["overlay"] = WriteOverlay(
-            settings.Overlay,
-            template?["overlay"] as JsonObject);
+        document["selectedPetInstanceID"] = settings.SelectedPetInstanceId.ToString("D");
+        document.Remove("selectedPetInstallationID");
+        document.Remove("lastUserPresentation");
+        document.Remove("overlay");
+
+        var instances = new JsonArray();
+        var usedInstanceTemplates = new HashSet<JsonObject>(ReferenceEqualityComparer.Instance);
+        for (int index = 0; index < settings.ActivePetInstances.Count; index++)
+        {
+            ActivePetInstance instance = settings.ActivePetInstances[index];
+            instances.Add(WriteActivePetInstance(
+                instance,
+                FindInstanceTemplate(template, instance, index, usedInstanceTemplates)));
+        }
+        document["activePetInstances"] = instances;
 
         var profiles = new JsonArray();
-        foreach (BehaviorProfile profile in settings.BehaviorProfiles)
+        for (int index = 0; index < settings.BehaviorProfiles.Count; index++)
         {
-            profiles.Add(WriteProfile(profile, FindProfileTemplate(template, profile.PetKey)));
+            BehaviorProfile profile = settings.BehaviorProfiles[index];
+            profiles.Add(WriteProfile(profile, FindProfileTemplate(template, profile, index)));
         }
         document["behaviorProfiles"] = profiles;
         return document;
@@ -61,31 +115,32 @@ internal static class AppSettingsDocumentMapper
 
     private static OverlaySettings ReadOverlay(
         JsonNode? node,
+        string field,
         List<SettingsRecoveryIssue> issues)
     {
         JsonObject? value = node as JsonObject;
         if (node is not null && value is null)
         {
-            Invalid("overlay", issues);
+            Invalid(field, issues);
         }
         value ??= new JsonObject();
         string? screenIdentifier = ReadOptionalIdentifier(
             value,
             "screenIdentifier",
-            "overlay.screenIdentifier",
+            $"{field}.screenIdentifier",
             issues,
             requireUnmodified: false);
         double originX = ReadFinite(
             value,
             "originX",
             OverlaySettings.Default.OriginX,
-            "overlay.originX",
+            $"{field}.originX",
             issues);
         double originY = ReadFinite(
             value,
             "originY",
             OverlaySettings.Default.OriginY,
-            "overlay.originY",
+            $"{field}.originY",
             issues);
         double width = ReadClamped(
             value,
@@ -93,7 +148,7 @@ internal static class AppSettingsDocumentMapper
             AppSettingsLimits.MinimumOverlayWidth,
             AppSettingsLimits.MaximumOverlayWidth,
             AppSettingsLimits.DefaultOverlayWidth,
-            "overlay.width",
+            $"{field}.width",
             issues);
         double opacity = ReadRanged(
             value,
@@ -101,7 +156,7 @@ internal static class AppSettingsDocumentMapper
             AppSettingsLimits.MinimumOverlayOpacity,
             AppSettingsLimits.MaximumOverlayOpacity,
             AppSettingsLimits.DefaultOverlayOpacity,
-            "overlay.opacity",
+            $"{field}.opacity",
             issues);
         double pointerOpacity = ReadRanged(
             value,
@@ -109,33 +164,34 @@ internal static class AppSettingsDocumentMapper
             AppSettingsLimits.MinimumPointerOverlapOpacity,
             AppSettingsLimits.MaximumPointerOverlapOpacity,
             AppSettingsLimits.DefaultPointerOverlapOpacity,
-            "overlay.pointerOverlapOpacity",
+            $"{field}.pointerOverlapOpacity",
             issues);
         return new OverlaySettings(
             screenIdentifier,
             originX,
             originY,
             width,
-            ReadBool(value, "clickThrough", false, "overlay.clickThrough", issues),
+            ReadBool(value, "clickThrough", false, $"{field}.clickThrough", issues),
             opacity,
             ReadBool(
                 value,
                 "pointerOverlapFadeEnabled",
                 false,
-                "overlay.pointerOverlapFadeEnabled",
+                $"{field}.pointerOverlapFadeEnabled",
                 issues),
             pointerOpacity,
             ReadBool(
                 value,
                 "pixelArtRendering",
                 false,
-                "overlay.pixelArtRendering",
+                $"{field}.pixelArtRendering",
                 issues),
-            ReadMovementBoundary(value["movementBoundary"], issues));
+            ReadMovementBoundary(value["movementBoundary"], $"{field}.movementBoundary", issues));
     }
 
     private static MovementBoundarySettings ReadMovementBoundary(
         JsonNode? node,
+        string field,
         List<SettingsRecoveryIssue> issues)
     {
         if (node is null)
@@ -144,7 +200,7 @@ internal static class AppSettingsDocumentMapper
         }
         if (node is not JsonObject value)
         {
-            Invalid("overlay.movementBoundary", issues);
+            Invalid(field, issues);
             return MovementBoundarySettings.Default;
         }
         MovementBoundaryMode? mode = ReadOptionalEnum(
@@ -156,7 +212,7 @@ internal static class AppSettingsDocumentMapper
                 ["selectedDisplay"] = MovementBoundaryMode.SelectedDisplay,
                 ["customArea"] = MovementBoundaryMode.CustomArea,
             },
-            "overlay.movementBoundary.mode",
+            $"{field}.mode",
             issues);
         if (mode is null)
         {
@@ -165,10 +221,10 @@ internal static class AppSettingsDocumentMapper
         string? screen = ReadOptionalIdentifier(
             value,
             "screenIdentifier",
-            "overlay.movementBoundary.screenIdentifier",
+            $"{field}.screenIdentifier",
             issues,
             requireUnmodified: false);
-        NormalizedMovementRect? rect = ReadNormalizedRect(value["normalizedRect"], issues);
+        NormalizedMovementRect? rect = ReadNormalizedRect(value["normalizedRect"], $"{field}.normalizedRect", issues);
         bool valid = mode switch
         {
             MovementBoundaryMode.AllDisplays => true,
@@ -178,7 +234,7 @@ internal static class AppSettingsDocumentMapper
         };
         if (!valid)
         {
-            Invalid("overlay.movementBoundary", issues);
+            Invalid(field, issues);
             return MovementBoundarySettings.Default;
         }
         return new MovementBoundarySettings(mode.Value, screen, rect);
@@ -186,6 +242,7 @@ internal static class AppSettingsDocumentMapper
 
     private static NormalizedMovementRect? ReadNormalizedRect(
         JsonNode? node,
+        string field,
         List<SettingsRecoveryIssue> issues)
     {
         if (node is null)
@@ -198,21 +255,23 @@ internal static class AppSettingsDocumentMapper
             !TryDouble(value["width"], out double width) ||
             !TryDouble(value["height"], out double height))
         {
-            Invalid("overlay.movementBoundary.normalizedRect", issues);
+            Invalid(field, issues);
             return null;
         }
         var rect = new NormalizedMovementRect(x, y, width, height);
         if (!rect.IsValid)
         {
-            Invalid("overlay.movementBoundary.normalizedRect", issues);
+            Invalid(field, issues);
             return null;
         }
         return rect;
     }
 
-    private static IReadOnlyList<BehaviorProfile> ReadProfiles(
+    private static List<BehaviorProfile> ReadProfiles(
         JsonNode? node,
-        List<SettingsRecoveryIssue> issues)
+        List<SettingsRecoveryIssue> issues,
+        HashSet<Guid> usedIds,
+        Func<Guid> nextId)
     {
         if (node is null)
         {
@@ -227,17 +286,27 @@ internal static class AppSettingsDocumentMapper
         {
             Truncated("behaviorProfiles", issues);
         }
-        var seenKeys = new HashSet<PetBehaviorKey>();
         var profiles = new List<BehaviorProfile>();
         for (int index = 0; index < Math.Min(values.Count, AppSettingsLimits.MaximumBehaviorProfiles); index++)
         {
             string field = $"behaviorProfiles.{index}";
             if (values[index] is not JsonObject value ||
-                !TryReadPetKey(value["petKey"], out PetBehaviorKey key) ||
-                !seenKeys.Add(key))
+                !TryReadPetKey(value["petKey"], out PetBehaviorKey key))
             {
                 Invalid($"{field}.petKey", issues);
                 continue;
+            }
+            Guid profileId;
+            if (!TryGuid(value["profileID"], out Guid storedProfileId) ||
+                storedProfileId == Guid.Empty ||
+                !usedIds.Add(storedProfileId))
+            {
+                profileId = nextId();
+                Invalid($"{field}.profileID", issues);
+            }
+            else
+            {
+                profileId = storedProfileId;
             }
             BehaviorMode mode = ReadEnum(
                 value,
@@ -267,6 +336,7 @@ internal static class AppSettingsDocumentMapper
                 manual = null;
             }
             profiles.Add(new BehaviorProfile(
+                profileId,
                 key,
                 mode,
                 manual,
@@ -282,6 +352,168 @@ internal static class AppSettingsDocumentMapper
                 ReadSpeech(value["speech"], sequenceIds, $"{field}.speech", issues)));
         }
         return profiles;
+    }
+
+    private static List<ActivePetInstance> ReadActivePetInstances(
+        JsonNode? node,
+        List<BehaviorProfile> profiles,
+        List<SettingsRecoveryIssue> issues,
+        HashSet<Guid> usedInstanceIds,
+        Func<Guid> nextInstanceId,
+        Func<Guid> nextProfileId)
+    {
+        if (node is not JsonArray values)
+        {
+            if (node is not null)
+            {
+                Invalid("activePetInstances", issues);
+            }
+            return [];
+        }
+        if (values.Count > AppSettingsLimits.MaximumActivePetInstances)
+        {
+            Truncated("activePetInstances", issues);
+        }
+
+        var profileById = profiles.ToDictionary(profile => profile.ProfileId);
+        var claimedProfiles = new HashSet<Guid>();
+        var unordered = new List<(ActivePetInstance Instance, int StoredOrder, int FileIndex)>();
+        for (int index = 0; index < Math.Min(values.Count, AppSettingsLimits.MaximumActivePetInstances); index++)
+        {
+            string field = $"activePetInstances.{index}";
+            if (values[index] is not JsonObject value ||
+                !TryReadPetKey(value["petKey"], out PetBehaviorKey petKey))
+            {
+                Invalid(field, issues);
+                continue;
+            }
+
+            Guid instanceId;
+            if (!TryGuid(value["instanceID"], out Guid storedInstanceId) ||
+                storedInstanceId == Guid.Empty ||
+                !usedInstanceIds.Add(storedInstanceId))
+            {
+                instanceId = nextInstanceId();
+                Invalid($"{field}.instanceID", issues);
+            }
+            else
+            {
+                instanceId = storedInstanceId;
+            }
+
+            BehaviorProfile profile;
+            BehaviorProfile? storedProfile = null;
+            bool hasStoredProfile = TryGuid(value["behaviorProfileID"], out Guid storedProfileId) &&
+                profileById.TryGetValue(storedProfileId, out storedProfile);
+            if (!hasStoredProfile)
+            {
+                if (profiles.Count >= AppSettingsLimits.MaximumBehaviorProfiles)
+                {
+                    Invalid(field, issues);
+                    continue;
+                }
+                profile = BehaviorProfileDefaults.Create(petKey, nextProfileId());
+                profiles.Add(profile);
+                profileById[profile.ProfileId] = profile;
+                Invalid($"{field}.behaviorProfileID", issues);
+            }
+            else if (storedProfile!.PetKey != petKey || claimedProfiles.Contains(storedProfile.ProfileId))
+            {
+                if (profiles.Count >= AppSettingsLimits.MaximumBehaviorProfiles)
+                {
+                    Invalid(field, issues);
+                    continue;
+                }
+                profile = storedProfile with
+                {
+                    ProfileId = nextProfileId(),
+                    PetKey = petKey,
+                };
+                profiles.Add(profile);
+                profileById[profile.ProfileId] = profile;
+                Invalid($"{field}.behaviorProfileID", issues);
+            }
+            else
+            {
+                profile = storedProfile;
+            }
+            claimedProfiles.Add(profile.ProfileId);
+
+            string? nickname = ReadNickname(value["nickname"], $"{field}.nickname", issues);
+            PetPresentation presentation = ReadEnum(
+                value,
+                "presentation",
+                new Dictionary<string, PetPresentation>(StringComparer.Ordinal)
+                {
+                    ["awake"] = PetPresentation.Awake,
+                    ["tuckedAway"] = PetPresentation.TuckedAway,
+                },
+                PetPresentation.Awake,
+                $"{field}.presentation",
+                issues);
+            int storedOrder;
+            if (!TryInt(value["displayOrder"], out storedOrder) || storedOrder < 0)
+            {
+                storedOrder = index;
+                Invalid($"{field}.displayOrder", issues);
+            }
+            unordered.Add((new ActivePetInstance(
+                instanceId,
+                profile.ProfileId,
+                petKey,
+                nickname,
+                presentation,
+                ReadOverlay(value["overlay"], $"{field}.overlay", issues),
+                storedOrder), storedOrder, index));
+        }
+
+        List<(ActivePetInstance Instance, int StoredOrder, int FileIndex)> ordered = unordered
+            .OrderBy(item => item.StoredOrder)
+            .ThenBy(item => item.FileIndex)
+            .ToList();
+        var result = new List<ActivePetInstance>(ordered.Count);
+        for (int index = 0; index < ordered.Count; index++)
+        {
+            if (ordered[index].Instance.DisplayOrder != index)
+            {
+                Invalid($"activePetInstances.{ordered[index].FileIndex}.displayOrder", issues);
+            }
+            result.Add(ordered[index].Instance with { DisplayOrder = index });
+        }
+        return result;
+    }
+
+    private static string? ReadNickname(
+        JsonNode? node,
+        string field,
+        List<SettingsRecoveryIssue> issues)
+    {
+        if (node is null)
+        {
+            return null;
+        }
+        if (!TryString(node, out string value))
+        {
+            Invalid(field, issues);
+            return null;
+        }
+        string trimmed = value.Trim();
+        if (trimmed.Length == 0)
+        {
+            Invalid(field, issues);
+            return null;
+        }
+        int[] elements = System.Globalization.StringInfo.ParseCombiningCharacters(trimmed);
+        if (elements.Length > AppSettingsLimits.MaximumPetNicknameLength)
+        {
+            trimmed = trimmed[..elements[AppSettingsLimits.MaximumPetNicknameLength]];
+            Invalid(field, issues);
+        }
+        else if (!string.Equals(value, trimmed, StringComparison.Ordinal))
+        {
+            Invalid(field, issues);
+        }
+        return trimmed;
     }
 
     private static IReadOnlyList<BehaviorSequence> ReadSequences(
@@ -784,6 +1016,23 @@ internal static class AppSettingsDocumentMapper
             ReadClamped(value, "gap", 0, 64, 8, $"{field}.gap", issues));
     }
 
+    private static JsonObject WriteActivePetInstance(
+        ActivePetInstance value,
+        JsonObject? template)
+    {
+        JsonObject result = template?.DeepClone().AsObject() ?? new JsonObject();
+        result["instanceID"] = value.InstanceId.ToString("D");
+        result["behaviorProfileID"] = value.BehaviorProfileId.ToString("D");
+        result["petKey"] = WritePetKey(value.PetKey, template?["petKey"] as JsonObject);
+        result["nickname"] = value.Nickname;
+        result["presentation"] = value.Presentation == PetPresentation.Awake
+            ? "awake"
+            : "tuckedAway";
+        result["overlay"] = WriteOverlay(value.Overlay, template?["overlay"] as JsonObject);
+        result["displayOrder"] = value.DisplayOrder;
+        return result;
+    }
+
     private static JsonObject WriteOverlay(OverlaySettings value, JsonObject? template)
     {
         JsonObject result = template?.DeepClone().AsObject() ?? new JsonObject();
@@ -824,6 +1073,7 @@ internal static class AppSettingsDocumentMapper
     private static JsonObject WriteProfile(BehaviorProfile value, JsonObject? template)
     {
         JsonObject result = template?.DeepClone().AsObject() ?? new JsonObject();
+        result["profileID"] = value.ProfileId.ToString("D");
         result["petKey"] = WritePetKey(value.PetKey, template?["petKey"] as JsonObject);
         result["mode"] = value.Mode == BehaviorMode.Automatic ? "automatic" : "manual";
         result["manualSequenceID"] = value.ManualSequenceId;
@@ -1052,25 +1302,46 @@ internal static class AppSettingsDocumentMapper
 
     private static void Validate(AppSettings settings)
     {
-        if (settings.LastUserPresentation is not (PetPresentation.Awake or PetPresentation.TuckedAway))
+        if (settings.ActivePetInstances.Count is < 1 or > AppSettingsLimits.MaximumActivePetInstances ||
+            settings.BehaviorProfiles.Count is < 1 or > AppSettingsLimits.MaximumBehaviorProfiles)
         {
-            throw InvalidSettings("lastUserPresentation");
+            throw InvalidSettings("activePetInstances");
         }
-        ValidateOverlay(settings.Overlay);
-        if (settings.BehaviorProfiles.Count > AppSettingsLimits.MaximumBehaviorProfiles)
-        {
-            throw InvalidSettings("behaviorProfiles");
-        }
-        var keys = new HashSet<PetBehaviorKey>();
+        var profileIds = new HashSet<Guid>();
+        var profilesById = new Dictionary<Guid, BehaviorProfile>();
         for (int index = 0; index < settings.BehaviorProfiles.Count; index++)
         {
             BehaviorProfile profile = settings.BehaviorProfiles[index];
             string field = $"behaviorProfiles.{index}";
-            if (!keys.Add(profile.PetKey))
+            if (profile.ProfileId == Guid.Empty || !profileIds.Add(profile.ProfileId))
             {
-                throw InvalidSettings($"{field}.petKey");
+                throw InvalidSettings($"{field}.profileID");
             }
             ValidateProfile(profile, field);
+            profilesById[profile.ProfileId] = profile;
+        }
+
+        var instanceIds = new HashSet<Guid>();
+        var claimedProfileIds = new HashSet<Guid>();
+        for (int index = 0; index < settings.ActivePetInstances.Count; index++)
+        {
+            ActivePetInstance instance = settings.ActivePetInstances[index];
+            string field = $"activePetInstances.{index}";
+            if (instance.InstanceId == Guid.Empty || !instanceIds.Add(instance.InstanceId) ||
+                instance.DisplayOrder != index ||
+                instance.Presentation is not (PetPresentation.Awake or PetPresentation.TuckedAway) ||
+                !ValidNickname(instance.Nickname) ||
+                !profilesById.TryGetValue(instance.BehaviorProfileId, out BehaviorProfile? profile) ||
+                profile.PetKey != instance.PetKey ||
+                !claimedProfileIds.Add(instance.BehaviorProfileId))
+            {
+                throw InvalidSettings(field);
+            }
+            ValidateOverlay(instance.Overlay);
+        }
+        if (!instanceIds.Contains(settings.SelectedPetInstanceId))
+        {
+            throw InvalidSettings("selectedPetInstanceID");
         }
     }
 
@@ -1125,6 +1396,11 @@ internal static class AppSettingsDocumentMapper
         }
         ValidateSpeech(value.Speech, sequenceIds, $"{field}.speech");
     }
+
+    private static bool ValidNickname(string? value) => value is null ||
+        (!string.IsNullOrWhiteSpace(value) &&
+         value.Trim() == value &&
+         AppSettingsLimits.TextLength(value) <= AppSettingsLimits.MaximumPetNicknameLength);
 
     private static void ValidateSpeech(PetSpeechSettings value, ISet<string> sequenceIds, string field)
     {
@@ -1214,14 +1490,64 @@ internal static class AppSettingsDocumentMapper
         _ => false,
     };
 
-    private static JsonObject? FindProfileTemplate(JsonObject? template, PetBehaviorKey key)
+    private static JsonObject? FindInstanceTemplate(
+        JsonObject? template,
+        ActivePetInstance instance,
+        int index,
+        HashSet<JsonObject> usedTemplates)
+    {
+        if (template?["activePetInstances"] is not JsonArray instances)
+        {
+            return null;
+        }
+        JsonObject? exact = instances.OfType<JsonObject>().FirstOrDefault(candidate =>
+            !usedTemplates.Contains(candidate) &&
+            TryGuid(candidate["instanceID"], out Guid id) && id == instance.InstanceId);
+        if (exact is not null)
+        {
+            usedTemplates.Add(exact);
+            return exact;
+        }
+        JsonObject? matchingNickname = instances.OfType<JsonObject>().FirstOrDefault(candidate =>
+            !usedTemplates.Contains(candidate) &&
+            TryReadPetKey(candidate["petKey"], out PetBehaviorKey key) && key == instance.PetKey &&
+            TryString(candidate["nickname"], out string nickname) &&
+            string.Equals(nickname.Trim(), instance.Nickname, StringComparison.Ordinal));
+        JsonObject? invalidId = instances.OfType<JsonObject>().FirstOrDefault(candidate =>
+            !usedTemplates.Contains(candidate) &&
+            !TryGuid(candidate["instanceID"], out _) &&
+            TryReadPetKey(candidate["petKey"], out PetBehaviorKey key) && key == instance.PetKey);
+        JsonObject? matchingKey = instances.OfType<JsonObject>().FirstOrDefault(candidate =>
+            !usedTemplates.Contains(candidate) &&
+            TryReadPetKey(candidate["petKey"], out PetBehaviorKey key) && key == instance.PetKey);
+        JsonObject? fallback = index < instances.Count && instances[index] is JsonObject indexed &&
+            !usedTemplates.Contains(indexed)
+                ? indexed
+                : null;
+        JsonObject? result = matchingNickname ?? invalidId ?? matchingKey ?? fallback;
+        if (result is not null)
+        {
+            usedTemplates.Add(result);
+        }
+        return result;
+    }
+
+    private static JsonObject? FindProfileTemplate(
+        JsonObject? template,
+        BehaviorProfile profile,
+        int index)
     {
         if (template?["behaviorProfiles"] is not JsonArray profiles)
         {
             return null;
         }
-        return profiles.OfType<JsonObject>().FirstOrDefault(profile =>
-            TryReadPetKey(profile["petKey"], out PetBehaviorKey candidate) && candidate == key);
+        JsonObject? exact = profiles.OfType<JsonObject>().FirstOrDefault(candidate =>
+            TryGuid(candidate["profileID"], out Guid id) && id == profile.ProfileId);
+        if (exact is not null)
+        {
+            return exact;
+        }
+        return index < profiles.Count ? profiles[index] as JsonObject : null;
     }
 
     private static JsonObject? FindObjectByStringId(JsonNode? node, string id) =>

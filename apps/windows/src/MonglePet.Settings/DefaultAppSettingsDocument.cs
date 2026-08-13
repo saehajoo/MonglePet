@@ -4,7 +4,14 @@ namespace MonglePet.Settings;
 
 internal static class DefaultAppSettingsDocument
 {
-    public static JsonObject Create() => JsonNode.Parse(
+    public static JsonObject Create(Func<Guid>? settingsIdGenerator = null) =>
+        AppSettingsMigrator.Migrate(
+            CreateV10(),
+            10,
+            legacyMotionCycleMillisecondsResolver: null,
+            settingsIdGenerator).Document;
+
+    internal static JsonObject CreateV10() => JsonNode.Parse(
         """
         {
           "schemaVersion": 10,

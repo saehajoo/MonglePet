@@ -14,7 +14,8 @@ internal static class AppSettingsMigrator
     public static AppSettingsMigrationResult Migrate(
         JsonObject source,
         int sourceSchema,
-        Func<Guid?, string, long?>? legacyMotionCycleMillisecondsResolver)
+        Func<Guid?, string, long?>? legacyMotionCycleMillisecondsResolver,
+        Func<Guid>? settingsIdGenerator = null)
     {
         JsonObject document = source.DeepClone().AsObject();
         var issues = new List<string>();
@@ -48,6 +49,9 @@ internal static class AppSettingsMigrator
                     break;
                 case 9:
                     MigrateV9ToV10(document);
+                    break;
+                case 10:
+                    MigrateV10ToV11(document, settingsIdGenerator ?? Guid.NewGuid);
                     break;
                 default:
                     throw new InvalidOperationException($"Unsupported settings schema: {schema}.");
@@ -265,6 +269,86 @@ internal static class AppSettingsMigrator
         }
 
         document["schemaVersion"] = 10;
+    }
+
+    private static void MigrateV10ToV11(JsonObject document, Func<Guid> idGenerator)
+    {
+        var usedIds = new HashSet<Guid>();
+        Guid NextId()
+        {
+            for (int attempt = 0; attempt < 100; attempt++)
+            {
+                Guid id = idGenerator();
+                if (id != Guid.Empty && usedIds.Add(id))
+                {
+                    return id;
+                }
+            }
+            throw new InvalidOperationException("A unique schema-v11 identifier could not be generated.");
+        }
+
+        // The fixture contract fixes this order: active instance first, then stored profiles.
+        Guid instanceId = NextId();
+        JsonArray profiles = RequiredArray(document, "behaviorProfiles");
+        foreach (JsonObject profile in Objects(profiles, "behaviorProfiles"))
+        {
+            profile["profileID"] = NextId().ToString("D");
+        }
+
+        JsonObject petKey = CreateSelectedPetKey(document["selectedPetInstallationID"]);
+        JsonObject? selectedProfile = Profiles(document).FirstOrDefault(profile =>
+            PetKeysEqual(profile["petKey"], petKey));
+        if (selectedProfile is null)
+        {
+            selectedProfile = DefaultAppSettingsDocument.CreateV10()["behaviorProfiles"]!
+                .AsArray()[0]!.DeepClone().AsObject();
+            selectedProfile["petKey"] = petKey.DeepClone();
+            selectedProfile["profileID"] = NextId().ToString("D");
+            profiles.Add(selectedProfile);
+        }
+
+        string profileId = RequiredString(selectedProfile, "profileID");
+        JsonNode? presentation = document["lastUserPresentation"]?.DeepClone()
+            ?? JsonValue.Create("awake");
+        JsonNode? overlay = document["overlay"]?.DeepClone() ?? new JsonObject();
+        document["activePetInstances"] = new JsonArray(new JsonObject
+        {
+            ["instanceID"] = instanceId.ToString("D"),
+            ["behaviorProfileID"] = profileId,
+            ["petKey"] = petKey,
+            ["nickname"] = null,
+            ["presentation"] = presentation,
+            ["overlay"] = overlay,
+            ["displayOrder"] = 0,
+        });
+        document["selectedPetInstanceID"] = instanceId.ToString("D");
+        document.Remove("selectedPetInstallationID");
+        document.Remove("lastUserPresentation");
+        document.Remove("overlay");
+        document["schemaVersion"] = 11;
+    }
+
+    private static JsonObject CreateSelectedPetKey(JsonNode? selectedInstallationId) =>
+        TryReadGuid(selectedInstallationId) is Guid installationId
+            ? new JsonObject
+            {
+                ["type"] = "installed",
+                ["installationID"] = installationId.ToString("D"),
+            }
+            : new JsonObject { ["type"] = "builtIn" };
+
+    private static bool PetKeysEqual(JsonNode? leftNode, JsonObject right)
+    {
+        if (leftNode is not JsonObject left ||
+            !string.Equals(left["type"]?.GetValue<string>(), right["type"]?.GetValue<string>(), StringComparison.Ordinal))
+        {
+            return false;
+        }
+        if (string.Equals(right["type"]?.GetValue<string>(), "builtIn", StringComparison.Ordinal))
+        {
+            return true;
+        }
+        return TryReadGuid(left["installationID"]) == TryReadGuid(right["installationID"]);
     }
 
     private static JsonObject CreateDefaultSequence() => new()

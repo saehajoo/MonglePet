@@ -1547,14 +1547,14 @@ public sealed partial class MainPage : Page
             return unpackagedVersion is null
                 ? "MonglePet 개발 빌드"
                 : $"MonglePet {unpackagedVersion.Major}.{unpackagedVersion.Minor}." +
-                  $"{unpackagedVersion.Build}.{unpackagedVersion.Revision}";
+                  $"{unpackagedVersion.Build}";
         }
 
         try
         {
             global::Windows.ApplicationModel.PackageVersion version =
                 global::Windows.ApplicationModel.Package.Current.Id.Version;
-            return $"MonglePet {version.Major}.{version.Minor}.{version.Build}.{version.Revision}";
+            return $"MonglePet {version.Major}.{version.Minor}.{version.Build}";
         }
         catch
         {

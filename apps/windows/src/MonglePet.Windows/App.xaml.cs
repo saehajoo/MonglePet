@@ -289,7 +289,7 @@ public partial class App : Application
     public void PreviewOverlaySettings(OverlaySettings settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
-        CurrentSettings = CurrentSettings with { Overlay = settings };
+        CurrentSettings = CurrentSettings.WithSelectedOverlay(settings);
         Overlay?.ApplyDisplaySettings(settings);
         UpdateMovementRuntime();
     }
@@ -298,7 +298,7 @@ public partial class App : Application
     {
         ArgumentNullException.ThrowIfNull(settings);
         EnsureSettingsWritingEnabled();
-        AppSettings next = CurrentSettings with { Overlay = settings };
+        AppSettings next = CurrentSettings.WithSelectedOverlay(settings);
         SettingsStore.Save(next);
         CurrentSettings = next;
         Overlay?.ApplyDisplaySettings(settings);
@@ -316,7 +316,7 @@ public partial class App : Application
     public void SetUserPresentation(PetPresentation presentation)
     {
         EnsureSettingsWritingEnabled();
-        AppSettings next = CurrentSettings with { LastUserPresentation = presentation };
+        AppSettings next = CurrentSettings.WithSelectedPresentation(presentation);
         SettingsStore.Save(next);
         CurrentSettings = next;
         ApplyPresentation(presentation);
@@ -352,7 +352,7 @@ public partial class App : Application
             OriginX = placement.X,
             OriginY = placement.Y,
         };
-        AppSettings next = CurrentSettings with { Overlay = nextOverlay };
+        AppSettings next = CurrentSettings.WithSelectedOverlay(nextOverlay);
         SettingsStore.Save(next);
         CurrentSettings = next;
         _movementRuntime?.InvalidateEnvironment();
@@ -455,18 +455,7 @@ public partial class App : Application
                 "현재 펫과 다른 행동 프로필은 편집할 수 없습니다.");
         }
 
-        var profiles = CurrentSettings.BehaviorProfiles.ToList();
-        int index = profiles.FindIndex(value => value.PetKey == profile.PetKey);
-        if (index >= 0)
-        {
-            profiles[index] = profile;
-        }
-        else
-        {
-            profiles.Add(profile);
-        }
-
-        AppSettings next = CurrentSettings with { BehaviorProfiles = profiles };
+        AppSettings next = CurrentSettings.WithSelectedBehaviorProfile(profile);
         SettingsStore.Save(next);
         CurrentSettings = next;
         _speechRuntime?.Update(profile.Speech);
@@ -489,17 +478,10 @@ public partial class App : Application
         InstalledPetPackage removing = PetLibrary.GetInstallation(installationId);
         bool removesActive = ActiveInstallationId == installationId;
         PetBehaviorKey removedKey = new PetBehaviorKey.Installed(installationId);
-        AppSettings withoutRemovedProfile = CurrentSettings with
-        {
-            BehaviorProfiles = CurrentSettings.BehaviorProfiles
-                .Where(profile => profile.PetKey != removedKey)
-                .ToArray(),
-        };
         PetLibrary.RemoveInstallation(installationId);
 
         if (removesActive)
         {
-            CurrentSettings = withoutRemovedProfile;
             InstalledPetPackage? fallback = PetLibrary.GetInstalledPackages().FirstOrDefault();
             if (fallback is not null)
             {
@@ -509,11 +491,13 @@ public partial class App : Application
             {
                 ActivateBundledSample();
             }
+            CurrentSettings = RemovingUnreferencedProfiles(CurrentSettings, removedKey);
+            SettingsStore.Save(CurrentSettings);
         }
         else
         {
-            SettingsStore.Save(withoutRemovedProfile);
-            CurrentSettings = withoutRemovedProfile;
+            CurrentSettings = RemovingUnreferencedProfiles(CurrentSettings, removedKey);
+            SettingsStore.Save(CurrentSettings);
             SettingsStateChanged?.Invoke(this, EventArgs.Empty);
         }
 
@@ -526,10 +510,7 @@ public partial class App : Application
         {
             AppSettingsLoadResult loadResult = SettingsStore.Load();
             SettingsLoadResult = loadResult;
-            CurrentSettings = loadResult.Settings ?? AppSettings.Default with
-            {
-                SelectedPetInstallationId = loadResult.SelectedPetInstallationId,
-            };
+            CurrentSettings = loadResult.Settings ?? AppSettings.Default;
             SettingsStatusMessage = loadResult.Issues.Count == 0
                 ? null
                 : string.Join(" ", loadResult.Issues);
@@ -553,11 +534,8 @@ public partial class App : Application
             if (SettingsStore.IsWritingEnabled &&
                 ActiveInstallationId != loadResult.SelectedPetInstallationId)
             {
-                SettingsStore.SaveSelectedPetInstallationId(ActiveInstallationId);
-                CurrentSettings = CurrentSettings with
-                {
-                    SelectedPetInstallationId = ActiveInstallationId,
-                };
+                CurrentSettings = CurrentSettings.WithSelectedPetInstallationId(ActiveInstallationId);
+                SettingsStore.Save(CurrentSettings);
                 SettingsStatusMessage = loadResult.SelectedPetInstallationId is Guid missing
                     ? $"저장된 설치 {missing:D}을 찾지 못해 사용 가능한 펫으로 복구했습니다."
                     : SettingsStatusMessage;
@@ -577,7 +555,7 @@ public partial class App : Application
             CurrentSettings.Overlay);
         if (positionedOverlay != CurrentSettings.Overlay)
         {
-            CurrentSettings = CurrentSettings with { Overlay = positionedOverlay };
+            CurrentSettings = CurrentSettings.WithSelectedOverlay(positionedOverlay);
             if (SettingsStore.IsWritingEnabled)
             {
                 SettingsStore.Save(CurrentSettings);
@@ -602,15 +580,10 @@ public partial class App : Application
 
     private void SwitchOverlay(LoadedPetPackage package, Guid? installationId)
     {
-        AppSettings nextSettings = CurrentSettings with
-        {
-            SelectedPetInstallationId = installationId,
-        };
+        AppSettings nextSettings = CurrentSettings.WithSelectedPetInstallationId(installationId);
         var nextOverlay = new Overlay.PetOverlayWindow(package, nextSettings.Overlay);
-        nextSettings = nextSettings with
-        {
-            Overlay = RestoreSavedOverlayPosition(nextOverlay, nextSettings.Overlay),
-        };
+        nextSettings = nextSettings.WithSelectedOverlay(
+            RestoreSavedOverlayPosition(nextOverlay, nextSettings.Overlay));
         PetBehaviorRuntime? nextRuntime = null;
         PetSpeechRuntime? nextSpeechRuntime = null;
         PetMovementRuntime? nextMovementRuntime = null;
@@ -837,8 +810,25 @@ public partial class App : Application
         Guid? installationId)
     {
         PetBehaviorKey key = BehaviorProfileDefaults.KeyForInstallation(installationId);
-        return settings.BehaviorProfiles.FirstOrDefault(profile => profile.PetKey == key)
+        return settings.SelectedBehaviorProfile is { } selected && selected.PetKey == key
+            ? selected
+            : settings.BehaviorProfiles.FirstOrDefault(profile => profile.PetKey == key)
             ?? BehaviorProfileDefaults.Create(key);
+    }
+
+    private static AppSettings RemovingUnreferencedProfiles(
+        AppSettings settings,
+        PetBehaviorKey petKey)
+    {
+        var referencedProfileIds = settings.ActivePetInstances
+            .Select(instance => instance.BehaviorProfileId)
+            .ToHashSet();
+        return settings with
+        {
+            BehaviorProfiles = settings.BehaviorProfiles
+                .Where(profile => profile.PetKey != petKey || referencedProfileIds.Contains(profile.ProfileId))
+                .ToList(),
+        };
     }
 
     private void BehaviorRuntime_StateChanged(object? sender, EventArgs e)
@@ -934,7 +924,7 @@ public partial class App : Application
                 OriginX = placement.X,
                 OriginY = placement.Y,
             };
-            AppSettings next = CurrentSettings with { Overlay = nextOverlay };
+            AppSettings next = CurrentSettings.WithSelectedOverlay(nextOverlay);
             SettingsStore.Save(next);
             CurrentSettings = next;
             SettingsStateChanged?.Invoke(this, EventArgs.Empty);
@@ -980,7 +970,7 @@ public partial class App : Application
             {
                 return;
             }
-            AppSettings next = CurrentSettings with { Overlay = nextOverlay };
+            AppSettings next = CurrentSettings.WithSelectedOverlay(nextOverlay);
             SettingsStore.Save(next);
             CurrentSettings = next;
             SettingsStateChanged?.Invoke(this, EventArgs.Empty);

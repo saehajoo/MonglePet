@@ -27,6 +27,10 @@ public static class RecommendedPetProfileCodec
     public const int MaximumFileSize = 1 * 1024 * 1024;
     private static readonly Guid PlaceholderInstallationId =
         Guid.Parse("00000000-0000-0000-0000-000000000001");
+    private static readonly Guid PlaceholderInstanceId =
+        Guid.Parse("00000000-0000-0000-0000-000000000002");
+    private static readonly Guid PlaceholderProfileId =
+        Guid.Parse("00000000-0000-0000-0000-000000000003");
 
     public static BehaviorProfile Decode(
         ReadOnlySpan<byte> data,
@@ -120,7 +124,17 @@ public static class RecommendedPetProfileCodec
                     .ToList(),
         };
         JsonObject full = AppSettingsDocumentMapper.ToDocument(
-            new AppSettings(null, PetPresentation.Awake, OverlaySettings.Default, [exportProfile]),
+            new AppSettings(
+                [new ActivePetInstance(
+                    PlaceholderInstanceId,
+                    exportProfile.ProfileId,
+                    exportProfile.PetKey,
+                    null,
+                    PetPresentation.Awake,
+                    OverlaySettings.Default,
+                    0)],
+                [exportProfile],
+                PlaceholderInstanceId),
             null);
         JsonObject stored = full["behaviorProfiles"]!.AsArray()[0]!.AsObject();
         var behavior = new JsonObject
@@ -148,14 +162,26 @@ public static class RecommendedPetProfileCodec
         return data;
     }
 
-    private static JsonObject Wrapper(JsonObject profile) => new()
+    private static JsonObject Wrapper(JsonObject profile)
     {
-        ["schemaVersion"] = AppSettingsStore.CurrentSchemaVersion,
-        ["selectedPetInstallationID"] = null,
-        ["lastUserPresentation"] = "awake",
-        ["overlay"] = new JsonObject(),
-        ["behaviorProfiles"] = new JsonArray(profile),
-    };
+        profile["profileID"] = PlaceholderProfileId.ToString("D");
+        return new JsonObject
+        {
+            ["schemaVersion"] = AppSettingsStore.CurrentSchemaVersion,
+            ["selectedPetInstanceID"] = PlaceholderInstanceId.ToString("D"),
+            ["activePetInstances"] = new JsonArray(new JsonObject
+            {
+                ["instanceID"] = PlaceholderInstanceId.ToString("D"),
+                ["behaviorProfileID"] = PlaceholderProfileId.ToString("D"),
+                ["petKey"] = profile["petKey"]!.DeepClone(),
+                ["nickname"] = null,
+                ["presentation"] = "awake",
+                ["overlay"] = new JsonObject(),
+                ["displayOrder"] = 0,
+            }),
+            ["behaviorProfiles"] = new JsonArray(profile),
+        };
+    }
 
     private static void NormalizeLegacyProfile(JsonObject source, int schemaVersion)
     {

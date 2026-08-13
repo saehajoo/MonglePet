@@ -803,6 +803,16 @@ UI 테스트는 앱 실행과 접근성 자동화가 가능한 macOS 세션에�
 - 8마리 마우스 따라가기 Release workload를 일반 작업과 함께 약 5분 실행해 시각적 끊김과 기능 이상이 없음을 확인한 뒤 정상 중단했다. 중단된 TSV에는 완결된 측정값이 없으므로 결과로 사용하지 않았다.
 - 1시간 메모리 증가와 Instruments GPU·프레임 지연은 사용자 판단에 따라 macOS 9단계 필수 조건에서 제외하고 공개 배포 전 안정화 QA로 이관했다.
 
+### Windows 멀티펫 10단계 schema-v11 portable 계약 검증
+
+- 측정일: 2026-08-13
+- Windows 마케팅 버전 `1.1.0`, MSIX·파일 버전 `1.1.0.13`과 새 `.monglepet`의 제작 앱·최소 필요 앱 버전 `1.1.0`을 적용했다.
+- schema-v11·마이그레이션 대상 Settings 테스트 13개와 Settings 전체 63개가 통과했다. 공통 `schema-v10-single-pet.json`이 고정 UUID의 `schema-v11-single-instance.expected.json`과 정확히 같은 결과로 이관됨을 확인했다.
+- 같은 설치 펫 두 인스턴스가 별도 instance/profile ID와 profile·overlay를 저장하고 재로드한 뒤에도 독립적이며, 선택 인스턴스 호환 view로 수정해도 다른 인스턴스가 바뀌지 않음을 확인했다.
+- 중복·잘못된 instance/profile UUID, 누락·공유 프로필, 펫 키 불일치, 잘못된 선택 참조·별명·display order를 항목별로 복구하고 살아남은 인스턴스·프로필의 알 수 없는 확장 필드를 저장 뒤에도 보존하는지 확인했다.
+- x64 Debug·Release 전체 솔루션 빌드가 오류 없이 통과했고 Activity 27개, Core 38개, Packages 18개, PetLibrary 18개, Settings 63개, Shell 12개로 각 구성 176개 테스트가 모두 통과했다. NuGet 취약성 피드 조회 실패에 따른 `NU1900` 경고 2건은 두 빌드에 남았다.
+- 11단계 범위인 다중 Win32 HWND, `PetInstanceManager`, NavigationView 활성 펫 UI, notification area 멀티펫 메뉴, 자원 경고와 안전 시작 UI는 구현하지 않았다.
+
 ## 변경 유형별 최소 검증
 
 ### 후속 단계 필수 검증

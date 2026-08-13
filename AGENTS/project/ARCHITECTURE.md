@@ -65,7 +65,7 @@ MonglePet/
 - unpackaged 배포는 .NET과 Windows App SDK를 포함한 x64 self-contained 다중 파일 publish를 `%LOCALAPPDATA%\Programs\MonglePet`에 설치한다. Inno Setup AppId와 데이터 경로는 버전 사이에 고정하며 제거는 설치 파일·바로가기·일치하는 자동 실행 값만 지우고 사용자 데이터를 보존한다.
 - Windows `PetPackageImporter`는 설치 전 원본 전체 SHA-256과 패키지·권장 프로필 검토 결과를 만들고 설치 직전에 다시 검토해 변경된 원본을 거부한다. 일반 가져오기 staging에서는 `monglepet-editor.json`을 제거한다.
 - Windows `PetPackageExporter`는 설치 폴더를 직접 압축하지 않고 현재 manifest와 참조 미리보기·atlas, 선택한 schema-v7 권장 프로필만 임시 payload에 구성한다. loader 재검증과 안전한 archive extractor 왕복 뒤 목적지와 같은 디렉터리의 임시 파일을 원자적으로 교체한다.
-- Windows `AppSettingsStore`는 schema-v1부터 v9까지 순차 구조 변환한 결과, schema-v10 전체 Domain 설정과 선택 UUID 변경을 같은 볼륨 임시 파일의 flush 뒤 overwrite rename으로 교체한다. 구조 보존 JSON mapper는 overlay, 행동 프로필·루틴·규칙, 이동·방향 모션, 쓰다듬기와 말풍선 정책·대사·테마·배치를 항목 단위로 복구하고 살아남은 항목의 알 수 없는 확장 필드를 유지한다. Domain 전체 저장은 자동 복구하지 않고 범위·컬렉션·참조·대비를 검증해 잘못된 상태를 거부한다. v1은 선택 펫 manifest에서 모션 주기를 해석하며 필요한 펫 정의를 얻지 못하면 원본과 쓰기 차단 상태를 유지한다. 손상·초과 크기 파일은 격리하고 미래 schema는 원본 보호를 위해 쓰기를 차단한다.
+- Windows `AppSettingsStore`는 schema-v1부터 v10까지 순차 구조 변환한 schema-v11 전체 Domain 설정을 같은 볼륨 임시 파일의 flush 뒤 overwrite rename으로 교체한다. 구조 보존 JSON mapper는 활성 인스턴스·독립 프로필·선택 참조와 overlay, 행동 프로필·루틴·규칙, 이동·방향 모션, 쓰다듬기와 말풍선 정책·대사·테마·배치를 항목 단위로 복구하고 살아남은 항목의 알 수 없는 확장 필드를 유지한다. Domain 전체 저장은 자동 복구하지 않고 UUID·프로필 소유권·표시 순서·범위·컬렉션·참조·대비를 검증해 잘못된 상태를 거부한다. v1은 선택 펫 manifest에서 모션 주기를 해석하며 필요한 펫 정의를 얻지 못하면 원본과 쓰기 차단 상태를 유지한다. 손상·초과 크기 파일은 격리하고 미래 schema는 원본 보호를 위해 쓰기를 차단한다.
 - WPF layered window는 구현 기준이 아니라 초기 성능 비교 또는 Composition 방식의 치명적인 호환성 문제가 확인된 경우의 대안으로만 검토한다.
 - C++/WinRT는 프로파일링으로 확인한 렌더링·디코딩·메모리 복사 병목이 C#과 Composition 최적화 후에도 성능 기준을 넘는 경우에만 독립 네이티브 모듈로 검토한다.
 
@@ -208,7 +208,7 @@ MonglePetApp
 
 ### Settings
 
-- `AppSettings` Domain 모델과 현재 schema-v10 `StoredAppSettingsV10`, 마이그레이션 전용 schema-v1부터 v9 DTO를 분리한다.
+- `AppSettings` Domain 모델과 현재 schema-v11 저장 DTO, 마이그레이션 전용 schema-v1부터 v10 DTO를 분리한다. Windows의 기존 단일 펫 WinUI·런타임은 11단계 전까지 선택 인스턴스 호환 view를 통해서만 표시 상태·overlay·프로필을 읽고 쓴다.
 - 앱 자동 규칙 선택 adapter는 `NSWorkspace.runningApplications`의 일반 앱과 사용자가 표준 파일 선택창에서 고른 `.app`만 검사한다. 이름·아이콘·파일 경로는 선택 UI에서만 사용하고 설정에는 기존 bundle identifier만 저장한다.
 - `AppSettingsV4Mapper`가 로컬 이동 범위와 표시 환경을 검증하고, `AppSettingsV5Mapper`가 기존 두 모드의 공통·방향별 이동 애니메이션 참조를 검증하며, `AppSettingsV6Mapper`가 마우스 도망가기 설정과 세 번째 이동 애니메이션을 항목 단위로 검증·복구한다.
 - `AppSettingsV7Mapper`는 펫별 말풍선 사용 여부, 주기, 대사와 행동 루틴 참조를 검증하고 잘못된 대사만 항목 단위로 제외한다.

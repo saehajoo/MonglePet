@@ -23,4 +23,12 @@
           Link="Fixtures\settings-v1-migration.json"
           CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\..\..\shared\Fixtures\Settings\schema-v10-single-pet.json"
+          Link="Fixtures\schema-v10-single-pet.json"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\..\..\shared\Fixtures\Settings\schema-v11-single-instance.expected.json"
+          Link="Fixtures\schema-v11-single-instance.expected.json"
+          CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

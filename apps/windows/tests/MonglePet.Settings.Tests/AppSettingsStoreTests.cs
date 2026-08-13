@@ -17,7 +17,7 @@ public sealed class AppSettingsStoreTests
     }
 
     [Fact]
-    public void MissingFileUsesDefaultsThenWritesCompleteSchemaV10Document()
+    public void MissingFileUsesDefaultsThenWritesCompleteSchemaV11Document()
     {
         using var workspace = new TemporaryDirectory();
         Guid selectedId = Guid.Parse("10000000-0000-0000-0000-000000000001");
@@ -31,9 +31,9 @@ public sealed class AppSettingsStoreTests
         Assert.Equal(AppSettingsLoadSource.Defaults, initial.Source);
         Assert.Null(initial.SelectedPetInstallationId);
         Assert.Equal(selectedId, reloaded.SelectedPetInstallationId);
-        Assert.Equal(10, document["schemaVersion"]!.GetValue<int>());
-        Assert.Equal("awake", document["lastUserPresentation"]!.GetValue<string>());
-        Assert.NotNull(document["overlay"]?["movementBoundary"]);
+        Assert.Equal(11, document["schemaVersion"]!.GetValue<int>());
+        Assert.Equal("awake", document["activePetInstances"]?[0]?["presentation"]!.GetValue<string>());
+        Assert.NotNull(document["activePetInstances"]?[0]?["overlay"]?["movementBoundary"]);
         Assert.NotNull(document["behaviorProfiles"]?[0]?["movement"]);
         Assert.Empty(Directory.EnumerateFiles(workspace.Path, ".settings-*.tmp"));
     }
@@ -44,17 +44,15 @@ public sealed class AppSettingsStoreTests
         using var workspace = new TemporaryDirectory();
         var store = workspace.CreateStore();
         AppSettings settings = store.Load().Settings!;
-        AppSettings updated = settings with
-        {
-            LastUserPresentation = PetPresentation.TuckedAway,
-            Overlay = settings.Overlay with
+        AppSettings updated = settings
+            .WithSelectedPresentation(PetPresentation.TuckedAway)
+            .WithSelectedOverlay(settings.Overlay with
             {
                 Width = 304,
                 ClickThrough = true,
                 Opacity = 0.65,
                 PixelArtRendering = true,
-            },
-        };
+            });
 
         store.Save(updated);
         AppSettings reloaded = workspace.CreateStore().Load().Settings!;
@@ -65,6 +63,187 @@ public sealed class AppSettingsStoreTests
         Assert.Equal(0.65, reloaded.Overlay.Opacity);
         Assert.True(reloaded.Overlay.PixelArtRendering);
         Assert.Empty(Directory.EnumerateFiles(workspace.Path, ".settings-*.tmp"));
+    }
+
+    [Fact]
+    public void SharedSchemaV10FixtureMigratesExactlyToSharedSchemaV11Fixture()
+    {
+        using var workspace = new TemporaryDirectory();
+        File.Copy(
+            Path.Combine(AppContext.BaseDirectory, "Fixtures", "schema-v10-single-pet.json"),
+            workspace.SettingsPath);
+        Guid[] generatedIds =
+        [
+            Guid.Parse("22222222-2222-2222-2222-222222222222"),
+            Guid.Parse("33333333-3333-3333-3333-333333333333"),
+        ];
+        int index = 0;
+
+        AppSettingsLoadResult loaded = workspace.CreateStore(
+            settingsIdGenerator: () => generatedIds[index++]).Load();
+        JsonNode actual = JsonNode.Parse(File.ReadAllText(workspace.SettingsPath))!;
+        JsonNode expected = JsonNode.Parse(File.ReadAllText(Path.Combine(
+            AppContext.BaseDirectory,
+            "Fixtures",
+            "schema-v11-single-instance.expected.json")))!;
+
+        Assert.Equal(AppSettingsLoadSource.Migrated, loaded.Source);
+        Assert.Equal(10, loaded.MigratedFromSchemaVersion);
+        Assert.True(JsonNode.DeepEquals(expected, actual));
+        ActivePetInstance instance = Assert.Single(loaded.Settings!.ActivePetInstances);
+        Assert.Equal(generatedIds[0], instance.InstanceId);
+        Assert.Equal(generatedIds[1], instance.BehaviorProfileId);
+    }
+
+    [Fact]
+    public void SamePetInstancesKeepIndependentProfilesAndOverlaysAfterReload()
+    {
+        using var workspace = new TemporaryDirectory();
+        PetBehaviorKey key = new PetBehaviorKey.Installed(
+            Guid.Parse("12121212-1212-1212-1212-121212121212"));
+        Guid firstProfileId = Guid.Parse("13131313-1313-1313-1313-131313131313");
+        Guid secondProfileId = Guid.Parse("14141414-1414-1414-1414-141414141414");
+        Guid firstInstanceId = Guid.Parse("15151515-1515-1515-1515-151515151515");
+        Guid secondInstanceId = Guid.Parse("16161616-1616-1616-1616-161616161616");
+        BehaviorProfile firstProfile = BehaviorProfileDefaults.Create(key, firstProfileId) with
+        {
+            Movement = PetMovementSettings.Default with { Speed = 120 },
+        };
+        BehaviorProfile secondProfile = BehaviorProfileDefaults.Create(key, secondProfileId) with
+        {
+            Movement = PetMovementSettings.Default with { Speed = 360 },
+        };
+        AppSettings settings = new(
+            [
+                new ActivePetInstance(
+                    firstInstanceId,
+                    firstProfileId,
+                    key,
+                    "왼쪽 몽글이",
+                    PetPresentation.Awake,
+                    OverlaySettings.Default with { OriginX = 100, Width = 180 },
+                    0),
+                new ActivePetInstance(
+                    secondInstanceId,
+                    secondProfileId,
+                    key,
+                    "오른쪽 몽글이",
+                    PetPresentation.TuckedAway,
+                    OverlaySettings.Default with { OriginX = 900, Width = 300 },
+                    1),
+            ],
+            [firstProfile, secondProfile],
+            secondInstanceId);
+        settings = settings.WithSelectedOverlay(settings.Overlay with { OriginX = 950 });
+        settings = settings.WithSelectedBehaviorProfile(
+            settings.SelectedBehaviorProfile! with
+            {
+                Movement = settings.SelectedBehaviorProfile!.Movement with { Speed = 400 },
+            });
+        var store = workspace.CreateStore();
+        store.Load();
+
+        store.Save(settings);
+        AppSettings reloaded = workspace.CreateStore().Load().Settings!;
+
+        Assert.Equal(secondInstanceId, reloaded.SelectedPetInstanceId);
+        Assert.Equal(2, reloaded.ActivePetInstances.Count);
+        Assert.Equal([100d, 950d], reloaded.ActivePetInstances.Select(instance => instance.Overlay.OriginX));
+        Assert.Equal([180d, 300d], reloaded.ActivePetInstances.Select(instance => instance.Overlay.Width));
+        Assert.Equal([120d, 400d], reloaded.ActivePetInstances.Select(instance =>
+            reloaded.BehaviorProfiles.Single(profile => profile.ProfileId == instance.BehaviorProfileId).Movement.Speed));
+        Assert.NotEqual(
+            reloaded.ActivePetInstances[0].BehaviorProfileId,
+            reloaded.ActivePetInstances[1].BehaviorProfileId);
+    }
+
+    [Fact]
+    public void SchemaV11RepairsIdentifiersReferencesAndOrderPerItem()
+    {
+        using var workspace = new TemporaryDirectory();
+        JsonObject source = CreateSchemaV11Document();
+        JsonObject first = source["activePetInstances"]![0]!.AsObject();
+        first["displayOrder"] = 4;
+        first["extension"] = "keep-first";
+        JsonObject duplicate = first.DeepClone().AsObject();
+        duplicate["nickname"] = " second ";
+        duplicate["displayOrder"] = 1;
+        duplicate["extension"] = "keep-second";
+        source["activePetInstances"]!.AsArray().Add(duplicate);
+        JsonObject missing = first.DeepClone().AsObject();
+        missing["instanceID"] = "not-a-uuid";
+        missing["behaviorProfileID"] = "ffffffff-ffff-ffff-ffff-ffffffffffff";
+        missing["displayOrder"] = -1;
+        missing["extension"] = "keep-third";
+        source["activePetInstances"]!.AsArray().Add(missing);
+        source["selectedPetInstanceID"] = "ffffffff-ffff-ffff-ffff-ffffffffffff";
+        var ids = new Queue<Guid>(
+        [
+            Guid.Parse("17171717-1717-1717-1717-171717171717"),
+            Guid.Parse("18181818-1818-1818-1818-181818181818"),
+            Guid.Parse("19191919-1919-1919-1919-191919191919"),
+            Guid.Parse("20202020-2020-2020-2020-202020202020"),
+        ]);
+        File.WriteAllText(workspace.SettingsPath, source.ToJsonString());
+        var store = workspace.CreateStore(settingsIdGenerator: ids.Dequeue);
+
+        AppSettingsLoadResult loaded = store.Load();
+        AppSettings repaired = loaded.Settings!;
+
+        Assert.Equal(AppSettingsLoadSource.Recovered, loaded.Source);
+        Assert.Equal(3, repaired.ActivePetInstances.Count);
+        Assert.Equal([0, 1, 2], repaired.ActivePetInstances.Select(instance => instance.DisplayOrder));
+        Assert.Equal(3, repaired.ActivePetInstances.Select(instance => instance.InstanceId).Distinct().Count());
+        Assert.Equal(3, repaired.ActivePetInstances.Select(instance => instance.BehaviorProfileId).Distinct().Count());
+        Assert.Equal(repaired.ActivePetInstances[0].InstanceId, repaired.SelectedPetInstanceId);
+        Assert.Equal("second", repaired.ActivePetInstances[0].Nickname);
+        Assert.All(repaired.ActivePetInstances, instance => Assert.Equal(
+            instance.PetKey,
+            repaired.BehaviorProfiles.Single(profile => profile.ProfileId == instance.BehaviorProfileId).PetKey));
+
+        store.Save(repaired);
+        JsonArray savedInstances = ReadDocument(workspace.SettingsPath)["activePetInstances"]!.AsArray();
+        Assert.Contains(savedInstances, node => node?["extension"]?.GetValue<string>() == "keep-first");
+        Assert.Contains(savedInstances, node => node?["extension"]?.GetValue<string>() == "keep-second");
+        Assert.Contains(savedInstances, node => node?["extension"]?.GetValue<string>() == "keep-third");
+    }
+
+    [Fact]
+    public void SchemaV11RepairsDuplicateAndInvalidProfileIdsAndPetOwnership()
+    {
+        using var workspace = new TemporaryDirectory();
+        JsonObject source = CreateSchemaV11Document();
+        JsonObject originalProfile = source["behaviorProfiles"]![0]!.AsObject();
+        originalProfile["extension"] = "original";
+        JsonObject duplicateProfile = originalProfile.DeepClone().AsObject();
+        duplicateProfile["extension"] = "duplicate";
+        source["behaviorProfiles"]!.AsArray().Add(duplicateProfile);
+        JsonObject invalidProfile = originalProfile.DeepClone().AsObject();
+        invalidProfile["profileID"] = "not-a-uuid";
+        invalidProfile["extension"] = "invalid";
+        source["behaviorProfiles"]!.AsArray().Add(invalidProfile);
+        JsonObject instance = source["activePetInstances"]![0]!.AsObject();
+        instance["petKey"] = new JsonObject
+        {
+            ["type"] = "installed",
+            ["installationID"] = "21212121-2121-2121-2121-212121212121",
+        };
+        File.WriteAllText(workspace.SettingsPath, source.ToJsonString());
+        var store = workspace.CreateStore();
+
+        AppSettingsLoadResult loaded = store.Load();
+        AppSettings repaired = loaded.Settings!;
+
+        Assert.Equal(AppSettingsLoadSource.Recovered, loaded.Source);
+        Assert.Equal(4, repaired.BehaviorProfiles.Count);
+        Assert.Equal(4, repaired.BehaviorProfiles.Select(profile => profile.ProfileId).Distinct().Count());
+        Assert.Equal(repaired.SelectedPetInstance!.PetKey, repaired.SelectedBehaviorProfile!.PetKey);
+
+        store.Save(repaired);
+        JsonArray savedProfiles = ReadDocument(workspace.SettingsPath)["behaviorProfiles"]!.AsArray();
+        Assert.Contains(savedProfiles, node => node?["extension"]?.GetValue<string>() == "original");
+        Assert.Contains(savedProfiles, node => node?["extension"]?.GetValue<string>() == "duplicate");
+        Assert.Contains(savedProfiles, node => node?["extension"]?.GetValue<string>() == "invalid");
     }
 
     [Fact]
@@ -88,7 +267,7 @@ public sealed class AppSettingsStoreTests
     }
 
     [Fact]
-    public void UpdatingSelectionPreservesUnusedSchemaV10Fields()
+    public void UpdatingSelectionMigratesV10AndPreservesUnknownFields()
     {
         using var workspace = new TemporaryDirectory();
         Guid selectedId = Guid.Parse("20000000-0000-0000-0000-000000000001");
@@ -110,10 +289,11 @@ public sealed class AppSettingsStoreTests
         store.SaveSelectedPetInstallationId(selectedId);
         JsonObject saved = ReadDocument(workspace.SettingsPath);
 
-        Assert.Equal(selectedId.ToString("D"), saved["selectedPetInstallationID"]!.GetValue<string>());
-        Assert.Equal("tuckedAway", saved["lastUserPresentation"]!.GetValue<string>());
-        Assert.Equal(321, saved["overlay"]?["width"]?.GetValue<int>());
-        Assert.Equal("keep", saved["overlay"]?["windowsOnlyMarker"]?.GetValue<string>());
+        JsonObject instance = saved["activePetInstances"]![0]!.AsObject();
+        Assert.Equal(selectedId.ToString("D"), instance["petKey"]?["installationID"]!.GetValue<string>());
+        Assert.Equal("tuckedAway", instance["presentation"]!.GetValue<string>());
+        Assert.Equal(321, instance["overlay"]?["width"]?.GetValue<int>());
+        Assert.Equal("keep", instance["overlay"]?["windowsOnlyMarker"]?.GetValue<string>());
         Assert.True(saved["unrecognizedCurrentField"]?["nested"]?.GetValue<bool>());
     }
 
@@ -121,17 +301,10 @@ public sealed class AppSettingsStoreTests
     public void InvalidSelectedUuidRecoversOnlyThatField()
     {
         using var workspace = new TemporaryDirectory();
-        File.WriteAllText(
-            workspace.SettingsPath,
-            """
-            {
-              "schemaVersion": 10,
-              "selectedPetInstallationID": "not-a-uuid",
-              "lastUserPresentation": "awake",
-              "overlay": { "width": 222 },
-              "behaviorProfiles": []
-            }
-            """);
+        JsonObject source = CreateSchemaV11Document();
+        source["selectedPetInstanceID"] = "not-a-uuid";
+        source["activePetInstances"]![0]!["overlay"]!["width"] = 222;
+        File.WriteAllText(workspace.SettingsPath, source.ToJsonString());
         var store = workspace.CreateStore();
 
         AppSettingsLoadResult loaded = store.Load();
@@ -140,9 +313,11 @@ public sealed class AppSettingsStoreTests
 
         Assert.Equal(AppSettingsLoadSource.Recovered, loaded.Source);
         Assert.Null(loaded.SelectedPetInstallationId);
-        Assert.Single(loaded.Issues);
-        Assert.Equal(222, saved["overlay"]?["width"]?.GetValue<int>());
-        Assert.Null(saved["selectedPetInstallationID"]);
+        Assert.NotEmpty(loaded.Issues);
+        Assert.Equal(222, saved["activePetInstances"]?[0]?["overlay"]?["width"]?.GetValue<int>());
+        Assert.Equal(
+            saved["activePetInstances"]?[0]?["instanceID"]?.GetValue<string>(),
+            saved["selectedPetInstanceID"]?.GetValue<string>());
     }
 
     [Fact]
@@ -191,7 +366,7 @@ public sealed class AppSettingsStoreTests
     {
         using var workspace = new TemporaryDirectory();
         byte[] original = Encoding.UTF8.GetBytes(
-            "{\"schemaVersion\":11,\"futureValue\":true}");
+            "{\"schemaVersion\":12,\"futureValue\":true}");
         File.WriteAllBytes(workspace.SettingsPath, original);
         var store = workspace.CreateStore();
 
@@ -200,14 +375,14 @@ public sealed class AppSettingsStoreTests
             () => store.SaveSelectedPetInstallationId(Guid.NewGuid()));
 
         Assert.Equal(AppSettingsLoadSource.NewerSchema, loaded.Source);
-        Assert.Equal(11, loaded.PreservedSchemaVersion);
+        Assert.Equal(12, loaded.PreservedSchemaVersion);
         Assert.False(loaded.IsWritingEnabled);
         Assert.Equal(AppSettingsError.WritingDisabled, exception.Error);
         Assert.Equal(original, File.ReadAllBytes(workspace.SettingsPath));
     }
 
     [Fact]
-    public void V1FixtureMigratesMotionDurationsAndAllLaterSchemasToV10()
+    public void V1FixtureMigratesMotionDurationsAndAllLaterSchemasToV11()
     {
         using var workspace = new TemporaryDirectory();
         File.Copy(
@@ -228,7 +403,7 @@ public sealed class AppSettingsStoreTests
         Assert.Equal(AppSettingsLoadSource.Migrated, loaded.Source);
         Assert.Equal(1, loaded.MigratedFromSchemaVersion);
         Assert.True(loaded.IsWritingEnabled);
-        Assert.Equal(10, migrated["schemaVersion"]!.GetValue<int>());
+        Assert.Equal(11, migrated["schemaVersion"]!.GetValue<int>());
         Assert.Equal("installed", profile["petKey"]?["type"]?.GetValue<string>());
         Assert.Equal(3, steps[0]?["repeatCount"]?.GetValue<int>());
         Assert.Equal(2, steps[1]?["repeatCount"]?.GetValue<int>());
@@ -278,14 +453,16 @@ public sealed class AppSettingsStoreTests
     [InlineData(7)]
     [InlineData(8)]
     [InlineData(9)]
+    [InlineData(10)]
     public void EachLegacyStartingSchemaMigratesSequentiallyAndPreservesValues(int schema)
     {
         using var workspace = new TemporaryDirectory();
-        File.WriteAllText(workspace.SettingsPath, CreateLegacyDocument(schema).ToJsonString());
+        JsonObject source = schema == 10 ? CreateSchemaV10Document() : CreateLegacyDocument(schema);
+        File.WriteAllText(workspace.SettingsPath, source.ToJsonString());
 
         AppSettingsLoadResult loaded = workspace.CreateStore().Load();
         JsonObject migrated = ReadDocument(workspace.SettingsPath);
-        JsonObject overlay = migrated["overlay"]!.AsObject();
+        JsonObject overlay = migrated["activePetInstances"]![0]!["overlay"]!.AsObject();
         JsonObject profile = migrated["behaviorProfiles"]![0]!.AsObject();
         JsonObject movement = profile["movement"]!.AsObject();
         JsonObject speech = profile["speech"]!.AsObject();
@@ -293,7 +470,7 @@ public sealed class AppSettingsStoreTests
         Assert.Equal(AppSettingsLoadSource.Migrated, loaded.Source);
         Assert.Equal(schema, loaded.MigratedFromSchemaVersion);
         Assert.True(loaded.IsWritingEnabled);
-        Assert.Equal(10, migrated["schemaVersion"]!.GetValue<int>());
+        Assert.Equal(11, migrated["schemaVersion"]!.GetValue<int>());
         Assert.Equal("preserve", overlay["qaMarker"]!.GetValue<string>());
         Assert.Equal(schema >= 3 ? 240 : 160, movement["speed"]!.GetValue<int>());
         Assert.Equal(schema >= 3 ? "walk" : null, movement["freeRoamingAnimation"]?["fallbackMotionID"]?.GetValue<string>());
@@ -301,7 +478,7 @@ public sealed class AppSettingsStoreTests
         Assert.Equal(schema >= 7 ? 90_000 : 60_000, speech["periodicIntervalMilliseconds"]!.GetValue<int>());
         Assert.Equal(schema >= 8 ? "mint" : "system", speech["theme"]?["colorStyle"]?.GetValue<string>());
         Assert.Equal(schema >= 9 ? "sequential" : "random", speech["periodicOrder"]!.GetValue<string>());
-        Assert.Equal("automatic", speech["placement"]?["preferredPosition"]?.GetValue<string>());
+        Assert.Equal(schema == 10 ? "above" : "automatic", speech["placement"]?["preferredPosition"]?.GetValue<string>());
         Assert.Equal("keep-profile", profile["qaProfileMarker"]!.GetValue<string>());
         Assert.Empty(Directory.EnumerateFiles(workspace.Path, ".settings-*.tmp"));
     }
@@ -338,7 +515,7 @@ public sealed class AppSettingsStoreTests
         AppSettings settings = Assert.IsType<AppSettings>(loaded.Settings);
         BehaviorProfile profile = Assert.Single(settings.BehaviorProfiles);
 
-        Assert.Equal(AppSettingsLoadSource.File, loaded.Source);
+        Assert.Equal(AppSettingsLoadSource.Migrated, loaded.Source);
         Assert.Empty(Assert.IsAssignableFrom<IReadOnlyList<SettingsRecoveryIssue>>(loaded.RecoveryIssues));
         Assert.Equal(PetPresentation.TuckedAway, settings.LastUserPresentation);
         Assert.Equal(240, settings.Overlay.Width);
@@ -354,15 +531,12 @@ public sealed class AppSettingsStoreTests
         Assert.IsType<RuleCondition.IdleAtLeast>(Assert.Single(profile.AutomaticRules).Condition);
         Assert.IsType<PetSpeechTrigger.Sequence>(Assert.Single(profile.Speech.Phrases).Trigger);
 
-        store.Save(settings with
-        {
-            Overlay = settings.Overlay with { Width = 260 },
-        });
+        store.Save(settings.WithSelectedOverlay(settings.Overlay with { Width = 260 }));
         JsonObject saved = ReadDocument(workspace.SettingsPath);
 
-        Assert.Equal(260, saved["overlay"]?["width"]?.GetValue<double>());
+        Assert.Equal(260, saved["activePetInstances"]?[0]?["overlay"]?["width"]?.GetValue<double>());
         Assert.Equal("top", saved["extension"]?.GetValue<string>());
-        Assert.Equal("overlay", saved["overlay"]?["extension"]?.GetValue<string>());
+        Assert.Equal("overlay", saved["activePetInstances"]?[0]?["overlay"]?["extension"]?.GetValue<string>());
         Assert.Equal("profile", saved["behaviorProfiles"]?[0]?["extension"]?.GetValue<string>());
         Assert.Equal("sequence", saved["behaviorProfiles"]?[0]?["sequences"]?[0]?["extension"]?.GetValue<string>());
         Assert.Equal("rule", saved["behaviorProfiles"]?[0]?["automaticRules"]?[0]?["extension"]?.GetValue<string>());
@@ -379,10 +553,11 @@ public sealed class AppSettingsStoreTests
     public void CurrentSchemaRecoversInvalidItemsIndependentlyWithoutImmediateRewrite()
     {
         using var workspace = new TemporaryDirectory();
-        JsonObject source = CreateSchemaV10Document();
-        source["selectedPetInstallationID"] = "not-a-uuid";
-        source["lastUserPresentation"] = "suspended";
-        JsonObject overlay = source["overlay"]!.AsObject();
+        JsonObject source = CreateSchemaV11Document();
+        source["selectedPetInstanceID"] = "not-a-uuid";
+        JsonObject storedInstance = source["activePetInstances"]![0]!.AsObject();
+        storedInstance["presentation"] = "suspended";
+        JsonObject overlay = storedInstance["overlay"]!.AsObject();
         overlay["width"] = 999;
         overlay["movementBoundary"] = new JsonObject
         {
@@ -443,7 +618,7 @@ public sealed class AppSettingsStoreTests
 
         AppSettingsLoadResult loaded = workspace.CreateStore().Load();
         AppSettings settings = Assert.IsType<AppSettings>(loaded.Settings);
-        BehaviorProfile recovered = Assert.Single(settings.BehaviorProfiles);
+        BehaviorProfile recovered = Assert.IsType<BehaviorProfile>(settings.SelectedBehaviorProfile);
 
         Assert.Equal(AppSettingsLoadSource.Recovered, loaded.Source);
         Assert.Null(settings.SelectedPetInstallationId);
@@ -472,7 +647,7 @@ public sealed class AppSettingsStoreTests
     public void CurrentSchemaTruncatesOversizedSequenceCollectionInStoredOrder()
     {
         using var workspace = new TemporaryDirectory();
-        JsonObject source = CreateSchemaV10Document();
+        JsonObject source = CreateSchemaV11Document();
         JsonArray sequences = source["behaviorProfiles"]![0]!["sequences"]!.AsArray();
         sequences.Clear();
         for (int index = 0; index < AppSettingsLimits.MaximumSequences + 1; index++)
@@ -513,10 +688,7 @@ public sealed class AppSettingsStoreTests
         byte[] original = File.ReadAllBytes(workspace.SettingsPath);
 
         AppSettingsException exception = Assert.Throws<AppSettingsException>(() =>
-            store.Save(settings with
-            {
-                Overlay = settings.Overlay with { Width = double.NaN },
-            }));
+            store.Save(settings.WithSelectedOverlay(settings.Overlay with { Width = double.NaN })));
 
         Assert.Equal(AppSettingsError.InvalidSettings, exception.Error);
         Assert.Equal(original, File.ReadAllBytes(workspace.SettingsPath));
@@ -720,6 +892,32 @@ public sealed class AppSettingsStoreTests
         return document;
     }
 
+    private static JsonObject CreateSchemaV11Document()
+    {
+        JsonObject document = CreateSchemaV10Document();
+        const string instanceId = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
+        const string profileId = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
+        JsonObject profile = document["behaviorProfiles"]![0]!.AsObject();
+        profile["profileID"] = profileId;
+        JsonObject instance = new()
+        {
+            ["instanceID"] = instanceId,
+            ["behaviorProfileID"] = profileId,
+            ["petKey"] = profile["petKey"]!.DeepClone(),
+            ["nickname"] = null,
+            ["presentation"] = document["lastUserPresentation"]!.DeepClone(),
+            ["overlay"] = document["overlay"]!.DeepClone(),
+            ["displayOrder"] = 0,
+        };
+        document["schemaVersion"] = 11;
+        document["selectedPetInstanceID"] = instanceId;
+        document["activePetInstances"] = new JsonArray(instance);
+        document.Remove("selectedPetInstallationID");
+        document.Remove("lastUserPresentation");
+        document.Remove("overlay");
+        return document;
+    }
+
     private static JsonObject CreateAnimation(string? fallback) => new()
     {
         ["fallbackMotionID"] = fallback,
@@ -771,13 +969,15 @@ public sealed class AppSettingsStoreTests
             Guid? temporaryId = null,
             Guid? quarantineId = null,
             Func<Guid?, string, long?>? cycleResolver = null,
-            Func<Guid?, bool>? definitionAvailabilityResolver = null) => new(
+            Func<Guid?, bool>? definitionAvailabilityResolver = null,
+            Func<Guid>? settingsIdGenerator = null) => new(
                 SettingsPath,
                 temporaryIdGenerator: () => temporaryId ?? Guid.NewGuid(),
                 quarantineIdGenerator: () => quarantineId ?? Guid.NewGuid(),
                 legacyMotionCycleMillisecondsResolver: cycleResolver,
                 legacyPetDefinitionAvailabilityResolver:
-                    definitionAvailabilityResolver);
+                    definitionAvailabilityResolver,
+                settingsIdGenerator: settingsIdGenerator);
 
         public void Dispose()
         {

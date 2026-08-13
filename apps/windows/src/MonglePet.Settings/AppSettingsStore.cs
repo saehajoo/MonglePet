@@ -5,7 +5,7 @@ namespace MonglePet.Settings;
 
 public sealed class AppSettingsStore
 {
-    public const int CurrentSchemaVersion = 10;
+    public const int CurrentSchemaVersion = 11;
     public const int MaximumFileSize = 5 * 1024 * 1024;
 
     private static readonly JsonSerializerOptions SerializerOptions = new()
@@ -15,6 +15,7 @@ public sealed class AppSettingsStore
 
     private readonly Func<Guid> _temporaryIdGenerator;
     private readonly Func<Guid> _quarantineIdGenerator;
+    private readonly Func<Guid> _settingsIdGenerator;
     private readonly Func<Guid?, string, long?>? _legacyMotionCycleMillisecondsResolver;
     private readonly Func<Guid?, bool>? _legacyPetDefinitionAvailabilityResolver;
     private JsonObject? _document;
@@ -26,7 +27,8 @@ public sealed class AppSettingsStore
         Func<Guid>? temporaryIdGenerator = null,
         Func<Guid>? quarantineIdGenerator = null,
         Func<Guid?, string, long?>? legacyMotionCycleMillisecondsResolver = null,
-        Func<Guid?, bool>? legacyPetDefinitionAvailabilityResolver = null)
+        Func<Guid?, bool>? legacyPetDefinitionAvailabilityResolver = null,
+        Func<Guid>? settingsIdGenerator = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(settingsPath);
         try
@@ -40,6 +42,7 @@ public sealed class AppSettingsStore
 
         _temporaryIdGenerator = temporaryIdGenerator ?? Guid.NewGuid;
         _quarantineIdGenerator = quarantineIdGenerator ?? Guid.NewGuid;
+        _settingsIdGenerator = settingsIdGenerator ?? Guid.NewGuid;
         _legacyMotionCycleMillisecondsResolver = legacyMotionCycleMillisecondsResolver;
         _legacyPetDefinitionAvailabilityResolver = legacyPetDefinitionAvailabilityResolver;
     }
@@ -53,13 +56,13 @@ public sealed class AppSettingsStore
         _hasLoaded = true;
         if (!File.Exists(SettingsPath))
         {
-            _document = DefaultAppSettingsDocument.Create();
+            _document = DefaultAppSettingsDocument.Create(_settingsIdGenerator);
             AppSettingsDocumentMappingResult mapped =
-                AppSettingsDocumentMapper.FromDocument(_document);
+                AppSettingsDocumentMapper.FromDocument(_document, _settingsIdGenerator);
             _settings = mapped.Settings;
             IsWritingEnabled = true;
             return Result(
-                _settings.SelectedPetInstallationId,
+                _settings.SelectedPetInstanceId,
                 AppSettingsLoadSource.Defaults,
                 settings: _settings,
                 recoveryIssues: mapped.Issues);
@@ -121,13 +124,11 @@ public sealed class AppSettingsStore
                     if (!definitionAvailable)
                     {
                         _document = null;
-                        _settings = AppSettings.Default with
-                        {
-                            SelectedPetInstallationId = legacySelected,
-                        };
+                        _settings = AppSettings.CreateDefault(_settingsIdGenerator)
+                            .WithSelectedPetInstallationId(legacySelected, _settingsIdGenerator);
                         IsWritingEnabled = false;
                         return Result(
-                            legacySelected,
+                            _settings.SelectedPetInstanceId,
                             AppSettingsLoadSource.UnsupportedLegacySchema,
                             ["schema-v1 마이그레이션에 필요한 선택 펫 정의를 찾지 못해 원본을 보호합니다."],
                             schema,
@@ -138,9 +139,10 @@ public sealed class AppSettingsStore
                 AppSettingsMigrationResult migration = AppSettingsMigrator.Migrate(
                     document,
                     schema,
-                    _legacyMotionCycleMillisecondsResolver);
+                    _legacyMotionCycleMillisecondsResolver,
+                    _settingsIdGenerator);
                 AppSettingsDocumentMappingResult mapped =
-                    AppSettingsDocumentMapper.FromDocument(migration.Document);
+                    AppSettingsDocumentMapper.FromDocument(migration.Document, _settingsIdGenerator);
                 var issues = new List<string>
                 {
                     $"schema-v{schema} 설정을 schema-v{CurrentSchemaVersion}으로 마이그레이션했습니다.",
@@ -153,7 +155,7 @@ public sealed class AppSettingsStore
                 _settings = mapped.Settings;
                 IsWritingEnabled = true;
                 return Result(
-                    _settings.SelectedPetInstallationId,
+                    _settings.SelectedPetInstanceId,
                     AppSettingsLoadSource.Migrated,
                     issues,
                     migratedFromSchema: schema,
@@ -163,11 +165,11 @@ public sealed class AppSettingsStore
 
             _document = document;
             AppSettingsDocumentMappingResult current =
-                AppSettingsDocumentMapper.FromDocument(document);
+                AppSettingsDocumentMapper.FromDocument(document, _settingsIdGenerator);
             _settings = current.Settings;
             IsWritingEnabled = true;
             return Result(
-                _settings.SelectedPetInstallationId,
+                _settings.SelectedPetInstanceId,
                 current.Issues.Count == 0
                     ? AppSettingsLoadSource.File
                     : AppSettingsLoadSource.Recovered,
@@ -196,14 +198,12 @@ public sealed class AppSettingsStore
                 "현재 앱이 지원하지 않는 설정 schema의 원본을 보호하고 있습니다.");
         }
 
-        JsonObject next = (_document ?? DefaultAppSettingsDocument.Create()).DeepClone().AsObject();
-        next["schemaVersion"] = CurrentSchemaVersion;
-        next["selectedPetInstallationID"] = installationId?.ToString("D");
+        AppSettings current = _settings ?? AppSettings.CreateDefault(_settingsIdGenerator);
+        AppSettings updated = current.WithSelectedPetInstallationId(installationId, _settingsIdGenerator);
+        JsonObject next = AppSettingsDocumentMapper.ToDocument(updated, _document);
         Write(next);
         _document = next;
-        AppSettings current = _settings ??
-            AppSettingsDocumentMapper.FromDocument(next).Settings;
-        _settings = current with { SelectedPetInstallationId = installationId };
+        _settings = updated;
         _hasLoaded = true;
     }
 
@@ -287,11 +287,11 @@ public sealed class AppSettingsStore
         try
         {
             File.Move(SettingsPath, quarantinePath);
-            _document = DefaultAppSettingsDocument.Create();
-            _settings = AppSettingsDocumentMapper.FromDocument(_document).Settings;
+            _document = DefaultAppSettingsDocument.Create(_settingsIdGenerator);
+            _settings = AppSettingsDocumentMapper.FromDocument(_document, _settingsIdGenerator).Settings;
             IsWritingEnabled = true;
             return Result(
-                null,
+                _settings.SelectedPetInstanceId,
                 AppSettingsLoadSource.Recovered,
                 [$"{issue} ({quarantineName})"],
                 settings: _settings);
