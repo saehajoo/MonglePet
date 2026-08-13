@@ -115,6 +115,29 @@ final class PetInstanceManagerTests: XCTestCase {
         }
     }
 
+    func testDesktopEnvironmentChangeIsBroadcastToEveryRuntime() throws {
+        let settings = try twoInstanceSettings()
+        var contexts: [FakePetRuntimeContext] = []
+        let manager = PetInstanceManager { instanceID in
+            let context = FakePetRuntimeContext(instanceID: instanceID)
+            contexts.append(context)
+            return context
+        }
+        try manager.synchronizeActiveRuntimes(
+            settings: settings,
+            itemProvider: { _ in self.builtInItem() },
+            reason: .settingsChange
+        )
+
+        manager.desktopEnvironmentDidChange()
+
+        XCTAssertEqual(contexts.count, 2)
+        XCTAssertEqual(
+            contexts.map(\.desktopEnvironmentChangeCount),
+            [1, 1]
+        )
+    }
+
     func testChangingOnePresentationOnlyReappliesMatchingRuntime() throws {
         let settings = try twoInstanceSettings()
         let secondID = try XCTUnwrap(
@@ -394,6 +417,7 @@ private final class FakePetRuntimeContext: PetRuntimeContextType {
     private(set) var activitySnapshots: [ActivitySnapshot] = []
     private(set) var reduceMotionValues: [Bool] = []
     private(set) var stopCallCount = 0
+    private(set) var desktopEnvironmentChangeCount = 0
 
     init(instanceID: UUID) {
         self.instanceID = instanceID
@@ -419,6 +443,10 @@ private final class FakePetRuntimeContext: PetRuntimeContextType {
 
     func setReduceMotion(_ shouldReduceMotion: Bool) {
         reduceMotionValues.append(shouldReduceMotion)
+    }
+
+    func desktopEnvironmentDidChange() {
+        desktopEnvironmentChangeCount += 1
     }
 
     func moveToVisibleFrame(_ visibleFrame: NSRect) {}

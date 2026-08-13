@@ -86,9 +86,16 @@ final class PetSpeechBubbleWindowController {
     private var currentPlacement: PetSpeechBubblePlacementSettings = .default
     private var currentTailEdge: PetSpeechBubbleTailEdge = .bottom
     private var currentTailAnchorX: Double?
+    private let displaysProvider: () -> [PetDesktopDisplaySnapshot]
 
-    init(parentWindow: NSWindow) {
+    init(
+        parentWindow: NSWindow,
+        displaysProvider: @escaping () -> [PetDesktopDisplaySnapshot] = {
+            AppKitDisplayLayoutReader.currentDisplaySnapshots()
+        }
+    ) {
         self.parentWindow = parentWindow
+        self.displaysProvider = displaysProvider
         panel = NSPanel(
             contentRect: .zero,
             styleMask: [.borderless, .nonactivatingPanel],
@@ -186,20 +193,22 @@ final class PetSpeechBubbleWindowController {
         tailEdge: PetSpeechBubbleTailEdge,
         tailAnchorX: Double?
     ) {
-        let intersectingScreen = NSScreen.screens.max { lhs, rhs in
-            lhs.frame.intersection(parentFrame).area
-                < rhs.frame.intersection(parentFrame).area
+        let displays = displaysProvider()
+        let intersectingDisplay = displays.max { lhs, rhs in
+            Self.nsRect(lhs.frame).intersection(parentFrame).area
+                < Self.nsRect(rhs.frame).intersection(parentFrame).area
         }
-        let targetScreen: NSScreen?
-        if let intersectingScreen,
-           intersectingScreen.frame.intersection(parentFrame).area > 0 {
-            targetScreen = intersectingScreen
+        let targetDisplay: PetDesktopDisplaySnapshot?
+        if let intersectingDisplay,
+           Self.nsRect(intersectingDisplay.frame)
+            .intersection(parentFrame).area > 0 {
+            targetDisplay = intersectingDisplay
         } else {
-            targetScreen = parentWindow?.screen
+            targetDisplay = displays.first
         }
-        let visibleFrame = targetScreen?.visibleFrame
-            ?? NSScreen.main?.visibleFrame
-            ?? parentFrame
+        let visibleFrame = targetDisplay.map {
+            Self.nsRect($0.visibleFrame)
+        } ?? parentFrame
         let placement = PetSpeechBubblePlacement.placement(
             parentFrame: PetMovementRect(
                 x: parentFrame.minX,
@@ -226,6 +235,15 @@ final class PetSpeechBubbleWindowController {
             ),
             placement.tailEdge,
             placement.tailAnchorX
+        )
+    }
+
+    private static func nsRect(_ rect: PetMovementRect) -> NSRect {
+        NSRect(
+            x: rect.minX,
+            y: rect.minY,
+            width: rect.size.width,
+            height: rect.size.height
         )
     }
 

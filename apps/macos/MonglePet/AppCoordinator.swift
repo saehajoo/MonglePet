@@ -8,6 +8,8 @@ final class AppCoordinator: NSObject {
     private let settingsWindowController: SettingsWindowController
     private let petInstanceManager: PetInstanceManager
     private let activityMonitor: any ActivitySnapshotMonitoring
+    private let desktopEnvironmentMonitor: PetDesktopEnvironmentMonitor
+    private let presentationResourceCache: PetPresentationResourceCache
     private let workspaceNotificationCenter: NotificationCenter
     private let reduceMotionProvider: () -> Bool
     private var menuBarController: MenuBarController?
@@ -22,6 +24,10 @@ final class AppCoordinator: NSObject {
         settingsStore: AppSettingsStore,
         petLibraryStore: PetLibraryStore,
         activityMonitor: any ActivitySnapshotMonitoring = ActivitySnapshotMonitor(),
+        desktopEnvironmentMonitor: PetDesktopEnvironmentMonitor =
+            PetDesktopEnvironmentMonitor(),
+        presentationResourceCache: PetPresentationResourceCache =
+            PetPresentationResourceCache(),
         workspaceNotificationCenter: NotificationCenter =
             NSWorkspace.shared.notificationCenter,
         reduceMotionProvider: @escaping () -> Bool = {
@@ -29,13 +35,23 @@ final class AppCoordinator: NSObject {
         }
     ) {
         let settingsSession = AppSettingsSession(store: settingsStore)
-        let bootstrapWindowController = PetWindowController()
+        let frontmostWindowProvider = FrontmostWindowProvider(
+            displayLayoutProvider: { [weak desktopEnvironmentMonitor] in
+                desktopEnvironmentMonitor?.currentSnapshot.displayLayout
+            }
+        )
+        let bootstrapWindowController = PetWindowController(
+            environmentProvider: desktopEnvironmentMonitor,
+            resourceCache: presentationResourceCache
+        )
         let petLibrarySession = PetLibrarySession(
             store: petLibraryStore,
             builtInDefinition: bootstrapWindowController.petDefinition
         )
         self.settingsSession = settingsSession
         self.petLibrarySession = petLibrarySession
+        self.desktopEnvironmentMonitor = desktopEnvironmentMonitor
+        self.presentationResourceCache = presentationResourceCache
         let loginLaunchSettings = LoginLaunchSettings()
         self.loginLaunchSettings = loginLaunchSettings
         settingsWindowController = SettingsWindowController(
@@ -47,11 +63,16 @@ final class AppCoordinator: NSObject {
             bootstrapWindowController
         petInstanceManager = PetInstanceManager { [weak settingsSession] instanceID in
             let windowController = availableBootstrapController
-                ?? PetWindowController()
+                ?? PetWindowController(
+                    environmentProvider: desktopEnvironmentMonitor,
+                    resourceCache: presentationResourceCache
+                )
             availableBootstrapController = nil
             return PetRuntimeContext(
                 instanceID: instanceID,
                 petWindowController: windowController,
+                environmentProvider: desktopEnvironmentMonitor,
+                frontmostWindowProvider: frontmostWindowProvider,
                 onOverlayGeometryDidChange: {
                     [weak settingsSession] instanceID, overlay in
                     settingsSession?.setOverlayGeometry(
@@ -134,6 +155,9 @@ final class AppCoordinator: NSObject {
         )
         let shouldReduceMotion = reduceMotionProvider()
         petInstanceManager.setReduceMotion(shouldReduceMotion)
+        desktopEnvironmentMonitor.start { [weak petInstanceManager] in
+            petInstanceManager?.desktopEnvironmentDidChange()
+        }
 
         let loadResult = settingsSession.load { [petLibrarySession] installationID in
             _ = petLibrarySession.reload(
@@ -199,7 +223,9 @@ final class AppCoordinator: NSObject {
             object: nil
         )
         activityMonitor.stop()
+        desktopEnvironmentMonitor.stop()
         petInstanceManager.stopAll()
+        presentationResourceCache.removeReleasedEntries()
         menuBarController?.stop()
         menuBarController = nil
     }
@@ -213,17 +239,23 @@ final class AppCoordinator: NSObject {
     }
 
     private func bringPetToCurrentScreen() {
-        let mouseLocation = NSEvent.mouseLocation
-        guard
-            let targetScreen = NSScreen.screens.first(where: {
-                $0.frame.contains(mouseLocation)
-            }) ?? NSScreen.main ?? NSScreen.screens.first
-        else {
+        let snapshot = desktopEnvironmentMonitor.currentSnapshot
+        let targetDisplay = snapshot.pointerLocation.flatMap { pointer in
+            snapshot.displays.first { display in
+                display.frame.contains(pointer)
+            }
+        } ?? snapshot.displays.first
+        guard let targetDisplay else {
             return
         }
 
         petInstanceManager.selectedContext?.moveToVisibleFrame(
-            targetScreen.visibleFrame
+            NSRect(
+                x: targetDisplay.visibleFrame.minX,
+                y: targetDisplay.visibleFrame.minY,
+                width: targetDisplay.visibleFrame.size.width,
+                height: targetDisplay.visibleFrame.size.height
+            )
         )
     }
 
@@ -257,6 +289,8 @@ final class AppCoordinator: NSObject {
         let selectedPetKey = PetBehaviorKey(
             installationID: item.selection.installationID
         )
+        let shouldInvalidateResources = item.selection != .builtIn
+            && settingsSession.settings.selectedPetKey == selectedPetKey
         if settingsSession.settings.selectedPetKey != selectedPetKey {
             settingsSession.setSelectedPetInstallationID(
                 item.selection.installationID
@@ -264,6 +298,10 @@ final class AppCoordinator: NSObject {
             guard settingsSession.settings.selectedPetKey == selectedPetKey else {
                 return
             }
+        }
+
+        if shouldInvalidateResources {
+            presentationResourceCache.invalidate(item.selection)
         }
 
         let reloadedInstanceIDs = Set(
@@ -283,9 +321,18 @@ final class AppCoordinator: NSObject {
     }
 
     private func installedPetDidRemove(_ installationID: UUID) {
+        presentationResourceCache.invalidate(.installed(installationID))
         _ = settingsSession.removeBehaviorProfile(
             forInstallationID: installationID
         )
+    }
+
+    var isDesktopEnvironmentMonitoring: Bool {
+        desktopEnvironmentMonitor.isRunning
+    }
+
+    var presentationResourceLoadCount: Int {
+        presentationResourceCache.resourceLoadCount
     }
 
     private func petAnimationReferencesDidChange(

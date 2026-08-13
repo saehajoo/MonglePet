@@ -198,6 +198,7 @@ final class ActivityMonitoringTests: XCTestCase {
         defer { coordinator.stop() }
 
         XCTAssertTrue(activityMonitor.isRunning)
+        XCTAssertTrue(coordinator.isDesktopEnvironmentMonitoring)
         XCTAssertTrue(coordinator.isPetAwake)
         XCTAssertEqual(
             coordinator.currentSettings.sequences,
@@ -226,6 +227,7 @@ final class ActivityMonitoringTests: XCTestCase {
 
         coordinator.stop()
         XCTAssertFalse(activityMonitor.isRunning)
+        XCTAssertFalse(coordinator.isDesktopEnvironmentMonitoring)
     }
 
     func testAppCoordinatorGatesMovementForSystemStateAndReduceMotion() throws {
@@ -436,6 +438,7 @@ final class ActivityMonitoringTests: XCTestCase {
             coordinator.currentSettings.activePetInstances.map(\.overlay.width),
             settings.activePetInstances.map(\.overlay.width)
         )
+        XCTAssertEqual(coordinator.presentationResourceLoadCount, 1)
     }
 
     func testAppCoordinatorClearsMissingSavedPetInstallation() throws {

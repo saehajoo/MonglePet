@@ -147,6 +147,12 @@ final class PetInstanceManager {
         }
     }
 
+    func desktopEnvironmentDidChange() {
+        for context in contextsByID.values {
+            context.desktopEnvironmentDidChange()
+        }
+    }
+
     func stopAll() {
         for context in contextsByID.values {
             context.stop()

@@ -21,30 +21,37 @@ extension PetPresentationLoadingError: LocalizedError {
 enum PetPresentationResourceLoader {
     static func loadAtlases(for item: PetLibraryItem) throws -> [PetAtlasImage] {
         if item.isBuiltIn {
-            guard let image = NSImage(named: "PlaceholderPet") else {
-                throw PetPresentationLoadingError.missingAtlas(BuiltInPet.atlasID)
-            }
-            var proposedRect = NSRect(origin: .zero, size: image.size)
-            guard let cgImage = image.cgImage(
-                forProposedRect: &proposedRect,
-                context: nil,
-                hints: nil
-            ) else {
-                throw PetPresentationLoadingError.invalidAtlas("PlaceholderPet")
-            }
-            return [
-                PetAtlasImage(
-                    id: BuiltInPet.atlasID,
-                    image: cgImage,
-                    pixelSize: PixelSize(width: cgImage.width, height: cgImage.height)
-                )
-            ]
+            return try loadBuiltInAtlases()
         }
 
         guard let installedPackage = item.installedPackage else {
             throw PetPresentationLoadingError.missingAtlas(item.definition.id)
         }
         return try loadAtlases(from: installedPackage.package.atlases)
+    }
+
+    static func loadBuiltInAtlases() throws -> [PetAtlasImage] {
+        guard let image = NSImage(named: "PlaceholderPet") else {
+            throw PetPresentationLoadingError.missingAtlas(BuiltInPet.atlasID)
+        }
+        var proposedRect = NSRect(origin: .zero, size: image.size)
+        guard let cgImage = image.cgImage(
+            forProposedRect: &proposedRect,
+            context: nil,
+            hints: nil
+        ) else {
+            throw PetPresentationLoadingError.invalidAtlas("PlaceholderPet")
+        }
+        return [
+            PetAtlasImage(
+                id: BuiltInPet.atlasID,
+                image: cgImage,
+                pixelSize: PixelSize(
+                    width: cgImage.width,
+                    height: cgImage.height
+                )
+            )
+        ]
     }
 
     private static func loadAtlases(
@@ -91,45 +98,39 @@ final class PetWindowController: NSWindowController {
     private let petOverlayView: PetOverlayView
     private let pointerOverlapLifecycle: PetPointerOverlapLifecycle
     private let speechBubbleController: PetSpeechBubbleWindowController
-    private let builtInAtlases: [PetAtlasImage]
+    private let environmentProvider: any PetDesktopEnvironmentProviding
+    private let resourceCache: PetPresentationResourceCache
     private var contentAspectRatio = PetWindowController.defaultContentSize.height
         / PetWindowController.defaultContentSize.width
     private(set) var scheduledMotion: ScheduledMotion?
 
-    init() {
-        guard let placeholderImage = NSImage(named: "PlaceholderPet") else {
-            fatalError("The built-in MonglePet atlas is missing or invalid.")
-        }
-        var proposedRect = NSRect(origin: .zero, size: placeholderImage.size)
+    init(
+        environmentProvider: any PetDesktopEnvironmentProviding =
+            StaticPetDesktopEnvironmentProvider(),
+        resourceCache: PetPresentationResourceCache =
+            PetPresentationResourceCache()
+    ) {
         guard
-            let placeholderCGImage = placeholderImage.cgImage(
-                forProposedRect: &proposedRect,
-                context: nil,
-                hints: nil
-            ),
+            let resources = try? resourceCache.builtInResources(),
+            let builtInAtlas = resources.atlases.first,
             let petOverlayView = PetOverlayView(
-                atlasID: BuiltInPet.atlasID,
-                image: placeholderImage
+                resources: resources,
+                atlasID: BuiltInPet.atlasID
             )
         else {
             fatalError("The built-in MonglePet atlas is missing or invalid.")
         }
 
         let petDefinition = BuiltInPet.mongleDefinition(
-            atlasPixelSize: petOverlayView.atlasPixelSize
+            atlasPixelSize: builtInAtlas.pixelSize
         )
         guard let defaultMotion = petDefinition.defaultMotion else {
             fatalError("The built-in MonglePet definition has no playable motion.")
         }
 
+        self.environmentProvider = environmentProvider
+        self.resourceCache = resourceCache
         self.petOverlayView = petOverlayView
-        builtInAtlases = [
-            PetAtlasImage(
-                id: BuiltInPet.atlasID,
-                image: placeholderCGImage,
-                pixelSize: petOverlayView.atlasPixelSize
-            )
-        ]
         self.petDefinition = petDefinition
         framePlayer = FramePlayer { [weak petOverlayView] frame in
             petOverlayView?.display(frame)
@@ -140,8 +141,17 @@ final class PetWindowController: NSWindowController {
         panel.contentView = petOverlayView
         panel.setContentSize(Self.defaultContentSize)
         pointerOverlapLifecycle = PetPointerOverlapLifecycle(
-            observePointer: { [weak panel, weak petOverlayView] in
-                let mouseLocation = NSEvent.mouseLocation
+            observePointer: {
+                [weak panel, weak petOverlayView, weak environmentProvider] in
+                guard let pointer = environmentProvider?.currentSnapshot
+                    .pointerLocation else {
+                    return PetPointerObservation(
+                        screenLocation: .zero,
+                        isInsidePanel: false,
+                        isOverVisibleContent: false
+                    )
+                }
+                let mouseLocation = NSPoint(x: pointer.x, y: pointer.y)
                 guard let panel,
                       let petOverlayView,
                       panel.isVisible else {
@@ -175,7 +185,10 @@ final class PetWindowController: NSWindowController {
             }
         )
         speechBubbleController = PetSpeechBubbleWindowController(
-            parentWindow: panel
+            parentWindow: panel,
+            displaysProvider: { [weak environmentProvider] in
+                environmentProvider?.currentSnapshot.displays ?? []
+            }
         )
 
         super.init(window: panel)
@@ -191,12 +204,6 @@ final class PetWindowController: NSWindowController {
         }
         framePlayer.play(defaultMotion)
         framePlayer.pause()
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(screenParametersDidChange),
-            name: NSApplication.didChangeScreenParametersNotification,
-            object: nil
-        )
     }
 
     @available(*, unavailable)
@@ -286,12 +293,7 @@ final class PetWindowController: NSWindowController {
     }
 
     func applyPet(_ item: PetLibraryItem) throws {
-        let atlases: [PetAtlasImage]
-        if item.isBuiltIn {
-            atlases = builtInAtlases
-        } else {
-            atlases = try PetPresentationResourceLoader.loadAtlases(for: item)
-        }
+        let resources = try resourceCache.resources(for: item)
 
         guard let defaultMotion = item.definition.defaultMotion,
               let firstFrame = defaultMotion.frames.first else {
@@ -300,8 +302,8 @@ final class PetWindowController: NSWindowController {
 
         scheduledMotion = nil
         framePlayer.stop()
-        petOverlayView.replaceAtlases(
-            atlases,
+        petOverlayView.replaceResources(
+            resources,
             accessibilityLabel: item.metadata.displayName
         )
         petDefinition = item.definition
@@ -315,16 +317,20 @@ final class PetWindowController: NSWindowController {
         }
     }
 
-    func wake(on screen: NSScreen? = NSScreen.main) {
-        guard let panel, let targetScreen = screen ?? NSScreen.screens.first else {
+    func wake(on screen: NSScreen? = nil) {
+        guard let panel else {
             return
         }
 
         if hasPositionedPanel {
             correctPanelPosition()
         } else {
+            let visibleFrame = screen?.visibleFrame
+                ?? environmentProvider.currentSnapshot.displays.first
+                    .map(Self.nsRect(from:))
+                ?? panel.frame
             let origin = Self.defaultOrigin(
-                in: targetScreen.visibleFrame,
+                in: visibleFrame,
                 contentSize: panel.frame.size
             )
             panel.setFrameOrigin(origin)
@@ -430,11 +436,13 @@ final class PetWindowController: NSWindowController {
                 width: panel.frame.width,
                 height: panel.frame.height
             )
-            let preferredScreen = NSScreen.screens.first {
-                Self.screenIdentifier(for: $0) == settings.screenIdentifier
+            let displays = environmentProvider.currentSnapshot.displays
+            let preferredDisplay = displays.first {
+                $0.id == settings.screenIdentifier
             }
-            let visibleFrames = preferredScreen.map { [$0.visibleFrame] }
-                ?? NSScreen.screens.map(\.visibleFrame)
+            let visibleFrames = preferredDisplay.map {
+                [Self.nsRect(from: $0)]
+            } ?? displays.map(Self.nsRect(from:))
             let correctedOrigin = Self.correctedOrigin(
                 for: storedFrame,
                 within: visibleFrames
@@ -452,9 +460,12 @@ final class PetWindowController: NSWindowController {
             return nil
         }
 
-        let targetScreen = panel.screen ?? Self.bestScreen(for: panel.frame)
+        let targetDisplay = Self.bestDisplay(
+            for: panel.frame,
+            displays: environmentProvider.currentSnapshot.displays
+        )
         return OverlaySettings(
-            screenIdentifier: targetScreen.flatMap(Self.screenIdentifier(for:)),
+            screenIdentifier: targetDisplay?.id,
             originX: panel.frame.minX,
             originY: panel.frame.minY,
             width: panel.frame.width,
@@ -540,7 +551,9 @@ final class PetWindowController: NSWindowController {
             return
         }
 
-        let visibleFrames = NSScreen.screens.map(\.visibleFrame)
+        let visibleFrames = environmentProvider.currentSnapshot.displays.map(
+            Self.nsRect(from:)
+        )
         let correctedOrigin = Self.correctedOrigin(
             for: panel.frame,
             within: visibleFrames
@@ -563,11 +576,41 @@ final class PetWindowController: NSWindowController {
         }
     }
 
-    private static func bestScreen(for windowFrame: NSRect) -> NSScreen? {
-        NSScreen.screens.max { lhs, rhs in
-            intersectionArea(between: windowFrame, and: lhs.frame)
-                < intersectionArea(between: windowFrame, and: rhs.frame)
+    private static func bestDisplay(
+        for windowFrame: NSRect,
+        displays: [PetDesktopDisplaySnapshot]
+    ) -> PetDesktopDisplaySnapshot? {
+        displays.max { lhs, rhs in
+            intersectionArea(
+                between: windowFrame,
+                and: nsFrame(from: lhs)
+            ) < intersectionArea(
+                between: windowFrame,
+                and: nsFrame(from: rhs)
+            )
         }
+    }
+
+    private static func nsFrame(
+        from display: PetDesktopDisplaySnapshot
+    ) -> NSRect {
+        NSRect(
+            x: display.frame.minX,
+            y: display.frame.minY,
+            width: display.frame.size.width,
+            height: display.frame.size.height
+        )
+    }
+
+    private static func nsRect(
+        from display: PetDesktopDisplaySnapshot
+    ) -> NSRect {
+        NSRect(
+            x: display.visibleFrame.minX,
+            y: display.visibleFrame.minY,
+            width: display.visibleFrame.size.width,
+            height: display.visibleFrame.size.height
+        )
     }
 
     private static func intersectionArea(between lhs: NSRect, and rhs: NSRect) -> CGFloat {
@@ -599,8 +642,7 @@ final class PetWindowController: NSWindowController {
         }
     }
 
-    @objc
-    private func screenParametersDidChange(_ notification: Notification) {
+    func desktopEnvironmentDidChange() {
         correctPanelPosition()
         onMovementEnvironmentDidChange?()
     }

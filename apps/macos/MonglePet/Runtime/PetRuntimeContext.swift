@@ -35,6 +35,7 @@ protocol PetRuntimeContextType: AnyObject {
     func apply(settings: AppSettings, reason: PetOverlayApplicationReason)
     func updateActivitySnapshot(_ snapshot: ActivitySnapshot)
     func setReduceMotion(_ shouldReduceMotion: Bool)
+    func desktopEnvironmentDidChange()
     func moveToVisibleFrame(_ visibleFrame: NSRect)
     func stop()
 }
@@ -58,6 +59,10 @@ final class PetRuntimeContext: PetRuntimeContextType {
     init(
         instanceID: UUID,
         petWindowController: PetWindowController = PetWindowController(),
+        environmentProvider: any PetDesktopEnvironmentProviding =
+            StaticPetDesktopEnvironmentProvider(),
+        frontmostWindowProvider: any FrontmostWindowProviding =
+            FrontmostWindowProvider(),
         onOverlayGeometryDidChange: @escaping (
             UUID,
             OverlaySettings
@@ -111,9 +116,16 @@ final class PetRuntimeContext: PetRuntimeContextType {
             applyOrigin: { [weak petWindowController] origin in
                 petWindowController?.setMovementOrigin(origin)
             },
+            frontmostWindowProvider: frontmostWindowProvider,
+            screensProvider: { [weak environmentProvider] in
+                environmentProvider?.currentSnapshot.movementScreens ?? []
+            },
             movementBoundaryProvider: { [weak petWindowController] in
                 petWindowController?.currentOverlaySettings()?
                     .movementBoundary ?? .default
+            },
+            pointerProvider: { [weak environmentProvider] in
+                environmentProvider?.currentSnapshot.pointerLocation
             }
         )
         self.movementController = movementController
@@ -230,6 +242,10 @@ final class PetRuntimeContext: PetRuntimeContextType {
     func setReduceMotion(_ shouldReduceMotion: Bool) {
         movementLifecycle.setReduceMotion(shouldReduceMotion)
         petWindowController.setReduceMotion(shouldReduceMotion)
+    }
+
+    func desktopEnvironmentDidChange() {
+        petWindowController.desktopEnvironmentDidChange()
     }
 
     func moveToVisibleFrame(_ visibleFrame: NSRect) {

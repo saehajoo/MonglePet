@@ -266,10 +266,33 @@ enum AppKitDisplayLayoutReader {
     }
 
     static func currentDisplayOptions() -> [PetMovementDisplayOption] {
-        NSScreen.screens.enumerated().map { index, screen in
+        currentDisplaySnapshots().map { display in
             PetMovementDisplayOption(
+                id: display.id,
+                name: display.name
+            )
+        }
+    }
+
+    static func currentDisplaySnapshots() -> [PetDesktopDisplaySnapshot] {
+        NSScreen.screens.enumerated().map { index, screen in
+            let frame = screen.frame
+            let visibleFrame = screen.visibleFrame
+            return PetDesktopDisplaySnapshot(
                 id: screenIdentifier(for: screen, fallbackIndex: index),
-                name: "디스플레이 \(index + 1) · \(screen.localizedName)"
+                name: "디스플레이 \(index + 1) · \(screen.localizedName)",
+                frame: PetMovementRect(
+                    x: Double(frame.minX),
+                    y: Double(frame.minY),
+                    width: Double(frame.width),
+                    height: Double(frame.height)
+                ),
+                visibleFrame: PetMovementRect(
+                    x: Double(visibleFrame.minX),
+                    y: Double(visibleFrame.minY),
+                    width: Double(visibleFrame.width),
+                    height: Double(visibleFrame.height)
+                )
             )
         }
     }

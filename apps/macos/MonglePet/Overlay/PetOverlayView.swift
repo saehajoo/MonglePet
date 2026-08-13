@@ -13,12 +13,10 @@ final class PetOverlayView: NSView {
     var onDragEnded: ((Bool) -> Void)?
     var allowsWindowDragging = true
 
+    private var resources: PetPresentationResources
     private var atlases: [String: PetAtlasImage]
     private(set) var displayedAtlasID: String?
     private var displayedFrame: MotionFrame?
-    private var alphaMaskCache: [String: PetFrameAlphaMask] = [:]
-    private var alphaMaskCacheOrder: [String] = []
-    private static let maximumCachedAlphaMaskCount = 256
 
     var atlasPixelSize: PixelSize {
         atlases.values.first?.pixelSize ?? PixelSize(width: 1, height: 1)
@@ -39,12 +37,38 @@ final class PetOverlayView: NSView {
             image: cgImage,
             pixelSize: PixelSize(width: cgImage.width, height: cgImage.height)
         )
+        resources = PetPresentationResources(atlases: [atlas])
         atlases = [atlasID: atlas]
         super.init(frame: .zero)
 
         wantsLayer = true
         layer?.backgroundColor = NSColor.clear.cgColor
         layer?.contents = cgImage
+        layer?.contentsGravity = .resizeAspect
+        layer?.magnificationFilter = .linear
+        layer?.minificationFilter = .linear
+
+        setAccessibilityElement(true)
+        setAccessibilityRole(.image)
+        setAccessibilityLabel("몽글이")
+        setAccessibilityIdentifier("monglepet.overlay.pet")
+    }
+
+    init?(resources: PetPresentationResources, atlasID: String) {
+        guard let atlas = resources.atlases.first(where: {
+            $0.id == atlasID
+        }) else {
+            return nil
+        }
+        self.resources = resources
+        atlases = Dictionary(
+            uniqueKeysWithValues: resources.atlases.map { ($0.id, $0) }
+        )
+        super.init(frame: .zero)
+
+        wantsLayer = true
+        layer?.backgroundColor = NSColor.clear.cgColor
+        layer?.contents = atlas.image
         layer?.contentsGravity = .resizeAspect
         layer?.magnificationFilter = .linear
         layer?.minificationFilter = .linear
@@ -101,11 +125,21 @@ final class PetOverlayView: NSView {
     }
 
     func replaceAtlases(_ atlases: [PetAtlasImage], accessibilityLabel: String) {
+        replaceResources(
+            PetPresentationResources(atlases: atlases),
+            accessibilityLabel: accessibilityLabel
+        )
+    }
+
+    func replaceResources(
+        _ resources: PetPresentationResources,
+        accessibilityLabel: String
+    ) {
+        self.resources = resources
+        let atlases = resources.atlases
         self.atlases = Dictionary(uniqueKeysWithValues: atlases.map { ($0.id, $0) })
         displayedAtlasID = nil
         displayedFrame = nil
-        alphaMaskCache.removeAll(keepingCapacity: true)
-        alphaMaskCacheOrder.removeAll(keepingCapacity: true)
         layer?.contents = nil
         layer?.contentsRect = CGRect(x: 0, y: 0, width: 1, height: 1)
         setAccessibilityLabel(accessibilityLabel)
@@ -173,31 +207,6 @@ final class PetOverlayView: NSView {
         for frame: MotionFrame,
         atlas: PetAtlasImage
     ) -> PetFrameAlphaMask? {
-        let key = [
-            frame.atlasID,
-            String(frame.sourceRect.x),
-            String(frame.sourceRect.y),
-            String(frame.sourceRect.width),
-            String(frame.sourceRect.height)
-        ].joined(separator: ":")
-        if let cached = alphaMaskCache[key] {
-            return cached
-        }
-
-        guard let mask = PetFrameAlphaMaskBuilder.make(
-            atlasImage: atlas.image,
-            sourceRect: frame.sourceRect
-        ) else {
-            return nil
-        }
-
-        if alphaMaskCache.count >= Self.maximumCachedAlphaMaskCount,
-           let oldestKey = alphaMaskCacheOrder.first {
-            alphaMaskCache.removeValue(forKey: oldestKey)
-            alphaMaskCacheOrder.removeFirst()
-        }
-        alphaMaskCache[key] = mask
-        alphaMaskCacheOrder.append(key)
-        return mask
+        resources.alphaMask(for: frame, atlas: atlas)
     }
 }
