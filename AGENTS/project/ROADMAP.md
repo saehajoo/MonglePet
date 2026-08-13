@@ -380,6 +380,24 @@ macOS에서 검증된 펫 패키지, 설정 스키마와 테스트 시나리오�
 
 Windows 웹 배포는 자체 웹사이트를 기본 다운로드 경로, GitHub Releases를 버전 기록과 보조 경로로 사용한다. 첫 Preview용 x64 self-contained EXE 설치기와 SHA-256 생성, 사용자별 설치·업그레이드·MSIX 데이터 이전·로그인 실행·실행 중 제거 QA를 완료했다. 서명된 MSIX의 App Installer 자동화도 보존하며 공개 코드 서명, HTTPS 게시, 깨끗한 PC와 이후 버전 업데이트 QA가 남아 있다.
 
+## 12단계: 멀티펫 런타임과 활성 펫 관리
+
+첫 공개 버전의 단일 펫 기준선을 보존하면서 고정된 사용자 마릿수 제한 없이 여러 펫을 동시에 표시한다. 상세 단계와 복구 정책은 `../work_plans/tasks/2026-08-13-multi-pet-runtime.md`에서 관리한다.
+
+- [x] 멀티펫 공통 마케팅 버전 `1.1.0` 확정
+- [ ] settings schema-v11 확정
+- [ ] 설치 펫·행동 프로필·활성 인스턴스 식별자 분리와 schema-v10 마이그레이션
+- [ ] 동일 원본 인스턴스별 독립 설정과 원본 편집 시 copy-on-write 사본 전환
+- [ ] macOS `PetInstanceManager`와 다중 오버레이·독립 런타임
+- [ ] 전역 activity·pointer·screen snapshot과 이미지·알파 캐시 공유
+- [ ] 활성 펫 중심 sidebar 설정 UX, 사용자 지정 앞뒤 순서와 상태 메뉴 전체·개별 제어
+- [ ] 비차단 성능 경고, 사용자 제어 일시정지와 비정상 종료 안전 시작
+- [ ] macOS 다수 펫 Release·장시간·다중 모니터 QA
+- [ ] Windows portable schema·Domain 반영 후 다중 Win32/Composition 런타임과 NavigationView 구현
+- [ ] 실제 Windows PC 성능·혼합 DPI·잠금·절전·설치 업데이트 QA
+
+완료 조건: 사용자가 원하는 수의 펫을 추가할 수 있고 같은 원본의 여러 펫을 포함해 각 펫의 구분 이름·표시·앞뒤 순서·행동·이동·말풍선이 독립적으로 복원된다. 성능 저하 시 앱이 펫을 임의로 중지하거나 삭제하지 않고 사용자가 대응을 선택하며, 시작 실패에서도 설정과 펫 파일을 잃지 않고 안전 복구할 수 있다.
+
 현재 상태: macOS는 Preview 기준 구현과 안정화를 진행 중이다. Windows는 Visual Studio·.NET·WinUI 개발 환경, 첫 솔루션, 행동 결정기·cycle scheduler, Windows activity adapter, 안전한 디렉터리·ZIP 패키지 로더, MSIX LocalState UUID 펫 라이브러리, schema-v1~v10 순차 마이그레이션, schema-v10 전체 Domain 매핑·항목 복구·원자적 전체 저장, 가져오기·활성화·삭제 개발 UI를 만들고 x64 Debug·Release 빌드와 단위 테스트 136개를 통과했다. 별도 Win32 HWND·ContentIsland Composition 오버레이에서 공통 PNG 모션을 동적으로 재생하고 화면 표시, 자동·수동 설정, 루틴 단계와 전면 앱·입력 없음 자동 규칙 전체 편집, 실행 중 일반 앱의 이름·아이콘 선택, 현재 앱 채우기, 명시적 `.exe` 선택, 잠금·절전 pause, 숨김 polling 중지와 저장·재실행 복원을 실제 packaged Release에서 확인했으며 고정 workload 성능 기준선도 통과했다. notification area 네이티브 메뉴와 네 이동 모드, 음수 좌표 듀얼 모니터 작업 영역, 드래그 위치 저장, 방향 이동 표시, 실제 frame 알파 기반 호버 쓰다듬기·클릭 통과 겹침 투명화와 창 제목 없는 전면 앱 대표 창 선호도 연결했다. 전체 화면 전면 앱 fallback과 전면 창 감지 자유 이동 workload 성능을 실제 Release에서 확인했고 `.exe` 표준 파일 선택과 일반 Win32 전면 앱 규칙 전환도 실제 사용자 QA를 통과했다. 다음 단계는 실제 Explorer 재시작·혼합 DPI 다중 모니터와 물리 잠금·절전 복귀 QA, 알파 쓰다듬기와 일반 창 foreground의 최종 물리 QA, 가져오기 검토·내보내기, 다중 프레임·WebP 호환과 말풍선 workload다. 세부 기능별 현황은 `PLATFORM_PARITY.md`에서 관리한다.
 
 2026-08-09 말풍선 후속 구현에서 schema-v10 펫별 대사·주기/행동 정책·테마·상대 배치를 Windows scheduler, 입력 통과 Win32/XAML Island 창과 전체 설정 UI에 연결했다. Settings 대상 테스트 46개와 x64 Debug 앱 빌드가 통과했으며 실제 말풍선 시각·혼합 DPI·workload와 전체 회귀는 최종 검증 단계에 남긴다.
