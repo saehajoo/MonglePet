@@ -15,9 +15,13 @@ final class MenuBarController: NSObject {
     private let onSetPetClickThrough: (UUID, Bool) -> Void
     private let onBringPetToCurrentScreen: (UUID) -> Void
     private let onSetAllPetsAwake: (Bool) -> Void
+    private let onSetAllPetsPaused: (Bool) -> Void
+    private let onEnterSafeMode: () -> Void
     private let onOpenSettings: () -> Void
     private let onQuit: () -> Void
     private var pets: [MenuBarPetState]
+    private var isAllPaused: Bool
+    private var resourceWarning: PetResourceWarning?
     private(set) var statusItem = NSStatusBar.system.statusItem(
         withLength: NSStatusItem.variableLength
     )
@@ -29,6 +33,10 @@ final class MenuBarController: NSObject {
         onSetPetClickThrough: @escaping (UUID, Bool) -> Void,
         onBringPetToCurrentScreen: @escaping (UUID) -> Void,
         onSetAllPetsAwake: @escaping (Bool) -> Void,
+        isAllPaused: Bool,
+        resourceWarning: PetResourceWarning?,
+        onSetAllPetsPaused: @escaping (Bool) -> Void,
+        onEnterSafeMode: @escaping () -> Void,
         onOpenSettings: @escaping () -> Void,
         onQuit: @escaping () -> Void
     ) {
@@ -38,6 +46,10 @@ final class MenuBarController: NSObject {
         self.onSetPetClickThrough = onSetPetClickThrough
         self.onBringPetToCurrentScreen = onBringPetToCurrentScreen
         self.onSetAllPetsAwake = onSetAllPetsAwake
+        self.isAllPaused = isAllPaused
+        self.resourceWarning = resourceWarning
+        self.onSetAllPetsPaused = onSetAllPetsPaused
+        self.onEnterSafeMode = onEnterSafeMode
         self.onOpenSettings = onOpenSettings
         self.onQuit = onQuit
     }
@@ -57,6 +69,21 @@ final class MenuBarController: NSObject {
             return
         }
         self.pets = pets
+        rebuildMenu()
+    }
+
+    func setRuntimeState(
+        isAllPaused: Bool,
+        resourceWarning: PetResourceWarning?
+    ) {
+        guard
+            self.isAllPaused != isAllPaused
+                || self.resourceWarning != resourceWarning
+        else {
+            return
+        }
+        self.isAllPaused = isAllPaused
+        self.resourceWarning = resourceWarning
         rebuildMenu()
     }
 
@@ -90,6 +117,16 @@ final class MenuBarController: NSObject {
         summaryItem.setAccessibilityIdentifier("monglepet.menu.petSummary")
         menu.addItem(summaryItem)
 
+        if resourceWarning != nil {
+            let warningItem = NSMenuItem(
+                title: "⚠ 성능 사용량 확인 필요",
+                action: #selector(openSettings),
+                keyEquivalent: ""
+            )
+            warningItem.target = self
+            menu.addItem(warningItem)
+        }
+
         let wakeAllItem = NSMenuItem(
             title: "모든 펫 깨우기",
             action: #selector(wakeAllPets),
@@ -108,6 +145,16 @@ final class MenuBarController: NSObject {
         sleepAllItem.isEnabled = pets.contains { $0.isAwake }
         menu.addItem(sleepAllItem)
 
+        let pauseAllItem = NSMenuItem(
+            title: isAllPaused
+                ? "모든 펫 계속하기"
+                : "모든 펫 일시정지",
+            action: #selector(toggleAllPetsPaused),
+            keyEquivalent: ""
+        )
+        pauseAllItem.target = self
+        menu.addItem(pauseAllItem)
+
         menu.addItem(.separator())
 
         for pet in pets {
@@ -115,6 +162,14 @@ final class MenuBarController: NSObject {
         }
 
         menu.addItem(.separator())
+
+        let safeModeItem = NSMenuItem(
+            title: "안전 모드로 전환…",
+            action: #selector(enterSafeMode),
+            keyEquivalent: ""
+        )
+        safeModeItem.target = self
+        menu.addItem(safeModeItem)
 
         let settingsItem = NSMenuItem(
             title: "설정…",
@@ -216,6 +271,16 @@ final class MenuBarController: NSObject {
     @objc
     private func sleepAllPets() {
         onSetAllPetsAwake(false)
+    }
+
+    @objc
+    private func toggleAllPetsPaused() {
+        onSetAllPetsPaused(!isAllPaused)
+    }
+
+    @objc
+    private func enterSafeMode() {
+        onEnterSafeMode()
     }
 
     @objc

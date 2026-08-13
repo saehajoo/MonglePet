@@ -6,16 +6,19 @@ final class SettingsWindowController {
     private let settingsSession: AppSettingsSession
     private let petLibrarySession: PetLibrarySession
     private let loginLaunchSettings: LoginLaunchSettings
+    private let runtimeControlSession: PetRuntimeControlSession
     private lazy var windowController = makeWindowController()
 
     init(
         settingsSession: AppSettingsSession,
         petLibrarySession: PetLibrarySession,
-        loginLaunchSettings: LoginLaunchSettings
+        loginLaunchSettings: LoginLaunchSettings,
+        runtimeControlSession: PetRuntimeControlSession
     ) {
         self.settingsSession = settingsSession
         self.petLibrarySession = petLibrarySession
         self.loginLaunchSettings = loginLaunchSettings
+        self.runtimeControlSession = runtimeControlSession
     }
 
     var window: NSWindow? {
@@ -42,7 +45,8 @@ final class SettingsWindowController {
             rootView: SettingsView(
                 settingsSession: settingsSession,
                 petLibrarySession: petLibrarySession,
-                loginLaunchSettings: loginLaunchSettings
+                loginLaunchSettings: loginLaunchSettings,
+                runtimeControlSession: runtimeControlSession
             )
         )
         window.isReleasedWhenClosed = false

@@ -3,6 +3,7 @@ import SwiftUI
 struct ActivePetsSettingsView: View {
     @ObservedObject var settingsSession: AppSettingsSession
     @ObservedObject var petLibrarySession: PetLibrarySession
+    @ObservedObject var runtimeControlSession: PetRuntimeControlSession
     @State private var isAddingPet = false
     @State private var removingInstanceID: UUID?
 
@@ -23,6 +24,17 @@ struct ActivePetsSettingsView: View {
                 Divider()
             }
 
+            if let pendingID = runtimeControlSession
+                .pendingRecoveryInstanceID {
+                safeStartBanner(pendingInstanceID: pendingID)
+                Divider()
+            }
+
+            if let warning = runtimeControlSession.resourceWarning {
+                resourceWarningBanner(warning)
+                Divider()
+            }
+
             ScrollView {
                 LazyVStack(spacing: 12) {
                     ForEach(orderedInstances) { instance in
@@ -40,6 +52,9 @@ struct ActivePetsSettingsView: View {
                             canMoveForward: instance.displayOrder > 0,
                             canMoveBackward: instance.displayOrder
                                 < orderedInstances.count - 1,
+                            isRestored: runtimeControlSession
+                                .restoredInstanceIDs
+                                .contains(instance.instanceID),
                             onSelect: {
                                 settingsSession.selectPetInstance(
                                     instance.instanceID
@@ -65,6 +80,11 @@ struct ActivePetsSettingsView: View {
                             },
                             onRemove: {
                                 removingInstanceID = instance.instanceID
+                            },
+                            onRestore: {
+                                runtimeControlSession.restoreInstance(
+                                    instance.instanceID
+                                )
                             }
                         )
                         .draggable(instance.instanceID.uuidString)
@@ -135,6 +155,18 @@ struct ActivePetsSettingsView: View {
             Button("모두 재우기", systemImage: "moon.zzz") {
                 setAllPresentations(.tuckedAway)
             }
+            Button(
+                runtimeControlSession.isAllPaused
+                    ? "모두 계속하기"
+                    : "모두 일시정지",
+                systemImage: runtimeControlSession.isAllPaused
+                    ? "play.fill"
+                    : "pause.fill"
+            ) {
+                runtimeControlSession.setAllPaused(
+                    !runtimeControlSession.isAllPaused
+                )
+            }
             Button("펫 추가", systemImage: "plus") {
                 isAddingPet = true
             }
@@ -153,6 +185,82 @@ struct ActivePetsSettingsView: View {
 
     private var noticeMessage: String? {
         settingsSession.saveErrorMessage ?? settingsSession.loadNotice
+    }
+
+    private func safeStartBanner(
+        pendingInstanceID: UUID
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("안전 시작", systemImage: "shield.lefthalf.filled")
+                .font(.headline)
+            Text(
+                runtimeControlSession.isUserRequestedSafeMode
+                    ? "요청에 따라 모든 펫을 멈춘 안전 모드입니다. 아래 카드에서 한 마리씩 복원하거나 ‘모두 복원’으로 평상시 실행을 다시 시작할 수 있습니다."
+                    : "이전 실행이 ‘\(displayName(for: pendingInstanceID))’을 복원하는 중 종료되어 펫을 자동으로 띄우지 않았습니다. 아래 카드에서 한 마리씩 복원하거나 마지막 복원 펫을 제외하고 계속할 수 있습니다."
+            )
+            .font(.callout)
+            .foregroundStyle(.secondary)
+
+            HStack {
+                if !runtimeControlSession.isUserRequestedSafeMode {
+                    Button("마지막 복원 펫 제외하고 계속") {
+                        runtimeControlSession.restoreAllExceptPending()
+                    }
+                }
+                Button("모두 복원") {
+                    runtimeControlSession.restoreAll()
+                }
+                .buttonStyle(.borderedProminent)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(
+            Color.orange.opacity(0.1),
+            in: RoundedRectangle(cornerRadius: 12)
+        )
+        .padding(.horizontal, 20)
+        .padding(.top, 14)
+        .accessibilityIdentifier("monglepet.settings.safeStart")
+    }
+
+    private func resourceWarningBanner(
+        _ warning: PetResourceWarning
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label("성능 사용량을 확인해 주세요", systemImage: "gauge.high")
+                .font(.headline)
+            Text(
+                "펫 \(warning.activePetCount)마리 중 \(warning.movingPetCount)마리가 이동 중이며 CPU 약 \(Int(warning.cpuPercentage.rounded()))%, 메모리 \(formattedMemory(warning.residentMemoryBytes))를 사용하고 있습니다. 펫 추가는 계속 가능하며 필요하면 모두 일시정지하거나 개별 펫을 재워 주세요."
+            )
+            .font(.callout)
+            .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(
+            Color.yellow.opacity(0.1),
+            in: RoundedRectangle(cornerRadius: 12)
+        )
+        .padding(.horizontal, 20)
+        .padding(.top, 14)
+        .accessibilityIdentifier("monglepet.settings.resourceWarning")
+    }
+
+    private func displayName(for instanceID: UUID) -> String {
+        guard let instance = orderedInstances.first(where: {
+            $0.instanceID == instanceID
+        }) else {
+            return "알 수 없는 펫"
+        }
+        return instance.nickname ?? item(for: instance).metadata.displayName
+    }
+
+    private func formattedMemory(_ bytes: UInt64) -> String {
+        ByteCountFormatter.string(
+            fromByteCount: Int64(clamping: bytes),
+            countStyle: .memory
+        )
     }
 
     private var removalAlertBinding: Binding<Bool> {
@@ -197,12 +305,14 @@ private struct ActivePetCard: View {
     let canEdit: Bool
     let canMoveForward: Bool
     let canMoveBackward: Bool
+    let isRestored: Bool
     let onSelect: () -> Void
     let onSetAwake: (Bool) -> Void
     let onRename: (String?) -> Void
     let onMoveForward: () -> Void
     let onMoveBackward: () -> Void
     let onRemove: () -> Void
+    let onRestore: () -> Void
     @State private var nickname: String
 
     init(
@@ -214,12 +324,14 @@ private struct ActivePetCard: View {
         canEdit: Bool,
         canMoveForward: Bool,
         canMoveBackward: Bool,
+        isRestored: Bool,
         onSelect: @escaping () -> Void,
         onSetAwake: @escaping (Bool) -> Void,
         onRename: @escaping (String?) -> Void,
         onMoveForward: @escaping () -> Void,
         onMoveBackward: @escaping () -> Void,
-        onRemove: @escaping () -> Void
+        onRemove: @escaping () -> Void,
+        onRestore: @escaping () -> Void
     ) {
         self.instance = instance
         self.item = item
@@ -229,12 +341,14 @@ private struct ActivePetCard: View {
         self.canEdit = canEdit
         self.canMoveForward = canMoveForward
         self.canMoveBackward = canMoveBackward
+        self.isRestored = isRestored
         self.onSelect = onSelect
         self.onSetAwake = onSetAwake
         self.onRename = onRename
         self.onMoveForward = onMoveForward
         self.onMoveBackward = onMoveBackward
         self.onRemove = onRemove
+        self.onRestore = onRestore
         _nickname = State(initialValue: instance.nickname ?? "")
     }
 
@@ -266,7 +380,7 @@ private struct ActivePetCard: View {
                             )
                     }
                     Spacer()
-                    Text(instance.presentation == .awake ? "깨어 있음" : "자는 중")
+                    Text(statusTitle)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -308,6 +422,10 @@ private struct ActivePetCard: View {
             }
 
             VStack(spacing: 8) {
+                if !isRestored {
+                    Button("복원", action: onRestore)
+                        .buttonStyle(.borderedProminent)
+                }
                 Toggle(
                     "",
                     isOn: Binding(
@@ -319,6 +437,7 @@ private struct ActivePetCard: View {
                 )
                 .toggleStyle(.switch)
                 .labelsHidden()
+                .disabled(!isRestored)
                 .help(instance.presentation == .awake ? "펫 재우기" : "펫 깨우기")
 
                 HStack(spacing: 4) {
@@ -383,6 +502,13 @@ private struct ActivePetCard: View {
         case .cursorAvoiding:
             "마우스 도망가기"
         }
+    }
+
+    private var statusTitle: String {
+        if !isRestored {
+            return "복원 대기"
+        }
+        return instance.presentation == .awake ? "깨어 있음" : "자는 중"
     }
 
     private func saveNickname() {

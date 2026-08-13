@@ -47,6 +47,7 @@ protocol PetRuntimeContextType: AnyObject {
     func replacePet(_ item: PetLibraryItem) throws
     func apply(settings: AppSettings, reason: PetOverlayApplicationReason)
     func updateActivitySnapshot(_ snapshot: ActivitySnapshot)
+    func setUserPaused(_ isPaused: Bool)
     func setReduceMotion(_ shouldReduceMotion: Bool)
     func desktopEnvironmentDidChange()
     @discardableResult
@@ -69,6 +70,8 @@ final class PetRuntimeContext: PetRuntimeContextType {
     private let onOverlayGeometryDidChange: (UUID, OverlaySettings) -> Void
     private let onOverlayGeometryDidSynchronize: (UUID, OverlaySettings) -> Void
     private var latestActivitySnapshot: ActivitySnapshot?
+    private var isSystemSuspended = false
+    private var isUserPaused = false
     private(set) var latestMovementActivity = PetMovementActivity.stationary
     private(set) var currentSettings: AppSettings?
 
@@ -252,22 +255,34 @@ final class PetRuntimeContext: PetRuntimeContextType {
         if let latestActivitySnapshot {
             behaviorRuntime.update(
                 settings: settings,
-                snapshot: latestActivitySnapshot
+                snapshot: effectiveSnapshot(latestActivitySnapshot)
             )
         }
     }
 
     func updateActivitySnapshot(_ snapshot: ActivitySnapshot) {
         latestActivitySnapshot = snapshot
-        let isSystemSuspended = snapshot.isScreenLocked
+        isSystemSuspended = snapshot.isScreenLocked
             || snapshot.isSystemSleeping
-        petWindowController.setSystemSuspended(isSystemSuspended)
-        speechRuntime.setSystemSuspended(isSystemSuspended)
-        movementLifecycle.setSystemSuspended(isSystemSuspended)
+        applyEffectiveSuspension()
         if let currentSettings {
             behaviorRuntime.update(
                 settings: currentSettings,
-                snapshot: snapshot
+                snapshot: effectiveSnapshot(snapshot)
+            )
+        }
+    }
+
+    func setUserPaused(_ isPaused: Bool) {
+        guard isPaused != isUserPaused else {
+            return
+        }
+        isUserPaused = isPaused
+        applyEffectiveSuspension()
+        if let currentSettings, let latestActivitySnapshot {
+            behaviorRuntime.update(
+                settings: currentSettings,
+                snapshot: effectiveSnapshot(latestActivitySnapshot)
             )
         }
     }
@@ -284,6 +299,7 @@ final class PetRuntimeContext: PetRuntimeContextType {
     @discardableResult
     func requestPettingInteraction() -> Bool {
         guard
+            !isUserPaused,
             let currentSettings,
             currentSettings.movementSettings.mode != .cursorAvoiding,
             let motionID = currentSettings.pettingMotionID,
@@ -326,5 +342,24 @@ final class PetRuntimeContext: PetRuntimeContextType {
             return
         }
         persistCurrentOverlayGeometry()
+    }
+
+    private func applyEffectiveSuspension() {
+        let isSuspended = isSystemSuspended || isUserPaused
+        petWindowController.setSystemSuspended(isSuspended)
+        speechRuntime.setSystemSuspended(isSuspended)
+        movementLifecycle.setSystemSuspended(isSuspended)
+    }
+
+    private func effectiveSnapshot(
+        _ snapshot: ActivitySnapshot
+    ) -> ActivitySnapshot {
+        ActivitySnapshot(
+            capturedAt: snapshot.capturedAt,
+            idleDuration: snapshot.idleDuration,
+            frontmostApplicationID: snapshot.frontmostApplicationID,
+            isScreenLocked: snapshot.isScreenLocked || isUserPaused,
+            isSystemSleeping: snapshot.isSystemSleeping
+        )
     }
 }

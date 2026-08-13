@@ -32,6 +32,8 @@ final class MonglePetTests: XCTestCase {
         var clickThroughSelection: (UUID, Bool)?
         var broughtPetID: UUID?
         var allPetsAwake: Bool?
+        var allPetsPaused: Bool?
+        var didEnterSafeMode = false
         var didOpenSettings = false
         var didQuit = false
         let controller = MenuBarController(
@@ -58,6 +60,10 @@ final class MonglePetTests: XCTestCase {
             },
             onBringPetToCurrentScreen: { broughtPetID = $0 },
             onSetAllPetsAwake: { allPetsAwake = $0 },
+            isAllPaused: false,
+            resourceWarning: nil,
+            onSetAllPetsPaused: { allPetsPaused = $0 },
+            onEnterSafeMode: { didEnterSafeMode = true },
             onOpenSettings: { didOpenSettings = true },
             onQuit: { didQuit = true }
         )
@@ -71,19 +77,21 @@ final class MonglePetTests: XCTestCase {
                 "활성 펫 2마리",
                 "모든 펫 깨우기",
                 "모든 펫 재우기",
+                "모든 펫 일시정지",
                 "",
                 "첫 번째 펫",
                 "두 번째 펫",
                 "",
+                "안전 모드로 전환…",
                 "설정…",
                 "",
                 "MonglePet 종료"
             ]
         )
         XCTAssertFalse(menu.items[0].isEnabled)
-        XCTAssertEqual(menu.items[4].state, .on)
-        XCTAssertEqual(menu.items[5].state, .off)
-        let firstPetMenu = try XCTUnwrap(menu.items[4].submenu)
+        XCTAssertEqual(menu.items[5].state, .on)
+        XCTAssertEqual(menu.items[6].state, .off)
+        let firstPetMenu = try XCTUnwrap(menu.items[5].submenu)
         XCTAssertEqual(
             firstPetMenu.items.map(\.title),
             [
@@ -96,14 +104,18 @@ final class MonglePetTests: XCTestCase {
 
         menu.performActionForItem(at: 1)
         menu.performActionForItem(at: 2)
+        menu.performActionForItem(at: 3)
         firstPetMenu.performActionForItem(at: 0)
         firstPetMenu.performActionForItem(at: 1)
         firstPetMenu.performActionForItem(at: 2)
         firstPetMenu.performActionForItem(at: 3)
-        menu.performActionForItem(at: 7)
+        menu.performActionForItem(at: 8)
         menu.performActionForItem(at: 9)
+        menu.performActionForItem(at: 11)
 
         XCTAssertEqual(allPetsAwake, false)
+        XCTAssertEqual(allPetsPaused, true)
+        XCTAssertTrue(didEnterSafeMode)
         XCTAssertEqual(selectedPetID, firstID)
         XCTAssertEqual(awakeSelection?.0, firstID)
         XCTAssertEqual(awakeSelection?.1, false)
@@ -124,15 +136,29 @@ final class MonglePetTests: XCTestCase {
         ])
         let updatedMenu = try XCTUnwrap(controller.statusItem.menu)
         XCTAssertEqual(updatedMenu.items[0].title, "활성 펫 1마리")
-        XCTAssertEqual(updatedMenu.items[4].title, "바뀐 펫")
+        XCTAssertEqual(updatedMenu.items[5].title, "바뀐 펫")
         XCTAssertEqual(
-            updatedMenu.items[4].submenu?.items[1].title,
+            updatedMenu.items[5].submenu?.items[1].title,
             "펫 깨우기"
         )
         XCTAssertEqual(
-            updatedMenu.items[4].submenu?.items[2].state,
+            updatedMenu.items[5].submenu?.items[2].state,
             .on
         )
+
+        controller.setRuntimeState(
+            isAllPaused: true,
+            resourceWarning: PetResourceWarning(
+                reasons: [.sustainedCPU],
+                cpuPercentage: 45,
+                residentMemoryBytes: 256 * 1_024 * 1_024,
+                activePetCount: 2,
+                movingPetCount: 1
+            )
+        )
+        let warningMenu = try XCTUnwrap(controller.statusItem.menu)
+        XCTAssertEqual(warningMenu.items[1].title, "⚠ 성능 사용량 확인 필요")
+        XCTAssertEqual(warningMenu.items[4].title, "모든 펫 계속하기")
     }
 
     @MainActor
@@ -158,7 +184,8 @@ final class MonglePetTests: XCTestCase {
                 installedPackagesProvider: { [] },
                 installationRemover: { _ in }
             ),
-            loginLaunchSettings: LoginLaunchSettings()
+            loginLaunchSettings: LoginLaunchSettings(),
+            runtimeControlSession: PetRuntimeControlSession()
         )
 
         controller.show()

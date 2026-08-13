@@ -21,6 +21,7 @@ final class PetInstanceManager {
     private var orderedInstanceIDs: [UUID] = []
     private var latestActivitySnapshot: ActivitySnapshot?
     private var shouldReduceMotion = false
+    private var isAllPaused = false
     private(set) var selectedInstanceID: UUID?
 
     init(contextFactory: @escaping ContextFactory) {
@@ -52,7 +53,8 @@ final class PetInstanceManager {
         settings: AppSettings,
         itemProvider: (PetBehaviorKey) -> PetLibraryItem?,
         reason: PetOverlayApplicationReason,
-        reloadPetInstanceIDs: Set<UUID> = []
+        reloadPetInstanceIDs: Set<UUID> = [],
+        restoringInstanceIDs: Set<UUID>? = nil
     ) throws -> PetInstanceSynchronizationResult {
         guard settings.selectedPetInstance != nil else {
             throw PetInstanceManagerError.missingSelectedInstance(
@@ -60,7 +62,9 @@ final class PetInstanceManager {
             )
         }
 
-        let orderedInstances = settings.activePetInstances.sorted {
+        let orderedInstances = settings.activePetInstances.filter {
+            restoringInstanceIDs?.contains($0.instanceID) ?? true
+        }.sorted {
             if $0.displayOrder == $1.displayOrder {
                 return $0.instanceID.uuidString < $1.instanceID.uuidString
             }
@@ -84,6 +88,7 @@ final class PetInstanceManager {
             let context = existingContext ?? contextFactory(instanceID)
             if existingContext == nil {
                 context.setReduceMotion(shouldReduceMotion)
+                context.setUserPaused(isAllPaused)
             }
 
             let shouldReloadPet = existingContext == nil
@@ -99,8 +104,7 @@ final class PetInstanceManager {
                     || !Self.runtimeSettingsAreEquivalent(
                         context.currentSettings,
                         runtimeSettings
-                    )
-                    || reason.isInitialLoad {
+                    ) {
                     let applicationReason: PetOverlayApplicationReason =
                         existingContext == nil && !reason.isInitialLoad
                             ? .initialLoad(shouldRestorePosition: true)
@@ -158,6 +162,16 @@ final class PetInstanceManager {
         }
     }
 
+    func setAllPaused(_ isPaused: Bool) {
+        guard isPaused != isAllPaused else {
+            return
+        }
+        isAllPaused = isPaused
+        for context in contextsByID.values {
+            context.setUserPaused(isPaused)
+        }
+    }
+
     func desktopEnvironmentDidChange() {
         for context in contextsByID.values {
             context.desktopEnvironmentDidChange()
@@ -178,6 +192,7 @@ final class PetInstanceManager {
         orderedInstanceIDs.removeAll()
         selectedInstanceID = nil
         latestActivitySnapshot = nil
+        isAllPaused = false
     }
 
     private static func runtimeSettingsAreEquivalent(

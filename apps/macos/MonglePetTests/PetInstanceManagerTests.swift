@@ -320,6 +320,76 @@ final class PetInstanceManagerTests: XCTestCase {
         }
     }
 
+    func testStagedRestoreOnlyCreatesAllowedRuntimes() throws {
+        let settings = try twoInstanceSettings()
+        let firstID = settings.activePetInstances[0].instanceID
+        let secondID = settings.activePetInstances[1].instanceID
+        var contexts: [UUID: FakePetRuntimeContext] = [:]
+        let manager = PetInstanceManager { instanceID in
+            let context = FakePetRuntimeContext(instanceID: instanceID)
+            contexts[instanceID] = context
+            return context
+        }
+
+        try manager.synchronizeActiveRuntimes(
+            settings: settings,
+            itemProvider: { _ in self.builtInItem() },
+            reason: .initialLoad(shouldRestorePosition: true),
+            restoringInstanceIDs: [firstID]
+        )
+
+        XCTAssertEqual(manager.activeInstanceIDs, [firstID])
+        XCTAssertNotNil(contexts[firstID])
+        XCTAssertNil(contexts[secondID])
+
+        try manager.synchronizeActiveRuntimes(
+            settings: settings,
+            itemProvider: { _ in self.builtInItem() },
+            reason: .initialLoad(shouldRestorePosition: true),
+            restoringInstanceIDs: [firstID, secondID]
+        )
+
+        XCTAssertEqual(manager.activeInstanceIDs, [firstID, secondID])
+        XCTAssertEqual(contexts[firstID]?.appliedSettings.count, 1)
+        XCTAssertEqual(contexts[firstID]?.stopCallCount, 0)
+        XCTAssertEqual(contexts[secondID]?.appliedSettings.count, 1)
+    }
+
+    func testUserPauseAppliesToExistingAndNewRuntimes() throws {
+        let settings = try twoInstanceSettings()
+        let firstID = settings.activePetInstances[0].instanceID
+        let secondID = settings.activePetInstances[1].instanceID
+        var contexts: [UUID: FakePetRuntimeContext] = [:]
+        let manager = PetInstanceManager { instanceID in
+            let context = FakePetRuntimeContext(instanceID: instanceID)
+            contexts[instanceID] = context
+            return context
+        }
+
+        manager.setAllPaused(true)
+        try manager.synchronizeActiveRuntimes(
+            settings: settings,
+            itemProvider: { _ in self.builtInItem() },
+            reason: .settingsChange,
+            restoringInstanceIDs: [firstID]
+        )
+
+        XCTAssertEqual(contexts[firstID]?.userPausedValues, [true])
+
+        try manager.synchronizeActiveRuntimes(
+            settings: settings,
+            itemProvider: { _ in self.builtInItem() },
+            reason: .settingsChange,
+            restoringInstanceIDs: [firstID, secondID]
+        )
+        XCTAssertEqual(contexts[secondID]?.userPausedValues, [true])
+
+        manager.setAllPaused(false)
+
+        XCTAssertEqual(contexts[firstID]?.userPausedValues, [true, false])
+        XCTAssertEqual(contexts[secondID]?.userPausedValues, [true, false])
+    }
+
     func testMissingSelectedInstanceDoesNotCreateContext() throws {
         let validSettings = try twoInstanceSettings()
         let missingID = UUID()
@@ -443,6 +513,7 @@ private final class FakePetRuntimeContext: PetRuntimeContextType {
     )] = []
     private(set) var activitySnapshots: [ActivitySnapshot] = []
     private(set) var reduceMotionValues: [Bool] = []
+    private(set) var userPausedValues: [Bool] = []
     private(set) var stopCallCount = 0
     private(set) var desktopEnvironmentChangeCount = 0
 
@@ -488,6 +559,10 @@ private final class FakePetRuntimeContext: PetRuntimeContextType {
 
     func setReduceMotion(_ shouldReduceMotion: Bool) {
         reduceMotionValues.append(shouldReduceMotion)
+    }
+
+    func setUserPaused(_ isPaused: Bool) {
+        userPausedValues.append(isPaused)
     }
 
     func desktopEnvironmentDidChange() {

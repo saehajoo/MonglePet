@@ -88,6 +88,7 @@ final class MonglePetUITests: XCTestCase {
         )
         XCTAssertTrue(app.buttons["모두 깨우기"].exists)
         XCTAssertTrue(app.buttons["모두 재우기"].exists)
+        XCTAssertTrue(app.buttons["모두 일시정지"].exists)
         XCTAssertTrue(
             app.descendants(matching: .any)[
                 "monglepet.settings.activePetCard"

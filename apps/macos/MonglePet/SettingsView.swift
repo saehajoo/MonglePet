@@ -6,6 +6,7 @@ struct SettingsView: View {
     @ObservedObject var settingsSession: AppSettingsSession
     @ObservedObject var petLibrarySession: PetLibrarySession
     @ObservedObject var loginLaunchSettings: LoginLaunchSettings
+    @ObservedObject var runtimeControlSession: PetRuntimeControlSession
     @State private var destination = SettingsDestination.activePets
 
     var body: some View {
@@ -76,7 +77,8 @@ struct SettingsView: View {
         case .activePets:
             ActivePetsSettingsView(
                 settingsSession: settingsSession,
-                petLibrarySession: petLibrarySession
+                petLibrarySession: petLibrarySession,
+                runtimeControlSession: runtimeControlSession
             )
         case .general:
             GeneralSettingsView(
@@ -3683,7 +3685,8 @@ private struct TransparencyGridView: View {
         ),
         loginLaunchSettings: LoginLaunchSettings(
             service: PreviewLoginLaunchService()
-        )
+        ),
+        runtimeControlSession: PetRuntimeControlSession()
     )
 }
 
