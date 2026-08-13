@@ -4,12 +4,21 @@ nonisolated enum PetInstanceManagerError: Error, Equatable, Sendable {
     case missingSelectedInstance(UUID)
 }
 
+nonisolated struct PetInstanceSynchronizationResult: Equatable, Sendable {
+    let unavailableInstanceIDs: [UUID]
+
+    var restoredAllInstances: Bool {
+        unavailableInstanceIDs.isEmpty
+    }
+}
+
 @MainActor
 final class PetInstanceManager {
     typealias ContextFactory = (UUID) -> any PetRuntimeContextType
 
     private let contextFactory: ContextFactory
     private var contextsByID: [UUID: any PetRuntimeContextType] = [:]
+    private var orderedInstanceIDs: [UUID] = []
     private var latestActivitySnapshot: ActivitySnapshot?
     private var shouldReduceMotion = false
     private(set) var selectedInstanceID: UUID?
@@ -23,7 +32,7 @@ final class PetInstanceManager {
     }
 
     var activeInstanceIDs: [UUID] {
-        Array(contextsByID.keys)
+        orderedInstanceIDs
     }
 
     func context(
@@ -32,46 +41,96 @@ final class PetInstanceManager {
         contextsByID[instanceID]
     }
 
-    /// Phase 3 keeps the existing single-overlay product behavior while moving
-    /// ownership behind an instance-keyed manager. Phase 4 will synchronize all
-    /// active instances instead of retiring non-selected contexts here.
-    func synchronizeSelectedRuntime(
+    @discardableResult
+    func synchronizeActiveRuntimes(
         settings: AppSettings,
-        item: PetLibraryItem,
+        itemProvider: (PetBehaviorKey) -> PetLibraryItem?,
         reason: PetOverlayApplicationReason,
-        reloadPet: Bool
-    ) throws {
-        let instanceID = settings.selectedPetInstanceID
-        guard let runtimeSettings = settings.runtimeSettings(
-            for: instanceID
-        ) else {
-            throw PetInstanceManagerError.missingSelectedInstance(instanceID)
+        reloadPetInstanceIDs: Set<UUID> = []
+    ) throws -> PetInstanceSynchronizationResult {
+        guard settings.selectedPetInstance != nil else {
+            throw PetInstanceManagerError.missingSelectedInstance(
+                settings.selectedPetInstanceID
+            )
         }
 
-        let existingContext = contextsByID[instanceID]
-        let context = existingContext ?? contextFactory(instanceID)
-        context.setReduceMotion(shouldReduceMotion)
+        let orderedInstances = settings.activePetInstances.sorted {
+            if $0.displayOrder == $1.displayOrder {
+                return $0.instanceID.uuidString < $1.instanceID.uuidString
+            }
+            return $0.displayOrder < $1.displayOrder
+        }
+        var synchronizedInstanceIDs: [UUID] = []
+        var unavailableInstanceIDs: [UUID] = []
 
-        do {
-            if reloadPet
-                || context.activeInstallationID
-                    != item.selection.installationID {
-                try context.replacePet(item)
+        for instance in orderedInstances {
+            let instanceID = instance.instanceID
+            guard
+                let runtimeSettings = settings.runtimeSettings(for: instanceID),
+                let item = itemProvider(instance.petKey)
+            else {
+                unavailableInstanceIDs.append(instanceID)
+                contextsByID.removeValue(forKey: instanceID)?.stop()
+                continue
             }
-            context.apply(settings: runtimeSettings, reason: reason)
-            if existingContext == nil, let latestActivitySnapshot {
-                context.updateActivitySnapshot(latestActivitySnapshot)
-            }
-        } catch {
+
+            let existingContext = contextsByID[instanceID]
+            let context = existingContext ?? contextFactory(instanceID)
             if existingContext == nil {
-                context.stop()
+                context.setReduceMotion(shouldReduceMotion)
             }
-            throw error
+
+            let shouldReloadPet = existingContext == nil
+                || reloadPetInstanceIDs.contains(instanceID)
+                || context.activeInstallationID
+                    != item.selection.installationID
+            do {
+                if shouldReloadPet {
+                    try context.replacePet(item)
+                }
+                if existingContext == nil
+                    || shouldReloadPet
+                    || !Self.runtimeSettingsAreEquivalent(
+                        context.currentSettings,
+                        runtimeSettings
+                    )
+                    || reason.isInitialLoad {
+                    context.apply(
+                        settings: runtimeSettings,
+                        reason: reason
+                    )
+                }
+                if existingContext == nil, let latestActivitySnapshot {
+                    context.updateActivitySnapshot(latestActivitySnapshot)
+                }
+            } catch {
+                context.stop()
+                contextsByID.removeValue(forKey: instanceID)
+                unavailableInstanceIDs.append(instanceID)
+                continue
+            }
+
+            contextsByID[instanceID] = context
+            synchronizedInstanceIDs.append(instanceID)
         }
 
-        contextsByID[instanceID] = context
-        selectedInstanceID = instanceID
-        retireContexts(except: instanceID)
+        let synchronizedIDSet = Set(synchronizedInstanceIDs)
+        let retiredIDs = contextsByID.keys.filter {
+            !synchronizedIDSet.contains($0)
+        }
+        for instanceID in retiredIDs {
+            contextsByID.removeValue(forKey: instanceID)?.stop()
+        }
+
+        orderedInstanceIDs = synchronizedInstanceIDs
+        if synchronizedIDSet.contains(settings.selectedPetInstanceID) {
+            selectedInstanceID = settings.selectedPetInstanceID
+        } else {
+            selectedInstanceID = synchronizedInstanceIDs.first
+        }
+        return PetInstanceSynchronizationResult(
+            unavailableInstanceIDs: unavailableInstanceIDs
+        )
     }
 
     func updateActivitySnapshot(_ snapshot: ActivitySnapshot) {
@@ -93,16 +152,25 @@ final class PetInstanceManager {
             context.stop()
         }
         contextsByID.removeAll()
+        orderedInstanceIDs.removeAll()
         selectedInstanceID = nil
         latestActivitySnapshot = nil
     }
 
-    private func retireContexts(except retainedInstanceID: UUID) {
-        let retiredIDs = contextsByID.keys.filter {
-            $0 != retainedInstanceID
+    private static func runtimeSettingsAreEquivalent(
+        _ currentSettings: AppSettings?,
+        _ newSettings: AppSettings
+    ) -> Bool {
+        guard let currentSettings else {
+            return false
         }
-        for instanceID in retiredIDs {
-            contextsByID.removeValue(forKey: instanceID)?.stop()
-        }
+        return currentSettings.selectedPetInstanceID
+                == newSettings.selectedPetInstanceID
+            && currentSettings.selectedPetKey == newSettings.selectedPetKey
+            && currentSettings.lastUserPresentation
+                == newSettings.lastUserPresentation
+            && currentSettings.overlay == newSettings.overlay
+            && currentSettings.activeBehaviorProfile
+                == newSettings.activeBehaviorProfile
     }
 }

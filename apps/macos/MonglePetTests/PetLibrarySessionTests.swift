@@ -38,6 +38,21 @@ final class PetLibrarySessionTests: XCTestCase {
         XCTAssertTrue(session.selectedItem.isBuiltIn)
     }
 
+    func testItemLookupResolvesBuiltInAndInstalledPetsWithoutChangingSelection() {
+        let session = makeSession(
+            packages: [makeInstalled(id: firstID, name: "가람")]
+        )
+        _ = session.reload(preferredInstallationID: nil)
+
+        XCTAssertEqual(session.item(for: .builtIn)?.selection, .builtIn)
+        XCTAssertEqual(
+            session.item(for: .installed(firstID))?.selection,
+            .installed(firstID)
+        )
+        XCTAssertNil(session.item(for: .installed(secondID)))
+        XCTAssertEqual(session.selection, .builtIn)
+    }
+
     func testSelectionPublishesSelectedItemAndRejectsUnknownInstallation() {
         let installed = makeInstalled(id: firstID, name: "가람")
         let session = makeSession(packages: [installed])

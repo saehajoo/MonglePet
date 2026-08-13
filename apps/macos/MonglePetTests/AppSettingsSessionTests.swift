@@ -654,6 +654,168 @@ final class AppSettingsSessionTests: XCTestCase {
     }
 
     @MainActor
+    func testPresentationUpdatesOnlyMatchingPetInstance() throws {
+        let defaults = AppSettings.default
+        let firstInstance = try XCTUnwrap(defaults.activePetInstances.first)
+        let firstProfile = try XCTUnwrap(defaults.petBehaviorProfiles.first)
+        let secondInstanceID = UUID(
+            uuidString: "CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC"
+        )!
+        let secondProfileID = UUID(
+            uuidString: "DDDDDDDD-DDDD-DDDD-DDDD-DDDDDDDDDDDD"
+        )!
+        let initialSettings = AppSettings(
+            selectedPetInstanceID: firstInstance.instanceID,
+            activePetInstances: [
+                firstInstance,
+                PetInstanceSettings(
+                    instanceID: secondInstanceID,
+                    petKey: .builtIn,
+                    nickname: nil,
+                    presentation: .awake,
+                    overlay: .default,
+                    behaviorProfileID: secondProfileID,
+                    displayOrder: 1
+                )
+            ],
+            petBehaviorProfiles: [
+                firstProfile,
+                PetBehaviorProfileSettings(
+                    profileID: secondProfileID,
+                    profile: firstProfile.profile
+                )
+            ]
+        )
+        let store = AppSettingsStore(settingsURL: settingsURL)
+        try store.save(initialSettings)
+        let session = AppSettingsSession(store: store)
+        XCTAssertEqual(session.load().source, .file)
+
+        session.setUserPresentation(
+            .tuckedAway,
+            for: secondInstanceID
+        )
+
+        XCTAssertEqual(
+            session.settings.activePetInstances[0].presentation,
+            .awake
+        )
+        XCTAssertEqual(
+            session.settings.activePetInstances[1].presentation,
+            .tuckedAway
+        )
+        XCTAssertEqual(
+            store.load().settings.activePetInstances.map(\.presentation),
+            [.awake, .tuckedAway]
+        )
+    }
+
+    @MainActor
+    func testRemovingInstallationReplacesEveryReferencingInstanceIndependently() throws {
+        let installationID = UUID(
+            uuidString: "EEEEEEEE-EEEE-EEEE-EEEE-EEEEEEEEEEEE"
+        )!
+        let defaults = AppSettings.default
+        let builtInProfile = try XCTUnwrap(defaults.petBehaviorProfiles.first)
+        let firstInstanceID = UUID(
+            uuidString: "11111111-AAAA-AAAA-AAAA-AAAAAAAAAAAA"
+        )!
+        let secondInstanceID = UUID(
+            uuidString: "22222222-BBBB-BBBB-BBBB-BBBBBBBBBBBB"
+        )!
+        let firstProfileID = UUID(
+            uuidString: "33333333-CCCC-CCCC-CCCC-CCCCCCCCCCCC"
+        )!
+        let secondProfileID = UUID(
+            uuidString: "44444444-DDDD-DDDD-DDDD-DDDDDDDDDDDD"
+        )!
+        let installedProfile = BehaviorProfile(
+            petKey: .installed(installationID),
+            mode: builtInProfile.profile.mode,
+            manualSequenceID: builtInProfile.profile.manualSequenceID,
+            sequences: builtInProfile.profile.sequences,
+            automaticRules: builtInProfile.profile.automaticRules,
+            movement: builtInProfile.profile.movement,
+            pettingMotionID: builtInProfile.profile.pettingMotionID,
+            speech: builtInProfile.profile.speech
+        )
+        let firstOverlay = OverlaySettings(
+            screenIdentifier: "first-display",
+            originX: 120,
+            originY: 80,
+            width: 192,
+            clickThrough: false
+        )
+        let secondOverlay = OverlaySettings(
+            screenIdentifier: "second-display",
+            originX: 720,
+            originY: 160,
+            width: 256,
+            clickThrough: true
+        )
+        let initialSettings = AppSettings(
+            selectedPetInstanceID: firstInstanceID,
+            activePetInstances: [
+                PetInstanceSettings(
+                    instanceID: firstInstanceID,
+                    petKey: .installed(installationID),
+                    nickname: "첫 번째",
+                    presentation: .awake,
+                    overlay: firstOverlay,
+                    behaviorProfileID: firstProfileID,
+                    displayOrder: 0
+                ),
+                PetInstanceSettings(
+                    instanceID: secondInstanceID,
+                    petKey: .installed(installationID),
+                    nickname: "두 번째",
+                    presentation: .tuckedAway,
+                    overlay: secondOverlay,
+                    behaviorProfileID: secondProfileID,
+                    displayOrder: 1
+                )
+            ],
+            petBehaviorProfiles: [
+                builtInProfile,
+                PetBehaviorProfileSettings(
+                    profileID: firstProfileID,
+                    profile: installedProfile
+                ),
+                PetBehaviorProfileSettings(
+                    profileID: secondProfileID,
+                    profile: installedProfile
+                )
+            ]
+        )
+        let store = AppSettingsStore(settingsURL: settingsURL)
+        try store.save(initialSettings)
+        let session = AppSettingsSession(store: store)
+        XCTAssertEqual(session.load().source, .file)
+
+        XCTAssertTrue(
+            session.removeBehaviorProfile(
+                forInstallationID: installationID
+            )
+        )
+
+        let instances = session.settings.activePetInstances
+        XCTAssertEqual(instances.map(\.instanceID), [firstInstanceID, secondInstanceID])
+        XCTAssertEqual(instances.map(\.petKey), [.builtIn, .builtIn])
+        XCTAssertEqual(Set(instances.map(\.behaviorProfileID)).count, 2)
+        XCTAssertEqual(instances.map(\.presentation), [.awake, .tuckedAway])
+        XCTAssertEqual(instances.map(\.overlay), [firstOverlay, secondOverlay])
+        XCTAssertNil(
+            session.settings.behaviorProfile(
+                for: .installed(installationID)
+            )
+        )
+        XCTAssertEqual(
+            store.load().settings.activePetInstances.map(\.petKey),
+            [.builtIn, .builtIn]
+        )
+    }
+
+    @MainActor
     func testSystemDefaultBehaviorInstallsInMemoryAndCustomSelectionPersists() {
         let session = AppSettingsSession(
             store: AppSettingsStore(settingsURL: settingsURL)

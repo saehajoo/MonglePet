@@ -12,6 +12,13 @@ nonisolated enum PetOverlayApplicationReason: Equatable, Sendable {
             false
         }
     }
+
+    var isInitialLoad: Bool {
+        if case .initialLoad = self {
+            return true
+        }
+        return false
+    }
 }
 
 @MainActor

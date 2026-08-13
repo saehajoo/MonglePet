@@ -4,7 +4,7 @@ import XCTest
 
 @MainActor
 final class PetInstanceManagerTests: XCTestCase {
-    func testSynchronizeCreatesContextKeyedBySelectedInstance() throws {
+    func testSynchronizeCreatesAllContextsInDisplayOrder() throws {
         let settings = try twoInstanceSettings()
         var contexts: [UUID: FakePetRuntimeContext] = [:]
         let manager = PetInstanceManager { instanceID in
@@ -13,31 +13,42 @@ final class PetInstanceManagerTests: XCTestCase {
             return context
         }
 
-        try manager.synchronizeSelectedRuntime(
+        let result = try manager.synchronizeActiveRuntimes(
             settings: settings,
-            item: builtInItem(),
-            reason: .initialLoad(shouldRestorePosition: true),
-            reloadPet: true
+            itemProvider: { _ in self.builtInItem() },
+            reason: .initialLoad(shouldRestorePosition: true)
         )
 
-        let selectedID = settings.selectedPetInstanceID
-        let context = try XCTUnwrap(contexts[selectedID])
-        XCTAssertEqual(manager.selectedInstanceID, selectedID)
-        XCTAssertEqual(Set(manager.activeInstanceIDs), [selectedID])
-        XCTAssertTrue(manager.context(for: selectedID) === context)
-        XCTAssertEqual(context.replacePetCallCount, 1)
-        XCTAssertEqual(context.appliedSettings.count, 1)
+        XCTAssertTrue(result.restoredAllInstances)
         XCTAssertEqual(
-            context.appliedSettings[0].settings.selectedPetInstanceID,
-            selectedID
+            manager.activeInstanceIDs,
+            settings.activePetInstances.map(\.instanceID)
         )
         XCTAssertEqual(
-            context.appliedSettings[0].reason,
-            .initialLoad(shouldRestorePosition: true)
+            manager.selectedInstanceID,
+            settings.selectedPetInstanceID
         )
+        for instance in settings.activePetInstances {
+            let context = try XCTUnwrap(contexts[instance.instanceID])
+            XCTAssertTrue(manager.context(for: instance.instanceID) === context)
+            XCTAssertEqual(context.replacePetCallCount, 1)
+            XCTAssertEqual(context.appliedSettings.count, 1)
+            XCTAssertEqual(
+                context.appliedSettings[0].settings.selectedPetInstanceID,
+                instance.instanceID
+            )
+            XCTAssertEqual(
+                context.appliedSettings[0].settings.overlay,
+                instance.overlay
+            )
+            XCTAssertEqual(
+                context.appliedSettings[0].reason,
+                .initialLoad(shouldRestorePosition: true)
+            )
+        }
     }
 
-    func testSynchronizeReusesContextWithoutReloadingUnchangedPet() throws {
+    func testSynchronizeReusesUnchangedContextsWithoutReapplying() throws {
         let settings = try twoInstanceSettings()
         var createdContexts: [FakePetRuntimeContext] = []
         let manager = PetInstanceManager { instanceID in
@@ -46,27 +57,26 @@ final class PetInstanceManagerTests: XCTestCase {
             return context
         }
 
-        try manager.synchronizeSelectedRuntime(
+        try manager.synchronizeActiveRuntimes(
             settings: settings,
-            item: builtInItem(),
-            reason: .settingsChange,
-            reloadPet: true
+            itemProvider: { _ in self.builtInItem() },
+            reason: .settingsChange
         )
-        try manager.synchronizeSelectedRuntime(
+        try manager.synchronizeActiveRuntimes(
             settings: settings,
-            item: builtInItem(),
-            reason: .settingsChange,
-            reloadPet: false
+            itemProvider: { _ in self.builtInItem() },
+            reason: .settingsChange
         )
 
-        let context = try XCTUnwrap(createdContexts.first)
-        XCTAssertEqual(createdContexts.count, 1)
-        XCTAssertEqual(context.replacePetCallCount, 1)
-        XCTAssertEqual(context.appliedSettings.count, 2)
-        XCTAssertEqual(context.stopCallCount, 0)
+        XCTAssertEqual(createdContexts.count, 2)
+        for context in createdContexts {
+            XCTAssertEqual(context.replacePetCallCount, 1)
+            XCTAssertEqual(context.appliedSettings.count, 1)
+            XCTAssertEqual(context.stopCallCount, 0)
+        }
     }
 
-    func testChangingSelectionRetiresPreviousSingleRuntime() throws {
+    func testChangingSelectionKeepsEveryRuntime() throws {
         let firstSettings = try twoInstanceSettings()
         let secondID = try XCTUnwrap(
             firstSettings.activePetInstances.last?.instanceID
@@ -83,29 +93,136 @@ final class PetInstanceManagerTests: XCTestCase {
             return context
         }
 
-        try manager.synchronizeSelectedRuntime(
+        try manager.synchronizeActiveRuntimes(
             settings: firstSettings,
-            item: builtInItem(),
-            reason: .settingsChange,
-            reloadPet: true
+            itemProvider: { _ in self.builtInItem() },
+            reason: .settingsChange
         )
-        let firstContext = try XCTUnwrap(
-            contexts[firstSettings.selectedPetInstanceID]
-        )
-        try manager.synchronizeSelectedRuntime(
+        try manager.synchronizeActiveRuntimes(
             settings: secondSettings,
-            item: builtInItem(),
-            reason: .settingsChange,
-            reloadPet: true
+            itemProvider: { _ in self.builtInItem() },
+            reason: .settingsChange
         )
 
-        XCTAssertEqual(firstContext.stopCallCount, 1)
-        XCTAssertNil(manager.context(for: firstSettings.selectedPetInstanceID))
-        XCTAssertNotNil(manager.context(for: secondID))
         XCTAssertEqual(manager.selectedInstanceID, secondID)
+        XCTAssertEqual(
+            manager.activeInstanceIDs,
+            firstSettings.activePetInstances.map(\.instanceID)
+        )
+        for context in contexts.values {
+            XCTAssertEqual(context.stopCallCount, 0)
+            XCTAssertEqual(context.appliedSettings.count, 1)
+        }
     }
 
-    func testSharedStateIsAppliedToExistingAndNewContexts() throws {
+    func testChangingOnePresentationOnlyReappliesMatchingRuntime() throws {
+        let settings = try twoInstanceSettings()
+        let secondID = try XCTUnwrap(
+            settings.activePetInstances.last?.instanceID
+        )
+        var contexts: [UUID: FakePetRuntimeContext] = [:]
+        let manager = PetInstanceManager { instanceID in
+            let context = FakePetRuntimeContext(instanceID: instanceID)
+            contexts[instanceID] = context
+            return context
+        }
+        try manager.synchronizeActiveRuntimes(
+            settings: settings,
+            itemProvider: { _ in self.builtInItem() },
+            reason: .settingsChange
+        )
+
+        let updatedSettings = settings.replacingPresentation(
+            .awake,
+            for: secondID
+        )
+        try manager.synchronizeActiveRuntimes(
+            settings: updatedSettings,
+            itemProvider: { _ in self.builtInItem() },
+            reason: .settingsChange
+        )
+
+        let firstContext = try XCTUnwrap(
+            contexts[settings.selectedPetInstanceID]
+        )
+        let secondContext = try XCTUnwrap(contexts[secondID])
+        XCTAssertEqual(firstContext.appliedSettings.count, 1)
+        XCTAssertEqual(secondContext.appliedSettings.count, 2)
+        XCTAssertTrue(firstContext.isAwake)
+        XCTAssertTrue(secondContext.isAwake)
+    }
+
+    func testRemovingInstanceStopsOnlyItsRuntime() throws {
+        let settings = try twoInstanceSettings()
+        let removedID = try XCTUnwrap(
+            settings.activePetInstances.last?.instanceID
+        )
+        var contexts: [UUID: FakePetRuntimeContext] = [:]
+        let manager = PetInstanceManager { instanceID in
+            let context = FakePetRuntimeContext(instanceID: instanceID)
+            contexts[instanceID] = context
+            return context
+        }
+        try manager.synchronizeActiveRuntimes(
+            settings: settings,
+            itemProvider: { _ in self.builtInItem() },
+            reason: .settingsChange
+        )
+        let remainingSettings = AppSettings(
+            selectedPetInstanceID: settings.selectedPetInstanceID,
+            activePetInstances: [settings.activePetInstances[0]],
+            petBehaviorProfiles: settings.petBehaviorProfiles
+        )
+
+        try manager.synchronizeActiveRuntimes(
+            settings: remainingSettings,
+            itemProvider: { _ in self.builtInItem() },
+            reason: .settingsChange
+        )
+
+        XCTAssertEqual(
+            manager.activeInstanceIDs,
+            [settings.selectedPetInstanceID]
+        )
+        XCTAssertEqual(contexts[removedID]?.stopCallCount, 1)
+        XCTAssertEqual(
+            contexts[settings.selectedPetInstanceID]?.stopCallCount,
+            0
+        )
+    }
+
+    func testUnavailablePetDoesNotBlockOtherRuntime() throws {
+        let missingInstallationID = UUID()
+        let settings = try twoInstanceSettings(
+            secondPetKey: .installed(missingInstallationID)
+        )
+        let missingInstanceID = try XCTUnwrap(
+            settings.activePetInstances.last?.instanceID
+        )
+        let manager = PetInstanceManager { instanceID in
+            FakePetRuntimeContext(instanceID: instanceID)
+        }
+
+        let result = try manager.synchronizeActiveRuntimes(
+            settings: settings,
+            itemProvider: { petKey in
+                petKey == .builtIn ? self.builtInItem() : nil
+            },
+            reason: .initialLoad(shouldRestorePosition: true)
+        )
+
+        XCTAssertEqual(result.unavailableInstanceIDs, [missingInstanceID])
+        XCTAssertEqual(
+            manager.activeInstanceIDs,
+            [settings.selectedPetInstanceID]
+        )
+        XCTAssertNotNil(
+            manager.context(for: settings.selectedPetInstanceID)
+        )
+        XCTAssertNil(manager.context(for: missingInstanceID))
+    }
+
+    func testSharedStateIsAppliedToEveryContext() throws {
         let settings = try twoInstanceSettings()
         let clock = ContinuousClock()
         let firstSnapshot = ActivitySnapshot(
@@ -131,27 +248,27 @@ final class PetInstanceManagerTests: XCTestCase {
 
         manager.setReduceMotion(true)
         manager.updateActivitySnapshot(firstSnapshot)
-        try manager.synchronizeSelectedRuntime(
+        try manager.synchronizeActiveRuntimes(
             settings: settings,
-            item: builtInItem(),
-            reason: .settingsChange,
-            reloadPet: true
-        )
-        let context = try XCTUnwrap(
-            contexts[settings.selectedPetInstanceID]
+            itemProvider: { _ in self.builtInItem() },
+            reason: .settingsChange
         )
 
-        XCTAssertEqual(context.reduceMotionValues, [true])
-        XCTAssertEqual(context.activitySnapshots, [firstSnapshot])
+        for context in contexts.values {
+            XCTAssertEqual(context.reduceMotionValues, [true])
+            XCTAssertEqual(context.activitySnapshots, [firstSnapshot])
+        }
 
         manager.setReduceMotion(false)
         manager.updateActivitySnapshot(secondSnapshot)
 
-        XCTAssertEqual(context.reduceMotionValues, [true, false])
-        XCTAssertEqual(
-            context.activitySnapshots,
-            [firstSnapshot, secondSnapshot]
-        )
+        for context in contexts.values {
+            XCTAssertEqual(context.reduceMotionValues, [true, false])
+            XCTAssertEqual(
+                context.activitySnapshots,
+                [firstSnapshot, secondSnapshot]
+            )
+        }
     }
 
     func testMissingSelectedInstanceDoesNotCreateContext() throws {
@@ -169,11 +286,10 @@ final class PetInstanceManagerTests: XCTestCase {
         }
 
         XCTAssertThrowsError(
-            try manager.synchronizeSelectedRuntime(
+            try manager.synchronizeActiveRuntimes(
                 settings: invalidSettings,
-                item: builtInItem(),
-                reason: .settingsChange,
-                reloadPet: true
+                itemProvider: { _ in self.builtInItem() },
+                reason: .settingsChange
             )
         ) { error in
             XCTAssertEqual(
@@ -185,7 +301,9 @@ final class PetInstanceManagerTests: XCTestCase {
         XCTAssertTrue(manager.activeInstanceIDs.isEmpty)
     }
 
-    private func twoInstanceSettings() throws -> AppSettings {
+    private func twoInstanceSettings(
+        secondPetKey: PetBehaviorKey = .builtIn
+    ) throws -> AppSettings {
         let defaults = AppSettings.default
         let firstInstance = try XCTUnwrap(
             defaults.activePetInstances.first
@@ -199,16 +317,32 @@ final class PetInstanceManagerTests: XCTestCase {
         let secondProfileID = UUID(
             uuidString: "99999999-9999-9999-9999-999999999999"
         )!
+        let secondProfile = BehaviorProfile(
+            petKey: secondPetKey,
+            mode: firstProfile.profile.mode,
+            manualSequenceID: firstProfile.profile.manualSequenceID,
+            sequences: firstProfile.profile.sequences,
+            automaticRules: firstProfile.profile.automaticRules,
+            movement: firstProfile.profile.movement,
+            pettingMotionID: firstProfile.profile.pettingMotionID,
+            speech: firstProfile.profile.speech
+        )
         return AppSettings(
             selectedPetInstanceID: firstInstance.instanceID,
             activePetInstances: [
                 firstInstance,
                 PetInstanceSettings(
                     instanceID: secondInstanceID,
-                    petKey: .builtIn,
+                    petKey: secondPetKey,
                     nickname: "두 번째",
                     presentation: .tuckedAway,
-                    overlay: .default,
+                    overlay: OverlaySettings(
+                        screenIdentifier: "secondary-display",
+                        originX: 640,
+                        originY: 120,
+                        width: 256,
+                        clickThrough: true
+                    ),
                     behaviorProfileID: secondProfileID,
                     displayOrder: 1
                 )
@@ -217,7 +351,7 @@ final class PetInstanceManagerTests: XCTestCase {
                 firstProfile,
                 PetBehaviorProfileSettings(
                     profileID: secondProfileID,
-                    profile: firstProfile.profile
+                    profile: secondProfile
                 )
             ]
         )

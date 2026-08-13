@@ -976,7 +976,17 @@ nonisolated struct AppSettings: Equatable, Sendable {
     func replacingSelectedPresentation(
         _ presentation: PetPresentation
     ) -> AppSettings {
-        replacingSelectedInstance { instance in
+        replacingPresentation(
+            presentation,
+            for: selectedPetInstanceID
+        )
+    }
+
+    func replacingPresentation(
+        _ presentation: PetPresentation,
+        for instanceID: UUID
+    ) -> AppSettings {
+        replacingInstance(instanceID: instanceID) { instance in
             replacing(instance, presentation: presentation)
         }
     }
@@ -1055,6 +1065,75 @@ nonisolated struct AppSettings: Equatable, Sendable {
         return AppSettings(
             selectedPetInstanceID: selectedPetInstanceID,
             activePetInstances: activePetInstances,
+            petBehaviorProfiles: profiles
+        )
+    }
+
+    func replacingRemovedInstallation(
+        _ installationID: UUID,
+        idGenerator: () -> UUID = UUID.init
+    ) -> AppSettings {
+        let removedPetKey = PetBehaviorKey.installed(installationID)
+        let affectedIndices = activePetInstances.indices.filter {
+            activePetInstances[$0].petKey == removedPetKey
+        }
+        let affectedIndexSet = Set(affectedIndices)
+        var profiles = petBehaviorProfiles.filter {
+            $0.profile.petKey != removedPetKey
+        }
+        guard !affectedIndices.isEmpty else {
+            return AppSettings(
+                selectedPetInstanceID: selectedPetInstanceID,
+                activePetInstances: activePetInstances,
+                petBehaviorProfiles: profiles
+            )
+        }
+
+        var instances = activePetInstances
+        let unaffectedProfileIDs = Set(
+            instances.indices.compactMap { index in
+                affectedIndexSet.contains(index)
+                    ? nil
+                    : instances[index].behaviorProfileID
+            }
+        )
+        let availableBuiltInProfiles = profiles.filter {
+            $0.profile.petKey == .builtIn
+                && !unaffectedProfileIDs.contains($0.profileID)
+        }
+        let builtInTemplate = availableBuiltInProfiles.first?.profile
+            ?? profiles.first(where: {
+                $0.profile.petKey == .builtIn
+            })?.profile
+            ?? Self.defaultProfile(for: .builtIn)
+        var availableProfileIndex = 0
+
+        for index in affectedIndices {
+            let profileID: UUID
+            if availableProfileIndex < availableBuiltInProfiles.count {
+                profileID = availableBuiltInProfiles[
+                    availableProfileIndex
+                ].profileID
+                availableProfileIndex += 1
+            } else {
+                profileID = idGenerator()
+                profiles.append(
+                    PetBehaviorProfileSettings(
+                        profileID: profileID,
+                        profile: builtInTemplate
+                    )
+                )
+            }
+            instances[index] = replacing(
+                instances[index],
+                petKey: .builtIn,
+                behaviorProfileID: profileID
+            )
+        }
+
+        return AppSettings(
+            selectedPetInstanceID: selectedPetInstanceID,
+            activePetInstances: instances,
             petBehaviorProfiles: profiles
         )
     }

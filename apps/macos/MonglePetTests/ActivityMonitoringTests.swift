@@ -360,6 +360,84 @@ final class ActivityMonitoringTests: XCTestCase {
         XCTAssertFalse(coordinator.isPetAwake)
     }
 
+    func testAppCoordinatorRestoresEverySavedPetInstance() throws {
+        let settingsDirectoryURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: settingsDirectoryURL) }
+        let store = AppSettingsStore(
+            settingsURL: settingsDirectoryURL.appendingPathComponent("settings.json")
+        )
+        let defaults = AppSettings.default
+        let firstInstance = try XCTUnwrap(defaults.activePetInstances.first)
+        let firstProfile = try XCTUnwrap(defaults.petBehaviorProfiles.first)
+        let secondInstanceID = UUID(
+            uuidString: "77777777-7777-7777-7777-777777777777"
+        )!
+        let secondProfileID = UUID(
+            uuidString: "88888888-8888-8888-8888-888888888888"
+        )!
+        let settings = AppSettings(
+            selectedPetInstanceID: firstInstance.instanceID,
+            activePetInstances: [
+                firstInstance,
+                PetInstanceSettings(
+                    instanceID: secondInstanceID,
+                    petKey: .builtIn,
+                    nickname: "잠든 펫",
+                    presentation: .tuckedAway,
+                    overlay: OverlaySettings(
+                        screenIdentifier: nil,
+                        originX: 480,
+                        originY: 160,
+                        width: 224,
+                        clickThrough: true
+                    ),
+                    behaviorProfileID: secondProfileID,
+                    displayOrder: 1
+                )
+            ],
+            petBehaviorProfiles: [
+                firstProfile,
+                PetBehaviorProfileSettings(
+                    profileID: secondProfileID,
+                    profile: firstProfile.profile
+                )
+            ]
+        )
+        try store.save(settings)
+        let coordinator = AppCoordinator(
+            settingsStore: store,
+            petLibraryStore: PetLibraryStore(
+                libraryRootURL: settingsDirectoryURL.appendingPathComponent("Library")
+            ),
+            activityMonitor: FakeActivitySnapshotMonitor()
+        )
+
+        coordinator.start()
+        defer { coordinator.stop() }
+
+        XCTAssertEqual(
+            coordinator.activePetInstanceIDs,
+            [firstInstance.instanceID, secondInstanceID]
+        )
+        XCTAssertEqual(
+            coordinator.awakePetInstanceIDs,
+            [firstInstance.instanceID]
+        )
+        XCTAssertEqual(
+            coordinator.currentSettings.activePetInstances.map(\.instanceID),
+            settings.activePetInstances.map(\.instanceID)
+        )
+        XCTAssertEqual(
+            coordinator.currentSettings.activePetInstances.map(\.presentation),
+            settings.activePetInstances.map(\.presentation)
+        )
+        XCTAssertEqual(
+            coordinator.currentSettings.activePetInstances.map(\.overlay.width),
+            settings.activePetInstances.map(\.overlay.width)
+        )
+    }
+
     func testAppCoordinatorClearsMissingSavedPetInstallation() throws {
         let settingsDirectoryURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

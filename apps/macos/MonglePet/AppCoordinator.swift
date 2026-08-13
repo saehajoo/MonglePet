@@ -111,6 +111,16 @@ final class AppCoordinator: NSObject {
         petInstanceManager.selectedContext?.isMovementAllowed ?? false
     }
 
+    var activePetInstanceIDs: [UUID] {
+        petInstanceManager.activeInstanceIDs
+    }
+
+    var awakePetInstanceIDs: [UUID] {
+        petInstanceManager.activeInstanceIDs.filter {
+            petInstanceManager.context(for: $0)?.isAwake == true
+        }
+    }
+
     func start(openSettingsOnLaunch: Bool = false) {
         guard menuBarController == nil else {
             return
@@ -132,33 +142,25 @@ final class AppCoordinator: NSObject {
             return petLibrarySession.selectedItem.definition
         }
         settingsSession.ensureSystemDefaultBehavior()
-        var effectiveInstallationID = petLibrarySession.reload(
+        let effectiveInstallationID = petLibrarySession.reload(
             preferredInstallationID: settingsSession.settings.selectedPetInstallationID
         )
-        if !synchronizeSelectedRuntime(
-            item: petLibrarySession.selectedItem,
-            settings: settingsSession.settings,
-            reason: .initialLoad(
-                shouldRestorePosition:
-                    loadResult.shouldRestoreOverlayPosition
-            ),
-            reloadPet: true
-        ) {
-            _ = petLibrarySession.select(.builtIn)
-            effectiveInstallationID = nil
-        }
         if effectiveInstallationID != settingsSession.settings.selectedPetInstallationID {
             settingsSession.setSelectedPetInstallationID(effectiveInstallationID)
         }
-        _ = synchronizeSelectedRuntime(
-            item: petLibrarySession.selectedItem,
+        let instanceIDs = Set(
+            settingsSession.settings.activePetInstances.map(\.instanceID)
+        )
+        if !synchronizeActiveRuntimes(
             settings: settingsSession.settings,
             reason: .initialLoad(
                 shouldRestorePosition:
                     loadResult.shouldRestoreOverlayPosition
             ),
-            reloadPet: false
-        )
+            reloadPetInstanceIDs: instanceIDs
+        ), settingsSession.settings.selectedPetKey != .builtIn {
+            _ = petLibrarySession.select(.builtIn)
+        }
         activityMonitor.start { [weak self] snapshot in
             self?.activitySnapshotDidChange(snapshot)
         }
@@ -231,12 +233,10 @@ final class AppCoordinator: NSObject {
     }
 
     private func settingsDidChange(_ settings: AppSettings) {
-        var shouldReloadPet = false
         if settings.selectedPetInstallationID != petLibrarySession.selectedInstallationID {
             let effectiveInstallationID = petLibrarySession.reload(
                 preferredInstallationID: settings.selectedPetInstallationID
             )
-            shouldReloadPet = true
             if effectiveInstallationID != settings.selectedPetInstallationID {
                 _ = petLibrarySession.select(.builtIn)
                 settingsSession.setSelectedPetInstallationID(
@@ -245,33 +245,41 @@ final class AppCoordinator: NSObject {
                 return
             }
         }
-        if !synchronizeSelectedRuntime(
-            item: petLibrarySession.selectedItem,
+        if !synchronizeActiveRuntimes(
             settings: settings,
-            reason: .settingsChange,
-            reloadPet: shouldReloadPet
-        ) {
+            reason: .settingsChange
+        ), settings.selectedPetKey != .builtIn {
             _ = petLibrarySession.select(.builtIn)
         }
     }
 
     private func selectedPetDidChange(_ item: PetLibraryItem) {
-        guard synchronizeSelectedRuntime(
-            item: item,
+        let selectedPetKey = PetBehaviorKey(
+            installationID: item.selection.installationID
+        )
+        if settingsSession.settings.selectedPetKey != selectedPetKey {
+            settingsSession.setSelectedPetInstallationID(
+                item.selection.installationID
+            )
+            guard settingsSession.settings.selectedPetKey == selectedPetKey else {
+                return
+            }
+        }
+
+        let reloadedInstanceIDs = Set(
+            settingsSession.settings.activePetInstances.compactMap {
+                $0.petKey == selectedPetKey
+                    ? $0.instanceID
+                    : nil
+            }
+        )
+        if !synchronizeActiveRuntimes(
             settings: settingsSession.settings,
             reason: .settingsChange,
-            reloadPet: true
-        ) else {
+            reloadPetInstanceIDs: reloadedInstanceIDs
+        ), item.selection != .builtIn {
             _ = petLibrarySession.select(.builtIn)
-            return
         }
-        guard
-            settingsSession.settings.selectedPetInstallationID
-                != item.selection.installationID
-        else {
-            return
-        }
-        settingsSession.setSelectedPetInstallationID(item.selection.installationID)
     }
 
     private func installedPetDidRemove(_ installationID: UUID) {
@@ -295,27 +303,33 @@ final class AppCoordinator: NSObject {
     }
 
     @discardableResult
-    private func synchronizeSelectedRuntime(
-        item: PetLibraryItem,
+    private func synchronizeActiveRuntimes(
         settings: AppSettings,
         reason: PetOverlayApplicationReason,
-        reloadPet: Bool
+        reloadPetInstanceIDs: Set<UUID> = []
     ) -> Bool {
         do {
-            try petInstanceManager.synchronizeSelectedRuntime(
+            let result = try petInstanceManager.synchronizeActiveRuntimes(
                 settings: settings,
-                item: item,
+                itemProvider: { [petLibrarySession] petKey in
+                    petLibrarySession.item(for: petKey)
+                },
                 reason: reason,
-                reloadPet: reloadPet
+                reloadPetInstanceIDs: reloadPetInstanceIDs
             )
+            let selectedItem = petLibrarySession.item(
+                for: settings.selectedPetKey
+            ) ?? petLibrarySession.selectedItem
             menuBarController?.setCurrentPetDisplayName(
-                item.metadata.displayName
+                selectedItem.metadata.displayName
             )
             menuBarController?.setPetAwake(isPetAwake)
             menuBarController?.setClickThrough(
                 settings.overlay.clickThrough
             )
-            return true
+            return !result.unavailableInstanceIDs.contains(
+                settings.selectedPetInstanceID
+            )
         } catch {
             return false
         }

@@ -100,6 +100,7 @@ final class PetLibrarySession: ObservableObject {
     var onRecommendedProfileApplied: ((UUID, RecommendedPetProfile) -> Void)?
 
     private let builtInItem: PetLibraryItem
+    private var itemsBySelection: [PetLibrarySelection: PetLibraryItem]
     private let installedPackagesProvider: () -> [InstalledPetPackage]
     private let installationRemover: (UUID) throws -> Void
     private let packageInstaller: (URL, PetPackageInstallationMode) throws
@@ -271,14 +272,24 @@ final class PetLibrarySession: ObservableObject {
         self.packageShareReviewer = packageShareReviewer
         self.packageShareExporter = packageShareExporter
         items = [builtInItem]
+        itemsBySelection = [.builtIn: builtInItem]
     }
 
     var selectedItem: PetLibraryItem {
-        items.first(where: { $0.selection == selection }) ?? builtInItem
+        itemsBySelection[selection] ?? builtInItem
     }
 
     var selectedInstallationID: UUID? {
         selection.installationID
+    }
+
+    func item(for petKey: PetBehaviorKey) -> PetLibraryItem? {
+        switch petKey {
+        case .builtIn:
+            itemsBySelection[.builtIn]
+        case let .installed(installationID):
+            itemsBySelection[.installed(installationID)]
+        }
     }
 
     @discardableResult
@@ -287,6 +298,9 @@ final class PetLibrarySession: ObservableObject {
             .map(item(from:))
             .sorted(by: Self.itemSort)
         items = [builtInItem] + installedItems
+        itemsBySelection = Dictionary(
+            uniqueKeysWithValues: items.map { ($0.selection, $0) }
+        )
 
         if let preferredInstallationID,
            items.contains(where: {
@@ -302,7 +316,7 @@ final class PetLibrarySession: ObservableObject {
 
     @discardableResult
     func select(_ requestedSelection: PetLibrarySelection) -> Bool {
-        guard let item = items.first(where: { $0.selection == requestedSelection }) else {
+        guard let item = itemsBySelection[requestedSelection] else {
             return false
         }
         guard selection != requestedSelection else {

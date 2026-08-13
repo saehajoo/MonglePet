@@ -33,11 +33,26 @@ final class AppSettingsSession: ObservableObject {
     }
 
     func setUserPresentation(_ presentation: PetPresentation) {
+        setUserPresentation(
+            presentation,
+            for: settings.selectedPetInstanceID
+        )
+    }
+
+    func setUserPresentation(
+        _ presentation: PetPresentation,
+        for instanceID: UUID
+    ) {
         guard presentation == .awake || presentation == .tuckedAway else {
             return
         }
 
-        update(settings.replacingSelectedPresentation(presentation))
+        update(
+            settings.replacingPresentation(
+                presentation,
+                for: instanceID
+            )
+        )
     }
 
     func setBehaviorMode(_ mode: BehaviorMode) {
@@ -128,12 +143,9 @@ final class AppSettingsSession: ObservableObject {
 
     @discardableResult
     func removeBehaviorProfile(forInstallationID installationID: UUID) -> Bool {
-        let petKey = PetBehaviorKey.installed(installationID)
-        let selectedSettings = settings.selectedPetInstallationID == installationID
-            ? settings.selectingPet(installationID: nil)
-            : settings
-        let updatedSettings = selectedSettings
-            .removingUnreferencedBehaviorProfiles(for: petKey)
+        let updatedSettings = settings.replacingRemovedInstallation(
+            installationID
+        )
         let normalizedSettings = BuiltInBehaviorPresets.normalizedDefaults(
             in: updatedSettings
         )

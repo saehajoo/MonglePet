@@ -151,7 +151,7 @@ schema-v11의 구체적인 DTO는 1단계에서 확정하지만 다음 책임 �
 ### macOS
 
 - [x] 3단계: macOS 단일 펫 Coordinator를 `PetInstanceManager`와 독립 `PetRuntimeContext` 구조로 분리
-- [ ] 4단계: macOS 위치 고정 다중 오버레이, 인스턴스별 저장·복원·깨우기·재우기 구현
+- [x] 4단계: macOS 위치 고정 다중 오버레이, 인스턴스별 저장·복원·깨우기·재우기 구현
 - [ ] 5단계: macOS 공유 activity·pointer·screen snapshot과 이미지·알파 캐시 적용
 - [ ] 6단계: macOS 인스턴스별 행동·말풍선·쓰다듬기와 네 이동 모드 연결
 - [ ] 7단계: macOS 활성 펫·펫 보관함·선택한 펫 sidebar UX, 사용자 지정 z-order와 상태 메뉴 빠른 제어 구현
@@ -207,10 +207,13 @@ macOS 9단계를 완료하면 확정 동작, schema-v11·공통 fixture, Windows
 - 2026-08-13: `AppCoordinator`가 직접 소유하던 창, frame playback, 행동, 말풍선, 이동과 쓰다듬기 생명주기를 `instanceID`를 가진 독립 `PetRuntimeContext`로 옮기고 `PetInstanceManager`가 컨텍스트 생성·선택·중단과 전역 activity·reduce motion 전달을 담당하게 했다.
 - 2026-08-13: 런타임의 드래그·화면 이동 좌표 저장을 `instanceID` 기반 설정 API로 전환해 선택되지 않은 인스턴스의 overlay를 덮어쓰지 않게 했다. 이번 3단계는 기존 한 마리 표시 동작을 유지하며 선택 변경 시 이전 컨텍스트를 정리하고, 모든 저장 인스턴스를 동시에 복원하는 동기화는 4단계에서 활성화한다.
 - 2026-08-13: `PetInstanceManagerTests` 5개, 인스턴스별 좌표 저장과 기존 Coordinator 활동 테스트가 통과했다. Debug 빌드 성공, 전체 `MonglePetTests` 404개 통과, 선택형 로컬 WebP fixture 1개 건너뜀을 확인했다.
+- 2026-08-13: `PetInstanceManager`가 `activePetInstances` 전체를 `displayOrder` 순서로 동기화해 인스턴스별 `PetRuntimeContext`와 `NSPanel`을 동시에 유지하도록 확장했다. 선택 변경은 다른 context를 종료하지 않고, 한 인스턴스의 표시 상태·overlay·프로필 변경은 해당 runtime에만 다시 적용한다.
+- 2026-08-13: 앱 시작 시 저장된 전체 펫의 위치와 `awake`/`tuckedAway` 상태를 복원하고, 설치 펫 조회 실패는 해당 인스턴스만 격리해 정상 펫의 시작을 계속한다. 설치 삭제 시 같은 설치본을 참조하던 모든 인스턴스를 독립 내장 펫 프로필로 전환해 다른 인스턴스 설정과 창을 보존한다.
+- 2026-08-13: 다중 runtime 관리자 8개, Coordinator 전체 인스턴스 복원, 인스턴스별 표시 상태·좌표 저장과 라이브러리 비선택 조회 테스트를 추가했다. 전체 `MonglePetTests` 411개 통과, 선택형 로컬 WebP fixture 1개 건너뜀과 Debug 빌드 성공으로 4단계 회귀가 없음을 확인했다.
 
 ## 완료 결과
 
-- 진행 중: 공통 계약 1~2단계와 macOS 3단계 런타임 소유권 분리를 완료했다. 다음은 macOS 4단계 위치 고정 다중 오버레이와 인스턴스별 저장·복원·깨우기·재우기다.
+- 진행 중: 공통 계약 1~2단계와 macOS 3~4단계 런타임 소유권 분리·다중 오버레이 복원을 완료했다. 다음은 macOS 5단계 전역 activity·pointer·screen snapshot과 이미지·알파 캐시 공유다.
 
 ## 남은 위험 / 후속 작업
 
