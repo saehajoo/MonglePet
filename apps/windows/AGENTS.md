@@ -17,6 +17,7 @@
 - 자체 웹과 GitHub Releases 배포를 위해 MSIX identity·Authenticode·인증서 subject·타임스탬프를 검증하고 고정 URL App Installer와 SHA256SUMS를 생성하는 자동화를 준비했다. 현재 `CN=AppPublisher` 미서명 MSIX는 공개 조건에서 거부하며 실제 코드 서명 방식과 최종 Publisher 확정, HTTPS 설치·업데이트 QA가 남아 있다.
 - 첫 웹 Preview용 unpackaged x64 publish와 Inno Setup 사용자별 EXE 설치기를 추가했다. packaged는 `ApplicationData.LocalFolder`·`StartupTask`, unpackaged는 `%LOCALAPPDATA%\MonglePet`·현재 사용자 Run을 사용한다. 대상 데이터가 비었을 때만 기존 개발 MSIX LocalState를 원본 보존 복사하고, 제거는 전용 종료 메시지로 실행 중 앱을 정리한 뒤 사용자 데이터를 남긴다. 실제 설치·동일 버전 업그레이드·로그인 숨김 실행·데이터 이전·실행 중 제거 QA를 통과했다.
 - 신규 기능은 macOS 기준 구현과 필수 검증이 완료된 뒤 순차 반영한다.
+- Windows 앱의 신규 소스 변경, 빌드와 테스트는 Windows 환경에서 진행한다. macOS 환경에서는 Windows 인계를 위한 공통 명세·fixture와 작업 계획만 정리한다.
 
 ## 기술 기준
 
@@ -67,9 +68,9 @@ Windows 구현을 확장하기 전에 별도 작업 계획에서 다음을 확�
 
 ## 적용 순서
 
-1. macOS에서 완료된 제품 동작과 공통 명세를 확인한다.
-2. Windows 플랫폼 차이와 대체 UX가 필요한 항목을 작업 계획에 기록한다.
-3. Windows 네이티브 구현과 플랫폼별 테스트를 작성한다.
+1. macOS에서 완료된 제품 동작, 공통 명세·fixture와 Windows 인계 체크리스트를 확인한다.
+2. Windows 환경에서 플랫폼 차이와 대체 UX가 필요한 항목을 작업 계획에 기록한다.
+3. Windows 환경에서 네이티브 구현과 플랫폼별 테스트를 작성하고 빌드한다.
 4. 공통 fixture의 Windows 왕복과 macOS·Windows 교차 호환을 검증한다.
 5. 실제 Windows 환경 QA 후 기능 동등성 현황을 갱신한다.
 

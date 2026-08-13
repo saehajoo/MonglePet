@@ -11,8 +11,8 @@ MonglePet의 신규 기능과 수정은 macOS 기준 구현에서 먼저 설계�
 1. 제품 요구사항과 개인정보 범위를 루트 `AGENTS/` 문서에서 확정한다.
 2. `apps/macos/`에서 기능을 구현하고 단위 테스트·Debug 빌드·필요한 실제 앱 QA를 완료한다.
 3. 플랫폼 공통 데이터가 바뀌면 구현과 같은 작업에서 명세, schema fixture와 호환성 시나리오를 갱신한다.
-4. macOS 동작이 안정화되면 Windows 적용 작업을 별도로 계획한다.
-5. `apps/windows/`에서는 Windows 네이티브 API와 UX로 같은 사용자 결과를 구현한다.
+4. macOS 동작이 안정화되면 확정 동작, 공통 계약, fixture, Windows 구현 범위와 필수 QA를 인계 체크포인트로 기록한다.
+5. Windows 앱의 소스 변경, 빌드와 테스트는 Windows 환경에서 진행하며 Windows 네이티브 API와 UX로 같은 사용자 결과를 구현한다.
 6. 공통 fixture, 플랫폼별 자동 테스트와 실제 앱 QA를 통과하면 해당 기능을 `동등`으로 표시한다.
 
 macOS에서 개발을 시작했다는 이유만으로 AppKit 타입, Bundle Identifier, 화면 UUID와 macOS 파일 경로를 공통 스키마에 넣지 않는다.
@@ -73,6 +73,8 @@ Windows 첫 EXE Preview 후속 단계에서는 package identity 감지, packaged
 
 - macOS 신규 기능 계획에는 Windows 반영 여부와 공통 데이터 변경 여부를 명시한다.
 - macOS에서 완료된 기능은 이 문서의 macOS 상태를 갱신하고 Windows 후속 범위를 남긴다.
+- Windows 작업을 시작하기 전에 기능별 작업 계획에 macOS 확정 동작, 공통 schema·fixture, Windows 구현 범위와 실제 환경 QA 항목을 남긴다.
+- Windows 앱의 소스 변경·빌드·테스트는 Windows 환경에서 수행한다.
 - Windows 적용 작업은 macOS 코드를 복사하는 작업이 아니라 확정된 제품 동작을 Windows adapter와 UI로 구현하는 작업으로 계획한다.
 - Windows에서 동일 동작이 불가능하거나 부자연스러우면 임의로 생략하지 않고 `플랫폼 전용` 차이와 대체 UX를 결정 기록에 남긴다.
 - 공통 schema를 변경하면 이전 버전 읽기, macOS 왕복, Windows 왕복과 두 플랫폼 교차 왕복 fixture를 완료 조건에 포함한다.
@@ -102,4 +104,4 @@ Windows 개발 환경을 확정한 뒤 다음 순서로 적용한다.
 ---
 
 문서 상태: active
-마지막 갱신: 2026-08-09
+마지막 갱신: 2026-08-13

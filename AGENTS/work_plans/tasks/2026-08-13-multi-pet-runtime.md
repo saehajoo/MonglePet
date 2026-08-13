@@ -143,8 +143,13 @@ schema-v11의 구체적인 DTO는 1단계에서 확정하지만 다음 책임 �
 
 ## 작업 순서
 
+### 공통 계약
+
 - [x] 1단계: 확정된 제품 버전 `1.1.0`을 적용하고 schema-v11, 인스턴스·프로필 식별자와 안전 복원 계약 확정
 - [ ] 2단계: 플랫폼 공통 schema-v10→v11 fixture, Domain 검증과 마이그레이션 시나리오 작성
+
+### macOS
+
 - [ ] 3단계: macOS 단일 펫 Coordinator를 `PetInstanceManager`와 독립 `PetRuntimeContext` 구조로 분리
 - [ ] 4단계: macOS 위치 고정 다중 오버레이, 인스턴스별 저장·복원·깨우기·재우기 구현
 - [ ] 5단계: macOS 공유 activity·pointer·screen snapshot과 이미지·알파 캐시 적용
@@ -152,9 +157,17 @@ schema-v11의 구체적인 DTO는 1단계에서 확정하지만 다음 책임 �
 - [ ] 7단계: macOS 활성 펫·펫 보관함·선택한 펫 sidebar UX, 사용자 지정 z-order와 상태 메뉴 빠른 제어 구현
 - [ ] 8단계: macOS 비차단 자원 경고·사용자 제어 일시정지·단계적 복원·비정상 종료 안전 시작 구현
 - [ ] 9단계: macOS 1마리 기준 회귀와 다수 펫 Release CPU·메모리·다중 모니터·장시간 QA
+
+macOS 9단계를 완료하면 확정 동작, schema-v11·공통 fixture, Windows 구현 범위, 플랫폼 차이와 필수 실제 환경 QA를 이 계획의 진행 로그와 `AGENTS/project/PLATFORM_PARITY.md`에 인계 체크포인트로 기록한다.
+
+### Windows
+
 - [ ] 10단계: Windows에서 portable Domain·Settings·Packages 테스트와 schema-v11 계약 반영
 - [ ] 11단계: Windows `PetInstanceManager`, 다중 Win32/Composition 오버레이와 NavigationView UX 구현
 - [ ] 12단계: 실제 Windows PC에서 다수 펫 Release·혼합 DPI·잠금·절전·설치 업데이트 QA
+
+### 플랫폼 동등성
+
 - [ ] 13단계: 플랫폼 동등성 문서와 릴리스·복구 사용자 문서 완료
 
 ## 검증 방법
@@ -187,6 +200,7 @@ schema-v11의 구체적인 DTO는 1단계에서 확정하지만 다음 책임 �
 - 2026-08-13: v10의 선택 펫을 첫 활성 인스턴스로 옮기고 선택되지 않은 프로필을 보존하며 누락된 선택 프로필에는 시스템 기본값을 만드는 v11 마이그레이션 4개, 앱 버전 4개와 패키지 내보내기 14개 테스트를 통과했다.
 - 2026-08-13: macOS 전체 `MonglePetTests` 회귀가 통과했다.
 - 2026-08-13: `shared/Fixtures/Settings`에 단일 펫 schema-v10 입력과 고정 UUID를 사용한 schema-v11 기대 결과를 추가했다. macOS가 이 공통 fixture를 정확히 변환하는 테스트를 포함해 v11 마이그레이션 테스트 5개가 통과했다. 실제 v11 Domain 검증과 저장소 활성화는 2단계의 다음 작업이다.
+- 2026-08-13: 이후 개발 순서를 공통 계약, macOS, Windows, 플랫폼 동등성으로 구분했다. macOS 구현·QA와 Windows 인계를 마친 뒤 Windows 소스 변경·빌드·테스트는 Windows 환경에서 진행한다.
 
 ## 완료 결과
 
