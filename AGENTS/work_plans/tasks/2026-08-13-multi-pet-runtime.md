@@ -146,7 +146,7 @@ schema-v11의 구체적인 DTO는 1단계에서 확정하지만 다음 책임 �
 ### 공통 계약
 
 - [x] 1단계: 확정된 제품 버전 `1.1.0`을 적용하고 schema-v11, 인스턴스·프로필 식별자와 안전 복원 계약 확정
-- [ ] 2단계: 플랫폼 공통 schema-v10→v11 fixture, Domain 검증과 마이그레이션 시나리오 작성
+- [x] 2단계: 플랫폼 공통 schema-v10→v11 fixture, Domain 검증과 마이그레이션 시나리오 작성
 
 ### macOS
 
@@ -201,10 +201,13 @@ macOS 9단계를 완료하면 확정 동작, schema-v11·공통 fixture, Windows
 - 2026-08-13: macOS 전체 `MonglePetTests` 회귀가 통과했다.
 - 2026-08-13: `shared/Fixtures/Settings`에 단일 펫 schema-v10 입력과 고정 UUID를 사용한 schema-v11 기대 결과를 추가했다. macOS가 이 공통 fixture를 정확히 변환하는 테스트를 포함해 v11 마이그레이션 테스트 5개가 통과했다. 실제 v11 Domain 검증과 저장소 활성화는 2단계의 다음 작업이다.
 - 2026-08-13: 이후 개발 순서를 공통 계약, macOS, Windows, 플랫폼 동등성으로 구분했다. macOS 구현·QA와 Windows 인계를 마친 뒤 Windows 소스 변경·빌드·테스트는 Windows 환경에서 진행한다.
+- 2026-08-13: macOS `AppSettings`를 선택 인스턴스와 식별된 행동 프로필을 가진 v11 Domain으로 전환했다. 현재 단일 런타임 UI는 선택 인스턴스 호환 view를 사용하되 표시 상태·overlay·행동 편집이 다른 인스턴스 데이터를 버리지 않는다.
+- 2026-08-13: `AppSettingsStore`의 현재 쓰기 형식을 schema-v11로 전환하고 v1~v10을 v11로 원자적으로 이관한다. 중복·잘못된 UUID, 누락·공유 프로필 참조, 잘못된 별명·표시 상태·overlay·display order를 항목별로 복구하고 같은 원본 펫의 두 인스턴스가 독립 프로필·overlay로 왕복하는 테스트를 추가했다.
+- 2026-08-13: v11 관련 Store·Session·Migration·Mapper 테스트와 Debug 빌드가 통과했다. 전체 `MonglePetTests`는 398개 통과, 선택형 로컬 WebP fixture 1개 건너뜀으로 회귀가 없음을 확인했다.
 
 ## 완료 결과
 
-- 진행 중: 1단계 버전·schema-v11 저장 계약을 완료했고 2단계 공통 fixture 검증까지 완료했다. v11 Domain·저장소 활성화부터 이어서 구현한다.
+- 진행 중: 공통 계약 1~2단계를 완료했다. 다음은 macOS 3단계 `PetInstanceManager`와 독립 `PetRuntimeContext` 분리다.
 
 ## 남은 위험 / 후속 작업
 

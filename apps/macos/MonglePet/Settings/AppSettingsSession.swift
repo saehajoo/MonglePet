@@ -37,14 +37,7 @@ final class AppSettingsSession: ObservableObject {
             return
         }
 
-        update(
-            AppSettings(
-                selectedPetInstallationID: settings.selectedPetInstallationID,
-                lastUserPresentation: presentation,
-                overlay: settings.overlay,
-                behaviorProfiles: settings.behaviorProfiles
-            )
-        )
+        update(settings.replacingSelectedPresentation(presentation))
     }
 
     func setBehaviorMode(_ mode: BehaviorMode) {
@@ -106,11 +99,8 @@ final class AppSettingsSession: ObservableObject {
     }
 
     func setSelectedPetInstallationID(_ installationID: UUID?) {
-        let selectedSettings = AppSettings(
-            selectedPetInstallationID: installationID,
-            lastUserPresentation: settings.lastUserPresentation,
-            overlay: settings.overlay,
-            behaviorProfiles: settings.behaviorProfiles
+        let selectedSettings = settings.selectingPet(
+            installationID: installationID
         )
         update(
             BuiltInBehaviorPresets.normalizedDefaults(in: selectedSettings)
@@ -138,19 +128,12 @@ final class AppSettingsSession: ObservableObject {
 
     @discardableResult
     func removeBehaviorProfile(forInstallationID installationID: UUID) -> Bool {
-        let retainedProfiles = settings.behaviorProfiles.filter {
-            $0.petKey != .installed(installationID)
-        }
-        let selectedInstallationID =
-            settings.selectedPetInstallationID == installationID
-            ? nil
-            : settings.selectedPetInstallationID
-        let updatedSettings = AppSettings(
-            selectedPetInstallationID: selectedInstallationID,
-            lastUserPresentation: settings.lastUserPresentation,
-            overlay: settings.overlay,
-            behaviorProfiles: retainedProfiles
-        )
+        let petKey = PetBehaviorKey.installed(installationID)
+        let selectedSettings = settings.selectedPetInstallationID == installationID
+            ? settings.selectingPet(installationID: nil)
+            : settings
+        let updatedSettings = selectedSettings
+            .removingUnreferencedBehaviorProfiles(for: petKey)
         let normalizedSettings = BuiltInBehaviorPresets.normalizedDefaults(
             in: updatedSettings
         )
@@ -559,12 +542,7 @@ final class AppSettingsSession: ObservableObject {
     }
 
     private func settingsReplacingOverlay(_ overlay: OverlaySettings) -> AppSettings {
-        AppSettings(
-            selectedPetInstallationID: settings.selectedPetInstallationID,
-            lastUserPresentation: settings.lastUserPresentation,
-            overlay: overlay,
-            behaviorProfiles: settings.behaviorProfiles
-        )
+        settings.replacingSelectedOverlay(overlay)
     }
 
     private func updateActiveProfile(

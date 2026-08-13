@@ -389,7 +389,7 @@ final class AppSettingsSessionTests: XCTestCase {
         XCTAssertTrue(
             session.settings.sequences.contains { $0.id == "first-custom" }
         )
-        XCTAssertEqual(session.settings.behaviorProfiles.count, 2)
+        XCTAssertEqual(session.settings.behaviorProfiles.count, 3)
     }
 
     @MainActor
@@ -846,7 +846,7 @@ final class AppSettingsSessionTests: XCTestCase {
 
     @MainActor
     func testNewerSchemaPreservesFileWhileAllowingRuntimePresentationChange() throws {
-        let originalData = Data(#"{"schemaVersion":11,"future":true}"#.utf8)
+        let originalData = Data(#"{"schemaVersion":12,"future":true}"#.utf8)
         try originalData.write(to: settingsURL)
         let session = AppSettingsSession(
             store: AppSettingsStore(settingsURL: settingsURL)
@@ -855,7 +855,7 @@ final class AppSettingsSessionTests: XCTestCase {
         let result = session.load()
         session.setUserPresentation(.tuckedAway)
 
-        XCTAssertEqual(result.source, .newerSchema(11))
+        XCTAssertEqual(result.source, .newerSchema(12))
         XCTAssertFalse(session.isWritingEnabled)
         XCTAssertNotNil(session.loadNotice)
         XCTAssertEqual(session.settings.lastUserPresentation, .tuckedAway)

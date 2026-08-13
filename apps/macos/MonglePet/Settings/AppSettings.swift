@@ -1,8 +1,11 @@
 import Foundation
 
 nonisolated enum AppSettingsLimits {
-    static let schemaVersion = 10
+    static let schemaVersion = 11
     static let maximumFileSize = 5 * 1_024 * 1_024
+    /// Corrupt-file defense only; this is not a product-facing pet limit.
+    static let maximumStoredPetInstances = 10_000
+    static let maximumPetNicknameLength = 80
     static let defaultOverlayWidth = 192.0
     static let minimumOverlayWidth = 96.0
     static let maximumOverlayWidth = 384.0
@@ -12,6 +15,8 @@ nonisolated enum AppSettingsLimits {
     static let maximumStepsPerSequence = 100
     static let maximumAutomaticRules = 100
     static let maximumBehaviorProfiles = 1_000
+    /// Corrupt-file defense for schema-v11, not a UI creation limit.
+    static let maximumStoredBehaviorProfiles = 10_000
     static let maximumSpeechPhrases = 100
     static let maximumSpeechTextLength = 120
     static let defaultSpeechDisplayDurationMilliseconds: Int64 = 3_000
@@ -740,11 +745,59 @@ nonisolated struct OverlaySettings: Equatable, Sendable {
     )
 }
 
+nonisolated struct PetInstanceSettings: Equatable, Identifiable, Sendable {
+    let instanceID: UUID
+    let petKey: PetBehaviorKey
+    let nickname: String?
+    let presentation: PetPresentation
+    let overlay: OverlaySettings
+    let behaviorProfileID: UUID
+    let displayOrder: Int
+
+    var id: UUID { instanceID }
+}
+
+nonisolated struct PetBehaviorProfileSettings:
+    Equatable,
+    Identifiable,
+    Sendable
+{
+    let profileID: UUID
+    let profile: BehaviorProfile
+
+    var id: UUID { profileID }
+}
+
 nonisolated struct AppSettings: Equatable, Sendable {
+    let selectedPetInstanceID: UUID
+    let activePetInstances: [PetInstanceSettings]
+    let petBehaviorProfiles: [PetBehaviorProfileSettings]
+
+    // Compatibility views used by the current single-runtime UI. They always
+    // describe `selectedPetInstanceID` and will be removed as the coordinator
+    // and settings screens become instance-aware.
     let selectedPetInstallationID: UUID?
     let lastUserPresentation: PetPresentation
     let overlay: OverlaySettings
     let behaviorProfiles: [BehaviorProfile]
+
+    init(
+        selectedPetInstanceID: UUID,
+        activePetInstances: [PetInstanceSettings],
+        petBehaviorProfiles: [PetBehaviorProfileSettings]
+    ) {
+        self.selectedPetInstanceID = selectedPetInstanceID
+        self.activePetInstances = activePetInstances
+        self.petBehaviorProfiles = petBehaviorProfiles
+
+        let selectedInstance = activePetInstances.first {
+            $0.instanceID == selectedPetInstanceID
+        } ?? activePetInstances.first
+        selectedPetInstallationID = selectedInstance?.petKey.installationID
+        lastUserPresentation = selectedInstance?.presentation ?? .awake
+        overlay = selectedInstance?.overlay ?? .default
+        behaviorProfiles = petBehaviorProfiles.map(\.profile)
+    }
 
     init(
         selectedPetInstallationID: UUID?,
@@ -752,10 +805,36 @@ nonisolated struct AppSettings: Equatable, Sendable {
         overlay: OverlaySettings,
         behaviorProfiles: [BehaviorProfile]
     ) {
-        self.selectedPetInstallationID = selectedPetInstallationID
-        self.lastUserPresentation = lastUserPresentation
-        self.overlay = overlay
-        self.behaviorProfiles = behaviorProfiles
+        let petKey = PetBehaviorKey(
+            installationID: selectedPetInstallationID
+        )
+        let profiles = behaviorProfiles.isEmpty
+            ? [Self.emptyProfile(for: petKey)]
+            : behaviorProfiles
+        let records = profiles.enumerated().map { index, profile in
+            PetBehaviorProfileSettings(
+                profileID: Self.legacyProfileID(at: index),
+                profile: profile
+            )
+        }
+        let selectedProfileID = records.first(where: {
+            $0.profile.petKey == petKey
+        })?.profileID ?? records[0].profileID
+        self.init(
+            selectedPetInstanceID: Self.legacyInstanceID,
+            activePetInstances: [
+                PetInstanceSettings(
+                    instanceID: Self.legacyInstanceID,
+                    petKey: petKey,
+                    nickname: nil,
+                    presentation: lastUserPresentation,
+                    overlay: overlay,
+                    behaviorProfileID: selectedProfileID,
+                    displayOrder: 0
+                )
+            ],
+            petBehaviorProfiles: records
+        )
     }
 
     init(
@@ -792,11 +871,17 @@ nonisolated struct AppSettings: Equatable, Sendable {
     }
 
     var selectedPetKey: PetBehaviorKey {
-        PetBehaviorKey(installationID: selectedPetInstallationID)
+        selectedPetInstance?.petKey
+            ?? PetBehaviorKey(installationID: selectedPetInstallationID)
     }
 
     var activeBehaviorProfile: BehaviorProfile? {
-        behaviorProfile(for: selectedPetKey)
+        guard let selectedPetInstance else {
+            return behaviorProfile(for: selectedPetKey)
+        }
+        return petBehaviorProfiles.first {
+            $0.profileID == selectedPetInstance.behaviorProfileID
+        }?.profile
     }
 
     var behaviorMode: BehaviorMode {
@@ -831,22 +916,203 @@ nonisolated struct AppSettings: Equatable, Sendable {
         behaviorProfiles.first { $0.petKey == key }
     }
 
+    var selectedPetInstance: PetInstanceSettings? {
+        activePetInstances.first { $0.instanceID == selectedPetInstanceID }
+    }
+
     func replacingActiveBehaviorProfile(
         _ profile: BehaviorProfile
     ) -> AppSettings {
         precondition(profile.petKey == selectedPetKey)
-        var profiles = behaviorProfiles
-        if let index = profiles.firstIndex(where: { $0.petKey == profile.petKey }) {
-            profiles[index] = profile
+        guard let instanceIndex = activePetInstances.firstIndex(where: {
+            $0.instanceID == selectedPetInstanceID
+        }) else {
+            return self
+        }
+
+        var instances = activePetInstances
+        var profiles = petBehaviorProfiles
+        let currentProfileID = instances[instanceIndex].behaviorProfileID
+        if let profileIndex = profiles.firstIndex(where: {
+            $0.profileID == currentProfileID
+        }) {
+            profiles[profileIndex] = PetBehaviorProfileSettings(
+                profileID: currentProfileID,
+                profile: profile
+            )
         } else {
-            profiles.append(profile)
+            let profileID = UUID()
+            profiles.append(
+                PetBehaviorProfileSettings(
+                    profileID: profileID,
+                    profile: profile
+                )
+            )
+            instances[instanceIndex] = replacing(
+                instances[instanceIndex],
+                behaviorProfileID: profileID
+            )
         }
         return AppSettings(
-            selectedPetInstallationID: selectedPetInstallationID,
-            lastUserPresentation: lastUserPresentation,
-            overlay: overlay,
-            behaviorProfiles: profiles
+            selectedPetInstanceID: selectedPetInstanceID,
+            activePetInstances: instances,
+            petBehaviorProfiles: profiles
         )
+    }
+
+    func replacingSelectedPresentation(
+        _ presentation: PetPresentation
+    ) -> AppSettings {
+        replacingSelectedInstance { instance in
+            replacing(instance, presentation: presentation)
+        }
+    }
+
+    func replacingSelectedOverlay(_ overlay: OverlaySettings) -> AppSettings {
+        replacingSelectedInstance { instance in
+            replacing(instance, overlay: overlay)
+        }
+    }
+
+    func selectingPet(
+        installationID: UUID?,
+        idGenerator: () -> UUID = UUID.init
+    ) -> AppSettings {
+        let petKey = PetBehaviorKey(installationID: installationID)
+        guard let instanceIndex = activePetInstances.firstIndex(where: {
+            $0.instanceID == selectedPetInstanceID
+        }) else {
+            return self
+        }
+        guard activePetInstances[instanceIndex].petKey != petKey else {
+            return self
+        }
+
+        var instances = activePetInstances
+        var profiles = petBehaviorProfiles
+        let profileID: UUID
+        let otherProfileIDs = Set(
+            instances.enumerated().compactMap { index, instance in
+                index == instanceIndex ? nil : instance.behaviorProfileID
+            }
+        )
+        if let available = profiles.first(where: {
+            $0.profile.petKey == petKey
+                && !otherProfileIDs.contains($0.profileID)
+        }) {
+            profileID = available.profileID
+        } else {
+            profileID = idGenerator()
+            let template = profiles.first(where: {
+                $0.profile.petKey == petKey
+            })?.profile ?? Self.defaultProfile(for: petKey)
+            profiles.append(
+                PetBehaviorProfileSettings(
+                    profileID: profileID,
+                    profile: template
+                )
+            )
+        }
+        instances[instanceIndex] = replacing(
+            instances[instanceIndex],
+            petKey: petKey,
+            behaviorProfileID: profileID
+        )
+        return AppSettings(
+            selectedPetInstanceID: selectedPetInstanceID,
+            activePetInstances: instances,
+            petBehaviorProfiles: profiles
+        )
+    }
+
+    func removingUnreferencedBehaviorProfiles(
+        for key: PetBehaviorKey
+    ) -> AppSettings {
+        let referencedIDs = Set(activePetInstances.map(\.behaviorProfileID))
+        let profiles = petBehaviorProfiles.filter {
+            $0.profile.petKey != key || referencedIDs.contains($0.profileID)
+        }
+        return AppSettings(
+            selectedPetInstanceID: selectedPetInstanceID,
+            activePetInstances: activePetInstances,
+            petBehaviorProfiles: profiles
+        )
+    }
+
+    private func replacingSelectedInstance(
+        _ transform: (PetInstanceSettings) -> PetInstanceSettings
+    ) -> AppSettings {
+        guard let index = activePetInstances.firstIndex(where: {
+            $0.instanceID == selectedPetInstanceID
+        }) else {
+            return self
+        }
+        var instances = activePetInstances
+        instances[index] = transform(instances[index])
+        return AppSettings(
+            selectedPetInstanceID: selectedPetInstanceID,
+            activePetInstances: instances,
+            petBehaviorProfiles: petBehaviorProfiles
+        )
+    }
+
+    private func replacing(
+        _ instance: PetInstanceSettings,
+        petKey: PetBehaviorKey? = nil,
+        presentation: PetPresentation? = nil,
+        overlay: OverlaySettings? = nil,
+        behaviorProfileID: UUID? = nil
+    ) -> PetInstanceSettings {
+        PetInstanceSettings(
+            instanceID: instance.instanceID,
+            petKey: petKey ?? instance.petKey,
+            nickname: instance.nickname,
+            presentation: presentation ?? instance.presentation,
+            overlay: overlay ?? instance.overlay,
+            behaviorProfileID:
+                behaviorProfileID ?? instance.behaviorProfileID,
+            displayOrder: instance.displayOrder
+        )
+    }
+
+    private static func defaultProfile(
+        for petKey: PetBehaviorKey
+    ) -> BehaviorProfile {
+        BehaviorProfile(
+            petKey: petKey,
+            mode: .automatic,
+            manualSequenceID: BuiltInBehaviorPresets.defaultManualSequenceID,
+            sequences: BuiltInBehaviorPresets.sequences,
+            automaticRules: [],
+            movement: .default,
+            pettingMotionID: nil,
+            speech: .default
+        )
+    }
+
+    private static func emptyProfile(
+        for petKey: PetBehaviorKey
+    ) -> BehaviorProfile {
+        BehaviorProfile(
+            petKey: petKey,
+            mode: .automatic,
+            manualSequenceID: nil,
+            sequences: [],
+            automaticRules: []
+        )
+    }
+
+    private static let legacyInstanceID = UUID(
+        uuidString: "00000000-0000-0000-0000-000000000101"
+    )!
+
+    private static func legacyProfileID(at index: Int) -> UUID {
+        UUID(
+            uuidString: String(
+                format: "00000000-0000-0000-0000-%012X",
+                index + 0x201
+            )
+        )!
     }
 
     static let `default` = AppSettings(

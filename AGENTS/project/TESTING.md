@@ -762,6 +762,14 @@ UI 테스트는 앱 실행과 접근성 자동화가 가능한 macOS 세션에�
 - macOS 전체 `MonglePetTests` 회귀가 통과했다.
 - `shared/Fixtures/Settings`의 schema-v10 입력과 고정 UUID schema-v11 기대 결과를 macOS codec으로 비교하는 공통 계약 테스트를 추가했다. 해당 테스트를 포함한 `AppSettingsV11MigrationTests` 5개가 통과했다.
 
+### macOS 멀티펫 2단계 Domain·저장소 검증
+
+- 측정일: 2026-08-13
+- schema-v11 유효 문서의 식별자 무변경 왕복, 같은 원본 펫 두 인스턴스의 독립 프로필·overlay 저장, 중복 instance/profile UUID와 공유 참조·별명·표시 상태·overlay·display order의 항목별 복구를 검증했다.
+- schema-v10 설정을 처음 읽을 때 v11로 원자적으로 교체하고, 두 번째 로드에서 생성된 instance/profile UUID가 바뀌거나 파일을 다시 마이그레이션하지 않는지 확인했다.
+- 현재 단일 런타임 설정 편집이 선택 인스턴스만 바꾸고 저장·재실행 뒤 다른 인스턴스 데이터를 보존하도록 Store·Session 회귀를 통과했다.
+- Debug 빌드 성공, 전체 `MonglePetTests` 398개 통과, 선택형 로컬 WebP fixture 1개 건너뜀을 확인했다.
+
 ## 변경 유형별 최소 검증
 
 ### 후속 단계 필수 검증

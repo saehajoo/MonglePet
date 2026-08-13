@@ -45,10 +45,15 @@ final class AppSettingsStoreTests: XCTestCase {
             JSONSerialization.jsonObject(with: Data(contentsOf: settingsURL))
                 as? [String: Any]
         )
-        XCTAssertEqual(json["schemaVersion"] as? Int, 10)
-        XCTAssertEqual(json["lastUserPresentation"] as? String, "tuckedAway")
+        XCTAssertEqual(json["schemaVersion"] as? Int, 11)
         XCTAssertNil(json["behaviorMode"])
-        let overlay = try XCTUnwrap(json["overlay"] as? [String: Any])
+        let instances = try XCTUnwrap(
+            json["activePetInstances"] as? [[String: Any]]
+        )
+        XCTAssertEqual(instances.first?["presentation"] as? String, "tuckedAway")
+        let overlay = try XCTUnwrap(
+            instances.first?["overlay"] as? [String: Any]
+        )
         let boundary = try XCTUnwrap(
             overlay["movementBoundary"] as? [String: Any]
         )
@@ -285,14 +290,14 @@ final class AppSettingsStoreTests: XCTestCase {
     }
 
     func testNewerSchemaIsPreservedAndDisablesWriting() throws {
-        let originalData = Data(#"{"schemaVersion":11,"futureValue":true}"#.utf8)
+        let originalData = Data(#"{"schemaVersion":12,"futureValue":true}"#.utf8)
         try originalData.write(to: settingsURL)
         let store = AppSettingsStore(settingsURL: settingsURL)
 
         let loaded = store.load()
 
-        XCTAssertEqual(loaded.source, .newerSchema(11))
-        XCTAssertEqual(loaded.issues, [.newerSchemaVersion(11)])
+        XCTAssertEqual(loaded.source, .newerSchema(12))
+        XCTAssertEqual(loaded.issues, [.newerSchemaVersion(12)])
         XCTAssertFalse(loaded.isWritingEnabled)
         XCTAssertEqual(try Data(contentsOf: settingsURL), originalData)
         XCTAssertThrowsError(try store.save(.default)) { error in
@@ -344,7 +349,7 @@ final class AppSettingsStoreTests: XCTestCase {
         XCTAssertThrowsError(try store.save(invalidSettings)) { error in
             XCTAssertEqual(
                 error as? AppSettingsStoreError,
-                .invalidSettings("lastUserPresentation")
+                .invalidSettings("activePetInstances.0.presentation")
             )
         }
         XCTAssertFalse(FileManager.default.fileExists(atPath: settingsURL.path))
@@ -372,7 +377,7 @@ final class AppSettingsStoreTests: XCTestCase {
         XCTAssertEqual(children.map(\.lastPathComponent), ["settings.json"])
     }
 
-    func testV1LoadMigratesAndAtomicallyRewritesSettingsAsV10() throws {
+    func testV1LoadMigratesAndAtomicallyRewritesSettingsAsV11() throws {
         let stored = makeLegacySettings()
         try JSONEncoder().encode(stored).write(to: settingsURL)
         let store = AppSettingsStore(settingsURL: settingsURL)
@@ -387,10 +392,10 @@ final class AppSettingsStoreTests: XCTestCase {
             StoredSchemaEnvelope.self,
             from: migratedData
         )
-        XCTAssertEqual(envelope.schemaVersion, 10)
+        XCTAssertEqual(envelope.schemaVersion, 11)
         XCTAssertNoThrow(
             try JSONDecoder().decode(
-                StoredAppSettingsV10.self,
+                StoredAppSettingsV11.self,
                 from: migratedData
             )
         )
@@ -402,7 +407,7 @@ final class AppSettingsStoreTests: XCTestCase {
         XCTAssertEqual(children.map(\.lastPathComponent), ["settings.json"])
     }
 
-    func testV2LoadAddsDefaultMovementAndAtomicallyRewritesAsV10() throws {
+    func testV2LoadAddsDefaultMovementAndAtomicallyRewritesAsV11() throws {
         let profile = StoredBehaviorProfileV2(
             petKey: .builtIn,
             mode: "manual",
@@ -436,17 +441,17 @@ final class AppSettingsStoreTests: XCTestCase {
         XCTAssertEqual(loaded.source, .file)
         XCTAssertEqual(loaded.settings.movementSettings, .default)
         let migrated = try JSONDecoder().decode(
-            StoredAppSettingsV10.self,
+            StoredAppSettingsV11.self,
             from: Data(contentsOf: settingsURL)
         )
-        XCTAssertEqual(migrated.schemaVersion, 10)
+        XCTAssertEqual(migrated.schemaVersion, 11)
         XCTAssertEqual(migrated.behaviorProfiles.first?.movement.mode, "fixed")
         XCTAssertEqual(
             migrated.behaviorProfiles.first?.movement.cursorAvoidingIdleBehavior,
             "stationary"
         )
         XCTAssertEqual(
-            migrated.overlay.movementBoundary.mode,
+            migrated.activePetInstances.first?.overlay.movementBoundary.mode,
             "allDisplays"
         )
         XCTAssertFalse(
@@ -454,7 +459,7 @@ final class AppSettingsStoreTests: XCTestCase {
         )
     }
 
-    func testV3LoadAddsDisplayDefaultsAndAtomicallyRewritesAsV10() throws {
+    func testV3LoadAddsDisplayDefaultsAndAtomicallyRewritesAsV11() throws {
         let originalSettings = makeSettings(speech: .default)
         let storedV3 = try AppSettingsV3Mapper.storedSettings(
             from: originalSettings
@@ -464,22 +469,25 @@ final class AppSettingsStoreTests: XCTestCase {
         let loaded = AppSettingsStore(settingsURL: settingsURL).load()
 
         XCTAssertEqual(loaded.source, .file)
-        XCTAssertEqual(loaded.settings, originalSettings)
+        assertLegacySettings(loaded.settings, equals: originalSettings)
         let migrated = try JSONDecoder().decode(
-            StoredAppSettingsV10.self,
+            StoredAppSettingsV11.self,
             from: Data(contentsOf: settingsURL)
         )
-        XCTAssertEqual(migrated.schemaVersion, 10)
-        XCTAssertEqual(migrated.overlay.opacity, 1)
-        XCTAssertFalse(migrated.overlay.pointerOverlapFadeEnabled)
-        XCTAssertEqual(migrated.overlay.pointerOverlapOpacity, 0.2)
+        XCTAssertEqual(migrated.schemaVersion, 11)
+        let overlay = try XCTUnwrap(
+            migrated.activePetInstances.first?.overlay
+        )
+        XCTAssertEqual(overlay.opacity, 1)
+        XCTAssertFalse(overlay.pointerOverlapFadeEnabled)
+        XCTAssertEqual(overlay.pointerOverlapOpacity, 0.2)
         XCTAssertEqual(
-            migrated.overlay.movementBoundary.mode,
+            overlay.movementBoundary.mode,
             "allDisplays"
         )
     }
 
-    func testV4LoadPreservesSingleMotionFallbacksAndRewritesAsV10() throws {
+    func testV4LoadPreservesSingleMotionFallbacksAndRewritesAsV11() throws {
         let originalSettings = makeSettings(speech: .default)
         let storedV4 = try AppSettingsV4Mapper.storedSettings(
             from: originalSettings
@@ -489,12 +497,12 @@ final class AppSettingsStoreTests: XCTestCase {
         let loaded = AppSettingsStore(settingsURL: settingsURL).load()
 
         XCTAssertEqual(loaded.source, .file)
-        XCTAssertEqual(loaded.settings, originalSettings)
+        assertLegacySettings(loaded.settings, equals: originalSettings)
         let migrated = try JSONDecoder().decode(
-            StoredAppSettingsV10.self,
+            StoredAppSettingsV11.self,
             from: Data(contentsOf: settingsURL)
         )
-        XCTAssertEqual(migrated.schemaVersion, 10)
+        XCTAssertEqual(migrated.schemaVersion, 11)
         XCTAssertEqual(
             migrated.behaviorProfiles.first?.movement
                 .cursorFollowingAnimation.fallbackMotionID,
@@ -668,6 +676,33 @@ final class AppSettingsStoreTests: XCTestCase {
                 )
             ],
             automaticRules: []
+        )
+    }
+
+    private func assertLegacySettings(
+        _ actual: AppSettings,
+        equals expected: AppSettings,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        XCTAssertEqual(
+            actual.selectedPetInstallationID,
+            expected.selectedPetInstallationID,
+            file: file,
+            line: line
+        )
+        XCTAssertEqual(
+            actual.lastUserPresentation,
+            expected.lastUserPresentation,
+            file: file,
+            line: line
+        )
+        XCTAssertEqual(actual.overlay, expected.overlay, file: file, line: line)
+        XCTAssertEqual(
+            actual.behaviorProfiles,
+            expected.behaviorProfiles,
+            file: file,
+            line: line
         )
     }
 

@@ -146,10 +146,6 @@ nonisolated final class AppSettingsStore {
                 let migratedV10 = try AppSettingsV9ToV10Migrator.migrate(
                     migratedV9.settings
                 )
-                try write(migratedV10.settings)
-                let mapped = AppSettingsV10Mapper.domainSettings(
-                    from: migratedV10.settings
-                )
                 let issues = migratedV2.issues
                     + migratedV3.issues
                     + migratedV4.issues
@@ -159,13 +155,9 @@ nonisolated final class AppSettingsStore {
                     + migratedV8.issues
                     + migratedV9.issues
                     + migratedV10.issues
-                    + mapped.issues
-                isWritingEnabled = true
-                return AppSettingsLoadResult(
-                    settings: mapped.settings,
-                    issues: issues,
-                    source: issues.isEmpty ? .file : .recovered,
-                    isWritingEnabled: true
+                return try loadMigratingV10(
+                    migratedV10.settings,
+                    precedingIssues: issues
                 )
             } catch {
                 isWritingEnabled = false
@@ -210,10 +202,6 @@ nonisolated final class AppSettingsStore {
                 let migratedV10 = try AppSettingsV9ToV10Migrator.migrate(
                     migratedV9.settings
                 )
-                try write(migratedV10.settings)
-                let mapped = AppSettingsV10Mapper.domainSettings(
-                    from: migratedV10.settings
-                )
                 let issues = migratedV3.issues
                     + migratedV4.issues
                     + migratedV5.issues
@@ -222,13 +210,9 @@ nonisolated final class AppSettingsStore {
                     + migratedV8.issues
                     + migratedV9.issues
                     + migratedV10.issues
-                    + mapped.issues
-                isWritingEnabled = true
-                return AppSettingsLoadResult(
-                    settings: mapped.settings,
-                    issues: issues,
-                    source: issues.isEmpty ? .file : .recovered,
-                    isWritingEnabled: true
+                return try loadMigratingV10(
+                    migratedV10.settings,
+                    precedingIssues: issues
                 )
             } catch {
                 isWritingEnabled = false
@@ -270,10 +254,6 @@ nonisolated final class AppSettingsStore {
                 let migratedV10 = try AppSettingsV9ToV10Migrator.migrate(
                     migratedV9.settings
                 )
-                try write(migratedV10.settings)
-                let mapped = AppSettingsV10Mapper.domainSettings(
-                    from: migratedV10.settings
-                )
                 let issues = migrated.issues
                     + migratedV5.issues
                     + migratedV6.issues
@@ -281,13 +261,9 @@ nonisolated final class AppSettingsStore {
                     + migratedV8.issues
                     + migratedV9.issues
                     + migratedV10.issues
-                    + mapped.issues
-                isWritingEnabled = true
-                return AppSettingsLoadResult(
-                    settings: mapped.settings,
-                    issues: issues,
-                    source: issues.isEmpty ? .file : .recovered,
-                    isWritingEnabled: true
+                return try loadMigratingV10(
+                    migratedV10.settings,
+                    precedingIssues: issues
                 )
             } catch {
                 isWritingEnabled = false
@@ -326,23 +302,15 @@ nonisolated final class AppSettingsStore {
                 let migratedV10 = try AppSettingsV9ToV10Migrator.migrate(
                     migratedV9.settings
                 )
-                try write(migratedV10.settings)
-                let mapped = AppSettingsV10Mapper.domainSettings(
-                    from: migratedV10.settings
-                )
                 let issues = migrated.issues
                     + migratedV6.issues
                     + migratedV7.issues
                     + migratedV8.issues
                     + migratedV9.issues
                     + migratedV10.issues
-                    + mapped.issues
-                isWritingEnabled = true
-                return AppSettingsLoadResult(
-                    settings: mapped.settings,
-                    issues: issues,
-                    source: issues.isEmpty ? .file : .recovered,
-                    isWritingEnabled: true
+                return try loadMigratingV10(
+                    migratedV10.settings,
+                    precedingIssues: issues
                 )
             } catch {
                 isWritingEnabled = false
@@ -378,22 +346,14 @@ nonisolated final class AppSettingsStore {
                 let migratedV10 = try AppSettingsV9ToV10Migrator.migrate(
                     migratedV9.settings
                 )
-                try write(migratedV10.settings)
-                let mapped = AppSettingsV10Mapper.domainSettings(
-                    from: migratedV10.settings
-                )
                 let issues = migrated.issues
                     + migratedV7.issues
                     + migratedV8.issues
                     + migratedV9.issues
                     + migratedV10.issues
-                    + mapped.issues
-                isWritingEnabled = true
-                return AppSettingsLoadResult(
-                    settings: mapped.settings,
-                    issues: issues,
-                    source: issues.isEmpty ? .file : .recovered,
-                    isWritingEnabled: true
+                return try loadMigratingV10(
+                    migratedV10.settings,
+                    precedingIssues: issues
                 )
             } catch {
                 isWritingEnabled = false
@@ -426,21 +386,13 @@ nonisolated final class AppSettingsStore {
                 let migratedV10 = try AppSettingsV9ToV10Migrator.migrate(
                     migratedV9.settings
                 )
-                try write(migratedV10.settings)
-                let mapped = AppSettingsV10Mapper.domainSettings(
-                    from: migratedV10.settings
-                )
                 let issues = migrated.issues
                     + migratedV8.issues
                     + migratedV9.issues
                     + migratedV10.issues
-                    + mapped.issues
-                isWritingEnabled = true
-                return AppSettingsLoadResult(
-                    settings: mapped.settings,
-                    issues: issues,
-                    source: issues.isEmpty ? .file : .recovered,
-                    isWritingEnabled: true
+                return try loadMigratingV10(
+                    migratedV10.settings,
+                    precedingIssues: issues
                 )
             } catch {
                 isWritingEnabled = false
@@ -470,20 +422,12 @@ nonisolated final class AppSettingsStore {
                 let migratedV10 = try AppSettingsV9ToV10Migrator.migrate(
                     migratedV9.settings
                 )
-                try write(migratedV10.settings)
-                let mapped = AppSettingsV10Mapper.domainSettings(
-                    from: migratedV10.settings
-                )
                 let issues = migrated.issues
                     + migratedV9.issues
                     + migratedV10.issues
-                    + mapped.issues
-                isWritingEnabled = true
-                return AppSettingsLoadResult(
-                    settings: mapped.settings,
-                    issues: issues,
-                    source: issues.isEmpty ? .file : .recovered,
-                    isWritingEnabled: true
+                return try loadMigratingV10(
+                    migratedV10.settings,
+                    precedingIssues: issues
                 )
             } catch {
                 isWritingEnabled = false
@@ -510,19 +454,11 @@ nonisolated final class AppSettingsStore {
                 let migratedV10 = try AppSettingsV9ToV10Migrator.migrate(
                     migrated.settings
                 )
-                try write(migratedV10.settings)
-                let mapped = AppSettingsV10Mapper.domainSettings(
-                    from: migratedV10.settings
-                )
                 let issues = migrated.issues
                     + migratedV10.issues
-                    + mapped.issues
-                isWritingEnabled = true
-                return AppSettingsLoadResult(
-                    settings: mapped.settings,
-                    issues: issues,
-                    source: issues.isEmpty ? .file : .recovered,
-                    isWritingEnabled: true
+                return try loadMigratingV10(
+                    migratedV10.settings,
+                    precedingIssues: issues
                 )
             } catch {
                 isWritingEnabled = false
@@ -546,17 +482,32 @@ nonisolated final class AppSettingsStore {
                 let migrated = try AppSettingsV9ToV10Migrator.migrate(
                     storedSettings
                 )
-                try write(migrated.settings)
-                let mapped = AppSettingsV10Mapper.domainSettings(
-                    from: migrated.settings
+                return try loadMigratingV10(
+                    migrated.settings,
+                    precedingIssues: migrated.issues
                 )
-                let issues = migrated.issues + mapped.issues
-                isWritingEnabled = true
+            } catch {
+                isWritingEnabled = false
                 return AppSettingsLoadResult(
-                    settings: mapped.settings,
-                    issues: issues,
-                    source: issues.isEmpty ? .file : .recovered,
-                    isWritingEnabled: true
+                    settings: .default,
+                    issues: [.invalidField("settingsMigration")],
+                    source: .recovered,
+                    isWritingEnabled: false
+                )
+            }
+        }
+
+        if envelope.schemaVersion == 10 {
+            guard let storedSettings = try? decoder.decode(
+                StoredAppSettingsV10.self,
+                from: data
+            ) else {
+                return recoverCorruptFile()
+            }
+            do {
+                return try loadMigratingV10(
+                    storedSettings,
+                    precedingIssues: []
                 )
             } catch {
                 isWritingEnabled = false
@@ -571,14 +522,14 @@ nonisolated final class AppSettingsStore {
 
         guard envelope.schemaVersion == AppSettingsLimits.schemaVersion,
               let storedSettings = try? decoder.decode(
-                  StoredAppSettingsV10.self,
+                  StoredAppSettingsV11.self,
                   from: data
               )
         else {
             return recoverCorruptFile()
         }
 
-        let mapped = AppSettingsV10Mapper.domainSettings(from: storedSettings)
+        let mapped = AppSettingsV11Mapper.domainSettings(from: storedSettings)
         isWritingEnabled = true
         return AppSettingsLoadResult(
             settings: mapped.settings,
@@ -593,9 +544,9 @@ nonisolated final class AppSettingsStore {
             throw AppSettingsStoreError.writingDisabledForNewerSchema
         }
 
-        let storedSettings: StoredAppSettingsV10
+        let storedSettings: StoredAppSettingsV11
         do {
-            storedSettings = try AppSettingsV10Mapper.storedSettings(
+            storedSettings = try AppSettingsV11Mapper.storedSettings(
                 from: settings
             )
         } catch let error as AppSettingsMappingError {
@@ -606,6 +557,30 @@ nonisolated final class AppSettingsStore {
         }
 
         try write(storedSettings)
+    }
+
+    private func loadMigratingV10(
+        _ storedSettings: StoredAppSettingsV10,
+        precedingIssues: [SettingsRecoveryIssue]
+    ) throws -> AppSettingsLoadResult {
+        let migrated = try AppSettingsV10ToV11Migrator.migrate(
+            storedSettings
+        )
+        let mapped = AppSettingsV11Mapper.domainSettings(
+            from: migrated.settings
+        )
+        let normalized = try AppSettingsV11Mapper.storedSettings(
+            from: mapped.settings
+        )
+        try write(normalized)
+        let issues = precedingIssues + migrated.issues + mapped.issues
+        isWritingEnabled = true
+        return AppSettingsLoadResult(
+            settings: mapped.settings,
+            issues: issues,
+            source: issues.isEmpty ? .file : .recovered,
+            isWritingEnabled: true
+        )
     }
 
     private func write<T: Encodable>(_ storedSettings: T) throws {

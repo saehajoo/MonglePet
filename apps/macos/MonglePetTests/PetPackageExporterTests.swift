@@ -502,7 +502,7 @@ final class PetPackageExporterTests: XCTestCase {
         )
         XCTAssertEqual(
             reloadedSession.settings.behaviorProfiles.count,
-            1
+            2
         )
         XCTAssertNotEqual(
             importedInstallationID,

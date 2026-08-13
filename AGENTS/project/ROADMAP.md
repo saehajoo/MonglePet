@@ -386,7 +386,8 @@ Windows 웹 배포는 자체 웹사이트를 기본 다운로드 경로, GitHub 
 
 - [x] 멀티펫 공통 마케팅 버전 `1.1.0` 확정
 - [x] settings schema-v11 식별자·인스턴스 저장 계약 확정
-- [ ] 설치 펫·행동 프로필·활성 인스턴스 식별자 분리와 schema-v10 마이그레이션
+- [x] 설치 펫·행동 프로필·활성 인스턴스 식별자 분리와 schema-v1~v10 마이그레이션
+- [x] schema-v11 Domain·원자적 저장과 식별자·참조·순서 항목별 복구
 - [ ] 동일 원본 인스턴스별 독립 설정과 원본 편집 시 copy-on-write 사본 전환
 - [ ] macOS `PetInstanceManager`와 다중 오버레이·독립 런타임
 - [ ] 전역 activity·pointer·screen snapshot과 이미지·알파 캐시 공유
