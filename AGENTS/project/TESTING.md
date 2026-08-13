@@ -44,6 +44,7 @@ xcodebuild -project apps/macos/MonglePet.xcodeproj \
 - 명시적인 자동 규칙 조건 JSON discriminator
 - 현재 펫 기본 참조와 누락된 애니메이션의 선언된 기본 애니메이션 대체
 - 설치 UUID별 행동 모드·수동 선택·루틴·자동 규칙의 독립 저장과 전환 복원
+- 같은 설치 펫의 여러 활성 인스턴스에서 행동·말풍선·쓰다듬기·깨움 상태와 네 이동 모드가 서로 영향을 주지 않고, 공유 activity snapshot을 각 인스턴스 규칙으로 독립 판정하는지 확인
 - 같은 설치 교체·별도 사본·명시적 삭제·연결이 끊긴 행동 설정의 생명주기
 - 공유 `.monglepet`의 정규화 manifest·참조 자산 선별·marker 제외·ZIP 왕복과 원자적 저장
 - 권장 프로필 schema-v7 말풍선 정책·표시 방식·테마·상대 배치 전체 필드 왕복과 schema-v1~v6 호환, 내보내기·가져오기 공통 요약

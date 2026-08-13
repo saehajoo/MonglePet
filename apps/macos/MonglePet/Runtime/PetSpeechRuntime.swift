@@ -91,6 +91,10 @@ final class PetSpeechRuntime {
     private var isPeriodicScheduled = false
     private var isDismissalScheduled = false
 
+    var currentPresentation: PetSpeechPresentation? {
+        activePresentation?.presentation
+    }
+
     init(
         scheduler: any PetSpeechScheduling = RunLoopPetSpeechScheduler(),
         dismissalScheduler: any PetSpeechScheduling =

@@ -25,6 +25,10 @@ final class PetInstanceManagerTests: XCTestCase {
             settings.activePetInstances.map(\.instanceID)
         )
         XCTAssertEqual(
+            manager.runtimeStatuses.map(\.instanceID),
+            settings.activePetInstances.map(\.instanceID)
+        )
+        XCTAssertEqual(
             manager.selectedInstanceID,
             settings.selectedPetInstanceID
         )
@@ -419,6 +423,20 @@ private final class FakePetRuntimeContext: PetRuntimeContextType {
     private(set) var stopCallCount = 0
     private(set) var desktopEnvironmentChangeCount = 0
 
+    var runtimeStatus: PetRuntimeStatus {
+        PetRuntimeStatus(
+            instanceID: instanceID,
+            isAwake: isAwake,
+            currentBehaviorSequenceID: nil,
+            currentPlaybackSequenceID: nil,
+            currentSpeechText: nil,
+            movementMode: currentSettings?.movementSettings.mode ?? .fixed,
+            movementState: .inactive,
+            movementActivity: latestMovementActivity,
+            isPettingInteractionActive: false
+        )
+    }
+
     init(instanceID: UUID) {
         self.instanceID = instanceID
     }
@@ -447,6 +465,10 @@ private final class FakePetRuntimeContext: PetRuntimeContextType {
 
     func desktopEnvironmentDidChange() {
         desktopEnvironmentChangeCount += 1
+    }
+
+    func requestPettingInteraction() -> Bool {
+        false
     }
 
     func moveToVisibleFrame(_ visibleFrame: NSRect) {}

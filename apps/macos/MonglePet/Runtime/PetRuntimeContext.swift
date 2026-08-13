@@ -21,6 +21,18 @@ nonisolated enum PetOverlayApplicationReason: Equatable, Sendable {
     }
 }
 
+nonisolated struct PetRuntimeStatus: Equatable, Sendable {
+    let instanceID: UUID
+    let isAwake: Bool
+    let currentBehaviorSequenceID: String?
+    let currentPlaybackSequenceID: String?
+    let currentSpeechText: String?
+    let movementMode: PetMovementMode
+    let movementState: PetMovementControllerState
+    let movementActivity: PetMovementActivity
+    let isPettingInteractionActive: Bool
+}
+
 @MainActor
 protocol PetRuntimeContextType: AnyObject {
     var instanceID: UUID { get }
@@ -30,12 +42,15 @@ protocol PetRuntimeContextType: AnyObject {
     var isMovementAllowed: Bool { get }
     var latestMovementActivity: PetMovementActivity { get }
     var currentSettings: AppSettings? { get }
+    var runtimeStatus: PetRuntimeStatus { get }
 
     func replacePet(_ item: PetLibraryItem) throws
     func apply(settings: AppSettings, reason: PetOverlayApplicationReason)
     func updateActivitySnapshot(_ snapshot: ActivitySnapshot)
     func setReduceMotion(_ shouldReduceMotion: Bool)
     func desktopEnvironmentDidChange()
+    @discardableResult
+    func requestPettingInteraction() -> Bool
     func moveToVisibleFrame(_ visibleFrame: NSRect)
     func stop()
 }
@@ -148,7 +163,7 @@ final class PetRuntimeContext: PetRuntimeContextType {
             self?.movementEnvironmentDidChange()
         }
         petWindowController.onPettingRequested = { [weak self] in
-            self?.pettingDidRequest()
+            _ = self?.requestPettingInteraction()
         }
     }
 
@@ -166,6 +181,23 @@ final class PetRuntimeContext: PetRuntimeContextType {
 
     var isMovementAllowed: Bool {
         movementLifecycle.isMovementAllowed
+    }
+
+    var runtimeStatus: PetRuntimeStatus {
+        PetRuntimeStatus(
+            instanceID: instanceID,
+            isAwake: isAwake,
+            currentBehaviorSequenceID:
+                behaviorRuntime.currentPlayback?.sequenceID,
+            currentPlaybackSequenceID:
+                playbackCoordinator.currentPlayback?.sequenceID,
+            currentSpeechText: speechRuntime.currentPresentation?.text,
+            movementMode: currentSettings?.movementSettings.mode ?? .fixed,
+            movementState: movementController.state,
+            movementActivity: latestMovementActivity,
+            isPettingInteractionActive:
+                behaviorRuntime.currentPlayback?.isInteraction == true
+        )
     }
 
     func replacePet(_ item: PetLibraryItem) throws {
@@ -248,6 +280,19 @@ final class PetRuntimeContext: PetRuntimeContextType {
         petWindowController.desktopEnvironmentDidChange()
     }
 
+    @discardableResult
+    func requestPettingInteraction() -> Bool {
+        guard
+            let currentSettings,
+            currentSettings.movementSettings.mode != .cursorAvoiding,
+            let motionID = currentSettings.pettingMotionID,
+            petWindowController.petDefinition.motion(id: motionID) != nil
+        else {
+            return false
+        }
+        return behaviorRuntime.triggerInteraction(motionID: motionID)
+    }
+
     func moveToVisibleFrame(_ visibleFrame: NSRect) {
         petWindowController.moveToVisibleFrame(visibleFrame)
         movementLifecycle.invalidateEnvironment()
@@ -261,18 +306,6 @@ final class PetRuntimeContext: PetRuntimeContextType {
         movementLifecycle.setSystemSuspended(true)
         movementLifecycle.stop()
         petWindowController.sleep()
-    }
-
-    private func pettingDidRequest() {
-        guard
-            let currentSettings,
-            currentSettings.movementSettings.mode != .cursorAvoiding,
-            let motionID = currentSettings.pettingMotionID,
-            petWindowController.petDefinition.motion(id: motionID) != nil
-        else {
-            return
-        }
-        behaviorRuntime.triggerInteraction(motionID: motionID)
     }
 
     private func persistCurrentOverlayGeometry() {

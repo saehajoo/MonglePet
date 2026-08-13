@@ -142,6 +142,10 @@ final class AppCoordinator: NSObject {
         }
     }
 
+    var activePetRuntimeStatuses: [PetRuntimeStatus] {
+        petInstanceManager.runtimeStatuses
+    }
+
     func start(openSettingsOnLaunch: Bool = false) {
         guard menuBarController == nil else {
             return

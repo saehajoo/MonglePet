@@ -35,6 +35,12 @@ final class PetInstanceManager {
         orderedInstanceIDs
     }
 
+    var runtimeStatuses: [PetRuntimeStatus] {
+        orderedInstanceIDs.compactMap {
+            contextsByID[$0]?.runtimeStatus
+        }
+    }
+
     func context(
         for instanceID: UUID
     ) -> (any PetRuntimeContextType)? {
