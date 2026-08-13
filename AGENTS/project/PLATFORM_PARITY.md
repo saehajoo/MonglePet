@@ -43,7 +43,7 @@ macOS에서 개발을 시작했다는 이유만으로 AppKit 타입, Bundle Iden
 | 쓰다듬기·말풍선 | 기준 구현 | 진행 중 | 실제 frame 알파 쓰다듬기와 행동 우선·주기 runtime, 행동/주기 대사 분리, draft·즉시 저장·위치 미리보기를 구현; gap을 잇는 가변 꼬리와 행동 대사 유지 중 주기 예약을 보완했으며 물리 포인터·혼합 DPI·성능 최종 QA 남음 |
 | 로컬 가져오기·내보내기 | 기준 구현 | 진행 중 | 설치 전 메타데이터·모션·권장 설정 검토, schema-v1~v7 호환, 펫만/권장 설정 적용, 교체 기본 보존·별도 설치, canonical 자산 선별·권리 확인·ZIP 왕복·원자적 저장 구현; 실제 대화상자와 macOS 교차 왕복 QA 남음 |
 | 배포·업데이트 | 진행 중 | 진행 중 | 1.0.0.13 x64 self-contained EXE 설치기·SHA256SUMS 생성과 사용자별 설치·동일 버전 업그레이드·MSIX 데이터 이전·로그인 실행·실행 중 제거 QA 통과; 첫 Preview는 웹 수동 업데이트, 서명·HTTPS·깨끗한 PC와 향후 App Installer 자동 업데이트 QA 남음 |
-| 멀티펫 | 진행 중 (`1.1.0`) | 계획됨 (`1.1.0`) | macOS schema-v11 Domain·원자적 저장, 독립 runtime, 다중 `NSPanel`, 전역 환경·표시 자원 공유, 인스턴스별 행동·말풍선·쓰다듬기·네 이동 모드, 활성 펫 sidebar·영속 앞뒤 순서·상태 메뉴 제어, 비차단 자원 경고·전체 일시정지·순차 복원 저널과 안전 시작 완료; 다음은 Release·장시간·다중 모니터 QA, Windows는 macOS 인계 후 Windows 환경에서 반영 |
+| 멀티펫 | 기준 구현 (`1.1.0`) | 계획됨 (`1.1.0`) | macOS schema-v11·독립 runtime·다중 `NSPanel`·자원 공유·인스턴스별 행동/상호작용·관리 UX·영속 순서·자원 경고/일시정지·안전 시작 완료; Release 1~8마리 CPU·RSS, 437개 단위 회귀, 실제 1마리·다중 모니터·화면 재연결·약 5분 장시간 스모크 통과; 1시간 Instruments는 공개 전 안정화 QA |
 
 Windows 개발 환경과 첫 솔루션을 구성했고 2026-08-09 기준 x64 Debug·Release 빌드와 Activity 27개·Core 36개·Packages 18개·PetLibrary 10개·Settings 37개·Shell 8개로 총 136개 단위 테스트가 통과한다. 별도 최상위 Win32 HWND에 ContentIsland 기반 `Microsoft.UI.Composition`으로 공통 `.monglepet` PNG 프레임을 표시하고 항상 위·비활성 동작과 96–384px 크기, 10–100% 투명도, linear/nearest 렌더링, 클릭 통과와 `awake`/`tuckedAway` 저장 복원을 구현했다. 최대 64px frame 알파 마스크로 실제 표시 픽셀만 판정해 300ms 호버 쓰다듬기와 클릭 통과 겹침 투명화를 같은 100ms 관찰에 연결했으며, 비활성 시작·투명 모서리 100%·불투명 중앙 20%와 설정 복원을 packaged Release에서 확인했다. notification area의 네이티브 메뉴는 현재 펫, 깨우기·재우기, 클릭 통과, 포인터가 있는 현재 화면으로 가져오기, 설정과 종료를 제공하며 설정창 X 숨김·재열기, 명시적 종료와 위치 재실행 복원을 확인했다. 네 이동 모드와 전역 이동 범위, 실제 좌표 방향 모션, 드래그 위치 저장과 창 제목 없는 전면 앱 대표 창 선호를 연결했고 음수 좌표 듀얼 모니터 자유 이동·쓰다듬기 행동 복귀, 전체 화면 대표 창 fallback을 실제 Release에서 확인했다. 순수 cycle scheduler와 monotonic 일회성 timer runtime이 단계 반복·루틴 반복·동적 모션 전환·숨김 pause를 처리하며 WinUI에서 자동·수동 모드, 루틴 단계와 앱·입력 없음 규칙을 생성·수정·삭제하고 저장·즉시 적용한다. Windows activity adapter는 PFN 또는 실행 파일명만으로 전면 앱을 식별하고 `GetLastInputInfo`를 1초 polling하며 WTS·전원 메시지로 잠금·절전을 즉시 반영한다. 자동 규칙 앱 선택기는 창 제목 없이 일반 최상위 창 프로세스만 열거해 이름·지연 아이콘·식별자를 보여주며 packaged Release에서 Notepad PFN 규칙 저장과 이름·경로 비저장을 확인했다. 표준 파일 선택기에서 KakaoTalk 실행 파일을 골라 `exe:kakaotalk.exe` 규칙 저장과 실제 전면 앱 루틴 전환도 확인했다. LocalState UUID 라이브러리, schema-v1~v10 순차 마이그레이션, schema-v10 전체 Domain 매핑·항목 복구·원자적 전체 저장과 `.monglepet` 가져오기·관리 개발 UI도 구현했다. 고정 PNG workload 30초 기준 CPU 0.017%(전체 시스템 기준), private memory 100.2MiB, 3D GPU 0%를 기록했고 전면 창 감지 자유 이동 workload는 전체 시스템 CPU 0.364%, private memory 126.2MiB를 기록했다. 실제 Explorer 재시작·혼합 DPI 다중 모니터와 물리 잠금·절전 복귀 QA, 알파 쓰다듬기와 일반 창 foreground의 최종 물리 QA, 가져오기 검토·내보내기, 다중 프레임·WebP와 말풍선 성능 측정은 아직 남아 있다.
 
@@ -68,6 +68,41 @@ Windows 설정창은 기능 구조를 유지하면서 Mica 배경이 드러나�
 Windows 웹 배포 준비에서는 MSIX 내부 identity를 읽고 Authenticode 서명·인증서 subject·타임스탬프를 검증한 뒤 버전별 MSIX, 고정 URL App Installer와 SHA256SUMS를 생성하는 PowerShell 자동화를 추가했다. 자체 웹사이트를 기본 다운로드 경로, GitHub Releases를 보조 경로로 사용하며 패키지를 먼저 게시하고 고정 App Installer를 마지막에 교체한다. 현재 `CN=AppPublisher` 미서명 개발 패키지는 공개 기본 조건에서 거부하며, 실제 인증서 선택과 최종 Publisher 확정 뒤 깨끗한 PC 설치·업데이트 QA가 남아 있다.
 
 Windows 첫 EXE Preview 후속 단계에서는 package identity 감지, packaged `LocalState`와 unpackaged `%LOCALAPPDATA%\MonglePet` 데이터 루트, MSIX `StartupTask`와 현재 사용자 Run 자동 실행을 분리했다. .NET·Windows App SDK를 포함한 x64 publish 538개 파일 약 225MiB를 Inno Setup 사용자별 설치기 약 60.8MiB로 압축하고 SHA256SUMS를 생성한다. 실제 1.0.0.13 설치·동일 버전 업그레이드에서 실행 파일 해시와 단일 제거 항목을 확인했으며, `--startup` 설정창 숨김, MSIX 데이터 11개 파일 비파괴 이전, 실행 중 정상 종료 제거, 설치 폴더·시작 메뉴·자동 실행 값 삭제와 사용자 데이터 해시 보존을 통과했다. Shell 12개를 포함한 전체 테스트 수는 171개다.
+
+## 멀티펫 1.1.0 Windows 인계 체크포인트
+
+### 확정된 사용자 동작
+
+- 제품상 활성 마릿수 제한을 두지 않는다. 저장 파일 손상 방어 상한은 사용자 제한과 구분하며 성능 저하만으로 앱이 펫을 자동 중지·숨김·삭제하지 않는다.
+- 같은 설치 펫을 여러 번 추가해도 각 항목은 별도 instance ID, behavior profile ID, 별칭, 표시 상태, overlay, 이동·행동·말풍선 설정과 런타임을 가진다.
+- 원본 펫 정의를 편집하면 선택 인스턴스만 편집 사본으로 전환하고 같은 원본의 다른 인스턴스는 유지한다.
+- 사용자가 정한 `displayOrder`가 창의 앞뒤 순서이며 클릭이나 마지막 상호작용이 순서를 영속적으로 바꾸지 않는다.
+- 전체 일시정지는 저장 설정을 바꾸지 않는 실행 전용 상태다. 자원 경고는 비차단 안내이며 사용자가 재개·재우기·제거를 선택한다.
+- 시작 중 비정상 종료 저널이 남으면 다음 실행에서 자동 복원을 멈추고 개별·전체·마지막 항목 제외 복원을 제공한다.
+
+### 공통 계약과 fixture
+
+- 현재 설정 형식은 `AGENTS/specifications/SETTINGS_SCHEMA.md`의 schema-v11이다. `activePetInstances`, `behaviorProfiles`, 선택 instance 참조와 UUID 소유권을 플랫폼에서 같은 의미로 검증한다.
+- `shared/Fixtures/Settings/schema-v10-single-pet.json`과 `schema-v11-single-instance.expected.json`을 Windows portable codec의 첫 교차 검증 입력·기대 결과로 사용한다.
+- 화면 식별자·좌표, macOS bundle identifier, Windows PFN/실행 파일명과 권한 상태는 플랫폼 로컬 값이며 교차 설정이나 `.monglepet` 패키지에 섞지 않는다.
+- 앱 마케팅 버전은 두 플랫폼 모두 `1.1.0`이며 플랫폼별 빌드 번호는 독립적으로 증가시킨다.
+
+### Windows 구현 범위
+
+1. C# portable Domain·Settings에서 schema-v11 읽기·쓰기, v1~v10 순차 이관, 항목 단위 복구와 공통 fixture를 먼저 통과시킨다.
+2. `PetInstanceManager`가 instance별 runtime을 소유하고 전면 앱·입력 없음·포인터·화면 snapshot과 디코딩 자원은 프로세스 단위로 공유한다.
+3. 펫마다 별도 Win32 `HWND`와 `Microsoft.UI.Composition` 표시를 만들고 위치·표시 상태·이동·행동·쓰다듬기·말풍선을 독립 적용한다.
+4. 설정 첫 화면은 WinUI `NavigationView`의 `활성 펫`으로 구성하고 같은 원본 추가, 선택, 별칭, 순서, 개별/전체 깨우기·재우기·일시정지와 제거를 제공한다.
+5. notification area에는 전체 명령 뒤 인스턴스별 빠른 제어를 제공하고, 비차단 CPU·private memory 경고와 시작 복구 UX를 Windows 방식으로 구현한다.
+
+### Windows 실제 환경 완료 조건
+
+- 동일 펫 여러 인스턴스의 독립 편집·창·위치·앞뒤 순서와 앱 재실행 복원
+- 혼합 DPI·음수 좌표 다중 모니터 왕복, 화면 분리·재연결과 Explorer 재시작
+- 잠금·절전·재개 중 모든 인스턴스의 timer·Composition 중지와 안전 복귀
+- 다수 펫 packaged Release CPU·GPU·private memory·프레임 지연과 장시간 증가량
+- 시작 중 강제 종료 후 안전 시작, 손상·미래 schema·과대 컬렉션의 창 생성 전 방어
+- 기존 1.0.x 설치의 설정·펫 보관함을 보존한 1.1.0 설치·업데이트·제거
 
 ## 신규 기능 작업 규칙
 
