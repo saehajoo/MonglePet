@@ -4,7 +4,7 @@
 
 - 상태: in_progress
 - 생성일: 2026-07-24
-- 마지막 갱신: 2026-07-26
+- 마지막 갱신: 2026-08-13
 
 ## 목표
 
@@ -63,10 +63,12 @@
 - 2026-07-26: macOS 26.5.2(25F84) 업데이트 후 전체 단위 XCTest 308개가 실행됐고 선택적 로컬 WebP fixture 1개만 건너뛴 채 실패 없이 통과했다. Xcode 26.6 Debug 빌드와 저장소 기준선을 포함해 1단계를 완료했다.
 - 2026-07-26: `apps/macos/Scripts/build-preview-zip.zsh`로 Universal Release 앱을 코드서명 없이 빌드하고 `MonglePet-0.1.0-build.1-preview.zip`, SHA-256과 환경 manifest가 생성·재검증되는 것을 임시 경로에서 확인했다. 이 파일은 배포 준비 검증물이며 최종 공개 산출물은 아니다.
 - 2026-07-27: 다른 맥에서 원격 변경을 별도 작업 트리로 검토해 전체 단위 XCTest 307개 통과·선택 fixture 1개 건너뜀과 Universal Preview ZIP·SHA-256·manifest 생성을 재현했다. dirty 작업 트리 예외는 산출물 출처를 모호하게 만들 수 있어 제거했다.
+- 2026-08-13: 멀티펫 macOS 기준 구현과 Release QA를 완료하고 앱 버전을 `1.1.0 (2)`로 확정했다. 회사 Mac에서는 배포 문서까지만 갱신하며 최종 Preview ZIP 생성·독립 설치 검증·GitHub Release 게시 판단은 개인 Mac에서 진행한다.
+- 2026-08-13: Windows 1.1.0 기능 동등성 전 macOS 단독 Preview 후보 태그는 `macos-v1.1.0-preview.1`을 사용하고 ZIP·SHA-256·manifest를 같은 GitHub Release에 게시하는 절차를 `apps/macos/DISTRIBUTION.md`에 기록했다.
 
 ## 완료 결과
 
-- Release Preview ZIP 생성 절차 검증 완료, 최종 깨끗한 커밋과 수동 스모크 테스트 대기
+- Release Preview ZIP 생성 절차 검증 완료. 개인 Mac에서 최신 `main` 기준 `1.1.0 (2)` 최종 산출물 생성, 독립 설치 스모크 테스트와 GitHub Release 게시 대기
 
 ## 남은 위험 / 후속 작업
 

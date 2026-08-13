@@ -23,8 +23,23 @@ Apple 공증과 티켓 부착이 모두 필요합니다.
 - 두 값이 바뀌면 `MonglePetVersionTests`의 기대값도 같은 커밋에서 갱신합니다.
 - `.monglepet` 패키지 스키마 버전은 앱 마케팅 버전과 별도로 관리합니다.
 
-현재 기준은 `0.1.0 (1)`입니다. 문서와 배포 자동화만 준비하는 동안에는 이
-값을 올리지 않습니다.
+현재 macOS 기준은 `1.1.0 (2)`입니다. 새 배포 후보를 만드는 사이 코드나
+설정이 바뀌면 빌드 번호와 `MonglePetVersionTests` 기대값을 함께 올린 뒤
+산출물을 다시 생성합니다.
+
+## 현재 배포 상태
+
+- 회사 Mac에서는 소스·문서·자동 검증까지만 완료합니다.
+- 실제 Preview ZIP 또는 Developer ID DMG 생성과 최종 설치 검증은 개인
+  Mac의 깨끗한 `main`에서 진행합니다.
+- Apple Developer Program과 Developer ID 준비 전에는 미서명 Preview ZIP만
+  제한된 테스터에게 제공합니다.
+- 일반 사용자 공개 배포는 Developer ID 서명·Apple 공증·티켓 부착을 마친
+  DMG만 사용합니다.
+- Windows 1.1.0 기능 동등성 완료 전 macOS 단독 Preview의 GitHub 태그는
+  `macos-v1.1.0-preview.1`처럼 플랫폼과 채널을 구분합니다. 두 플랫폼의
+  1.1.0이 준비되면 하나의 제품 Release에 플랫폼별 산출물을 함께 제공할 수
+  있습니다.
 
 ## 공통 사전 검증
 
@@ -55,6 +70,15 @@ apps/macos/Scripts/build-preview-zip.zsh
 
 최종 파일은 별도 위치에서 다시 압축 해제해 버전 표시, 앱 실행, 설정 열기,
 기본 펫 표시를 확인합니다. 미서명 파일은 정식 배포물로 표시하지 않습니다.
+
+개인 Mac에서 검증을 마치면 GitHub Release에 다음 세 파일을 함께 올립니다.
+
+- `MonglePet-1.1.0-build.2-preview.zip`
+- `MonglePet-1.1.0-build.2-preview.zip.sha256`
+- `MonglePet-1.1.0-build.2-preview.manifest.txt`
+
+Release 설명에는 미서명·미공증 Preview라는 점, 지원 macOS 버전, 설치 후
+첫 실행 확인 방법과 알려진 제한을 명시합니다.
 
 ## Developer ID DMG
 

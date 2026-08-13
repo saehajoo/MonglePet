@@ -4,7 +4,7 @@
 
 - 상태: blocked
 - 생성일: 2026-07-26
-- 마지막 갱신: 2026-07-26
+- 마지막 갱신: 2026-08-13
 
 ## 목표
 
@@ -82,6 +82,7 @@ shasum -a 256 MonglePet.dmg
 - 2026-07-26: 이 맥의 키체인에서 `security find-identity -v -p codesigning` 결과 유효한 코드서명 인증서가 0개임을 확인했다. 실제 Archive·공증은 Developer ID Application 인증서와 팀 준비까지 계속 보류한다.
 - 2026-07-26: Release 구성에 Hardened Runtime을 활성화하고, Developer ID Archive·앱 entitlement 검증·DMG 생성과 서명·`notarytool` 제출·스테이플·Gatekeeper·SHA-256 검증을 한 번에 수행하는 `apps/macos/Scripts/build-notarized-dmg.zsh`를 준비했다.
 - 2026-07-26: 공개 `apps/macos/DISTRIBUTION.md`에 자격 증명을 저장소에 두지 않는 키체인 프로필 방식, 실행 명령, 독립 설치 검증과 버전·빌드 번호 정책을 기록했다.
+- 2026-08-13: 현재 정식 배포 후보 기준을 `1.1.0 (2)`로 갱신했다. 회사 Mac에서는 인증서·공증 작업을 수행하지 않고, Apple Developer Program·Developer ID Application 인증서·개인 키·notarytool 프로필을 준비한 개인 Mac에서만 최종 DMG를 만든다.
 
 ## 완료 결과
 
