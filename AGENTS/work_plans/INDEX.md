@@ -16,12 +16,7 @@
 | complete | Windows 개발 기준선·공통 계약·오버레이 실험 | `tasks/2026-08-08-windows-foundation-and-overlay.md` | 2026-08-08 |
 | in_progress | Phase 10 공개 준비와 이동 성능 보완 | `tasks/2026-07-24-phase-10-release-preparation.md` | 2026-07-31 |
 | in_progress | 개인 맥 Preview 배포 파일 생성 | `tasks/2026-07-24-personal-mac-preview-artifact.md` | 2026-07-26 |
-
-## 계획됨
-
-| 상태 | 작업명 | 파일 | 마지막 갱신 |
-| --- | --- | --- | --- |
-| planned | 멀티펫 런타임과 활성 펫 관리 | `tasks/2026-08-13-multi-pet-runtime.md` | 2026-08-13 |
+| in_progress | 멀티펫 런타임과 활성 펫 관리 | `tasks/2026-08-13-multi-pet-runtime.md` | 2026-08-13 |
 
 ## 보류 / 대기
 

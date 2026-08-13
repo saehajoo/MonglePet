@@ -403,6 +403,68 @@ schema-v10은 기존 `speech`에 시각 테마와 분리된 `placement`를 추�
 
 schema-v9에서 v10으로 마이그레이션할 때 `automatic`, 좌우 0pt, 간격 8pt를 추가하며 기존 말풍선 대사·정책·테마와 다른 펫별 설정을 유지한다.
 
+## schema-v11 멀티펫 저장 계약
+
+schema-v11은 설치된 펫 콘텐츠와 화면에 표시되는 활성 펫을 분리한다. 이 계약은 멀티펫 구현 중이며 macOS 저장소가 v11 Domain으로 전환되기 전까지 기존 schema-v10 파일을 계속 사용한다. 아래 JSON은 기존 v10 행동 프로필의 세부 필드를 생략한 식별자·인스턴스 구조 예시다.
+
+```json
+{
+  "schemaVersion": 11,
+  "selectedPetInstanceID": "22222222-2222-2222-2222-222222222222",
+  "activePetInstances": [
+    {
+      "instanceID": "22222222-2222-2222-2222-222222222222",
+      "petKey": {
+        "type": "installed",
+        "installationID": "11111111-1111-1111-1111-111111111111"
+      },
+      "nickname": "몽글이 2",
+      "presentation": "awake",
+      "overlay": {
+        "screenIdentifier": null,
+        "originX": 0,
+        "originY": 0,
+        "width": 192,
+        "clickThrough": false,
+        "opacity": 1.0,
+        "pointerOverlapFadeEnabled": false,
+        "pointerOverlapOpacity": 0.2,
+        "pixelArtRendering": false,
+        "movementBoundary": {
+          "mode": "allDisplays",
+          "screenIdentifier": null,
+          "normalizedRect": null
+        }
+      },
+      "behaviorProfileID": "33333333-3333-3333-3333-333333333333",
+      "displayOrder": 0
+    }
+  ],
+  "behaviorProfiles": [
+    {
+      "profileID": "33333333-3333-3333-3333-333333333333",
+      "petKey": {
+        "type": "installed",
+        "installationID": "11111111-1111-1111-1111-111111111111"
+      }
+    }
+  ]
+}
+```
+
+- `instanceID`는 화면에 표시되는 펫 하나의 안정적인 UUID다. 같은 설치 펫을 여러 번 추가해도 항상 새 값을 사용한다.
+- `selectedPetInstanceID`는 설정에서 편집하는 대상을 가리키며 유일한 실행 펫을 뜻하지 않는다.
+- `petKey`는 내장 펫 또는 로컬 `installationID`를 가리킨다. 패키지 ID나 웹 게시물 ID를 실행 인스턴스 식별자로 사용하지 않는다.
+- `nickname`은 선택적인 사용자 구분 이름이다. 값이 없으면 펫 원본 이름을 표시하며 원본 metadata는 변경하지 않는다.
+- `presentation`, `overlay`, 이동·행동·말풍선을 담은 행동 프로필은 인스턴스마다 독립적이다.
+- `behaviorProfileID`는 같은 문서의 행동 프로필 UUID를 참조한다. 행동 프로필은 기존 `petKey`도 유지해 활성화되지 않은 v10 프로필을 새 인스턴스의 설정 템플릿으로 다시 사용할 수 있게 한다.
+- `displayOrder`는 사용자가 정하는 앞뒤 순서다. 마지막 클릭·쓰다듬기·드래그로 자동 변경하지 않는다.
+- UUID 중복, 존재하지 않는 프로필 참조와 잘못된 선택 참조는 항목 단위 복구 대상으로 다루며 손상 배열로 창을 만들기 전에 검증한다.
+
+schema-v10에서 v11으로 마이그레이션할 때 현재 선택 펫을 새 `instanceID`의 첫 활성 인스턴스로 만들고 기존 표시 상태와 overlay를 그대로 옮긴다. 선택 펫의 기존 프로필에는 새 `profileID`를 부여해 연결한다. 선택 펫 프로필이 없으면 시스템 `기본` 루틴을 가진 새 프로필을 만들며, 선택되지 않았던 나머지 펫 프로필도 각각 새 UUID를 부여해 삭제하지 않고 보존한다.
+
+비정상 종료 복구 marker는 자주 바뀌는 실행 journal이므로 `settings.json`과 분리한다. journal에는 현재 복원 중인 `instanceID`와 정상 종료 여부만 기록하며 행동·대사·사용자 활동 내용은 기록하지 않는다. 구체적인 파일명과 원자적 갱신 방식은 안전 시작 구현 단계에서 확정한다.
+
 ## 자동 규칙 조건
 
 앱 조건:

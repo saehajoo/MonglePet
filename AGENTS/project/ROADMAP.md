@@ -385,7 +385,7 @@ Windows 웹 배포는 자체 웹사이트를 기본 다운로드 경로, GitHub 
 첫 공개 버전의 단일 펫 기준선을 보존하면서 고정된 사용자 마릿수 제한 없이 여러 펫을 동시에 표시한다. 상세 단계와 복구 정책은 `../work_plans/tasks/2026-08-13-multi-pet-runtime.md`에서 관리한다.
 
 - [x] 멀티펫 공통 마케팅 버전 `1.1.0` 확정
-- [ ] settings schema-v11 확정
+- [x] settings schema-v11 식별자·인스턴스 저장 계약 확정
 - [ ] 설치 펫·행동 프로필·활성 인스턴스 식별자 분리와 schema-v10 마이그레이션
 - [ ] 동일 원본 인스턴스별 독립 설정과 원본 편집 시 copy-on-write 사본 전환
 - [ ] macOS `PetInstanceManager`와 다중 오버레이·독립 런타임

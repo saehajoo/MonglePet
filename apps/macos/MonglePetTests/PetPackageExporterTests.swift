@@ -62,8 +62,8 @@ final class PetPackageExporterTests: XCTestCase {
         XCTAssertEqual(
             manifestObject["compatibility"] as? [String: String],
             [
-                "createdWithMonglePetVersion": "0.1.0",
-                "minimumMonglePetVersion": "0.1.0"
+                "createdWithMonglePetVersion": "1.1.0",
+                "minimumMonglePetVersion": "1.1.0"
             ]
         )
 
@@ -82,10 +82,10 @@ final class PetPackageExporterTests: XCTestCase {
             roundTrippedPackage.compatibility,
             PetPackageCompatibility(
                 createdWithMonglePetVersion: try XCTUnwrap(
-                    SemanticVersion("0.1.0")
+                    SemanticVersion("1.1.0")
                 ),
                 minimumMonglePetVersion: try XCTUnwrap(
-                    SemanticVersion("0.1.0")
+                    SemanticVersion("1.1.0")
                 )
             )
         )
@@ -677,7 +677,7 @@ final class PetPackageExporterTests: XCTestCase {
         PetPackageExporter(
             temporaryDirectoryURL: temporaryDirectoryURL,
             currentAppVersion: SemanticVersion(
-                major: 0,
+                major: 1,
                 minor: 1,
                 patch: 0
             )
