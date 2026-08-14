@@ -5,7 +5,6 @@ using MonglePet.Packages;
 using MonglePet.PetLibrary;
 using MonglePet.Settings;
 using MonglePet.Shell;
-using MonglePet.Windows.Activity;
 using MonglePet.Windows.Runtime;
 
 namespace MonglePet.Windows;
@@ -15,13 +14,13 @@ public partial class App : Application
     private const string DevelopmentPackageFamilyName =
         "4B7E245F-A59A-4E0F-84D7-52B511356256_1z32rh13vfry6";
     private Window? _window;
-    private PetBehaviorRuntime? _behaviorRuntime;
-    private PetSpeechRuntime? _speechRuntime;
-    private PetMovementRuntime? _movementRuntime;
-    private WindowsActivityMonitor? _activityMonitor;
-    private LoadedPetPackage? _activePackage;
+    private PetInstanceManager? _instanceManager;
+    private PetResourceMonitor? _resourceMonitor;
+    private PetRestoreJournal? _restoreJournal;
     private readonly WindowsMonitorPlacementService _monitorPlacement = new();
     private WindowsNotificationAreaIcon? _notificationArea;
+    private readonly HashSet<Guid> _sessionExcludedInstanceIds = [];
+    private Microsoft.UI.Dispatching.DispatcherQueueTimer? _selectionSaveTimer;
     private bool _isQuitting;
 
     public App()
@@ -78,9 +77,12 @@ public partial class App : Application
 
     public AppSettings CurrentSettings { get; private set; } = AppSettings.Default;
 
-    public Guid? ActiveInstallationId { get; private set; }
+    public Guid? ActiveInstallationId => CurrentSettings.SelectedPetInstance?.PetKey is
+        PetBehaviorKey.Installed installed
+            ? installed.InstallationId
+            : null;
 
-    public LoadedPetPackage? ActivePackage => _activePackage;
+    public LoadedPetPackage? ActivePackage => _instanceManager?.SelectedContext?.Package;
 
     public Overlay.PetOverlayWindow? Overlay { get; private set; }
 
@@ -91,25 +93,35 @@ public partial class App : Application
     public string? NotificationAreaInitializationError { get; private set; }
 
     public BehaviorProfile ActiveBehaviorProfile =>
-        ProfileFor(CurrentSettings, ActiveInstallationId);
+        CurrentSettings.SelectedBehaviorProfile ??
+        BehaviorProfileDefaults.Create(
+            BehaviorProfileDefaults.KeyForInstallation(ActiveInstallationId));
 
     public IReadOnlyList<string> ActiveMotionIds =>
-        _activePackage?.Manifest.Motions.Select(motion => motion.Id).ToList() ?? [];
+        ActivePackage?.Manifest.Motions.Select(motion => motion.Id).ToList() ?? [];
 
     public IReadOnlyList<MonitorWorkArea> AvailableMonitorWorkAreas() =>
         _monitorPlacement.AvailableWorkAreas();
 
-    public string BehaviorStatus => _behaviorRuntime?.Status ?? "행동 런타임 없음";
+    public string BehaviorStatus => _instanceManager?.SelectedContext?.Snapshot.BehaviorStatus
+        ?? "행동 런타임 없음";
 
-    public string SpeechStatus => _speechRuntime is null
-        ? "말풍선 런타임 없음"
-        : $"{_speechRuntime.Status} · {Overlay?.SpeechBubbleStatus ?? "표시 창 없음"}";
+    public string SpeechStatus => _instanceManager?.SelectedContext?.Snapshot.SpeechStatus
+        ?? "말풍선 런타임 없음";
 
-    public string MovementStatus => _movementRuntime is { } runtime
-        ? $"{runtime.Status} · {runtime.PointerStatus} · {runtime.WindowPreferenceStatus}"
-        : "이동 런타임 없음";
+    public string MovementStatus => _instanceManager?.SelectedContext?.Snapshot.MovementStatus
+        ?? "이동 런타임 없음";
 
-    public ActivitySnapshot? LatestActivitySnapshot => _activityMonitor?.LatestSnapshot;
+    public ActivitySnapshot? LatestActivitySnapshot => _instanceManager?.LatestActivitySnapshot;
+
+    internal IReadOnlyList<PetRuntimeSnapshot> ActivePetSnapshots =>
+        _instanceManager?.Snapshots ?? [];
+
+    public bool AreAllPetsPaused => _instanceManager?.IsPaused ?? false;
+
+    public PetResourceWarning? ResourceWarning => _resourceMonitor?.Warning;
+
+    public PetRestoreRecoveryState? SafeStartRecovery { get; private set; }
 
     public string ActivityStatus => LatestActivitySnapshot switch
     {
@@ -128,6 +140,8 @@ public partial class App : Application
     public event EventHandler? MovementStateChanged;
 
     public event EventHandler? SettingsStateChanged;
+
+    public event EventHandler? SelectedPetInstanceChanged;
 
     public IntPtr MainWindowHandle => _window is null
         ? IntPtr.Zero
@@ -290,8 +304,7 @@ public partial class App : Application
     {
         ArgumentNullException.ThrowIfNull(settings);
         CurrentSettings = CurrentSettings.WithSelectedOverlay(settings);
-        Overlay?.ApplyDisplaySettings(settings);
-        UpdateMovementRuntime();
+        SynchronizePetInstances();
     }
 
     public void SaveOverlaySettings(OverlaySettings settings)
@@ -301,8 +314,7 @@ public partial class App : Application
         AppSettings next = CurrentSettings.WithSelectedOverlay(settings);
         SettingsStore.Save(next);
         CurrentSettings = next;
-        Overlay?.ApplyDisplaySettings(settings);
-        UpdateMovementRuntime();
+        SynchronizePetInstances();
         RefreshNotificationArea();
         SettingsStateChanged?.Invoke(this, EventArgs.Empty);
     }
@@ -319,10 +331,145 @@ public partial class App : Application
         AppSettings next = CurrentSettings.WithSelectedPresentation(presentation);
         SettingsStore.Save(next);
         CurrentSettings = next;
-        ApplyPresentation(presentation);
+        SynchronizePetInstances();
         RefreshNotificationArea();
         SettingsStateChanged?.Invoke(this, EventArgs.Empty);
     }
+
+    public void SelectPetInstance(Guid instanceId)
+    {
+        EnsureSettingsWritingEnabled();
+        if (CurrentSettings.SelectedPetInstanceId == instanceId)
+        {
+            return;
+        }
+        CurrentSettings = ActivePetSettingsEditor.Select(CurrentSettings, instanceId);
+        if (SafeStartRecovery is null)
+        {
+            _instanceManager?.SelectInstance(instanceId);
+            Overlay = _instanceManager?.SelectedContext?.Overlay;
+            RefreshNotificationArea();
+        }
+        SelectedPetInstanceChanged?.Invoke(this, EventArgs.Empty);
+        ScheduleSelectedPetSave();
+    }
+
+    public void AddSamePetInstance(bool copiesSelectedSettings)
+    {
+        EnsureSettingsWritingEnabled();
+        CurrentSettings = ActivePetSettingsEditor.AddSamePet(
+            CurrentSettings,
+            copiesSelectedSettings);
+        SettingsStore.Save(CurrentSettings);
+        SynchronizePetInstances();
+        SettingsStateChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void RenamePetInstance(Guid instanceId, string? nickname)
+    {
+        EnsureSettingsWritingEnabled();
+        CurrentSettings = ActivePetSettingsEditor.Rename(CurrentSettings, instanceId, nickname);
+        SettingsStore.Save(CurrentSettings);
+        SynchronizePetInstances();
+        SettingsStateChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void RemovePetInstance(Guid instanceId)
+    {
+        EnsureSettingsWritingEnabled();
+        CurrentSettings = ActivePetSettingsEditor.Remove(CurrentSettings, instanceId);
+        SettingsStore.Save(CurrentSettings);
+        SynchronizePetInstances();
+        SettingsStateChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void MovePetInstance(Guid instanceId, int targetIndex)
+    {
+        EnsureSettingsWritingEnabled();
+        CurrentSettings = ActivePetSettingsEditor.Move(CurrentSettings, instanceId, targetIndex);
+        SettingsStore.Save(CurrentSettings);
+        SynchronizePetInstances();
+        SettingsStateChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void SetAllPetPresentations(PetPresentation presentation)
+    {
+        EnsureSettingsWritingEnabled();
+        CurrentSettings = ActivePetSettingsEditor.SetAllPresentations(
+            CurrentSettings,
+            presentation);
+        SettingsStore.Save(CurrentSettings);
+        SynchronizePetInstances();
+        RefreshNotificationArea();
+        SettingsStateChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void ToggleAllPetsPaused()
+    {
+        _instanceManager?.SetPaused(!AreAllPetsPaused);
+        RefreshNotificationArea();
+        SettingsStateChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void ResumeSafeStart(bool excludesLastRestoredInstance)
+    {
+        if (SafeStartRecovery is not { } recovery)
+        {
+            return;
+        }
+        SafeStartRecovery = null;
+        _restoreJournal?.Complete();
+        _sessionExcludedInstanceIds.Clear();
+        if (excludesLastRestoredInstance && recovery.InstanceId != Guid.Empty)
+        {
+            _sessionExcludedInstanceIds.Add(recovery.InstanceId);
+        }
+        SynchronizePetInstances();
+        SettingsStatusMessage = _sessionExcludedInstanceIds.Count == 0
+            ? "활성 펫 복원을 다시 시작했습니다."
+            : "마지막 복원 펫을 제외하고 시작했습니다.";
+        SettingsStateChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void RestorePetInstance(Guid instanceId)
+    {
+        if (!CurrentSettings.ActivePetInstances.Any(instance => instance.InstanceId == instanceId))
+        {
+            throw new ArgumentException("복원할 활성 펫이 없습니다.", nameof(instanceId));
+        }
+        if (SafeStartRecovery is not null)
+        {
+            _sessionExcludedInstanceIds.Clear();
+            foreach (ActivePetInstance instance in CurrentSettings.ActivePetInstances)
+            {
+                if (instance.InstanceId != instanceId)
+                {
+                    _sessionExcludedInstanceIds.Add(instance.InstanceId);
+                }
+            }
+            SafeStartRecovery = null;
+            _restoreJournal?.Complete();
+        }
+        else
+        {
+            _sessionExcludedInstanceIds.Remove(instanceId);
+        }
+        CurrentSettings = ActivePetSettingsEditor.Select(CurrentSettings, instanceId);
+        SettingsStore.Save(CurrentSettings);
+        SynchronizePetInstances();
+        SettingsStateChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public string PetDisplayName(PetBehaviorKey key) => key switch
+    {
+        PetBehaviorKey.BuiltIn => "몽글이",
+        PetBehaviorKey.Installed installed =>
+            PetLibrary.GetInstallation(installed.InstallationId).Package.Manifest.DisplayName,
+        _ => "알 수 없는 펫",
+    };
+
+    internal LoadedPetPackage PetPackage(Guid instanceId, PetBehaviorKey key) =>
+        _instanceManager?.PackageFor(instanceId) ?? ResolvePackage(key);
 
     public void ShowSettings()
     {
@@ -337,25 +484,18 @@ public partial class App : Application
     public void BringPetToCurrentScreen()
     {
         EnsureSettingsWritingEnabled();
-        if (Overlay is not { } overlay)
+        if (_instanceManager is not { SelectedInstanceId: Guid instanceId })
         {
             throw new InvalidOperationException("이동할 펫 오버레이가 없습니다.");
         }
-
-        PetScreenPlacement placement = _monitorPlacement.PlacementForCursor(
-            Math.Max(1, (int)Math.Round(overlay.Width)),
-            Math.Max(1, (int)Math.Round(overlay.Height)));
-        overlay.MoveTo(placement.X, placement.Y);
-        OverlaySettings nextOverlay = CurrentSettings.Overlay with
-        {
-            ScreenIdentifier = placement.ScreenIdentifier,
-            OriginX = placement.X,
-            OriginY = placement.Y,
-        };
-        AppSettings next = CurrentSettings.WithSelectedOverlay(nextOverlay);
+        OverlaySettings nextOverlay = _instanceManager.BringToCurrentScreen(instanceId);
+        AppSettings next = ActivePetSettingsEditor.SetOverlay(
+            CurrentSettings,
+            instanceId,
+            nextOverlay);
         SettingsStore.Save(next);
         CurrentSettings = next;
-        _movementRuntime?.InvalidateEnvironment();
+        SynchronizePetInstances();
         SettingsStateChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -367,6 +507,7 @@ public partial class App : Application
         }
 
         _isQuitting = true;
+        FlushSelectedPetSave();
         if (_window is MainWindow mainWindow)
         {
             mainWindow.PrepareForShutdown();
@@ -377,38 +518,15 @@ public partial class App : Application
             _notificationArea.Dispose();
             _notificationArea = null;
         }
-        if (_activityMonitor is not null)
+        _resourceMonitor?.Dispose();
+        _resourceMonitor = null;
+        if (_instanceManager is not null)
         {
-            _activityMonitor.SnapshotChanged -= ActivityMonitor_SnapshotChanged;
-            _activityMonitor.Dispose();
-            _activityMonitor = null;
+            _instanceManager.StateChanged -= InstanceManager_StateChanged;
+            _instanceManager.OverlayChanged -= InstanceManager_OverlayChanged;
+            _instanceManager.Dispose();
+            _instanceManager = null;
         }
-        if (_behaviorRuntime is not null)
-        {
-            _behaviorRuntime.StateChanged -= BehaviorRuntime_StateChanged;
-            _behaviorRuntime.Dispose();
-            _behaviorRuntime = null;
-        }
-        if (_speechRuntime is not null)
-        {
-            _speechRuntime.Dispose();
-            _speechRuntime = null;
-        }
-        if (_movementRuntime is not null)
-        {
-            _movementRuntime.StateChanged -= MovementRuntime_StateChanged;
-            _movementRuntime.MovementMotionChanged -= MovementRuntime_MovementMotionChanged;
-            _movementRuntime.PettingRequested -= MovementRuntime_PettingRequested;
-            _movementRuntime.Dispose();
-            _movementRuntime = null;
-        }
-        if (Overlay is not null)
-        {
-            Overlay.UserDragStateChanged -= Overlay_UserDragStateChanged;
-            Overlay.DisplayEnvironmentChanged -= Overlay_DisplayEnvironmentChanged;
-        }
-        Overlay?.Dispose();
-        Overlay = null;
         Window? window = _window;
         _window = null;
         if (window is not null)
@@ -458,10 +576,7 @@ public partial class App : Application
         AppSettings next = CurrentSettings.WithSelectedBehaviorProfile(profile);
         SettingsStore.Save(next);
         CurrentSettings = next;
-        _speechRuntime?.Update(profile.Speech);
-        _behaviorRuntime?.Update(profile, next.LastUserPresentation);
-        _speechRuntime?.BehaviorSequenceDidChange(_behaviorRuntime?.SequenceId);
-        UpdateMovementRuntime();
+        SynchronizePetInstances();
         BehaviorStateChanged?.Invoke(this, EventArgs.Empty);
         SettingsStateChanged?.Invoke(this, EventArgs.Empty);
     }
@@ -476,30 +591,15 @@ public partial class App : Application
     {
         EnsureSettingsWritingEnabled();
         InstalledPetPackage removing = PetLibrary.GetInstallation(installationId);
-        bool removesActive = ActiveInstallationId == installationId;
         PetBehaviorKey removedKey = new PetBehaviorKey.Installed(installationId);
+        CurrentSettings = ActivePetSettingsEditor.ReplaceAllPetReferences(
+            CurrentSettings,
+            removedKey,
+            PetBehaviorKey.BuiltInKey);
         PetLibrary.RemoveInstallation(installationId);
-
-        if (removesActive)
-        {
-            InstalledPetPackage? fallback = PetLibrary.GetInstalledPackages().FirstOrDefault();
-            if (fallback is not null)
-            {
-                ActivateInstalledPackage(fallback);
-            }
-            else
-            {
-                ActivateBundledSample();
-            }
-            CurrentSettings = RemovingUnreferencedProfiles(CurrentSettings, removedKey);
-            SettingsStore.Save(CurrentSettings);
-        }
-        else
-        {
-            CurrentSettings = RemovingUnreferencedProfiles(CurrentSettings, removedKey);
-            SettingsStore.Save(CurrentSettings);
-            SettingsStateChanged?.Invoke(this, EventArgs.Empty);
-        }
+        SettingsStore.Save(CurrentSettings);
+        SynchronizePetInstances();
+        SettingsStateChanged?.Invoke(this, EventArgs.Empty);
 
         return $"'{removing.Package.Manifest.DisplayName}' 설치를 삭제했습니다.";
     }
@@ -515,31 +615,29 @@ public partial class App : Application
                 ? null
                 : string.Join(" ", loadResult.Issues);
 
-            IReadOnlyList<InstalledPetPackage> installed =
-                PetLibrary.GetInstalledPackages();
-            InstalledPetPackage? selected = loadResult.SelectedPetInstallationId is Guid id
-                ? installed.FirstOrDefault(value => value.InstallationId == id)
-                : null;
-            selected ??= installed.FirstOrDefault();
-
-            if (selected is not null)
+            string settingsDirectory = Path.GetDirectoryName(SettingsStore.SettingsPath)
+                ?? throw new InvalidOperationException("설정 폴더를 확인할 수 없습니다.");
+            _restoreJournal = new PetRestoreJournal(
+                Path.Combine(settingsDirectory, "pet-restore-journal.json"));
+            SafeStartRecovery = _restoreJournal.Load();
+            _instanceManager = new PetInstanceManager(
+                ResolvePackage,
+                _monitorPlacement,
+                _restoreJournal);
+            _instanceManager.StateChanged += InstanceManager_StateChanged;
+            _instanceManager.OverlayChanged += InstanceManager_OverlayChanged;
+            if (SafeStartRecovery is null)
             {
-                CreateInitialOverlay(selected.Package, selected.InstallationId);
+                SynchronizePetInstances();
             }
             else
             {
-                CreateInitialOverlay(LoadBundledSample(), null);
+                SettingsStatusMessage = "이전 실행이 펫 복원 중 종료되어 안전 시작으로 열었습니다.";
             }
-
-            if (SettingsStore.IsWritingEnabled &&
-                ActiveInstallationId != loadResult.SelectedPetInstallationId)
-            {
-                CurrentSettings = CurrentSettings.WithSelectedPetInstallationId(ActiveInstallationId);
-                SettingsStore.Save(CurrentSettings);
-                SettingsStatusMessage = loadResult.SelectedPetInstallationId is Guid missing
-                    ? $"저장된 설치 {missing:D}을 찾지 못해 사용 가능한 펫으로 복구했습니다."
-                    : SettingsStatusMessage;
-            }
+            _resourceMonitor = new PetResourceMonitor(() =>
+                _instanceManager?.Snapshots ?? []);
+            _resourceMonitor.WarningChanged += ResourceMonitor_WarningChanged;
+            _resourceMonitor.Start();
         }
         catch (Exception exception)
         {
@@ -547,172 +645,34 @@ public partial class App : Application
         }
     }
 
-    private void CreateInitialOverlay(LoadedPetPackage package, Guid? installationId)
+    private void ActivateInstalledPackage(InstalledPetPackage installed)
     {
-        Overlay = new Overlay.PetOverlayWindow(package, CurrentSettings.Overlay);
-        OverlaySettings positionedOverlay = RestoreSavedOverlayPosition(
-            Overlay,
-            CurrentSettings.Overlay);
-        if (positionedOverlay != CurrentSettings.Overlay)
-        {
-            CurrentSettings = CurrentSettings.WithSelectedOverlay(positionedOverlay);
-            if (SettingsStore.IsWritingEnabled)
-            {
-                SettingsStore.Save(CurrentSettings);
-            }
-        }
-        _activePackage = package;
-        ActiveInstallationId = installationId;
-        _behaviorRuntime = new PetBehaviorRuntime(package, Overlay);
-        _behaviorRuntime.StateChanged += BehaviorRuntime_StateChanged;
-        _speechRuntime = CreateSpeechRuntime(Overlay);
-        _movementRuntime = CreateMovementRuntime(Overlay, package);
-        Overlay.UserDragStateChanged += Overlay_UserDragStateChanged;
-        Overlay.DisplayEnvironmentChanged += Overlay_DisplayEnvironmentChanged;
-        _activityMonitor = CreateActivityMonitor(Overlay);
-        ApplyPresentation(CurrentSettings.LastUserPresentation);
+        Guid instanceId = CurrentSettings.SelectedPetInstanceId;
+        CurrentSettings = ActivePetSettingsEditor.ReplacePet(
+            CurrentSettings,
+            instanceId,
+            new PetBehaviorKey.Installed(installed.InstallationId));
+        SettingsStore.Save(CurrentSettings);
+        _instanceManager?.InvalidateInstance(instanceId);
+        SynchronizePetInstances();
+        SettingsStateChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    private void ActivateInstalledPackage(InstalledPetPackage installed) =>
-        SwitchOverlay(installed.Package, installed.InstallationId);
-
-    private void ActivateBundledSample() => SwitchOverlay(LoadBundledSample(), null);
-
-    private void SwitchOverlay(LoadedPetPackage package, Guid? installationId)
+    private void ActivateBundledSample()
     {
-        AppSettings nextSettings = CurrentSettings.WithSelectedPetInstallationId(installationId);
-        var nextOverlay = new Overlay.PetOverlayWindow(package, nextSettings.Overlay);
-        nextSettings = nextSettings.WithSelectedOverlay(
-            RestoreSavedOverlayPosition(nextOverlay, nextSettings.Overlay));
-        PetBehaviorRuntime? nextRuntime = null;
-        PetSpeechRuntime? nextSpeechRuntime = null;
-        PetMovementRuntime? nextMovementRuntime = null;
-        try
-        {
-            nextRuntime = new PetBehaviorRuntime(package, nextOverlay);
-            BehaviorProfile nextProfile = ProfileFor(nextSettings, installationId);
-            nextSpeechRuntime = CreateSpeechRuntime(nextOverlay);
-            nextSpeechRuntime.Update(nextProfile.Speech);
-            nextSpeechRuntime.SetAwake(
-                nextSettings.LastUserPresentation == PetPresentation.Awake);
-            nextRuntime.Update(nextProfile, nextSettings.LastUserPresentation);
-            nextMovementRuntime = CreateMovementRuntime(nextOverlay, package);
-            SettingsStore.Save(nextSettings);
-            if (nextSettings.LastUserPresentation == PetPresentation.Awake)
-            {
-                nextOverlay.Show();
-            }
-            else
-            {
-                nextOverlay.Hide();
-            }
-            nextSpeechRuntime.BehaviorSequenceDidChange(nextRuntime.SequenceId);
-
-            Overlay.PetOverlayWindow? previous = Overlay;
-            PetBehaviorRuntime? previousRuntime = _behaviorRuntime;
-            PetSpeechRuntime? previousSpeechRuntime = _speechRuntime;
-            PetMovementRuntime? previousMovementRuntime = _movementRuntime;
-            WindowsActivityMonitor? previousActivityMonitor = _activityMonitor;
-            Overlay = nextOverlay;
-            _behaviorRuntime = nextRuntime;
-            _behaviorRuntime.StateChanged += BehaviorRuntime_StateChanged;
-            _speechRuntime = nextSpeechRuntime;
-            _movementRuntime = nextMovementRuntime;
-            nextOverlay.UserDragStateChanged += Overlay_UserDragStateChanged;
-            nextOverlay.DisplayEnvironmentChanged += Overlay_DisplayEnvironmentChanged;
-            _activityMonitor = CreateActivityMonitor(nextOverlay);
-            ActiveInstallationId = installationId;
-            _activePackage = package;
-            CurrentSettings = nextSettings;
-            UpdateMovementRuntime();
-            RefreshNotificationArea();
-            SettingsStateChanged?.Invoke(this, EventArgs.Empty);
-            _activityMonitor.SetPresentation(nextSettings.LastUserPresentation);
-            if (previousActivityMonitor is not null)
-            {
-                previousActivityMonitor.SnapshotChanged -= ActivityMonitor_SnapshotChanged;
-                previousActivityMonitor.Dispose();
-            }
-            if (previousRuntime is not null)
-            {
-                previousRuntime.StateChanged -= BehaviorRuntime_StateChanged;
-                previousRuntime.Dispose();
-            }
-            previousSpeechRuntime?.Dispose();
-            if (previousMovementRuntime is not null)
-            {
-                previousMovementRuntime.StateChanged -= MovementRuntime_StateChanged;
-                previousMovementRuntime.MovementMotionChanged -= MovementRuntime_MovementMotionChanged;
-                previousMovementRuntime.PettingRequested -= MovementRuntime_PettingRequested;
-                previousMovementRuntime.Dispose();
-            }
-            if (previous is not null)
-            {
-                previous.UserDragStateChanged -= Overlay_UserDragStateChanged;
-                previous.DisplayEnvironmentChanged -= Overlay_DisplayEnvironmentChanged;
-            }
-            previous?.Dispose();
-            BehaviorStateChanged?.Invoke(this, EventArgs.Empty);
-        }
-        catch
-        {
-            nextMovementRuntime?.Dispose();
-            nextRuntime?.Dispose();
-            nextSpeechRuntime?.Dispose();
-            nextOverlay.Dispose();
-            throw;
-        }
+        Guid instanceId = CurrentSettings.SelectedPetInstanceId;
+        CurrentSettings = ActivePetSettingsEditor.ReplacePet(
+            CurrentSettings,
+            instanceId,
+            PetBehaviorKey.BuiltInKey);
+        SettingsStore.Save(CurrentSettings);
+        _instanceManager?.InvalidateInstance(instanceId);
+        SynchronizePetInstances();
+        SettingsStateChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private LoadedPetPackage LoadBundledSample() =>
         new PetPackageLoader().LoadDirectory(BundledSamplePath);
-
-    private void ApplyPresentation(PetPresentation presentation)
-    {
-        if (Overlay is not { } overlay)
-        {
-            return;
-        }
-
-        if (presentation == PetPresentation.Awake)
-        {
-            overlay.Show();
-        }
-        else
-        {
-            overlay.Hide();
-        }
-        _speechRuntime?.Update(ActiveBehaviorProfile.Speech);
-        _speechRuntime?.SetAwake(presentation == PetPresentation.Awake);
-        _behaviorRuntime?.Update(ActiveBehaviorProfile, presentation);
-        _speechRuntime?.BehaviorSequenceDidChange(_behaviorRuntime?.SequenceId);
-        _activityMonitor?.SetPresentation(presentation);
-        UpdateMovementRuntime();
-    }
-
-    private OverlaySettings RestoreSavedOverlayPosition(
-        Overlay.PetOverlayWindow overlay,
-        OverlaySettings settings)
-    {
-        if (string.IsNullOrWhiteSpace(settings.ScreenIdentifier))
-        {
-            return settings;
-        }
-
-        PetScreenPlacement placement = _monitorPlacement.RestorePlacement(
-            settings.ScreenIdentifier,
-            settings.OriginX,
-            settings.OriginY,
-            Math.Max(1, (int)Math.Round(overlay.Width)),
-            Math.Max(1, (int)Math.Round(overlay.Height)));
-        overlay.MoveTo(placement.X, placement.Y);
-        return settings with
-        {
-            ScreenIdentifier = placement.ScreenIdentifier,
-            OriginX = placement.X,
-            OriginY = placement.Y,
-        };
-    }
 
     private void InitializeNotificationArea()
     {
@@ -732,9 +692,20 @@ public partial class App : Application
     }
 
     private NotificationAreaState NotificationAreaState => new(
-        CurrentSettings.LastUserPresentation == PetPresentation.Awake,
-        Overlay?.PackageDisplayName ?? "MonglePet",
-        CurrentSettings.Overlay.ClickThrough);
+        ActivePetSnapshots.Select(snapshot =>
+        {
+            ActivePetInstance? instance = CurrentSettings.ActivePetInstances.FirstOrDefault(value =>
+                value.InstanceId == snapshot.InstanceId);
+            return new NotificationAreaPetState(
+                snapshot.InstanceId,
+                snapshot.DisplayName,
+                snapshot.Presentation == PetPresentation.Awake,
+                instance?.Overlay.ClickThrough ?? false,
+                snapshot.InstanceId == CurrentSettings.SelectedPetInstanceId);
+        }).ToList(),
+        AreAllPetsPaused,
+        ResourceWarning is not null,
+        SafeStartRecovery is not null);
 
     private void RefreshNotificationArea()
     {
@@ -750,24 +721,65 @@ public partial class App : Application
         }
     }
 
-    private void HandleNotificationAreaCommand(NotificationAreaCommand command)
+    private void HandleNotificationAreaCommand(NotificationAreaMenuItem item)
     {
+        NotificationAreaCommand command = item.Command
+            ?? throw new ArgumentException("notification area 명령이 없습니다.", nameof(item));
+        Guid? instanceId = item.InstanceId;
         switch (command)
         {
+            case NotificationAreaCommand.WakeAllPets:
+                SetAllPetPresentations(PetPresentation.Awake);
+                break;
+            case NotificationAreaCommand.TuckAwayAllPets:
+                SetAllPetPresentations(PetPresentation.TuckedAway);
+                break;
+            case NotificationAreaCommand.ToggleAllPetsPaused:
+                ToggleAllPetsPaused();
+                break;
+            case NotificationAreaCommand.SelectPet:
+                SelectPetInstance(RequiredInstanceId(instanceId));
+                ShowSettings();
+                break;
             case NotificationAreaCommand.TogglePetAwake:
-                SetUserPresentation(
-                    CurrentSettings.LastUserPresentation == PetPresentation.Awake
+                Guid presentationInstanceId = RequiredInstanceId(instanceId);
+                ActivePetInstance presentationInstance = CurrentSettings.ActivePetInstances.Single(value =>
+                    value.InstanceId == presentationInstanceId);
+                CurrentSettings = ActivePetSettingsEditor.SetPresentation(
+                    CurrentSettings,
+                    presentationInstanceId,
+                    presentationInstance.Presentation == PetPresentation.Awake
                         ? PetPresentation.TuckedAway
                         : PetPresentation.Awake);
+                SettingsStore.Save(CurrentSettings);
+                SynchronizePetInstances();
+                SettingsStateChanged?.Invoke(this, EventArgs.Empty);
                 break;
             case NotificationAreaCommand.ToggleClickThrough:
-                SaveOverlaySettings(CurrentSettings.Overlay with
+                Guid clickInstanceId = RequiredInstanceId(instanceId);
+                ActivePetInstance clickInstance = CurrentSettings.ActivePetInstances.Single(value =>
+                    value.InstanceId == clickInstanceId);
+                CurrentSettings = ActivePetSettingsEditor.SetOverlay(
+                    CurrentSettings,
+                    clickInstanceId,
+                    clickInstance.Overlay with
                 {
-                    ClickThrough = !CurrentSettings.Overlay.ClickThrough,
+                    ClickThrough = !clickInstance.Overlay.ClickThrough,
                 });
+                SettingsStore.Save(CurrentSettings);
+                SynchronizePetInstances();
+                SettingsStateChanged?.Invoke(this, EventArgs.Empty);
                 break;
             case NotificationAreaCommand.BringPetToCurrentScreen:
-                BringPetToCurrentScreen();
+                Guid bringInstanceId = RequiredInstanceId(instanceId);
+                OverlaySettings overlay = _instanceManager?.BringToCurrentScreen(bringInstanceId)
+                    ?? throw new InvalidOperationException("활성 펫 런타임을 찾지 못했습니다.");
+                CurrentSettings = ActivePetSettingsEditor.SetOverlay(
+                    CurrentSettings,
+                    bringInstanceId,
+                    overlay);
+                SettingsStore.Save(CurrentSettings);
+                SynchronizePetInstances();
                 break;
             case NotificationAreaCommand.OpenSettings:
                 // TrackPopupMenu owns foreground activation until its native
@@ -797,218 +809,16 @@ public partial class App : Application
         }
     }
 
+    private Guid RequiredInstanceId(Guid? instanceId) => instanceId is Guid id && id != Guid.Empty
+        ? id
+        : CurrentSettings.SelectedPetInstanceId;
+
     private void NotificationArea_ErrorOccurred(
         object? sender,
         NotificationAreaErrorEventArgs e)
     {
         SettingsStatusMessage = e.Exception.Message;
         SettingsStateChanged?.Invoke(this, EventArgs.Empty);
-    }
-
-    private static BehaviorProfile ProfileFor(
-        AppSettings settings,
-        Guid? installationId)
-    {
-        PetBehaviorKey key = BehaviorProfileDefaults.KeyForInstallation(installationId);
-        return settings.SelectedBehaviorProfile is { } selected && selected.PetKey == key
-            ? selected
-            : settings.BehaviorProfiles.FirstOrDefault(profile => profile.PetKey == key)
-            ?? BehaviorProfileDefaults.Create(key);
-    }
-
-    private static AppSettings RemovingUnreferencedProfiles(
-        AppSettings settings,
-        PetBehaviorKey petKey)
-    {
-        var referencedProfileIds = settings.ActivePetInstances
-            .Select(instance => instance.BehaviorProfileId)
-            .ToHashSet();
-        return settings with
-        {
-            BehaviorProfiles = settings.BehaviorProfiles
-                .Where(profile => profile.PetKey != petKey || referencedProfileIds.Contains(profile.ProfileId))
-                .ToList(),
-        };
-    }
-
-    private void BehaviorRuntime_StateChanged(object? sender, EventArgs e)
-    {
-        _speechRuntime?.BehaviorSequenceDidChange(_behaviorRuntime?.SequenceId);
-        BehaviorStateChanged?.Invoke(this, EventArgs.Empty);
-    }
-
-    private static PetSpeechRuntime CreateSpeechRuntime(
-        Overlay.PetOverlayWindow overlay)
-    {
-        Microsoft.UI.Dispatching.DispatcherQueue dispatcher =
-            Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
-        return new PetSpeechRuntime(
-            new DispatcherQueuePetSpeechScheduler(dispatcher),
-            new DispatcherQueuePetSpeechScheduler(dispatcher),
-            presentation =>
-            {
-                if (presentation is null)
-                {
-                    overlay.HideSpeechBubble();
-                }
-                else
-                {
-                    overlay.ShowSpeechBubble(presentation);
-                }
-            });
-    }
-
-    private PetMovementRuntime CreateMovementRuntime(
-        Overlay.PetOverlayWindow overlay,
-        LoadedPetPackage package)
-    {
-        var runtime = new PetMovementRuntime(
-            overlay,
-            _monitorPlacement,
-            package.Manifest.Motions.Select(motion => motion.Id));
-        runtime.StateChanged += MovementRuntime_StateChanged;
-        runtime.MovementMotionChanged += MovementRuntime_MovementMotionChanged;
-        runtime.PettingRequested += MovementRuntime_PettingRequested;
-        return runtime;
-    }
-
-    private void UpdateMovementRuntime()
-    {
-        bool suspended = LatestActivitySnapshot is
-            { IsScreenLocked: true } or { IsSystemSleeping: true };
-        _movementRuntime?.Update(
-            ActiveBehaviorProfile,
-            CurrentSettings.Overlay,
-            CurrentSettings.LastUserPresentation,
-            suspended);
-    }
-
-    private void MovementRuntime_StateChanged(object? sender, EventArgs e) =>
-        MovementStateChanged?.Invoke(this, EventArgs.Empty);
-
-    private void MovementRuntime_MovementMotionChanged(
-        object? sender,
-        MovementMotionChangedEventArgs e) =>
-        _behaviorRuntime?.SetMovementMotion(e.MotionId);
-
-    private void MovementRuntime_PettingRequested(
-        object? sender,
-        PettingRequestedEventArgs e) =>
-        _behaviorRuntime?.PlayInteraction(e.MotionId);
-
-    private void Overlay_UserDragStateChanged(
-        object? sender,
-        Overlay.PetOverlayDragEventArgs e)
-    {
-        if (e.IsDragging)
-        {
-            _movementRuntime?.SetUserDragging(true);
-            return;
-        }
-
-        try
-        {
-            if (Overlay is not { } overlay || !SettingsStore.IsWritingEnabled)
-            {
-                return;
-            }
-            PetScreenPlacement placement = _monitorPlacement.ClampPlacement(
-                e.X,
-                e.Y,
-                Math.Max(1, (int)Math.Round(overlay.Width)),
-                Math.Max(1, (int)Math.Round(overlay.Height)));
-            overlay.MoveTo(placement.X, placement.Y);
-            OverlaySettings nextOverlay = CurrentSettings.Overlay with
-            {
-                ScreenIdentifier = placement.ScreenIdentifier,
-                OriginX = placement.X,
-                OriginY = placement.Y,
-            };
-            AppSettings next = CurrentSettings.WithSelectedOverlay(nextOverlay);
-            SettingsStore.Save(next);
-            CurrentSettings = next;
-            SettingsStateChanged?.Invoke(this, EventArgs.Empty);
-        }
-        catch (Exception exception)
-        {
-            SettingsStatusMessage = $"펫 위치를 저장하지 못했습니다: {exception.Message}";
-            SettingsStateChanged?.Invoke(this, EventArgs.Empty);
-        }
-        finally
-        {
-            _movementRuntime?.SetUserDragging(false);
-        }
-    }
-
-    private void Overlay_DisplayEnvironmentChanged(object? sender, EventArgs e)
-    {
-        try
-        {
-            _movementRuntime?.InvalidateEnvironment();
-            if (Overlay is not { } overlay ||
-                ActiveBehaviorProfile.Movement.Mode != PetMovementMode.Fixed)
-            {
-                return;
-            }
-            PetScreenPlacement placement = _monitorPlacement.ClampPlacement(
-                overlay.OriginX,
-                overlay.OriginY,
-                Math.Max(1, (int)Math.Round(overlay.Width)),
-                Math.Max(1, (int)Math.Round(overlay.Height)));
-            overlay.MoveTo(placement.X, placement.Y);
-            if (!SettingsStore.IsWritingEnabled)
-            {
-                return;
-            }
-            OverlaySettings nextOverlay = CurrentSettings.Overlay with
-            {
-                ScreenIdentifier = placement.ScreenIdentifier,
-                OriginX = placement.X,
-                OriginY = placement.Y,
-            };
-            if (nextOverlay == CurrentSettings.Overlay)
-            {
-                return;
-            }
-            AppSettings next = CurrentSettings.WithSelectedOverlay(nextOverlay);
-            SettingsStore.Save(next);
-            CurrentSettings = next;
-            SettingsStateChanged?.Invoke(this, EventArgs.Empty);
-        }
-        catch (Exception exception)
-        {
-            SettingsStatusMessage = $"화면 구성 변경을 적용하지 못했습니다: {exception.Message}";
-            SettingsStateChanged?.Invoke(this, EventArgs.Empty);
-        }
-    }
-
-    private WindowsActivityMonitor CreateActivityMonitor(
-        Overlay.PetOverlayWindow overlay)
-    {
-        var monitor = new WindowsActivityMonitor(overlay);
-        monitor.SnapshotChanged += ActivityMonitor_SnapshotChanged;
-        return monitor;
-    }
-
-    private void ActivityMonitor_SnapshotChanged(
-        object? sender,
-        ActivitySnapshotChangedEventArgs e)
-    {
-        _speechRuntime?.SetSystemSuspended(
-            e.Snapshot.IsScreenLocked || e.Snapshot.IsSystemSleeping);
-        if (_behaviorRuntime is { } runtime)
-        {
-            runtime.UpdateActivity(
-                e.Snapshot,
-                ActiveBehaviorProfile,
-                CurrentSettings.LastUserPresentation);
-            _speechRuntime?.BehaviorSequenceDidChange(runtime.SequenceId);
-        }
-        else
-        {
-            BehaviorStateChanged?.Invoke(this, EventArgs.Empty);
-        }
-        UpdateMovementRuntime();
     }
 
     private long? ResolveLegacyMotionCycleMilliseconds(
@@ -1068,6 +878,126 @@ public partial class App : Application
         {
             return false;
         }
+    }
+
+    private LoadedPetPackage ResolvePackage(PetBehaviorKey key) => key switch
+    {
+        PetBehaviorKey.BuiltIn => LoadBundledSample(),
+        PetBehaviorKey.Installed installed =>
+            PetLibrary.GetInstallation(installed.InstallationId).Package,
+        _ => throw new InvalidOperationException("지원하지 않는 펫 식별자입니다."),
+    };
+
+    private void ScheduleSelectedPetSave()
+    {
+        if (_selectionSaveTimer is null)
+        {
+            Microsoft.UI.Dispatching.DispatcherQueue dispatcher =
+                Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
+            _selectionSaveTimer = dispatcher.CreateTimer();
+            _selectionSaveTimer.IsRepeating = false;
+            _selectionSaveTimer.Interval = TimeSpan.FromMilliseconds(180);
+            _selectionSaveTimer.Tick += SelectionSaveTimer_Tick;
+        }
+
+        _selectionSaveTimer.Stop();
+        _selectionSaveTimer.Start();
+    }
+
+    private void SelectionSaveTimer_Tick(
+        Microsoft.UI.Dispatching.DispatcherQueueTimer sender,
+        object args)
+    {
+        sender.Stop();
+        try
+        {
+            SettingsStore.Save(CurrentSettings);
+        }
+        catch (Exception exception)
+        {
+            SettingsStatusMessage = $"선택한 펫을 저장하지 못했습니다. {exception.Message}";
+            SettingsStateChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    private void FlushSelectedPetSave()
+    {
+        if (_selectionSaveTimer?.IsRunning != true)
+        {
+            return;
+        }
+
+        _selectionSaveTimer.Stop();
+        try
+        {
+            SettingsStore.Save(CurrentSettings);
+        }
+        catch
+        {
+            // The app is already closing; the previous atomic settings file remains valid.
+        }
+    }
+
+    private void SynchronizePetInstances(ISet<Guid>? excludedInstanceIds = null)
+    {
+        if (_instanceManager is null || SafeStartRecovery is not null)
+        {
+            return;
+        }
+        var excluded = new HashSet<Guid>(_sessionExcludedInstanceIds);
+        if (excludedInstanceIds is not null)
+        {
+            excluded.UnionWith(excludedInstanceIds);
+        }
+        _instanceManager.Synchronize(CurrentSettings, excluded);
+        Overlay = _instanceManager.SelectedContext?.Overlay;
+        if (_instanceManager.RestoreIssues.Count > 0)
+        {
+            SettingsStatusMessage = string.Join(
+                " ",
+                _instanceManager.RestoreIssues.Select(issue =>
+                    $"펫 {issue.InstanceId:D} 복원 실패: {issue.Message}"));
+        }
+        RefreshNotificationArea();
+        BehaviorStateChanged?.Invoke(this, EventArgs.Empty);
+        MovementStateChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void InstanceManager_StateChanged(object? sender, EventArgs e)
+    {
+        Overlay = _instanceManager?.SelectedContext?.Overlay;
+        BehaviorStateChanged?.Invoke(this, EventArgs.Empty);
+        MovementStateChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void InstanceManager_OverlayChanged(
+        object? sender,
+        PetOverlayChangedEventArgs e)
+    {
+        try
+        {
+            if (!SettingsStore.IsWritingEnabled)
+            {
+                return;
+            }
+            CurrentSettings = ActivePetSettingsEditor.SetOverlay(
+                CurrentSettings,
+                e.InstanceId,
+                e.Overlay);
+            SettingsStore.Save(CurrentSettings);
+            SettingsStateChanged?.Invoke(this, EventArgs.Empty);
+        }
+        catch (Exception exception)
+        {
+            SettingsStatusMessage = $"펫 위치를 저장하지 못했습니다: {exception.Message}";
+            SettingsStateChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    private void ResourceMonitor_WarningChanged(object? sender, EventArgs e)
+    {
+        RefreshNotificationArea();
+        SettingsStateChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private string BundledSamplePath => Path.Combine(

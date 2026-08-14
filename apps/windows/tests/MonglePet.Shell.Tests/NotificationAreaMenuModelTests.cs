@@ -5,51 +5,78 @@ namespace MonglePet.Shell.Tests;
 public sealed class NotificationAreaMenuModelTests
 {
     [Fact]
-    public void BuildsMacParityCommandOrderAndCheckedState()
+    public void BuildsGlobalCommandsBeforePerPetCommands()
     {
+        Guid instanceId = Guid.NewGuid();
         IReadOnlyList<NotificationAreaMenuItem> items = NotificationAreaMenuModel.Build(
-            new NotificationAreaState(true, "몽글이", true));
+            new NotificationAreaState(
+                [new NotificationAreaPetState(instanceId, "몽글이", true, true, true)],
+                false));
+        IReadOnlyList<NotificationAreaMenuItem> all = Flatten(items);
 
-        Assert.Equal(9, items.Count);
-        Assert.Equal("현재 펫: 몽글이", items[0].Title);
-        Assert.Equal(NotificationAreaMenuItemKind.Separator, items[1].Kind);
-        Assert.Equal("펫 재우기", items[2].Title);
-        Assert.Equal(NotificationAreaCommand.TogglePetAwake, items[2].Command);
-        Assert.Equal(NotificationAreaCommand.ToggleClickThrough, items[3].Command);
-        Assert.True(items[3].IsChecked);
-        Assert.Equal(NotificationAreaCommand.BringPetToCurrentScreen, items[4].Command);
-        Assert.Equal(NotificationAreaCommand.OpenSettings, items[6].Command);
-        Assert.Equal(NotificationAreaCommand.Quit, items[8].Command);
+        Assert.Equal(NotificationAreaCommand.WakeAllPets, items[0].Command);
+        Assert.False(items[0].IsEnabled);
+        Assert.Equal(NotificationAreaCommand.TuckAwayAllPets, items[1].Command);
+        Assert.Equal(NotificationAreaCommand.ToggleAllPetsPaused, items[2].Command);
+        NotificationAreaMenuItem pet = Assert.Single(all, value =>
+            value.Command == NotificationAreaCommand.SelectPet);
+        Assert.Equal(instanceId, pet.InstanceId);
+        Assert.Contains(items, value =>
+            value.Kind == NotificationAreaMenuItemKind.Submenu && value.IsChecked);
+        Assert.Contains(all, value =>
+            value.Command == NotificationAreaCommand.ToggleClickThrough &&
+            value.InstanceId == instanceId && value.IsChecked);
+        Assert.Equal(NotificationAreaCommand.Quit, items[^1].Command);
     }
 
     [Fact]
-    public void UsesWakeTitleForSleepingPet()
+    public void BuildsIndependentCommandsForEveryPet()
     {
+        Guid first = Guid.NewGuid();
+        Guid second = Guid.NewGuid();
         IReadOnlyList<NotificationAreaMenuItem> items = NotificationAreaMenuModel.Build(
-            new NotificationAreaState(false, "몽글이", false));
+            new NotificationAreaState(
+                [
+                    new NotificationAreaPetState(first, "첫째", true, false, true),
+                    new NotificationAreaPetState(second, "둘째", false, true, false),
+                ],
+                true,
+                HasResourceWarning: true));
+        IReadOnlyList<NotificationAreaMenuItem> all = Flatten(items);
 
-        Assert.Equal("펫 깨우기", items[2].Title);
-        Assert.False(items[3].IsChecked);
+        Assert.Equal(2, all.Count(value => value.Command == NotificationAreaCommand.SelectPet));
+        Assert.Contains(all, value =>
+            value.Command == NotificationAreaCommand.TogglePetAwake &&
+            value.InstanceId == second && value.Title.Contains("깨우기", StringComparison.Ordinal));
+        Assert.Contains(items, value =>
+            value.Command == NotificationAreaCommand.ToggleAllPetsPaused && value.IsChecked);
+        Assert.Contains(items, value => value.Title.Contains("성능", StringComparison.Ordinal));
     }
 
     [Fact]
     public void TrimsAndTruncatesLongPetName()
     {
-        string value = $"  {new string('가', 41)}  ";
-
         IReadOnlyList<NotificationAreaMenuItem> items = NotificationAreaMenuModel.Build(
-            new NotificationAreaState(true, value, false));
+            new NotificationAreaState(
+                [new NotificationAreaPetState(Guid.NewGuid(), $"  {new string('가', 41)}  ", true, false, true)],
+                false));
 
-        Assert.Equal($"현재 펫: {new string('가', 40)}…", items[0].Title);
+        Assert.Contains(items, value => value.Title == $"현재 펫: {new string('가', 40)}…");
     }
 
     [Fact]
-    public void RecoversMissingPetName()
+    public void ExposesSafeStartWithoutAddingAutomaticRecoveryCommand()
     {
         IReadOnlyList<NotificationAreaMenuItem> items = NotificationAreaMenuModel.Build(
-            new NotificationAreaState(true, "  ", false));
+            new NotificationAreaState([], false, IsSafeStart: true));
 
-        Assert.Equal("현재 펫: 알 수 없는 펫", items[0].Title);
-        Assert.False(items[0].IsEnabled);
+        Assert.Contains(items, value => value.Title.Contains("안전 시작", StringComparison.Ordinal));
+        Assert.DoesNotContain(items, value => value.Command == NotificationAreaCommand.TogglePetAwake);
+        Assert.Contains(items, value => value.Command == NotificationAreaCommand.OpenSettings);
     }
+
+    private static IReadOnlyList<NotificationAreaMenuItem> Flatten(
+        IEnumerable<NotificationAreaMenuItem> items) => items
+        .SelectMany(item => new[] { item }.Concat(Flatten(item.Children ?? [])))
+        .ToList();
 }

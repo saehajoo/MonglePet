@@ -7,40 +7,80 @@ namespace MonglePet.Windows.Activity;
 
 internal sealed class WindowsActivityMonitor : IDisposable
 {
-    private readonly PetOverlayWindow _overlay;
+    private readonly HashSet<PetOverlayWindow> _overlays = [];
+    private PetOverlayWindow? _messageSource;
     private readonly global::MonglePet.Activity.ActivitySnapshotFactory _snapshotFactory;
     private readonly DispatcherQueueTimer _pollTimer;
     private readonly long _originTimestamp = Stopwatch.GetTimestamp();
     private global::MonglePet.Activity.WindowsActivitySystemState _systemState =
         global::MonglePet.Activity.WindowsActivitySystemState.Available;
-    private PetPresentation _presentation = PetPresentation.TuckedAway;
+    private bool _shouldPoll;
     private bool _disposed;
 
     public WindowsActivityMonitor(
-        PetOverlayWindow overlay,
         global::MonglePet.Activity.IWindowsActivityReader? reader = null)
     {
-        _overlay = overlay ?? throw new ArgumentNullException(nameof(overlay));
         _snapshotFactory = new global::MonglePet.Activity.ActivitySnapshotFactory(
             reader ?? new global::MonglePet.Activity.WindowsActivityReader());
         _pollTimer = DispatcherQueue.GetForCurrentThread().CreateTimer();
         _pollTimer.Interval = TimeSpan.FromSeconds(1);
         _pollTimer.IsRepeating = true;
         _pollTimer.Tick += PollTimer_Tick;
-        _overlay.SystemActivityMessageReceived += Overlay_SystemActivityMessageReceived;
+    }
+
+    public WindowsActivityMonitor(
+        PetOverlayWindow overlay,
+        global::MonglePet.Activity.IWindowsActivityReader? reader = null)
+        : this(reader)
+    {
+        Attach(overlay);
     }
 
     public ActivitySnapshot? LatestSnapshot { get; private set; }
 
     public event EventHandler<ActivitySnapshotChangedEventArgs>? SnapshotChanged;
 
-    public void SetPresentation(PetPresentation presentation)
+    public void Attach(PetOverlayWindow overlay)
+    {
+        ArgumentNullException.ThrowIfNull(overlay);
+        ThrowIfDisposed();
+        if (_overlays.Add(overlay))
+        {
+            if (_messageSource is null)
+            {
+                _messageSource = overlay;
+                overlay.SystemActivityMessageReceived += Overlay_SystemActivityMessageReceived;
+            }
+        }
+    }
+
+    public void Detach(PetOverlayWindow overlay)
+    {
+        ArgumentNullException.ThrowIfNull(overlay);
+        if (_overlays.Remove(overlay))
+        {
+            if (ReferenceEquals(_messageSource, overlay))
+            {
+                overlay.SystemActivityMessageReceived -= Overlay_SystemActivityMessageReceived;
+                _messageSource = _overlays.FirstOrDefault();
+                if (_messageSource is not null)
+                {
+                    _messageSource.SystemActivityMessageReceived += Overlay_SystemActivityMessageReceived;
+                }
+            }
+        }
+    }
+
+    public void SetShouldPoll(bool shouldPoll)
     {
         ThrowIfDisposed();
-        _presentation = presentation;
+        _shouldPoll = shouldPoll;
         Capture();
         UpdatePolling();
     }
+
+    public void SetPresentation(PetPresentation presentation) =>
+        SetShouldPoll(presentation == PetPresentation.Awake);
 
     public void Dispose()
     {
@@ -52,7 +92,12 @@ internal sealed class WindowsActivityMonitor : IDisposable
         _disposed = true;
         _pollTimer.Stop();
         _pollTimer.Tick -= PollTimer_Tick;
-        _overlay.SystemActivityMessageReceived -= Overlay_SystemActivityMessageReceived;
+        if (_messageSource is not null)
+        {
+            _messageSource.SystemActivityMessageReceived -= Overlay_SystemActivityMessageReceived;
+        }
+        _messageSource = null;
+        _overlays.Clear();
         GC.SuppressFinalize(this);
     }
 
@@ -92,7 +137,7 @@ internal sealed class WindowsActivityMonitor : IDisposable
 
     private void UpdatePolling()
     {
-        bool shouldPoll = _presentation == PetPresentation.Awake &&
+        bool shouldPoll = _shouldPoll &&
             !_systemState.IsScreenLocked &&
             !_systemState.IsSystemSleeping;
         if (shouldPoll)

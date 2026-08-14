@@ -33,6 +33,14 @@ internal sealed unsafe class PetSpeechBubbleWindow : IDisposable
     private readonly DesktopWindowXamlSource _xamlSource;
     private HWND _window;
     private PetSpeechPresentation? _presentation;
+    private double _bodyWidthDip;
+    private double _bodyHeightDip;
+    private double _tailHeightDip;
+    private double? _tailAnchorDip;
+    private PetSpeechBubbleTailEdge _tailEdge;
+    private Microsoft.UI.Xaml.Shapes.Path? _outlinePath;
+    private Border? _contentBody;
+    private bool _hasRenderedContent;
     private bool _isVisible;
     private bool _disposed;
 
@@ -40,7 +48,7 @@ internal sealed unsafe class PetSpeechBubbleWindow : IDisposable
     {
         ArgumentNullException.ThrowIfNull(parent);
         _parent = parent;
-        _window = CreateNativeWindow(parent.Handle);
+        _window = CreateNativeWindow();
         try
         {
             Microsoft.UI.WindowId windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(
@@ -65,17 +73,37 @@ internal sealed unsafe class PetSpeechBubbleWindow : IDisposable
         ? "말풍선 숨김"
         : $"말풍선 표시 · {_presentation.Text}";
 
+    public nint PlaceZOrderAfter(nint precedingWindow)
+    {
+        if (_disposed || _window.IsNull || !_isVisible)
+        {
+            return precedingWindow;
+        }
+        PInvoke.SetWindowPos(
+            _window,
+            new HWND(precedingWindow),
+            0,
+            0,
+            0,
+            0,
+            SET_WINDOW_POS_FLAGS.SWP_NOMOVE |
+            SET_WINDOW_POS_FLAGS.SWP_NOSIZE |
+            SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE);
+        return (nint)_window.Value;
+    }
+
     public void Show(PetSpeechPresentation presentation)
     {
         ArgumentNullException.ThrowIfNull(presentation);
         ThrowIfDisposed();
+        bool presentationChanged = presentation != _presentation;
         _presentation = presentation;
         if (!_parent.IsVisible)
         {
             Hide();
             return;
         }
-        RenderAndPosition();
+        RenderAndPosition(presentationChanged || !_hasRenderedContent);
     }
 
     public void Hide()
@@ -93,7 +121,7 @@ internal sealed unsafe class PetSpeechBubbleWindow : IDisposable
     {
         if (!_disposed && _isVisible && _presentation is not null)
         {
-            RenderAndPosition();
+            RenderAndPosition(renderContent: false);
         }
     }
 
@@ -117,7 +145,7 @@ internal sealed unsafe class PetSpeechBubbleWindow : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    private void RenderAndPosition()
+    private void RenderAndPosition(bool renderContent)
     {
         if (_presentation is not { } presentation)
         {
@@ -129,24 +157,25 @@ internal sealed unsafe class PetSpeechBubbleWindow : IDisposable
             presentation.Theme.ShowsTail,
             TailHeight,
             presentation.Placement.Gap);
-        _xamlSource.SiteBridge.Hide();
-        Border measurement = BuildBody(presentation, tailMetrics.TailHeight);
-        _xamlSource.Content = measurement;
-        measurement.Measure(new Size(
-            MaximumWidth,
-            MaximumHeight - tailMetrics.TailHeight));
-        Size desired = measurement.DesiredSize;
-        Size fallback = EstimateBodySize(presentation, tailMetrics.TailHeight);
-        double bodyWidthDip = Math.Clamp(
-            Math.Max(desired.Width, fallback.Width),
-            MinimumWidth,
-            MaximumWidth);
-        double bodyHeightDip = Math.Clamp(
-            Math.Max(desired.Height, fallback.Height),
-            1,
-            MaximumHeight - tailMetrics.TailHeight);
-        double widthDip = bodyWidthDip;
-        double heightDip = bodyHeightDip + tailMetrics.TailHeight;
+        if (renderContent || !_hasRenderedContent)
+        {
+            Border measurement = BuildBody(presentation, tailMetrics.TailHeight);
+            measurement.Measure(new Size(
+                MaximumWidth,
+                MaximumHeight - tailMetrics.TailHeight));
+            Size desired = measurement.DesiredSize;
+            Size fallback = EstimateBodySize(presentation, tailMetrics.TailHeight);
+            _bodyWidthDip = Math.Clamp(
+                Math.Max(desired.Width, fallback.Width),
+                MinimumWidth,
+                MaximumWidth);
+            _bodyHeightDip = Math.Clamp(
+                Math.Max(desired.Height, fallback.Height),
+                1,
+                MaximumHeight - tailMetrics.TailHeight);
+        }
+        double widthDip = _bodyWidthDip;
+        double heightDip = _bodyHeightDip + tailMetrics.TailHeight;
         int width = Math.Max(1, (int)Math.Ceiling(widthDip * scale));
         int height = Math.Max(1, (int)Math.Ceiling(heightDip * scale));
 
@@ -172,28 +201,68 @@ internal sealed unsafe class PetSpeechBubbleWindow : IDisposable
             scaledSettings);
 
         double? tailAnchorDip = placement.TailAnchorX / scale;
-        FrameworkElement content = BuildContent(
-            presentation,
-            placement.TailEdge,
-            tailAnchorDip,
-            tailMetrics.TailHeight,
-            bodyWidthDip,
-            bodyHeightDip);
-        content.Width = widthDip;
-        content.Height = heightDip;
-        _xamlSource.Content = content;
+        bool tailGeometryChanged = !_hasRenderedContent ||
+            placement.TailEdge != _tailEdge ||
+            Math.Abs(tailMetrics.TailHeight - _tailHeightDip) > 0.01 ||
+            !NearlyEqual(tailAnchorDip, _tailAnchorDip);
+        if (renderContent || !_hasRenderedContent)
+        {
+            FrameworkElement content = BuildContent(
+                presentation,
+                placement.TailEdge,
+                tailAnchorDip,
+                tailMetrics.TailHeight,
+                _bodyWidthDip,
+                _bodyHeightDip);
+            content.Width = widthDip;
+            content.Height = heightDip;
+            _xamlSource.Content = content;
+            _hasRenderedContent = true;
+        }
+        else if (tailGeometryChanged)
+        {
+            UpdateTailGeometry(
+                presentation,
+                placement.TailEdge,
+                tailAnchorDip,
+                tailMetrics.TailHeight);
+        }
+        _tailEdge = placement.TailEdge;
+        _tailAnchorDip = tailAnchorDip;
+        _tailHeightDip = tailMetrics.TailHeight;
 
+        SET_WINDOW_POS_FLAGS positionFlags =
+            SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE;
+        if (_isVisible)
+        {
+            positionFlags |= SET_WINDOW_POS_FLAGS.SWP_NOZORDER;
+        }
+        else
+        {
+            positionFlags |= SET_WINDOW_POS_FLAGS.SWP_SHOWWINDOW;
+        }
         PInvoke.SetWindowPos(
             _window,
-            new HWND(-1),
+            _isVisible ? default : new HWND(-1),
             (int)Math.Round(placement.Origin.X),
             (int)Math.Round(placement.Origin.Y),
             width,
             height,
-            SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE |
-            SET_WINDOW_POS_FLAGS.SWP_SHOWWINDOW);
-        _xamlSource.SiteBridge.Show();
+            positionFlags);
+        if (!_isVisible)
+        {
+            _xamlSource.SiteBridge.Show();
+        }
         _isVisible = true;
+    }
+
+    private static bool NearlyEqual(double? left, double? right)
+    {
+        if (left is null || right is null)
+        {
+            return left is null && right is null;
+        }
+        return Math.Abs(left.Value - right.Value) <= 0.25;
     }
 
     private FrameworkElement BuildContent(
@@ -210,6 +279,8 @@ internal sealed unsafe class PetSpeechBubbleWindow : IDisposable
         Border border = BuildBody(presentation, tailHeight);
         border.Width = bodyWidth;
         border.Height = bodyHeight;
+        _contentBody = border;
+        _outlinePath = null;
 
         if (!theme.ShowsTail)
         {
@@ -241,6 +312,7 @@ internal sealed unsafe class PetSpeechBubbleWindow : IDisposable
                 Color.FromArgb(96, foreground.R, foreground.G, foreground.B)),
             StrokeThickness = 1,
         };
+        _outlinePath = outline;
         root.Children.Add(outline);
 
         border.Background = null;
@@ -249,6 +321,35 @@ internal sealed unsafe class PetSpeechBubbleWindow : IDisposable
         Canvas.SetTop(border, bodyTop);
         root.Children.Add(border);
         return root;
+    }
+
+    private void UpdateTailGeometry(
+        PetSpeechPresentation presentation,
+        PetSpeechBubbleTailEdge tailEdge,
+        double? correctedTailAnchorX,
+        double tailHeight)
+    {
+        if (!presentation.Theme.ShowsTail ||
+            _outlinePath is null ||
+            _contentBody is null)
+        {
+            return;
+        }
+
+        double tailCenter = TailCenterX(
+            presentation.Theme,
+            _bodyWidthDip,
+            correctedTailAnchorX);
+        _outlinePath.Data = BubbleOutlineGeometry(
+            _bodyWidthDip,
+            _bodyHeightDip,
+            tailHeight,
+            tailCenter,
+            tailEdge,
+            presentation.Theme.CornerRadius);
+        Canvas.SetTop(
+            _contentBody,
+            tailEdge == PetSpeechBubbleTailEdge.Top ? tailHeight : 0);
     }
 
     private static Geometry BubbleOutlineGeometry(
@@ -475,7 +576,7 @@ internal sealed unsafe class PetSpeechBubbleWindow : IDisposable
         (byte)Math.Round(value.Green * byte.MaxValue),
         (byte)Math.Round(value.Blue * byte.MaxValue));
 
-    private static HWND CreateNativeWindow(nint owner)
+    private static HWND CreateNativeWindow()
     {
         HMODULE module = PInvoke.GetModuleHandle((PCWSTR)null);
         HINSTANCE instance = new(module.Value);
@@ -509,7 +610,9 @@ internal sealed unsafe class PetSpeechBubbleWindow : IDisposable
                 0,
                 1,
                 1,
-                new HWND(owner),
+                // Keep the bubble unowned so PetInstanceManager can order each
+                // bubble/pet pair relative to the other topmost pet groups.
+                default,
                 default,
                 instance,
                 null);

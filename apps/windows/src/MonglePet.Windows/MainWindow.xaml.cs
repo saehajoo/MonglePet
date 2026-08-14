@@ -30,6 +30,7 @@ public sealed partial class MainWindow : Window
 
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
+        AppWindow.Resize(new global::Windows.Graphics.SizeInt32(1040, 760));
 
         _iconPath = Path.Combine(
             AppContext.BaseDirectory,
