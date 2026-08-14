@@ -15,7 +15,6 @@
 | completed | Windows 로컬 가져오기 검토와 내보내기 | `tasks/2026-08-09-windows-local-sharing.md` | 2026-08-09 |
 | complete | Windows 개발 기준선·공통 계약·오버레이 실험 | `tasks/2026-08-08-windows-foundation-and-overlay.md` | 2026-08-08 |
 | in_progress | Phase 10 공개 준비와 이동 성능 보완 | `tasks/2026-07-24-phase-10-release-preparation.md` | 2026-07-31 |
-| in_progress | 개인 맥 Preview 배포 파일 생성 | `tasks/2026-07-24-personal-mac-preview-artifact.md` | 2026-07-26 |
 | in_progress | 멀티펫 런타임과 활성 펫 관리 | `tasks/2026-08-13-multi-pet-runtime.md` | 2026-08-13 |
 
 ## 보류 / 대기
@@ -28,6 +27,7 @@
 
 | 상태 | 작업명 | 파일 | 완료일 |
 | --- | --- | --- | --- |
+| completed | 개인 맥 Preview 배포 파일 생성 | `tasks/2026-07-24-personal-mac-preview-artifact.md` | 2026-08-14 |
 | completed | Windows unpackaged EXE 설치기 | `tasks/2026-08-09-windows-exe-installer.md` | 2026-08-09 |
 | completed | Windows 설정 화면 시각적 동등성 | `tasks/2026-08-09-windows-settings-visual-parity.md` | 2026-08-09 |
 | completed | Windows 아이콘과 설정 디자인 정렬 | `tasks/2026-08-09-windows-icon-and-settings-design.md` | 2026-08-09 |

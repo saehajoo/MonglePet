@@ -2,9 +2,9 @@
 
 ## 상태
 
-- 상태: in_progress
+- 상태: completed
 - 생성일: 2026-07-24
-- 마지막 갱신: 2026-08-13
+- 마지막 갱신: 2026-08-14
 
 ## 목표
 
@@ -29,7 +29,8 @@
 
 ## 열린 질문
 
-- 실제 Preview 버전과 Git 태그는 기능 범위 확정 시 결정한다.
+- 없음. 최종 Preview 버전은 `1.1.0 (2)`, Git 태그는
+  `macos-v1.1.0-preview.1`로 확정했다.
 
 ## 결정사항
 
@@ -42,10 +43,10 @@
 ## 작업 순서
 
 - [x] 1단계: 개인 맥 저장소·Xcode·버전·커밋 기준선 확인
-- [ ] 2단계: Release 빌드와 Preview ZIP 생성
-- [ ] 3단계: SHA-256 체크섬 생성과 재검증
-- [ ] 4단계: 별도 위치에서 압축 해제·실행·핵심 스모크 테스트
-- [ ] 5단계: GitHub Release 파일과 사용자 안내 최종 검토
+- [x] 2단계: Release 빌드와 Preview ZIP 생성
+- [x] 3단계: SHA-256 체크섬 생성과 재검증
+- [x] 4단계: 별도 위치에서 압축 해제·실행·핵심 스모크 테스트
+- [x] 5단계: GitHub Release 파일과 사용자 안내 최종 검토
 
 ## 검증 방법
 
@@ -65,10 +66,12 @@
 - 2026-07-27: 다른 맥에서 원격 변경을 별도 작업 트리로 검토해 전체 단위 XCTest 307개 통과·선택 fixture 1개 건너뜀과 Universal Preview ZIP·SHA-256·manifest 생성을 재현했다. dirty 작업 트리 예외는 산출물 출처를 모호하게 만들 수 있어 제거했다.
 - 2026-08-13: 멀티펫 macOS 기준 구현과 Release QA를 완료하고 앱 버전을 `1.1.0 (2)`로 확정했다. 회사 Mac에서는 배포 문서까지만 갱신하며 최종 Preview ZIP 생성·독립 설치 검증·GitHub Release 게시 판단은 개인 Mac에서 진행한다.
 - 2026-08-13: Windows 1.1.0 기능 동등성 전 macOS 단독 Preview 후보 태그는 `macos-v1.1.0-preview.1`을 사용하고 ZIP·SHA-256·manifest를 같은 GitHub Release에 게시하는 절차를 `apps/macos/DISTRIBUTION.md`에 기록했다.
+- 2026-08-14: 개인 Mac의 깨끗한 `main` 커밋 `b64f3f5bdc352425f93905fcf834ddbf41fff1b8`에서 Universal Release 앱과 `MonglePet-1.1.0-build.2-preview.zip`, SHA-256, 환경 manifest를 생성했다. ZIP 체크섬 `68a06b58386be593ee97e9df8c0e6da6f2e7b739c04dbeb54c8336c9ee665417`을 재검증하고 별도 임시 디렉터리에서 압축 해제·실행·핵심 스모크 테스트를 통과했다.
+- 2026-08-14: GitHub 태그 `macos-v1.1.0-preview.1`과 Pre-release `MonglePet macOS 1.1.0 Preview 1`을 생성하고 ZIP·SHA-256·manifest 3개 파일의 업로드 상태와 원격 ZIP digest를 확인했다. 릴리스 URL은 `https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.1.0-preview.1`이다.
 
 ## 완료 결과
 
-- Release Preview ZIP 생성 절차 검증 완료. 개인 Mac에서 최신 `main` 기준 `1.1.0 (2)` 최종 산출물 생성, 독립 설치 스모크 테스트와 GitHub Release 게시 대기
+- 개인 Mac에서 최신 `main` 기준 `1.1.0 (2)` 최종 Preview ZIP을 생성하고 체크섬 재검증, 독립 실행 스모크 테스트와 GitHub Pre-release 게시를 완료했다.
 
 ## 남은 위험 / 후속 작업
 
