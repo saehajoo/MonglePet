@@ -157,20 +157,16 @@ public partial class App : Application
             Environment.GetCommandLineArgs().Skip(1));
         var mainWindow = new MainWindow();
         _window = mainWindow;
-        if (!isStartupLaunch)
-        {
-            mainWindow.Activate();
-        }
+        mainWindow.Activate();
         mainWindow.ApplyWindowIcons();
         InitializeOverlay();
         InitializeNotificationArea();
         InitializationCompleted?.Invoke(this, EventArgs.Empty);
         if (isStartupLaunch)
         {
-            mainWindow.AppWindow.Hide();
             Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread().TryEnqueue(
                 Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,
-                mainWindow.AppWindow.Hide);
+                mainWindow.HideForStartup);
         }
     }
 
