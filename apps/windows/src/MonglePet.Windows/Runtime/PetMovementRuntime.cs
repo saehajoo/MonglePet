@@ -11,16 +11,20 @@ namespace MonglePet.Windows.Runtime;
 
 internal sealed class PetMovementRuntime : IDisposable
 {
-    private static readonly TimeSpan MovementInterval = TimeSpan.FromMilliseconds(16);
+    private static readonly TimeSpan MovementInterval =
+        TimeSpan.FromTicks(TimeSpan.TicksPerSecond / 60);
     private static readonly TimeSpan PointerInterval = TimeSpan.FromMilliseconds(100);
     private static readonly TimeSpan RetryInterval = TimeSpan.FromSeconds(1);
 
     private readonly PetOverlayWindow _overlay;
-    private readonly WindowsMonitorPlacementService _monitorService;
+    private readonly PetDesktopEnvironment _environment;
     private readonly IWindowsFrontmostWindowProvider _frontmostWindowProvider;
     private readonly HashSet<string> _availableMotionIds;
     private readonly DispatcherQueueTimer _timer;
     private readonly PointerHoverTracker _hoverTracker = new();
+    private IReadOnlyList<MonitorWorkArea>? _resolvedWorkAreasSource;
+    private MovementBoundarySettings? _resolvedBoundary;
+    private IReadOnlyList<MovementScreen>? _resolvedScreens;
     private PetMovementSettings _settings = PetMovementSettings.Default;
     private MovementBoundarySettings _boundary = MovementBoundarySettings.Default;
     private OverlaySettings _overlaySettings = OverlaySettings.Default;
@@ -34,27 +38,32 @@ internal sealed class PetMovementRuntime : IDisposable
     private long? _dwellUntil;
     private long _lastTickTimestamp = Stopwatch.GetTimestamp();
     private ScreenPoint? _lastPointer;
+    private ScreenPoint? _directDragOffset;
+    private bool _isDirectDragging;
+    private bool _wasPrimaryButtonPressed;
     private string? _reportedMotionId;
+    private TimeSpan? _scheduledInterval;
     private bool _disposed;
 
     public PetMovementRuntime(
         PetOverlayWindow overlay,
         WindowsMonitorPlacementService monitorService,
         IEnumerable<string> availableMotionIds,
-        IWindowsFrontmostWindowProvider? frontmostWindowProvider = null)
+        IWindowsFrontmostWindowProvider? frontmostWindowProvider = null,
+        PetDesktopEnvironment? environment = null)
     {
         ArgumentNullException.ThrowIfNull(overlay);
         ArgumentNullException.ThrowIfNull(monitorService);
         ArgumentNullException.ThrowIfNull(availableMotionIds);
         _overlay = overlay;
-        _monitorService = monitorService;
+        _environment = environment ?? new PetDesktopEnvironment(monitorService);
         _frontmostWindowProvider =
             frontmostWindowProvider ?? new WindowsFrontmostWindowProvider();
         _availableMotionIds = new HashSet<string>(
             availableMotionIds,
             StringComparer.Ordinal);
         _timer = DispatcherQueue.GetForCurrentThread().CreateTimer();
-        _timer.IsRepeating = false;
+        _timer.IsRepeating = true;
         _timer.Tick += Timer_Tick;
     }
 
@@ -70,6 +79,8 @@ internal sealed class PetMovementRuntime : IDisposable
 
     public event EventHandler<PettingRequestedEventArgs>? PettingRequested;
 
+    public event EventHandler<DirectDragCompletedEventArgs>? DirectDragCompleted;
+
     public void Update(
         BehaviorProfile profile,
         OverlaySettings overlaySettings,
@@ -79,24 +90,38 @@ internal sealed class PetMovementRuntime : IDisposable
         ArgumentNullException.ThrowIfNull(profile);
         ArgumentNullException.ThrowIfNull(overlaySettings);
         ThrowIfDisposed();
-        bool targetSettingsChanged = profile.Movement != _settings ||
-            overlaySettings.MovementBoundary != _boundary;
-        bool settingsChanged = targetSettingsChanged ||
+        PetMovementSettings nextSettings = profile.Movement;
+        MovementBoundarySettings nextBoundary = overlaySettings.MovementBoundary;
+        string? nextPettingMotionId = ValidMotionId(profile.PettingMotionId);
+        bool targetSettingsChanged = nextSettings != _settings ||
+            nextBoundary != _boundary;
+        bool observationSettingsChanged =
             overlaySettings.ClickThrough != _overlaySettings.ClickThrough ||
             overlaySettings.PointerOverlapFadeEnabled !=
                 _overlaySettings.PointerOverlapFadeEnabled ||
-            overlaySettings.PointerOverlapOpacity !=
-                _overlaySettings.PointerOverlapOpacity ||
-            overlaySettings.Opacity != _overlaySettings.Opacity;
-        _settings = profile.Movement;
-        _boundary = overlaySettings.MovementBoundary;
+            nextPettingMotionId != _pettingMotionId;
+        bool lifecycleChanged = presentation != _presentation ||
+            isSystemSuspended != _isSystemSuspended;
+        _settings = nextSettings;
+        _boundary = nextBoundary;
         _overlaySettings = overlaySettings;
-        _pettingMotionId = ValidMotionId(profile.PettingMotionId);
+        _pettingMotionId = nextPettingMotionId;
         _presentation = presentation;
         _isSystemSuspended = isSystemSuspended;
-        if (settingsChanged)
+        if (!targetSettingsChanged &&
+            !observationSettingsChanged &&
+            !lifecycleChanged)
+        {
+            return;
+        }
+        if (_isDirectDragging && !CanDirectDrag)
+        {
+            CompleteDirectDrag();
+        }
+        if (targetSettingsChanged)
         {
             ResetMovementTarget();
+            InvalidateResolvedScreens();
         }
         if (targetSettingsChanged)
         {
@@ -108,6 +133,10 @@ internal sealed class PetMovementRuntime : IDisposable
     public void SetUserDragging(bool isDragging)
     {
         ThrowIfDisposed();
+        if (_isUserDragging == isDragging)
+        {
+            return;
+        }
         _isUserDragging = isDragging;
         if (isDragging)
         {
@@ -123,6 +152,8 @@ internal sealed class PetMovementRuntime : IDisposable
     {
         ThrowIfDisposed();
         _frontmostWindowProvider.Invalidate();
+        _environment.InvalidateDisplays();
+        InvalidateResolvedScreens();
         ResetMovementTarget();
         Reconfigure();
     }
@@ -133,8 +164,12 @@ internal sealed class PetMovementRuntime : IDisposable
         {
             return;
         }
+        if (_isDirectDragging)
+        {
+            CompleteDirectDrag();
+        }
         _disposed = true;
-        _timer.Stop();
+        StopTimer();
         _timer.Tick -= Timer_Tick;
         _frontmostWindowProvider.Invalidate();
         _overlay.SetPointerOverVisibleContent(false);
@@ -149,22 +184,28 @@ internal sealed class PetMovementRuntime : IDisposable
         _overlay.IsVisible;
 
     private bool NeedsPointerObservation =>
+        CanDirectDrag ||
         _pettingMotionId is not null ||
         ShouldMonitorOpacity ||
         _settings.Mode is PetMovementMode.CursorFollowing or PetMovementMode.CursorAvoiding;
+
+    private bool CanDirectDrag =>
+        _settings.Mode == PetMovementMode.Fixed &&
+        !_overlaySettings.ClickThrough;
 
     private bool ShouldMonitorOpacity =>
         _overlaySettings.ClickThrough &&
         _overlaySettings.PointerOverlapFadeEnabled;
 
     private bool ShouldObserveAlpha =>
+        CanDirectDrag ||
         ShouldMonitorOpacity ||
         (_pettingMotionId is not null &&
             _settings.Mode != PetMovementMode.CursorAvoiding);
 
     private void Reconfigure()
     {
-        _timer.Stop();
+        StopTimer();
         if (!IsActive)
         {
             ResetMovementTarget();
@@ -208,7 +249,9 @@ internal sealed class PetMovementRuntime : IDisposable
             _ => "이동 대기 중",
         };
         Schedule(_settings.Mode == PetMovementMode.Fixed
-            ? NeedsPointerObservation ? PointerInterval : null
+            ? CanDirectDrag
+                ? MovementInterval
+                : NeedsPointerObservation ? PointerInterval : null
             : MovementInterval);
         StateChanged?.Invoke(this, EventArgs.Empty);
     }
@@ -228,9 +271,14 @@ internal sealed class PetMovementRuntime : IDisposable
         _lastTickTimestamp = now;
         try
         {
-            ScreenPoint pointer = _monitorService.CursorPosition();
+            PetDesktopEnvironmentSnapshot environment = _environment.Capture();
+            ScreenPoint pointer = environment.Pointer;
+            if (HandleDirectDrag(pointer, environment.IsPrimaryButtonPressed))
+            {
+                return;
+            }
             ObserveHover(pointer, now);
-            TickMovement(pointer, now, elapsedSeconds);
+            TickMovement(pointer, environment.WorkAreas, now, elapsedSeconds);
         }
         catch (Exception exception)
         {
@@ -241,9 +289,78 @@ internal sealed class PetMovementRuntime : IDisposable
         }
     }
 
-    private void TickMovement(ScreenPoint pointer, long now, double elapsedSeconds)
+    private bool HandleDirectDrag(ScreenPoint pointer, bool isPrimaryButtonPressed)
     {
-        IReadOnlyList<MovementScreen> screens = ResolvedScreens();
+        bool didPress = isPrimaryButtonPressed && !_wasPrimaryButtonPressed;
+        _wasPrimaryButtonPressed = isPrimaryButtonPressed;
+
+        if (_isDirectDragging)
+        {
+            if (!isPrimaryButtonPressed || !CanDirectDrag)
+            {
+                CompleteDirectDrag();
+                return false;
+            }
+
+            ScreenPoint offset = _directDragOffset ?? new ScreenPoint(0, 0);
+            _overlay.MoveTo(pointer.X - offset.X, pointer.Y - offset.Y);
+            Status = "사용자가 펫을 이동하는 중";
+            PointerStatus = "왼쪽 버튼 드래그 중";
+            Schedule(MovementInterval);
+            return true;
+        }
+
+        if (!CanDirectDrag || !didPress ||
+            !_overlay.IsTopmostWindowAt(pointer.X, pointer.Y))
+        {
+            return false;
+        }
+
+        double localX = pointer.X - _overlay.OriginX;
+        double localY = pointer.Y - _overlay.OriginY;
+        if (!_overlay.ContainsVisibleContent(localX, localY))
+        {
+            return false;
+        }
+
+        _isDirectDragging = true;
+        _directDragOffset = new ScreenPoint(
+            pointer.X - _overlay.OriginX,
+            pointer.Y - _overlay.OriginY);
+        ResetMovementTarget();
+        _hoverTracker.Reset();
+        ReportMotion(null);
+        Status = "사용자가 펫을 이동하는 중";
+        PointerStatus = "왼쪽 버튼 드래그 시작";
+        StateChanged?.Invoke(this, EventArgs.Empty);
+        Schedule(MovementInterval);
+        return true;
+    }
+
+    private void CompleteDirectDrag()
+    {
+        if (!_isDirectDragging)
+        {
+            return;
+        }
+
+        _isDirectDragging = false;
+        _directDragOffset = null;
+        Status = "위치 고정";
+        PointerStatus = "드래그 위치 저장";
+        DirectDragCompleted?.Invoke(
+            this,
+            new DirectDragCompletedEventArgs(_overlay.OriginX, _overlay.OriginY));
+        StateChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void TickMovement(
+        ScreenPoint pointer,
+        IReadOnlyList<MonitorWorkArea> workAreas,
+        long now,
+        double elapsedSeconds)
+    {
+        IReadOnlyList<MovementScreen> screens = ResolvedScreens(workAreas);
         var observedOrigin = new MovementPoint(_overlay.OriginX, _overlay.OriginY);
         _positionAccumulator ??= new MovementPositionAccumulator(observedOrigin);
         MovementPoint origin = _positionAccumulator.Origin;
@@ -253,7 +370,9 @@ internal sealed class PetMovementRuntime : IDisposable
         {
             case PetMovementMode.Fixed:
                 ReportMotion(null);
-                Schedule(NeedsPointerObservation ? PointerInterval : null);
+                Schedule(CanDirectDrag
+                    ? MovementInterval
+                    : NeedsPointerObservation ? PointerInterval : null);
                 return;
             case PetMovementMode.CursorFollowing:
                 _target = PetMovementGeometry.CursorFollowingTarget(
@@ -262,8 +381,14 @@ internal sealed class PetMovementRuntime : IDisposable
                     size,
                     _settings.CursorDistance,
                     screens);
-                MoveToward(origin, size, _settings.Speed, elapsedSeconds, screens, false);
-                Schedule(_reportedMotionId is null ? PointerInterval : MovementInterval);
+                bool arrived = MoveToward(
+                    origin,
+                    size,
+                    _settings.Speed,
+                    elapsedSeconds,
+                    screens,
+                    false);
+                Schedule(arrived ? PointerInterval : MovementInterval);
                 return;
             case PetMovementMode.FreeRoaming:
                 TickFreeRoaming(origin, size, now, elapsedSeconds, screens, false);
@@ -475,9 +600,17 @@ internal sealed class PetMovementRuntime : IDisposable
         }
     }
 
-    private IReadOnlyList<MovementScreen> ResolvedScreens()
+    private IReadOnlyList<MovementScreen> ResolvedScreens(
+        IReadOnlyList<MonitorWorkArea> workAreas)
     {
-        MovementScreen[] available = _monitorService.AvailableWorkAreas()
+        if (ReferenceEquals(_resolvedWorkAreasSource, workAreas) &&
+            _resolvedBoundary == _boundary &&
+            _resolvedScreens is not null)
+        {
+            return _resolvedScreens;
+        }
+
+        MovementScreen[] available = workAreas
             .Select(area => new MovementScreen(
                 area.Identifier,
                 new MovementRect(area.Left, area.Top, area.Width, area.Height)))
@@ -485,7 +618,7 @@ internal sealed class PetMovementRuntime : IDisposable
         if (_boundary.Mode == MovementBoundaryMode.AllDisplays ||
             string.IsNullOrWhiteSpace(_boundary.ScreenIdentifier))
         {
-            return available;
+            return CacheResolvedScreens(workAreas, available);
         }
 
         MovementScreen? selected = available.FirstOrDefault(screen => string.Equals(
@@ -494,19 +627,36 @@ internal sealed class PetMovementRuntime : IDisposable
             StringComparison.OrdinalIgnoreCase));
         if (selected is null)
         {
-            return available;
+            return CacheResolvedScreens(workAreas, available);
         }
         if (_boundary.Mode != MovementBoundaryMode.CustomArea ||
             _boundary.NormalizedRect is not { IsValid: true } normalized)
         {
-            return [selected];
+            return CacheResolvedScreens(workAreas, [selected]);
         }
         MovementRect frame = selected.WorkArea;
-        return [new MovementScreen(selected.Identifier, new MovementRect(
+        return CacheResolvedScreens(workAreas, [new MovementScreen(selected.Identifier, new MovementRect(
             frame.X + (frame.Width * normalized.X),
             frame.Y + (frame.Height * normalized.Y),
             frame.Width * normalized.Width,
-            frame.Height * normalized.Height))];
+            frame.Height * normalized.Height))]);
+    }
+
+    private IReadOnlyList<MovementScreen> CacheResolvedScreens(
+        IReadOnlyList<MonitorWorkArea> workAreas,
+        IReadOnlyList<MovementScreen> screens)
+    {
+        _resolvedWorkAreasSource = workAreas;
+        _resolvedBoundary = _boundary;
+        _resolvedScreens = screens;
+        return screens;
+    }
+
+    private void InvalidateResolvedScreens()
+    {
+        _resolvedWorkAreasSource = null;
+        _resolvedBoundary = null;
+        _resolvedScreens = null;
     }
 
     private string? ResolveMovementMotion(
@@ -574,13 +724,25 @@ internal sealed class PetMovementRuntime : IDisposable
 
     private void Schedule(TimeSpan? interval)
     {
-        _timer.Stop();
         if (interval is null || _disposed)
+        {
+            StopTimer();
+            return;
+        }
+        if (_timer.IsRunning && _scheduledInterval == interval)
         {
             return;
         }
+        _timer.Stop();
+        _scheduledInterval = interval;
         _timer.Interval = interval.Value;
         _timer.Start();
+    }
+
+    private void StopTimer()
+    {
+        _timer.Stop();
+        _scheduledInterval = null;
     }
 
     private static long MillisecondsToStopwatchTicks(long milliseconds) =>
@@ -592,3 +754,5 @@ internal sealed class PetMovementRuntime : IDisposable
 internal sealed record MovementMotionChangedEventArgs(string? MotionId);
 
 internal sealed record PettingRequestedEventArgs(string MotionId);
+
+internal sealed record DirectDragCompletedEventArgs(int X, int Y);

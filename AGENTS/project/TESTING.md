@@ -99,7 +99,7 @@ UI 테스트는 앱 실행과 접근성 자동화가 가능한 macOS 세션에�
 - 펫 숨김과 화면 잠금 상태에서 애니메이션 시계가 중지되는지 확인한다.
 - 일반 애니메이션 평균 CPU 1% 미만을 초기 목표로 측정한다.
 - 설정창을 닫은 뒤 관련 UI 메모리가 해제되는지 확인한다.
-- 1시간 실행 후 지속적인 메모리 증가 검사는 Preview 배포 기반을 만든 뒤 후속 안정화에서 진행한다.
+- 멀티펫 필수 장시간 성능 검증은 실제 Release 대표 이동 workload를 5분 실행해 5초 간격으로 측정한다. 전체 시스템 환산 평균 CPU 5% 미만, private memory 200MiB 미만·시작 대비 증가 10MiB 미만, 무응답·충돌 0회를 Windows 초기 합격 기준으로 사용한다. 1시간 soak는 공개 배포 전 또는 누수 징후가 있을 때 선택적으로 확장한다.
 - 이미지 디코딩과 프레임 캐시의 최대 메모리 사용량을 큰 테스트 패키지로 측정한다.
 - Phase 10에서는 독립 실행한 Release 빌드로 마우스 따라가기 2분·정지 1분·자유 이동 2분·대기 1분만 먼저 측정한다.
 - 이동 중 CPU 10% 이상 또는 정지·대기 중 CPU 1~2% 이상이 지속될 때만 Time Profiler 분석과 최적화를 진행한다.
@@ -811,7 +811,20 @@ UI 테스트는 앱 실행과 접근성 자동화가 가능한 macOS 세션에�
 - 같은 설치 펫 두 인스턴스가 별도 instance/profile ID와 profile·overlay를 저장하고 재로드한 뒤에도 독립적이며, 선택 인스턴스 호환 view로 수정해도 다른 인스턴스가 바뀌지 않음을 확인했다.
 - 중복·잘못된 instance/profile UUID, 누락·공유 프로필, 펫 키 불일치, 잘못된 선택 참조·별명·display order를 항목별로 복구하고 살아남은 인스턴스·프로필의 알 수 없는 확장 필드를 저장 뒤에도 보존하는지 확인했다.
 - x64 Debug·Release 전체 솔루션 빌드가 오류 없이 통과했고 Activity 27개, Core 38개, Packages 18개, PetLibrary 18개, Settings 63개, Shell 12개로 각 구성 176개 테스트가 모두 통과했다. NuGet 취약성 피드 조회 실패에 따른 `NU1900` 경고 2건은 두 빌드에 남았다.
-- 11단계 범위인 다중 Win32 HWND, `PetInstanceManager`, NavigationView 활성 펫 UI, notification area 멀티펫 메뉴, 자원 경고와 안전 시작 UI는 구현하지 않았다.
+- 이 검증 시점에는 11단계 범위인 다중 Win32 HWND, `PetInstanceManager`, NavigationView 활성 펫 UI, notification area 멀티펫 메뉴, 자원 경고와 안전 시작 UI를 구현하지 않았으며 아래 11단계에서 후속 완료했다.
+
+### Windows 멀티펫 11단계 runtime·관리 UX 검증
+
+- 측정일: 2026-08-13
+- `ActivePetSettingsEditor`가 같은 원본의 독립 profile·offset overlay 추가, instance별 편집 격리, display order 재정렬, 최소 한 마리 보호 제거와 설치 삭제 시 모든 참조의 독립 내장 프로필 전환을 검증했다.
+- notification area의 전체 명령 우선 순서, instance별 선택·표시·클릭 통과·현재 화면 이동 식별자, 안전 시작·자원 경고 표시를 검증했다.
+- 4KiB 제한 원자적 복원 저널의 기록·완료·손상/과대 입력 안전 시작과 다수 펫에서만 연속 CPU·private memory 압력을 경고하는 evaluator를 검증했다.
+- x64 Debug·Release 전체 솔루션 빌드가 통과했고 Activity 27개, Core 38개, Packages 18개, PetLibrary 18개, Settings 69개, Shell 16개로 각 구성 186개 테스트가 모두 통과했다. NuGet 취약성 피드 조회 실패 `NU1900` 경고 2건은 남았다.
+- 실제 다중 HWND 시각·상호작용, 혼합 DPI·음수 좌표 모니터, 물리 잠금·절전 복귀, Explorer 재시작, packaged Release 자원과 1.0.x→1.1.0 설치 업데이트는 Windows 12단계 수동 QA로 남겼다.
+- 2026-08-13 부분 실기기 QA에서는 build 26200의 100% DPI 1920×1080 화면 2대에서 1.0.0.13→1.1.0.13 등록 업데이트와 v10→v11/라이브러리 SHA-256 보존, 3개 독립 instance/profile/overlay HWND, 개별·전체 표시, 일시정지, 재실행, native notification area 하위 메뉴, Explorer 재시작, journal 안전 시작/복원을 통과했다. 3마리 Release 30초 측정은 평균 CPU 11.81%, private memory 최대 115.6MiB, working set 최대 186.0MiB, GPU engine peak 1.47%였다.
+- 화면 경계 보정 저장 누락을 QA 중 수정했다. owned topmost 말풍선이 펫 그룹 순서를 바꾸던 문제는 말풍선을 비활성 독립 tool window로 분리하고 `말풍선→펫` 그룹을 명시적 HWND 체인으로 정렬해 해결했다. 말풍선 2개가 동시에 보이는 15초 12개 샘플, display order 변경과 재실행에서 모든 그룹 rank와 말풍선-펫 내부 순서가 일치했다. 혼합 DPI, 모니터 분리·재연결과 실제 잠금·절전은 환경 또는 수동 조작이 필요해 남아 있다.
+- 2026-08-14 이동 cadence와 unchanged activity 전파 수정 뒤 마우스 따라가기 1마리·자유 이동 1마리를 동시에 실행한 Release 5분 60표본은 전체 시스템 CPU 평균 1.484%·최대 3.594%, 단일 코어 환산 평균 8.90%·최대 21.56%였다. private memory는 127.73→133.29MiB(+5.57MiB), 최대 134.68MiB였고 120초 이후 134.20→133.29MiB로 안정됐다. working set은 190.33→192.96MiB, 최대 197.04MiB였으며 무응답과 같은 시간대 관련 Application 오류는 0건이었다. D-079의 5분 기준을 통과했다.
+- 활성 펫 목록은 상태 이벤트 중 collection 전체 교체를 하지 않고 instance ID별 view model을 제자리 갱신한다. 실제 Release UI에서 별칭 TextBox에 포커스를 둔 뒤 500ms 간격 8회 동안 동일 Automation Runtime ID와 포커스가 유지되어 반복 등장 전환과 편집 포커스 초기화가 재현되지 않았다.
 
 ## 변경 유형별 최소 검증
 

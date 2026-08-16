@@ -57,6 +57,7 @@ public sealed unsafe class PetOverlayWindow : IDisposable
     private double _pointerOverlapOpacity = 0.2;
     private bool _isPointerOverVisibleContent;
     private bool _pixelArtRendering;
+    private bool _isProgrammaticMove;
     private bool _sessionNotificationsRegistered;
 
     public PetOverlayWindow(LoadedPetPackage package, OverlaySettings settings)
@@ -157,9 +158,15 @@ public sealed unsafe class PetOverlayWindow : IDisposable
 
     public event EventHandler? DisplayEnvironmentChanged;
 
+    public event EventHandler? ZOrderInvalidated;
+
     public void Show()
     {
         ThrowIfDisposed();
+        if (_isVisible)
+        {
+            return;
+        }
         PInvoke.ShowWindow(_window, SHOW_WINDOW_CMD.SW_SHOWNOACTIVATE);
         _siteBridge?.Show();
         PInvoke.SetWindowPos(
@@ -180,6 +187,10 @@ public sealed unsafe class PetOverlayWindow : IDisposable
     public void Hide()
     {
         ThrowIfDisposed();
+        if (!_isVisible)
+        {
+            return;
+        }
         SetPointerOverVisibleContent(false);
         _speechBubbleWindow?.Hide();
         PInvoke.ShowWindow(_window, SHOW_WINDOW_CMD.SW_HIDE);
@@ -207,6 +218,10 @@ public sealed unsafe class PetOverlayWindow : IDisposable
         ArgumentNullException.ThrowIfNull(presentation);
         ThrowIfDisposed();
         _speechBubbleWindow?.Show(presentation);
+        if (_speechBubbleWindow?.IsVisible == true)
+        {
+            ZOrderInvalidated?.Invoke(this, EventArgs.Empty);
+        }
         StateChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -240,6 +255,17 @@ public sealed unsafe class PetOverlayWindow : IDisposable
     {
         ThrowIfDisposed();
         return _framePlayer?.ContainsVisibleContent(pointX, pointY) ?? false;
+    }
+
+    public bool IsTopmostWindowAt(int screenX, int screenY)
+    {
+        ThrowIfDisposed();
+        nint hitWindow = WindowFromPoint(new NativePoint(screenX, screenY));
+        if (hitWindow == nint.Zero)
+        {
+            return false;
+        }
+        return GetAncestor(hitWindow, 2) == Handle; // GA_ROOT
     }
 
     public void SetAlphaMaskObservationEnabled(bool enabled)
@@ -286,32 +312,65 @@ public sealed unsafe class PetOverlayWindow : IDisposable
         }
 
         _isClickThrough = enabled;
-        _contentIsland!.IsIslandEnabled = !enabled;
-        if (enabled)
-        {
-            _siteBridge!.Disable();
-        }
-        else
-        {
-            _siteBridge!.Enable();
-        }
+        // The ContentIsland is a composition surface only. Keeping its child
+        // site input-disabled lets the parent overlay HWND own hit testing in
+        // both modes: WS_EX_TRANSPARENT passes clicks through, while
+        // HTCAPTION moves the pet when interaction is enabled.
+        _contentIsland!.IsIslandEnabled = false;
+        _siteBridge!.Disable();
         ApplyPointerOpacity();
     }
 
     public void MoveTo(int x, int y)
     {
         ThrowIfDisposed();
+        if (x == _originX && y == _originY)
+        {
+            return;
+        }
+        bool moved;
+        _isProgrammaticMove = true;
+        try
+        {
+            moved = PInvoke.SetWindowPos(
+                _window,
+                default,
+                x,
+                y,
+                0,
+                0,
+                SET_WINDOW_POS_FLAGS.SWP_NOSIZE |
+                SET_WINDOW_POS_FLAGS.SWP_NOZORDER |
+                SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE);
+        }
+        finally
+        {
+            _isProgrammaticMove = false;
+        }
+        if (moved)
+        {
+            _originX = x;
+            _originY = y;
+            PositionChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    public nint PlaceZOrderGroupAfter(nint precedingWindow)
+    {
+        ThrowIfDisposed();
+        nint preceding = _speechBubbleWindow?.PlaceZOrderAfter(precedingWindow)
+            ?? precedingWindow;
         PInvoke.SetWindowPos(
             _window,
-            default,
-            x,
-            y,
+            new HWND(preceding),
             0,
             0,
+            0,
+            0,
+            SET_WINDOW_POS_FLAGS.SWP_NOMOVE |
             SET_WINDOW_POS_FLAGS.SWP_NOSIZE |
-            SET_WINDOW_POS_FLAGS.SWP_NOZORDER |
             SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE);
-        UpdateOriginFromWindow();
+        return Handle;
     }
 
     private void SetSize(double width)
@@ -534,7 +593,7 @@ public sealed unsafe class PetOverlayWindow : IDisposable
                 return new LRESULT(1);
             }
 
-            if (message == WmMove)
+            if (message == WmMove && !owner._isProgrammaticMove)
             {
                 owner.UpdateOriginFromWindow();
             }
@@ -577,6 +636,19 @@ public sealed unsafe class PetOverlayWindow : IDisposable
 
         return PInvoke.DefWindowProc(window, message, wParam, lParam);
     }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private readonly struct NativePoint(int x, int y)
+    {
+        public readonly int X = x;
+        public readonly int Y = y;
+    }
+
+    [DllImport("user32.dll")]
+    private static extern nint WindowFromPoint(NativePoint point);
+
+    [DllImport("user32.dll")]
+    private static extern nint GetAncestor(nint window, uint flags);
 
 }
 

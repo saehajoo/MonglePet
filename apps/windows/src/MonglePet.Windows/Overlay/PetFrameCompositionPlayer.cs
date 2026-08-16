@@ -18,8 +18,8 @@ internal sealed class PetFrameCompositionPlayer : IDisposable
     private readonly PetFrameAlphaMaskLoader _alphaMaskLoader;
     private PetPackageMotion _motion;
     private PetFramePlaybackState _state;
-    private LoadedImageSurface? _surface;
-    private LoadedImageSurface? _displayedSurface;
+    private PetImageSurfaceLease? _surface;
+    private PetImageSurfaceLease? _displayedSurface;
     private string? _loadedAtlasId;
     private bool _disposed;
     private bool _surfaceLoaded;
@@ -219,7 +219,7 @@ internal sealed class PetFrameCompositionPlayer : IDisposable
         _alphaMaskLoader.Dispose();
         if (_surface is not null)
         {
-            _surface.LoadCompleted -= Surface_LoadCompleted;
+            _surface.StateChanged -= Surface_StateChanged;
         }
         _visual.Brush = null;
         _brush.Dispose();
@@ -233,40 +233,37 @@ internal sealed class PetFrameCompositionPlayer : IDisposable
         _visual.Dispose();
     }
 
-    private void Surface_LoadCompleted(
-        LoadedImageSurface sender,
-        LoadedImageSourceLoadCompletedEventArgs args)
+    private void Surface_StateChanged(object? sender, EventArgs args)
     {
         if (_disposed)
         {
             return;
         }
 
-        if (!ReferenceEquals(sender, _surface))
+        if (!ReferenceEquals(sender, _surface) || _surface is not { } surface)
         {
             return;
         }
 
-        if (args.Status != LoadedImageSourceLoadStatus.Success)
+        if (surface.Status != LoadedImageSourceLoadStatus.Success)
         {
-            Status = $"이미지 디코딩 실패: {args.Status}";
+            Status = $"이미지 디코딩 실패: {surface.Status}";
             StateChanged?.Invoke(this, EventArgs.Empty);
             return;
         }
 
-        sender.LoadCompleted -= Surface_LoadCompleted;
-        LoadedImageSurface? previous = _displayedSurface;
-        _brush.Surface = sender;
+        surface.StateChanged -= Surface_StateChanged;
+        PetImageSurfaceLease? previous = _displayedSurface;
+        _brush.Surface = surface.Surface;
         _visual.Brush = _brush;
-        _displayedSurface = sender;
+        _displayedSurface = surface;
         _surfaceLoaded = true;
         ApplyCurrentFrame();
         Status = _isPaused ? "일시 정지" : "재생 중";
         ScheduleCurrentFrame();
         StateChanged?.Invoke(this, EventArgs.Empty);
-        if (previous is not null && !ReferenceEquals(previous, sender))
+        if (previous is not null && !ReferenceEquals(previous, surface))
         {
-            previous.LoadCompleted -= Surface_LoadCompleted;
             previous.Dispose();
         }
     }
@@ -345,7 +342,7 @@ internal sealed class PetFrameCompositionPlayer : IDisposable
         _remainingFrameDelay = null;
         if (_surface is not null && !ReferenceEquals(_surface, _displayedSurface))
         {
-            _surface.LoadCompleted -= Surface_LoadCompleted;
+            _surface.StateChanged -= Surface_StateChanged;
             _surface.Dispose();
         }
 
@@ -357,10 +354,14 @@ internal sealed class PetFrameCompositionPlayer : IDisposable
         }
         _loadedAtlasId = _motion.Atlas;
         LoadedPetAtlas atlas = _package.Atlases[_motion.Atlas];
-        _surface = LoadedImageSurface.StartLoadFromUri(new Uri(atlas.FilePath));
-        _surface.LoadCompleted += Surface_LoadCompleted;
+        _surface = PetImageSurfaceCache.Acquire(atlas.FilePath);
+        _surface.StateChanged += Surface_StateChanged;
         Status = _displayedSurface is null
             ? "이미지 디코딩 중"
             : "애니메이션 전환 중";
+        if (_surface.IsCompleted)
+        {
+            Surface_StateChanged(_surface, EventArgs.Empty);
+        }
     }
 }

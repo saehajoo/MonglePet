@@ -4,7 +4,7 @@
 
 MonglePet은 플랫폼별로 상시 실행되는 네이티브 앱이므로 제품 규칙, 시스템 감지, 애니메이션 재생, 창 표시와 저장을 분리한다. 핵심 도메인 규칙은 운영체제 API 없이 테스트할 수 있어야 하며 플랫폼 사이에는 소스 코드 대신 데이터 규격과 검증 시나리오를 공유한다.
 
-## 계획된 멀티펫 실행 경계
+## 멀티펫 실행 경계
 
 멀티펫에서는 펫 패키지의 `packageID`, 로컬 라이브러리의 `installationID`와 화면 실행 단위의 `instanceID`를 분리한다. 앱 Coordinator는 하나의 현재 펫을 직접 소유하지 않고 인스턴스 ID별 runtime context를 관리하는 `PetInstanceManager` 역할로 전환한다.
 
@@ -208,7 +208,7 @@ MonglePetApp
 
 ### Settings
 
-- `AppSettings` Domain 모델과 현재 schema-v11 저장 DTO, 마이그레이션 전용 schema-v1부터 v10 DTO를 분리한다. Windows의 기존 단일 펫 WinUI·런타임은 11단계 전까지 선택 인스턴스 호환 view를 통해서만 표시 상태·overlay·프로필을 읽고 쓴다.
+- `AppSettings` Domain 모델과 현재 schema-v11 저장 DTO, 마이그레이션 전용 schema-v1부터 v10 DTO를 분리한다. Windows의 `ActivePetSettingsEditor`는 instance ID를 경계로 추가·선택·별칭·표시·overlay·profile·display order·삭제를 갱신하고 `PetInstanceManager`가 이 목록을 실제 runtime context와 동기화한다.
 - 앱 자동 규칙 선택 adapter는 `NSWorkspace.runningApplications`의 일반 앱과 사용자가 표준 파일 선택창에서 고른 `.app`만 검사한다. 이름·아이콘·파일 경로는 선택 UI에서만 사용하고 설정에는 기존 bundle identifier만 저장한다.
 - `AppSettingsV4Mapper`가 로컬 이동 범위와 표시 환경을 검증하고, `AppSettingsV5Mapper`가 기존 두 모드의 공통·방향별 이동 애니메이션 참조를 검증하며, `AppSettingsV6Mapper`가 마우스 도망가기 설정과 세 번째 이동 애니메이션을 항목 단위로 검증·복구한다.
 - `AppSettingsV7Mapper`는 펫별 말풍선 사용 여부, 주기, 대사와 행동 루틴 참조를 검증하고 잘못된 대사만 항목 단위로 제외한다.
@@ -267,7 +267,7 @@ MonglePetApp
 - `BehaviorSequence`: 시간에 따라 재생할 모션 목록
 - `ActivitySnapshot`: 자동 행동 판단에 필요한 최소 시스템 상태
 
-MVP에서는 여러 펫 정의를 설치할 수 있지만 화면에는 한 개의 `PetInstance`만 표시한다.
+1.1.0부터 여러 `PetInstance`를 동시에 표시하며 각 인스턴스는 독립 설정과 런타임을 가진다. 설치 패키지 정의와 디코딩 알파 자원, 전역 환경 관찰만 안전하게 공유한다.
 
 ## 의존성 규칙
 
@@ -308,4 +308,4 @@ SwiftData나 Core Data를 사용하지 않고 JSON 설정과 파일 기반 펫 �
 ---
 
 문서 상태: draft
-마지막 갱신: 2026-08-09
+마지막 갱신: 2026-08-13

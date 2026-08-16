@@ -28,6 +28,7 @@ internal sealed class PetBehaviorRuntime : IDisposable
         false,
         false);
     private bool _waitingForPlaybackReady;
+    private bool _isUserPaused;
     private bool _disposed;
 
     public PetBehaviorRuntime(LoadedPetPackage package, PetOverlayWindow overlay)
@@ -56,6 +57,20 @@ internal sealed class PetBehaviorRuntime : IDisposable
     public bool IsPaused => _scheduler.IsPaused;
 
     public event EventHandler? StateChanged;
+
+    public void SetUserPaused(bool paused)
+    {
+        ThrowIfDisposed();
+        if (_isUserPaused == paused)
+        {
+            return;
+        }
+        _isUserPaused = paused;
+        if (paused)
+        {
+            Pause("사용자가 모든 펫을 일시정지했습니다", Stopwatch.GetTimestamp());
+        }
+    }
 
     public void SetMovementMotion(string? motionId)
     {
@@ -99,6 +114,11 @@ internal sealed class PetBehaviorRuntime : IDisposable
         ThrowIfDisposed();
         long now = Stopwatch.GetTimestamp();
         AdvanceTo(now);
+        if (_isUserPaused)
+        {
+            Pause("사용자가 모든 펫을 일시정지했습니다", now);
+            return;
+        }
         BehaviorDecision decision = _resolver.Resolve(
             Configuration(profile),
             _activitySnapshot with
@@ -150,8 +170,9 @@ internal sealed class PetBehaviorRuntime : IDisposable
                 {
                     _scheduler.Pause();
                 }
-                EmitCurrentMotion(changed);
-                if (_interactionMotionId is null)
+                bool runtimeChanged = EmitCurrentMotion(changed);
+                if (_interactionMotionId is null &&
+                    (changed || runtimeChanged || !_boundaryTimer.IsRunning))
                 {
                     ScheduleNextBoundary();
                 }
@@ -171,6 +192,9 @@ internal sealed class PetBehaviorRuntime : IDisposable
 
     private void Pause(string status, long now)
     {
+        bool changed = !_scheduler.IsPaused ||
+            _interactionMotionId is not null ||
+            !string.Equals(Status, status, StringComparison.Ordinal);
         _boundaryTimer.Stop();
         _interactionTimer.Stop();
         _interactionMotionId = null;
@@ -179,7 +203,10 @@ internal sealed class PetBehaviorRuntime : IDisposable
         _waitingForPlaybackReady = false;
         _lastAdvancedTimestamp = now;
         Status = status;
-        StateChanged?.Invoke(this, EventArgs.Empty);
+        if (changed)
+        {
+            StateChanged?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     private void BoundaryTimer_Tick(DispatcherQueueTimer sender, object args)
@@ -232,8 +259,10 @@ internal sealed class PetBehaviorRuntime : IDisposable
         }
     }
 
-    private void EmitCurrentMotion(bool restart)
+    private bool EmitCurrentMotion(bool restart)
     {
+        ScheduledMotion? previousMotion = _currentMotion;
+        string previousStatus = Status;
         switch (_scheduler.Status)
         {
             case MotionSchedulerStatus.Playing playing:
@@ -265,7 +294,13 @@ internal sealed class PetBehaviorRuntime : IDisposable
                 Status = "행동 대기 중";
                 break;
         }
-        StateChanged?.Invoke(this, EventArgs.Empty);
+        bool didChange = previousMotion != _currentMotion ||
+            !string.Equals(previousStatus, Status, StringComparison.Ordinal);
+        if (didChange)
+        {
+            StateChanged?.Invoke(this, EventArgs.Empty);
+        }
+        return didChange;
     }
 
     private void RenderPreferredMotion(bool restart)

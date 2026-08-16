@@ -163,7 +163,7 @@ macOS 9단계를 완료하면 확정 동작, schema-v11·공통 fixture, Windows
 ### Windows
 
 - [x] 10단계: Windows에서 portable Domain·Settings·Packages 테스트와 schema-v11 계약 반영
-- [ ] 11단계: Windows `PetInstanceManager`, 다중 Win32/Composition 오버레이와 NavigationView UX 구현
+- [x] 11단계: Windows `PetInstanceManager`, 다중 Win32/Composition 오버레이와 NavigationView UX 구현
 - [ ] 12단계: 실제 Windows PC에서 다수 펫 Release·혼합 DPI·잠금·절전·설치 업데이트 QA
 
 ### 플랫폼 동등성
@@ -182,7 +182,7 @@ macOS 9단계를 완료하면 확정 동작, schema-v11·공통 fixture, Windows
 - 연속 추가, 전체 재우기·깨우기, 앱 재실행, 화면 분리·재연결과 여러 Space·혼합 DPI를 검증한다.
 - 시작 중 강제 종료 fixture로 안전 시작이 작동하고 문제 인스턴스 외의 설정·펫 파일이 유지되는지 확인한다.
 - 손상·미래 schema·초과 파일 크기·비정상적으로 큰 인스턴스 배열을 창 생성 전에 거부하거나 안전하게 복구하는지 확인한다.
-- 펫 수를 점진적으로 늘린 Release workload에서 CPU, GPU, private memory, 프레임 지연과 1시간 메모리 증가를 기록한다.
+- 펫 수를 점진적으로 늘린 Release workload에서 CPU, GPU, private memory, 프레임 지연과 5분 메모리 증가를 기록한다. 누수 징후가 있을 때만 1시간 soak로 확장한다.
 - macOS와 Windows가 공통 schema fixture를 같은 의미로 왕복하고 플랫폼 전용 화면·앱 식별자를 서로 오염시키지 않는지 확인한다.
 - 앱을 1.1.0으로 올린 뒤 새로 만들거나 내보낸 패키지의 제작 앱 버전과 최소 앱 버전이 모두 1.1.0으로 기록되고 기존 낮은 최소 버전 패키지는 계속 가져올 수 있는지 확인한다.
 
@@ -228,11 +228,23 @@ macOS 9단계를 완료하면 확정 동작, schema-v11·공통 fixture, Windows
 - 2026-08-13: 8마리 마우스 따라가기 Release 장시간 workload를 약 5분 동안 일반 작업과 함께 실행해 시각적 끊김이나 기능 이상이 없음을 사용자 확인하고 정상 중단했다. 1시간 측정은 사용자 판단으로 이번 단계의 필수 조건에서 제외하고 공개 배포 전 안정화 QA로 이관했다. 중단 뒤 테스트 앱·측정 프로세스와 임시 프로파일이 남지 않았으며 미완성 TSV는 측정값으로 사용하지 않았다.
 - 2026-08-13: Windows 인계 기준을 확정했다. schema-v11의 인스턴스·독립 프로필·overlay·표시 순서와 v10→v11 공통 fixture를 먼저 portable 계층에 반영하고, 이후 WinUI `NavigationView`, 다중 Win32/Composition overlay, notification area 제어, 사용자 일시정지·비차단 경고와 시작 복구를 Windows 네이티브로 구현한다. 실제 Windows PC에서 혼합 DPI 다중 모니터·잠금/절전·Release 자원·1.1.0 업데이트 복원을 검증하기 전에는 동등으로 표시하지 않는다.
 - 2026-08-13: Windows 앱 마케팅 버전을 `1.1.0`으로 올리고 C# `AppSettings`를 `activePetInstances`, 식별된 독립 `behaviorProfiles`, `selectedPetInstanceID`를 가진 schema-v11 Domain으로 전환했다. v1~v10 순차 이관의 최종 결과를 v11로 연결하고 중복·잘못된 UUID, 누락·공유 프로필, 펫 키 불일치, 잘못된 선택·별명·표시 순서를 항목별로 복구한다.
-- 2026-08-13: Windows Settings 테스트가 공통 v10 입력과 고정 UUID v11 기대 fixture를 정확히 비교하고, 같은 설치 펫 두 인스턴스의 서로 다른 profile·overlay 재로드 독립성, 손상 복구와 알 수 없는 확장 필드 보존을 검증한다. 기존 단일 펫 WinUI·런타임은 선택 인스턴스 호환 view로 유지했으며 다중 HWND·관리 UI·notification area·자원 경고·안전 시작은 시작하지 않았다.
+- 2026-08-13: Windows Settings 테스트가 공통 v10 입력과 고정 UUID v11 기대 fixture를 정확히 비교하고, 같은 설치 펫 두 인스턴스의 서로 다른 profile·overlay 재로드 독립성, 손상 복구와 알 수 없는 확장 필드 보존을 검증했다. 10단계 당시 단일 펫 WinUI·런타임은 선택 인스턴스 호환 view로 유지했으며 다중 HWND·관리 UI·notification area·자원 경고·안전 시작은 아래 11단계에서 후속 완료했다.
+- 2026-08-13: Windows `PetInstanceManager`와 instance별 `PetRuntimeContext`를 연결해 저장된 전체 활성 펫의 별도 Win32/Composition 펫·말풍선 HWND와 행동·이동·쓰다듬기·말풍선 런타임을 동시에 유지한다. 전역 activity·WTS/전원 메시지는 한 번만 수집하고 포인터·모니터·전면 창 snapshot과 같은 패키지의 atlas surface·알파 마스크 참조 계수 캐시를 공유한다.
+- 2026-08-13: WinUI 설정 첫 화면을 왼쪽 `NavigationView`의 `활성 펫`으로 바꾸고 같은 펫의 독립 인스턴스 추가, 선택·별칭·앞뒤 순서·개별/전체 표시·제거·전체 일시정지와 안전 시작 복원을 연결했다. notification area도 전체 명령 뒤 instance별 선택·깨우기/재우기·클릭 통과·현재 화면 이동을 제공한다.
+- 2026-08-13: 4KiB 원자적 시작 복원 저널, instance별 복원 실패 격리, 5초 저빈도 CPU·private memory 연속 압력 경고를 구현했다. x64 Debug·Release 빌드와 Activity 27개·Core 38개·Packages 18개·PetLibrary 18개·Settings 69개·Shell 16개, 총 186개 테스트가 각 구성에서 통과했다. 실제 다중 모니터·잠금·절전·Explorer 재시작·설치 업데이트는 12단계로 남겼다.
+- 2026-08-13: Windows 12단계 실기기 QA를 시작했다. Windows build 26200, RTX 2060, 1920×1080 100% DPI 화면 2대(보조 화면 원점 `-1920,297`)에서 개발 패키지 `1.0.0.13`을 `1.1.0.13`으로 등록 업데이트했고 schema-v10 단일 펫이 schema-v11 첫 instance로 이관되며 라이브러리 10개 파일의 SHA-256이 모두 보존됐다. 같은 설치본을 설정 복사와 기본값으로 각각 추가해 고유 instance/profile 3개와 실제 overlay HWND 3개를 확인했고, 개별 재우기·전체 깨우기·전체 일시정지/재개·재실행 복원·native notification area의 펫별 하위 메뉴 3개·Explorer 재시작 후 메뉴 재등록·복원 journal 안전 시작과 모두 복원을 통과했다. 3마리 Release 30초 측정은 평균 CPU 11.81%, private memory 113.8~115.6MiB, working set 184.4~186.0MiB, GPU engine peak 1.47%였고 일시정지 중 평균 CPU는 0.58%였다.
+- 2026-08-13: 실기기 QA에서 화면 오른쪽 경계를 벗어난 복사본 좌표가 런타임에서만 보정되고 저장되지 않는 문제를 수정해 `PetRuntimeContext`의 보정된 instance를 첫 적용과 manager 저장 이벤트에 전달했다. activity snapshot마다 보이는 overlay를 다시 topmost로 올리던 불필요한 `Show()` 호출도 상태 전환 때만 실행하도록 수정했다. owned topmost 말풍선 HWND가 펫 그룹의 생성 순서를 강제하던 문제는 말풍선을 비활성 독립 tool window로 분리하고 manager가 `말풍선→펫` 그룹을 명시적 `hWndInsertAfter` 체인으로 정렬하도록 수정했다. 보이는 말풍선 2개를 포함한 15초 12개 샘플과 display order 변경·재실행에서 모든 그룹 rank와 말풍선-펫 내부 순서가 일치했다. 이 PC의 두 화면이 모두 100% DPI이므로 혼합 DPI, 모니터 물리 분리·재연결과 잠금·절전은 남아 있어 12단계는 완료하지 않는다.
+- 2026-08-14: 활성 펫 화면이 행동·이동 상태 이벤트마다 `ObservableCollection`을 비우고 카드를 다시 만들어 1초 주기의 아래→위 등장 전환과 TextBox·선택 포커스 초기화를 일으키던 문제를 수정했다. instance ID 기준으로 기존 `ActivePetItem`과 ListView container를 유지하고 추가·제거·순서 변경만 collection에 반영하며 상태 문구는 `INotifyPropertyChanged`로 갱신한다. 실제 Release UI에서 별칭 TextBox의 Automation Runtime ID와 포커스가 4초 8회 표본 모두 유지됐다.
+- 2026-08-14: Windows 설정 `NavigationView`를 macOS와 같은 `데스크톱`·`선택한 펫`·`보관함` 그룹으로 나누고 `이동`을 `표시 및 이동`으로 맞췄다. 표시 상태·화면 표시는 해당 페이지로, 행동 모드는 행동 루틴 페이지로 옮기고 일반 페이지에는 앱 실행·버전 정보만 남겼다. grouped form에 가까운 12px 카드·10px 보조 카드, 평면 페이지 헤더, 220px sidebar와 활성 펫 시각 카드를 적용했다. x64 Debug·Release 빌드와 각 186개 테스트가 통과했으며 최종 색상·밀도·반응형 배치는 사용자 시각 QA를 남긴다.
+- 2026-08-14: 클릭 통과를 끈 위치 고정 펫에서 Composition `ContentIsland` 자식 site가 실제 캐릭터 클릭을 먼저 소비해 부모 overlay HWND의 `HTCAPTION` 드래그가 시작되지 않는 문제를 수정했다. ContentIsland를 모든 모드에서 그리기 전용·입력 비활성으로 유지하고 부모 HWND가 클릭 통과와 드래그 hit-test를 단독 소유하게 했다. 자식 site를 통과하지 않는 환경에서도 드래그가 시작되도록 공유 120Hz 전역 포인터·버튼 snapshot과 실제 frame 알파 hit-test를 사용한 부모 창 drag gesture를 추가했고, 클릭 통과를 끈 실제 캐릭터 픽셀의 이동·저장을 사용자 실기기에서 확인했다.
+- 2026-08-14: 활성 펫 카드는 앱 로고 대신 각 instance의 실제 패키지 미리보기를 캐시해 표시하고, 선택을 WinUI 기본 포커스 시각과 분리한 테두리·`설정 중` 표식으로 나타낸다. 선택 변경은 전체 runtime 동기화를 호출하지 않고 manager의 선택 경계만 갱신하며 원자적 저장은 180ms debounce하고, 보이지 않는 설정 페이지의 컨트롤은 해당 페이지로 이동할 때 갱신해 선택 지연을 줄였다.
+- 2026-08-14: 표시 중인 말풍선 위치 갱신마다 XAML site를 숨기고 측정용 content로 교체하던 경로를 제거했다. 본문 layout을 캐시하고 기존 tail `Path` geometry만 갱신하며 숨김→표시 전환에서만 창과 site를 표시해 이동 중 말풍선 깜빡임을 줄였다.
+- 2026-08-14: 마우스 따라가기에서 이동 애니메이션이 없으면 100ms cadence를 사용하던 조건 때문에 현재 설정이 10Hz로 제한됐고, 1초 activity snapshot이 unchanged 상태에서도 모든 runtime·manager·WinUI 알림과 행동 boundary timer 재시작을 유발해 다른 펫까지 주기적으로 끊겼다. 이동 중 cadence를 애니메이션 유무와 분리한 정확한 60Hz 반복 timer로 바꾸고 정지 반경 안에서만 100ms를 사용한다. 동일 activity는 행동·이동·manager UI 경계를 통과하지 않으며 화면 범위와 공유 포인터 snapshot을 캐시하고, programmatic `SetWindowPos`에서는 중복 호출과 `WM_MOVE`의 `GetWindowRect` 왕복을 제거했다. 마우스 따라가기 1마리와 자유 이동 1마리 동시 Release 15초 포인터 이동 표본은 전체 시스템 CPU 1.86%, 단일 코어 환산 11.18%, private memory 122.50MiB, 증가 0.11MiB였고 Debug·Release 각 186개 테스트가 통과했다.
+- 2026-08-14: 필수 장시간 검증을 1시간 대신 반복 가능한 Release 5분·5초 간격 방식으로 확정했다. 같은 마우스 따라가기 1마리·자유 이동 1마리 workload의 60표본은 전체 시스템 CPU 평균 1.484%·최대 3.594%, private memory 127.73→133.29MiB(+5.57MiB)·최대 134.68MiB, working set 190.33→192.96MiB·최대 197.04MiB였다. 120초 이후 private memory는 134.20→133.29MiB로 안정됐고 무응답·관련 Application 오류는 0건이라 D-079 기준을 통과했다. 혼합 DPI·다수의 동시 추적 펫과 잠금·절전은 Windows 12단계에 남긴다.
 
 ## 완료 결과
 
-- macOS 기준 구현과 Windows 10단계 portable 계약 반영 완료: 두 플랫폼이 schema-v11과 공통 v10→v11 fixture를 사용한다. 다음 구현 단계는 Windows `PetInstanceManager`, 다중 Win32/Composition overlay와 NavigationView UX를 연결하는 11단계다.
+- macOS 기준 구현과 Windows 10~11단계 완료: 두 플랫폼이 schema-v11과 공통 v10→v11 fixture를 사용하고 Windows가 instance별 runtime·다중 HWND, NavigationView 활성 펫, notification area, 전체 일시정지·자원 경고·안전 시작을 연결했다. 다음 단계는 실제 Windows PC의 다수 펫 Release·혼합 DPI·잠금·절전·1.1.0 설치 업데이트 QA다.
 
 ## 남은 위험 / 후속 작업
 
@@ -241,4 +253,4 @@ macOS 9단계를 완료하면 확정 동작, schema-v11·공통 fixture, Windows
 - 여러 마우스 따라가기 펫의 배치 오프셋은 macOS 프로토타입에서 확정해야 한다. 펫끼리의 충돌과 말풍선끼리의 충돌 회피는 후속 계획으로 관리한다.
 - 완전히 멈춘 프로세스는 자체 경고나 메뉴에 응답할 수 없으므로 별도 감시 프로세스를 두지 않는 첫 구현에서는 강제 종료 후 안전 시작이 최종 복구 경계다.
 - macOS에서 Windows portable 계층을 작업하려면 .NET SDK 10.0.302를 별도로 설치해야 한다. Windows UI·오버레이·배포 검증은 Windows PC에서만 완료할 수 있다.
-- 1시간 메모리 증가와 장시간 GPU·프레임 지연은 이번 기능 단계에서 제외했으며 공개 배포 전 안정화 QA에서 `measure-multi-pet-release.zsh`와 Instruments로 다시 수행한다.
+- 필수 장시간 성능 검증은 플랫폼별 Release 대표 workload를 5분 측정한다. 1시간 soak와 장시간 GPU·프레임 지연은 공개 배포 전 또는 5분 표본에서 누수 징후가 있을 때 선택적으로 확장한다.

@@ -16,6 +16,7 @@ using MonglePet.PetLibrary;
 using MonglePet.Settings;
 using MonglePet.Shell;
 using MonglePet.Windows.Overlay;
+using MonglePet.Windows.Runtime;
 using Windows.Storage;
 using Windows.Storage.Pickers;
 using Windows.UI;
@@ -26,6 +27,7 @@ namespace MonglePet.Windows;
 public sealed partial class MainPage : Page
 {
     private readonly ObservableCollection<InstalledPetItem> _installedPets = [];
+    private readonly ObservableCollection<ActivePetItem> _activePets = [];
     private readonly ObservableCollection<PetChoiceItem> _petChoices = [];
     private readonly ObservableCollection<PetAnimationItem> _petAnimations = [];
     private readonly ObservableCollection<BehaviorSequenceItem> _behaviorSequences = [];
@@ -46,6 +48,8 @@ public sealed partial class MainPage : Page
     private bool _isRefreshingPetChoice;
     private bool _isEditingSpeechPhrase;
     private bool _isRefreshingLoginLaunch;
+    private bool _selectedPetDetailsAreStale;
+    private string _currentSettingsSection = "activePets";
     private string? _selectedRoutineId;
     private Guid? _selectedRuleId;
     private Guid? _selectedSpeechPhraseId;
@@ -69,7 +73,8 @@ public sealed partial class MainPage : Page
                 SpeechPeriodicIntervalNumberBox_KeyUp),
             handledEventsToo: true);
         AppVersionText.Text = ApplicationVersionText();
-        ShowSettingsSection("pet");
+        ShowSettingsSection("activePets");
+        ActivePetsList.ItemsSource = _activePets;
         InstalledPetsList.ItemsSource = _installedPets;
         CurrentPetComboBox.ItemsSource = _petChoices;
         PetAnimationsList.ItemsSource = _petAnimations;
@@ -95,8 +100,10 @@ public sealed partial class MainPage : Page
                 app.BehaviorStateChanged += App_BehaviorStateChanged;
                 app.MovementStateChanged += App_MovementStateChanged;
                 app.SettingsStateChanged += App_SettingsStateChanged;
+                app.SelectedPetInstanceChanged += App_SelectedPetInstanceChanged;
             }
             RefreshOverlayState();
+            RefreshActivePetsState();
             RefreshLibraryState();
             RefreshBehaviorState();
             _ = RefreshLoginLaunchAsync();
@@ -120,6 +127,7 @@ public sealed partial class MainPage : Page
             app.BehaviorStateChanged -= App_BehaviorStateChanged;
             app.MovementStateChanged -= App_MovementStateChanged;
             app.SettingsStateChanged -= App_SettingsStateChanged;
+            app.SelectedPetInstanceChanged -= App_SelectedPetInstanceChanged;
         }
         if (_subscribedOverlay is not null)
         {
@@ -135,7 +143,7 @@ public sealed partial class MainPage : Page
         NavigationViewSelectionChangedEventArgs args)
     {
         string section = (args.SelectedItemContainer as NavigationViewItem)?.Tag?.ToString()
-            ?? "pet";
+            ?? "activePets";
         ShowSettingsSection(section);
         if (section == "general" && _isLoaded)
         {
@@ -150,6 +158,9 @@ public sealed partial class MainPage : Page
             return;
         }
 
+        _currentSettingsSection = section;
+
+        bool isActivePets = section == "activePets";
         bool isPet = section == "pet";
         bool isGeneral = section == "general";
         bool isMovement = section == "movement";
@@ -157,10 +168,26 @@ public sealed partial class MainPage : Page
         bool isSpeech = section == "speech";
         bool isAutomaticRules = section == "automaticRules";
 
+        ActivePetsCard.Visibility = isActivePets ? Visibility.Visible : Visibility.Collapsed;
+        SafeStartInfoBar.Visibility = isActivePets ? Visibility.Visible : Visibility.Collapsed;
+        ResourceWarningInfoBar.Visibility = isActivePets ? Visibility.Visible : Visibility.Collapsed;
         OverlayInfoBar.Visibility = isPet ? Visibility.Visible : Visibility.Collapsed;
         PetLibraryCard.Visibility = isPet ? Visibility.Visible : Visibility.Collapsed;
-        GeneralSettingsCard.Visibility = isGeneral ? Visibility.Visible : Visibility.Collapsed;
-        OverlaySettingsCard.Visibility = isGeneral ? Visibility.Visible : Visibility.Collapsed;
+        GeneralSettingsCard.Visibility = isMovement || isRoutines
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        PetPresentationPanel.Visibility = isMovement ? Visibility.Visible : Visibility.Collapsed;
+        BehaviorOverviewPanel.Visibility = isRoutines ? Visibility.Visible : Visibility.Collapsed;
+        PetBehaviorDivider.Visibility = Visibility.Collapsed;
+
+        OverlaySettingsCard.Visibility = isGeneral || isMovement
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        OverlayDisplayPanel.Visibility = isMovement ? Visibility.Visible : Visibility.Collapsed;
+        ApplicationSettingsPanel.Visibility = isGeneral ? Visibility.Visible : Visibility.Collapsed;
+        AppInformationPanel.Visibility = isGeneral ? Visibility.Visible : Visibility.Collapsed;
+        DisplayApplicationDivider.Visibility = Visibility.Collapsed;
+        ApplicationInfoDivider.Visibility = isGeneral ? Visibility.Visible : Visibility.Collapsed;
         MovementSettingsCard.Visibility = isMovement ? Visibility.Visible : Visibility.Collapsed;
         SpeechSettingsCard.Visibility = isSpeech ? Visibility.Visible : Visibility.Collapsed;
 
@@ -174,23 +201,34 @@ public sealed partial class MainPage : Page
         {
             "general" => (
                 "일반",
-                "펫 표시, 행동 모드, 화면 표시와 로그인 자동 실행을 설정합니다."),
+                "로그인 자동 실행과 앱 버전, 로컬 개인정보 보호 정보를 확인합니다."),
             "movement" => (
-                "이동",
-                "현재 펫의 이동 방식, 이동 범위와 쓰다듬기 동작을 설정합니다."),
+                "표시 및 이동",
+                "선택한 펫의 표시 상태와 화면 모양, 이동 방식과 쓰다듬기를 설정합니다."),
             "routines" => (
                 "행동 루틴",
-                "애니메이션 단계를 조합해 현재 펫이 반복할 행동 루틴을 편집합니다."),
+                "자동·수동 행동 모드를 고르고 애니메이션 단계를 조합해 루틴을 편집합니다."),
             "speech" => (
                 "말풍선",
                 "행동 대사와 주기 대사, 말풍선 모양 및 표시 위치를 설정합니다."),
             "automaticRules" => (
                 "자동 규칙",
                 "사용 중인 앱과 입력 없음 시간에 따라 실행할 행동 루틴을 정합니다."),
+            "pet" => (
+                "펫 보관함",
+                "펫 패키지를 가져오거나 내보내고 원본 정보와 애니메이션을 관리합니다."),
             _ => (
-                "펫",
-                "현재 펫을 선택하고 .monglepet 패키지를 가져오거나 내보냅니다."),
+                "활성 펫",
+                "데스크톱에 함께 표시할 펫을 추가하고 선택, 순서와 실행 상태를 관리합니다."),
         };
+
+        if (_isLoaded && section != "activePets" && _selectedPetDetailsAreStale)
+        {
+            _selectedPetDetailsAreStale = false;
+            RefreshOverlayState();
+            RefreshLibraryState();
+            RefreshBehaviorState();
+        }
     }
 
     private async void LoginLaunchToggle_Toggled(object sender, RoutedEventArgs e)
@@ -1228,6 +1266,7 @@ public sealed partial class MainPage : Page
                 return;
             }
             RefreshOverlayState();
+            RefreshActivePetsState();
             RefreshLibraryState();
             RefreshBehaviorState();
         });
@@ -1239,6 +1278,7 @@ public sealed partial class MainPage : Page
             {
                 RefreshBehaviorRuntimeStatus();
                 RefreshSpeechRuntimeStatus();
+                RefreshActivePetsState();
             }
         });
 
@@ -1248,6 +1288,7 @@ public sealed partial class MainPage : Page
             if (_isLoaded)
             {
                 RefreshMovementRuntimeStatus();
+                RefreshActivePetsState();
             }
         });
 
@@ -1259,9 +1300,306 @@ public sealed partial class MainPage : Page
                 return;
             }
             RefreshOverlayState();
+            RefreshActivePetsState();
             RefreshLibraryState();
             RefreshBehaviorState();
         });
+
+    private void App_SelectedPetInstanceChanged(object? sender, EventArgs e) =>
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (!_isLoaded)
+            {
+                return;
+            }
+
+            RefreshActivePetsState();
+            if (_currentSettingsSection == "activePets")
+            {
+                _selectedPetDetailsAreStale = true;
+                return;
+            }
+
+            _selectedPetDetailsAreStale = false;
+            RefreshOverlayState();
+            RefreshLibraryState();
+            RefreshBehaviorState();
+        });
+
+    private void RefreshActivePetsState()
+    {
+        if (Application.Current is not App app || ActivePetsList is null)
+        {
+            return;
+        }
+
+        List<ActivePetInstance> orderedInstances = app.CurrentSettings.ActivePetInstances
+            .OrderBy(value => value.DisplayOrder)
+            .ToList();
+        HashSet<Guid> currentInstanceIds = orderedInstances
+            .Select(value => value.InstanceId)
+            .ToHashSet();
+
+        for (int index = _activePets.Count - 1; index >= 0; index--)
+        {
+            if (!currentInstanceIds.Contains(_activePets[index].InstanceId))
+            {
+                _activePets.RemoveAt(index);
+            }
+        }
+
+        for (int targetIndex = 0; targetIndex < orderedInstances.Count; targetIndex++)
+        {
+            ActivePetInstance instance = orderedInstances[targetIndex];
+            PetRuntimeSnapshot? snapshot = app.ActivePetSnapshots.FirstOrDefault(value =>
+                value.InstanceId == instance.InstanceId);
+            string originalName;
+            try
+            {
+                originalName = app.PetDisplayName(instance.PetKey);
+            }
+            catch (Exception)
+            {
+                originalName = "찾을 수 없는 펫";
+            }
+            string nickname = instance.Nickname ?? originalName;
+            string detail =
+                $"{originalName} · {MovementModeTitle(app.CurrentSettings.BehaviorProfiles.First(value => value.ProfileId == instance.BehaviorProfileId).Movement.Mode)} · {(instance.Overlay.ClickThrough ? "클릭 통과" : "상호작용")}";
+            string runtimeStatus = snapshot is null
+                ? "복원 대기 · 다른 펫 설정과 파일은 유지됩니다."
+                : $"{(instance.Presentation == PetPresentation.Awake ? "깨어 있음" : "자는 중")} · {snapshot.MovementStatus}";
+            string presentationCommand = snapshot is null
+                ? "복원"
+                : instance.Presentation == PetPresentation.Awake ? "재우기" : "깨우기";
+
+            int currentIndex = IndexOfActivePet(instance.InstanceId);
+            ActivePetItem item;
+            if (currentIndex < 0)
+            {
+                item = new ActivePetItem(instance.InstanceId);
+                _activePets.Insert(targetIndex, item);
+            }
+            else
+            {
+                if (currentIndex != targetIndex)
+                {
+                    _activePets.Move(currentIndex, targetIndex);
+                }
+                item = _activePets[targetIndex];
+            }
+
+            item.Update(
+                nickname,
+                detail,
+                runtimeStatus,
+                presentationCommand,
+                instance.DisplayOrder,
+                snapshot is not null,
+                instance.InstanceId == app.CurrentSettings.SelectedPetInstanceId);
+            if (item.NeedsPreview(instance.PetKey))
+            {
+                string? previewPath = null;
+                try
+                {
+                    previewPath = app.PetPackage(instance.InstanceId, instance.PetKey).PreviewFilePath;
+                }
+                catch
+                {
+                    // Keep the neutral pet placeholder when the package is unavailable.
+                }
+                if (item.BeginPreviewLoad(instance.PetKey, previewPath, out long previewGeneration))
+                {
+                    _ = LoadActivePetPreviewAsync(item, previewPath, previewGeneration);
+                }
+            }
+        }
+        PauseAllPetsButton.Content = app.AreAllPetsPaused ? "모두 다시 시작" : "모두 일시정지";
+        SafeStartInfoBar.IsOpen = app.SafeStartRecovery is not null;
+        ResumeWithoutLastSafeStartButton.Visibility = app.SafeStartRecovery is not null
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        ResourceWarningInfoBar.IsOpen = app.ResourceWarning is not null;
+        if (app.ResourceWarning is { } warning)
+        {
+            ResourceWarningInfoBar.Message =
+                $"CPU {warning.Sample.CpuPercent:0.0}% · private memory {warning.Sample.PrivateMemoryBytes / 1024d / 1024d:0}MiB · 활성 {warning.Sample.ActivePetCount}마리";
+        }
+    }
+
+    private async Task LoadActivePetPreviewAsync(
+        ActivePetItem item,
+        string? previewPath,
+        long generation)
+    {
+        if (string.IsNullOrWhiteSpace(previewPath))
+        {
+            item.CompletePreviewLoad(generation, null);
+            return;
+        }
+
+        BitmapImage? bitmap = null;
+        try
+        {
+            StorageFile file = await StorageFile.GetFileFromPathAsync(previewPath);
+            using var stream = await file.OpenReadAsync();
+            bitmap = new BitmapImage { DecodePixelWidth = 168 };
+            await bitmap.SetSourceAsync(stream);
+        }
+        catch
+        {
+            // Keep the neutral pet placeholder for a missing or invalid preview.
+        }
+
+        if (_isLoaded)
+        {
+            item.CompletePreviewLoad(generation, bitmap);
+        }
+    }
+
+    private int IndexOfActivePet(Guid instanceId)
+    {
+        for (int index = 0; index < _activePets.Count; index++)
+        {
+            if (_activePets[index].InstanceId == instanceId)
+            {
+                return index;
+            }
+        }
+
+        return -1;
+    }
+
+    private async void AddActivePetButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (Application.Current is not App app)
+        {
+            return;
+        }
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = "같은 펫 추가",
+            Content = "현재 펫의 설정을 복사할까요? 어느 쪽이든 이후에는 독립적으로 저장됩니다.",
+            PrimaryButtonText = "설정 복사",
+            SecondaryButtonText = "기본 설정",
+            CloseButtonText = "취소",
+            DefaultButton = ContentDialogButton.Primary,
+        };
+        ContentDialogResult result = await dialog.ShowAsync();
+        if (result is ContentDialogResult.Primary or ContentDialogResult.Secondary)
+        {
+            app.AddSamePetInstance(result == ContentDialogResult.Primary);
+        }
+    }
+
+    private void ActivePetsList_ItemClick(object sender, ItemClickEventArgs e)
+    {
+        if (Application.Current is App app && e.ClickedItem is ActivePetItem item)
+        {
+            app.SelectPetInstance(item.InstanceId);
+        }
+    }
+
+    private void ActivePetNicknameTextBox_LostFocus(object sender, RoutedEventArgs e)
+    {
+        if (Application.Current is App app && sender is TextBox { Tag: Guid instanceId } textBox)
+        {
+            app.RenamePetInstance(instanceId, textBox.Text);
+        }
+    }
+
+    private void WakeAllPetsButton_Click(object sender, RoutedEventArgs e) =>
+        (Application.Current as App)?.SetAllPetPresentations(PetPresentation.Awake);
+
+    private void TuckAwayAllPetsButton_Click(object sender, RoutedEventArgs e) =>
+        (Application.Current as App)?.SetAllPetPresentations(PetPresentation.TuckedAway);
+
+    private void PauseAllPetsButton_Click(object sender, RoutedEventArgs e) =>
+        (Application.Current as App)?.ToggleAllPetsPaused();
+
+    private void ToggleActivePetButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (Application.Current is not App app || sender is not Button { Tag: Guid instanceId })
+        {
+            return;
+        }
+        ActivePetInstance instance = app.CurrentSettings.ActivePetInstances.Single(value =>
+            value.InstanceId == instanceId);
+        if (_activePets.FirstOrDefault(pet => pet.InstanceId == instanceId) is
+            { IsRuntimeAvailable: false })
+        {
+            app.RestorePetInstance(instanceId);
+            return;
+        }
+        app.SelectPetInstance(instanceId);
+        app.SetUserPresentation(instance.Presentation == PetPresentation.Awake
+            ? PetPresentation.TuckedAway
+            : PetPresentation.Awake);
+    }
+
+    private async void RemoveActivePetButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (Application.Current is not App app || sender is not Button { Tag: Guid instanceId })
+        {
+            return;
+        }
+        if (app.CurrentSettings.ActivePetInstances.Count <= 1)
+        {
+            ShowLibraryMessage(InfoBarSeverity.Warning, "활성 펫 제거", "최소 한 마리의 활성 펫은 남겨야 합니다.");
+            return;
+        }
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = "활성 펫 제거",
+            Content = "데스크톱 배치와 이 펫만의 설정을 제거합니다. 펫 보관함의 원본은 유지됩니다.",
+            PrimaryButtonText = "제거",
+            CloseButtonText = "취소",
+            DefaultButton = ContentDialogButton.Close,
+        };
+        if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+        {
+            app.RemovePetInstance(instanceId);
+        }
+    }
+
+    private void MoveActivePetUpButton_Click(object sender, RoutedEventArgs e) =>
+        MoveActivePet(sender, -1);
+
+    private void MoveActivePetDownButton_Click(object sender, RoutedEventArgs e) =>
+        MoveActivePet(sender, 1);
+
+    private void MoveActivePet(object sender, int offset)
+    {
+        if (Application.Current is not App app || sender is not Button { Tag: Guid instanceId })
+        {
+            return;
+        }
+        List<ActivePetInstance> ordered = app.CurrentSettings.ActivePetInstances
+            .OrderBy(value => value.DisplayOrder)
+            .ToList();
+        int index = ordered.FindIndex(value => value.InstanceId == instanceId);
+        int target = Math.Clamp(index + offset, 0, ordered.Count - 1);
+        if (target != index)
+        {
+            app.MovePetInstance(instanceId, target);
+        }
+    }
+
+    private void ResumeAllSafeStartButton_Click(object sender, RoutedEventArgs e) =>
+        (Application.Current as App)?.ResumeSafeStart(excludesLastRestoredInstance: false);
+
+    private void ResumeWithoutLastSafeStartButton_Click(object sender, RoutedEventArgs e) =>
+        (Application.Current as App)?.ResumeSafeStart(excludesLastRestoredInstance: true);
+
+    private static string MovementModeTitle(PetMovementMode mode) => mode switch
+    {
+        PetMovementMode.Fixed => "위치 고정",
+        PetMovementMode.CursorFollowing => "마우스 따라가기",
+        PetMovementMode.FreeRoaming => "자유 이동",
+        PetMovementMode.CursorAvoiding => "마우스 도망가기",
+        _ => "이동",
+    };
 
     private void RefreshLibraryState()
     {
@@ -3620,6 +3958,148 @@ public sealed partial class MainPage : Page
         bool CanDelete);
 
     public sealed record AutomaticRuleEditorItem(Guid Id, string Summary, string Detail);
+
+    public sealed class ActivePetItem : INotifyPropertyChanged
+    {
+        private string _nickname = string.Empty;
+        private string _detail = string.Empty;
+        private string _runtimeStatus = string.Empty;
+        private string _presentationCommand = string.Empty;
+        private int _displayOrder;
+        private bool _isRuntimeAvailable;
+        private bool _isSelected;
+        private BitmapImage? _preview;
+        private PetBehaviorKey? _previewPetKey;
+        private string? _previewPath;
+        private long _previewGeneration;
+
+        public ActivePetItem(Guid instanceId)
+        {
+            InstanceId = instanceId;
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        public Guid InstanceId { get; }
+
+        public string DisplayName => string.IsNullOrWhiteSpace(Nickname)
+            ? "이름 없는 펫"
+            : Nickname;
+
+        public string Nickname
+        {
+            get => _nickname;
+            private set => SetProperty(ref _nickname, value);
+        }
+
+        public string Detail
+        {
+            get => _detail;
+            private set => SetProperty(ref _detail, value);
+        }
+
+        public string RuntimeStatus
+        {
+            get => _runtimeStatus;
+            private set => SetProperty(ref _runtimeStatus, value);
+        }
+
+        public string PresentationCommand
+        {
+            get => _presentationCommand;
+            private set => SetProperty(ref _presentationCommand, value);
+        }
+
+        public int DisplayOrder
+        {
+            get => _displayOrder;
+            private set => SetProperty(ref _displayOrder, value);
+        }
+
+        public bool IsRuntimeAvailable
+        {
+            get => _isRuntimeAvailable;
+            private set => SetProperty(ref _isRuntimeAvailable, value);
+        }
+
+        public BitmapImage? Preview
+        {
+            get => _preview;
+            private set => SetProperty(ref _preview, value);
+        }
+
+        public Visibility SelectionVisibility => _isSelected
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        public void Update(
+            string nickname,
+            string detail,
+            string runtimeStatus,
+            string presentationCommand,
+            int displayOrder,
+            bool isRuntimeAvailable,
+            bool isSelected)
+        {
+            Nickname = nickname;
+            Detail = detail;
+            RuntimeStatus = runtimeStatus;
+            PresentationCommand = presentationCommand;
+            DisplayOrder = displayOrder;
+            IsRuntimeAvailable = isRuntimeAvailable;
+            if (_isSelected != isSelected)
+            {
+                _isSelected = isSelected;
+                PropertyChanged?.Invoke(
+                    this,
+                    new PropertyChangedEventArgs(nameof(SelectionVisibility)));
+            }
+        }
+
+        public bool BeginPreviewLoad(
+            PetBehaviorKey petKey,
+            string? previewPath,
+            out long generation)
+        {
+            if (_previewPetKey == petKey &&
+                string.Equals(_previewPath, previewPath, StringComparison.OrdinalIgnoreCase))
+            {
+                generation = _previewGeneration;
+                return false;
+            }
+
+            _previewPetKey = petKey;
+            _previewPath = previewPath;
+            Preview = null;
+            generation = ++_previewGeneration;
+            return true;
+        }
+
+        public bool NeedsPreview(PetBehaviorKey petKey) => _previewPetKey != petKey;
+
+        public void CompletePreviewLoad(long generation, BitmapImage? preview)
+        {
+            if (generation == _previewGeneration)
+            {
+                Preview = preview;
+            }
+        }
+
+        private void SetProperty<T>(ref T field, T value, [CallerMemberName] string? name = null)
+        {
+            if (EqualityComparer<T>.Default.Equals(field, value))
+            {
+                return;
+            }
+
+            field = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+            if (name == nameof(Nickname))
+            {
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DisplayName)));
+            }
+        }
+    }
 
     public sealed record SpeechPhraseEditorItem(Guid Id, string Text, string Detail);
 
