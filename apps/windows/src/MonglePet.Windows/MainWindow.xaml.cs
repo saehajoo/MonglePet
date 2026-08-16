@@ -72,6 +72,15 @@ public sealed partial class MainWindow : Window
         _ = SetForegroundWindow(windowHandle);
     }
 
+    internal void HideForStartup()
+    {
+        // AppWindow.Hide can fail with E_NOINTERFACE during the first WinUI
+        // activation of an unpackaged process. Hide the initialized desktop
+        // HWND directly while keeping the Window alive for tray activation.
+        nint windowHandle = WinRT.Interop.WindowNative.GetWindowHandle(this);
+        _ = ShowWindow(windowHandle, 0); // SW_HIDE
+    }
+
     private nint LoadIcon(nint current, int width, int height) =>
         current != nint.Zero
             ? current

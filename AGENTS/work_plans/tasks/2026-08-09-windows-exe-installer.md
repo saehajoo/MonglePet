@@ -4,7 +4,7 @@
 
 - 상태: completed
 - 생성일: 2026-08-09
-- 마지막 갱신: 2026-08-09
+- 마지막 갱신: 2026-08-16
 
 ## 목표
 
@@ -62,7 +62,7 @@
 - clean publish 출력만 있는 환경에서 앱이 실행되고 펫·설정창·notification area가 표시된다.
 - 같은 AppId 설치기를 다시 실행하면 기존 앱을 업그레이드하고 사용자 데이터가 유지된다.
 - 제거 뒤 실행 파일·시작 메뉴·자동 실행 항목은 없어지고 `%LOCALAPPDATA%\MonglePet`은 남는다.
-- 전체 171개 Windows 단위 테스트와 x64 Debug·Release packaged 빌드가 회귀 없이 통과한다.
+- 전체 186개 Windows 단위 테스트와 x64 Debug·Release packaged 빌드가 회귀 없이 통과한다.
 
 ## 진행 로그
 
@@ -72,6 +72,7 @@
 - 2026-08-09: .NET·Windows App SDK self-contained x64 publish 538개 파일 약 225.05MiB와 Inno Setup 6.7.3 기반 약 60.8MiB 설치기·SHA256SUMS를 생성했다.
 - 2026-08-09: 사용자별 최초 설치, 동일 버전 업그레이드, `--startup` 숨김 실행, MSIX 데이터 11개 이전과 원본 보존을 확인했다.
 - 2026-08-09: 실행 중 제거가 처음에는 WinUI 프로세스를 닫지 못하는 문제를 찾아 전용 notification area 종료 메시지를 추가했다. 재검증에서 프로세스·설치 폴더·바로가기·제거 항목·자동 실행 값이 모두 없어지고 사용자 데이터 해시가 보존됐다.
+- 2026-08-16: 멀티펫 `1.1.0.13` Preview 후보의 실제 설치 QA에서 unpackaged `--startup`이 `AppWindow.Hide()`의 `E_NOINTERFACE`로 종료되는 문제를 발견했다. WinUI 주 창을 먼저 활성화하고 초기화 뒤 Win32 `ShowWindow(SW_HIDE)`로 설정 HWND만 숨기도록 수정했다. 다시 만든 설치기를 기존 설치 위에 적용한 뒤 일반 실행·자동 시작·전용 메시지 정상 종료, Application 충돌 0건과 라이브러리 10개 파일 해시 보존을 확인했고 Debug·Release 각 186개 테스트가 통과했다.
 
 ## 완료 결과
 

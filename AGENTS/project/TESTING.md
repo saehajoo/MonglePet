@@ -825,6 +825,7 @@ UI 테스트는 앱 실행과 접근성 자동화가 가능한 macOS 세션에�
 - 화면 경계 보정 저장 누락을 QA 중 수정했다. owned topmost 말풍선이 펫 그룹 순서를 바꾸던 문제는 말풍선을 비활성 독립 tool window로 분리하고 `말풍선→펫` 그룹을 명시적 HWND 체인으로 정렬해 해결했다. 말풍선 2개가 동시에 보이는 15초 12개 샘플, display order 변경과 재실행에서 모든 그룹 rank와 말풍선-펫 내부 순서가 일치했다. 혼합 DPI, 모니터 분리·재연결과 실제 잠금·절전은 환경 또는 수동 조작이 필요해 남아 있다.
 - 2026-08-14 이동 cadence와 unchanged activity 전파 수정 뒤 마우스 따라가기 1마리·자유 이동 1마리를 동시에 실행한 Release 5분 60표본은 전체 시스템 CPU 평균 1.484%·최대 3.594%, 단일 코어 환산 평균 8.90%·최대 21.56%였다. private memory는 127.73→133.29MiB(+5.57MiB), 최대 134.68MiB였고 120초 이후 134.20→133.29MiB로 안정됐다. working set은 190.33→192.96MiB, 최대 197.04MiB였으며 무응답과 같은 시간대 관련 Application 오류는 0건이었다. D-079의 5분 기준을 통과했다.
 - 활성 펫 목록은 상태 이벤트 중 collection 전체 교체를 하지 않고 instance ID별 view model을 제자리 갱신한다. 실제 Release UI에서 별칭 TextBox에 포커스를 둔 뒤 500ms 간격 8회 동안 동일 Automation Runtime ID와 포커스가 유지되어 반복 등장 전환과 편집 포커스 초기화가 재현되지 않았다.
+- 2026-08-16 Windows `1.1.0.13` unpackaged Preview 후보에서 `--startup`이 첫 WinUI 활성화 전에 `AppWindow.Hide()`를 호출해 `E_NOINTERFACE`로 종료되는 문제를 재현했다. 주 창을 먼저 활성화하고 초기화 뒤 Win32 `ShowWindow(SW_HIDE)`로 HWND만 숨기도록 수정했다. 게시본과 실제 사용자별 업그레이드 설치본의 일반 실행·`--startup`이 각각 응답 상태를 유지하고 전용 메시지로 정상 종료됐으며 관련 Application 오류 0건, 라이브러리 10개 파일 해시 보존을 확인했다. x64 Debug·Release 빌드와 각 구성 186개 테스트도 통과했다.
 
 ## 변경 유형별 최소 검증
 
