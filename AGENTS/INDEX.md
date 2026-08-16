@@ -28,6 +28,8 @@
 | `guides/DEVELOPMENT_WORKFLOW.md` | 큰 작업의 계획·구현·검증 절차 | active |
 | `guides/WEB_COMMUNITY_HANDOFF.md` | 별도 웹 커뮤니티 저장소의 초기 설계·보안·인계 지침 | draft |
 | `guides/WEB_COMMUNITY_SERVER_PROMPT.md` | 별도 웹 서버 담당자에게 전달할 복사 가능한 구현 프롬프트 | active |
+| `guides/PREVIEW_DOWNLOAD_HANDOFF.md` | Windows·macOS Preview 웹 다운로드 화면 전달 자료 | active |
+| `guides/PREVIEW_DOWNLOAD_SERVER_PROMPT.md` | 별도 서버 담당자에게 전달할 Preview 다운로드 화면 구현 프롬프트 | active |
 | `work_plans/INDEX.md` | 개별 작업 계획과 진행 상태 목록 | active |
 | `work_plans/tasks/*.md` | 작업별 목표, 체크리스트, 결정 및 결과 | 필요할 때 생성 |
 

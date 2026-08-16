@@ -8,7 +8,7 @@
 
 | 상태 | 작업명 | 파일 | 마지막 갱신 |
 | --- | --- | --- | --- |
-| in_progress | Windows 웹 배포와 자동 업데이트 준비 | `tasks/2026-08-09-windows-web-distribution.md` | 2026-08-09 |
+| in_progress | Windows 웹 배포와 자동 업데이트 준비 | `tasks/2026-08-09-windows-web-distribution.md` | 2026-08-16 |
 | in_progress | Windows 말풍선 타이밍과 설정 UI 다듬기 | `tasks/2026-08-09-windows-speech-timing-and-ui-polish.md` | 2026-08-09 |
 | completed | Windows macOS 기능 동등성 완성 | `tasks/2026-08-09-windows-macos-feature-parity-completion.md` | 2026-08-09 |
 | completed | Windows 로그인 시 자동 실행 | `tasks/2026-08-09-windows-login-launch.md` | 2026-08-09 |
