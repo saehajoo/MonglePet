@@ -1,5 +1,13 @@
 # MonglePet Windows 웹 배포
 
+## 현재 게시된 Preview
+
+Windows `1.1.0.13`은 Git 태그 `windows-v1.1.0-preview.1`과 GitHub Pre-release `MonglePet Windows 1.1.0 Preview 1`로 게시했다. 최종 설치기 크기는 63,829,785 bytes이고 SHA-256은 `4E1572A58440B8450081B7F4FA90B182D9EF4414BA40F802749139D733E55AF7`이다.
+
+- 릴리스: <https://github.com/saehajoo/MonglePet/releases/tag/windows-v1.1.0-preview.1>
+- Windows·macOS 통합 웹 다운로드 화면 전달 자료: [`PREVIEW_DOWNLOAD_HANDOFF.md`](../../../AGENTS/guides/PREVIEW_DOWNLOAD_HANDOFF.md)
+- 자체 웹사이트 반영과 운영 서버 배포는 별도 웹 저장소·서버 담당 범위이며 이 저장소에서 직접 수행하지 않는다.
+
 ## 현재 첫 Preview: EXE 설치기
 
 코드 서명 자격 증명이 없는 첫 Preview는 자체 웹사이트의 `MonglePet-Windows-<version>-x64-Setup.exe`를 기본 다운로드로 제공하고, GitHub Releases에 같은 파일과 `SHA256SUMS.txt`를 보조 사본으로 올린다. 설치기는 x64 unpackaged WinUI 3 앱과 .NET·Windows App SDK 런타임을 포함하며 관리자 권한 없이 현재 사용자에게 설치된다.
