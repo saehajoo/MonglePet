@@ -661,10 +661,17 @@ public partial class App : Application
         _window = null;
         if (window is not null)
         {
-            // Closing the last WinUI window owns application shutdown. Calling
-            // Application.Exit immediately afterwards can race pending XAML input
-            // and value-change work during rapid settings edits.
+            // Let queued XAML input and value-change work drain before Exit while
+            // still guaranteeing that notification-area quit terminates the
+            // process after the final window closes.
+            bool exitQueued = _dispatcherQueue?.TryEnqueue(
+                Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,
+                Exit) == true;
             window.Close();
+            if (!exitQueued)
+            {
+                Exit();
+            }
         }
         else
         {
