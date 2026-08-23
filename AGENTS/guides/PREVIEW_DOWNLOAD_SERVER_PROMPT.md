@@ -4,7 +4,7 @@
 
 ---
 
-`https://dev.mapleroom.kr/monglepet`에 MonglePet Windows `1.1.0 Preview`와 macOS `1.2.0 Preview` 다운로드 영역을 구현해 주세요.
+`https://dev.mapleroom.kr/monglepet`에 MonglePet Windows `1.2.0 Preview`와 macOS `1.2.0 Preview` 다운로드 영역을 구현해 주세요.
 
 ## 먼저 확인할 자료
 
