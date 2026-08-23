@@ -8,7 +8,6 @@
 
 | 상태 | 작업명 | 파일 | 마지막 갱신 |
 | --- | --- | --- | --- |
-| in_progress | macOS 1.2.0 Preview 배포 | `tasks/2026-08-23-macos-1-2-preview-release.md` | 2026-08-23 |
 | in_progress | 웹 펫 URL 가져오기 | `tasks/2026-08-23-web-pet-url-import.md` | 2026-08-23 |
 | in_progress | 스프라이트 시트 순서·격자·프레임 간격 개선 | `tasks/2026-08-23-sprite-sheet-ordering-and-duration.md` | 2026-08-23 |
 | in_progress | Windows 웹 배포와 자동 업데이트 준비 | `tasks/2026-08-09-windows-web-distribution.md` | 2026-08-16 |
@@ -30,6 +29,7 @@
 
 | 상태 | 작업명 | 파일 | 완료일 |
 | --- | --- | --- | --- |
+| completed | macOS 1.2.0 Preview 배포 | `tasks/2026-08-23-macos-1-2-preview-release.md` | 2026-08-24 |
 | completed | 개인 맥 Preview 배포 파일 생성 | `tasks/2026-07-24-personal-mac-preview-artifact.md` | 2026-08-14 |
 | completed | Windows unpackaged EXE 설치기 | `tasks/2026-08-09-windows-exe-installer.md` | 2026-08-09 |
 | completed | Windows 설정 화면 시각적 동등성 | `tasks/2026-08-09-windows-settings-visual-parity.md` | 2026-08-09 |

@@ -834,7 +834,9 @@ UI 테스트는 앱 실행과 접근성 자동화가 가능한 macOS 세션에�
 - 새로 내보내는 `.monglepet`의 제작 앱 버전과 최소 필요 앱 버전이 모두 `1.2.0`으로 기록되는지 확인했다.
 - 전체 `MonglePetTests` 456개 중 455개가 통과했고 실패 0개였다. 외부 로컬 WebP fixture가 있을 때만 실행하는 기존 선택형 테스트 1개는 건너뛰었다.
 - 코드서명 없는 Debug 테스트 빌드와 `generic/platform=macOS` Release 빌드가 통과했다. Release 앱의 `CFBundleShortVersionString=1.2.0`, `CFBundleVersion=3`, 실행 파일 `arm64`·`x86_64` Universal 구성을 확인했다.
-- 최종 ZIP 체크섬·manifest, 별도 위치의 압축 해제·실행 스모크 테스트와 GitHub 원격 digest는 배포 산출물 생성 뒤 기록한다.
+- 깨끗한 원격 커밋 `8eb6e179f952aadce1623ac9abcefce89bde1044`에서 7,006,673 bytes의 `MonglePet-1.2.0-build.3-preview.zip`과 SHA-256·manifest를 생성했다. ZIP SHA-256 `4E6347A939D53ACDE931D90B0B89FD65943D2EECB2266A1C83BA7FD0AF67AE93`이 재계산 결과와 일치했다.
+- 별도 임시 디렉터리의 압축 해제본에서 버전·Bundle ID·Universal 아키텍처·미서명 상태를 확인하고 `--ui-testing --ui-testing-open-settings`로 실제 프로세스가 정상 실행되는지 확인했다.
+- GitHub 태그 `macos-v1.2.0-preview.1`의 Pre-release에 ZIP·SHA-256·manifest를 게시한 뒤 세 파일을 다시 내려받아 ZIP digest와 보조 파일이 로컬 최종본과 바이트 단위로 일치함을 확인했다.
 
 ## 변경 유형별 최소 검증
 

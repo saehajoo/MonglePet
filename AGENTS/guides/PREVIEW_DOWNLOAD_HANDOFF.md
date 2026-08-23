@@ -1,4 +1,4 @@
-# MonglePet 1.1.0 Preview 다운로드 화면 전달 자료
+# MonglePet Preview 다운로드 화면 전달 자료
 
 ## 목적과 적용 범위
 
@@ -10,7 +10,7 @@
 
 ## 다운로드 화면 권장 구성
 
-- 페이지 상단에는 MonglePet `1.1.0 Preview`의 공통 소개를 둔다.
+- 페이지 상단에는 MonglePet Preview의 공통 소개를 두고 각 카드에 플랫폼별 최신 버전을 표시한다.
 - 그 아래에 `Windows`와 `macOS` 다운로드 카드를 나란히 제공한다.
 - 각 카드는 다른 플랫폼의 파일을 자동 선택하거나 강제로 내려받게 하지 않고 사용자가 직접 선택하게 한다.
 - 두 카드 모두 지원 운영체제, 버전, 파일 크기, 서명 상태, SHA-256과 릴리스 정보 링크를 다운로드 버튼 가까이에 표시한다.
@@ -42,22 +42,22 @@
 
 | 항목 | 값 |
 | --- | --- |
-| 제품 버전 | `1.1.0` |
-| macOS 빌드 번호 | `2` |
-| 표시 이름 | `MonglePet macOS 1.1.0 Preview 1` |
-| Git 태그 | `macos-v1.1.0-preview.1` |
-| 기준 커밋 | `b64f3f5bdc352425f93905fcf834ddbf41fff1b8` |
-| 게시일 | 2026-08-14 |
-| ZIP 파일 | `MonglePet-1.1.0-build.2-preview.zip` |
-| ZIP 크기 | 6,394,628 bytes (약 6.10 MiB) |
-| ZIP SHA-256 | `68A06B58386BE593EE97E9DF8C0E6DA6F2E7B739C04DBEB54C8336C9EE665417` |
+| 제품 버전 | `1.2.0` |
+| macOS 빌드 번호 | `3` |
+| 표시 이름 | `MonglePet macOS 1.2.0 Preview 1` |
+| Git 태그 | `macos-v1.2.0-preview.1` |
+| 기준 커밋 | `8eb6e179f952aadce1623ac9abcefce89bde1044` |
+| 게시일 | 2026-08-23 |
+| ZIP 파일 | `MonglePet-1.2.0-build.3-preview.zip` |
+| ZIP 크기 | 7,006,673 bytes (약 6.68 MiB) |
+| ZIP SHA-256 | `4E6347A939D53ACDE931D90B0B89FD65943D2EECB2266A1C83BA7FD0AF67AE93` |
 | 서명·공증 상태 | Developer ID 미서명·Apple 미공증 Preview |
 | 제공 범위 | 제한된 테스터용 |
 
-- 릴리스 페이지: <https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.1.0-preview.1>
-- ZIP 직접 다운로드: <https://github.com/saehajoo/MonglePet/releases/download/macos-v1.1.0-preview.1/MonglePet-1.1.0-build.2-preview.zip>
-- 체크섬 파일: <https://github.com/saehajoo/MonglePet/releases/download/macos-v1.1.0-preview.1/MonglePet-1.1.0-build.2-preview.zip.sha256>
-- 빌드 manifest: <https://github.com/saehajoo/MonglePet/releases/download/macos-v1.1.0-preview.1/MonglePet-1.1.0-build.2-preview.manifest.txt>
+- 릴리스 페이지: <https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.2.0-preview.1>
+- ZIP 직접 다운로드: <https://github.com/saehajoo/MonglePet/releases/download/macos-v1.2.0-preview.1/MonglePet-1.2.0-build.3-preview.zip>
+- 체크섬 파일: <https://github.com/saehajoo/MonglePet/releases/download/macos-v1.2.0-preview.1/MonglePet-1.2.0-build.3-preview.zip.sha256>
+- 빌드 manifest: <https://github.com/saehajoo/MonglePet/releases/download/macos-v1.2.0-preview.1/MonglePet-1.2.0-build.3-preview.manifest.txt>
 
 macOS ZIP도 GitHub의 버전 고정 URL을 원본으로 사용한다. 자체 서버에 복제한다면 ZIP을 다시 만들지 않고 공개 URL에서 다시 받은 파일의 크기와 SHA-256을 확인한다.
 
@@ -104,20 +104,20 @@ macOS ZIP도 GitHub의 버전 고정 URL을 원본으로 사용한다. 자체 �
 ```
 
 ```markdown
-## MonglePet macOS 1.1.0 Preview 1
+## MonglePet macOS 1.2.0 Preview 1
 
-MonglePet macOS `1.1.0 (2)` 미서명·미공증 Preview입니다. 현재 파일은 제한된 테스터용으로 제공합니다.
+웹 펫 주소 가져오기와 스프라이트 시트·PNG crop 편집을 추가한 MonglePet macOS `1.2.0 (3)` 미서명·미공증 Preview입니다. 현재 파일은 제한된 테스터용으로 제공합니다.
 
-[macOS용 Preview ZIP 다운로드](https://github.com/saehajoo/MonglePet/releases/download/macos-v1.1.0-preview.1/MonglePet-1.1.0-build.2-preview.zip)
+[macOS용 Preview ZIP 다운로드](https://github.com/saehajoo/MonglePet/releases/download/macos-v1.2.0-preview.1/MonglePet-1.2.0-build.3-preview.zip)
 
 - 지원 환경: macOS 14 이상, Apple Silicon 및 Intel Mac
-- 파일 크기: 약 6.10 MiB
-- 버전: 1.1.0 (2)
-- SHA-256: `68A06B58386BE593EE97E9DF8C0E6DA6F2E7B739C04DBEB54C8336C9EE665417`
+- 파일 크기: 약 6.68 MiB
+- 버전: 1.2.0 (3)
+- SHA-256: `4E6347A939D53ACDE931D90B0B89FD65943D2EECB2266A1C83BA7FD0AF67AE93`
 
 ZIP을 압축 해제하고 `MonglePet.app`을 응용 프로그램 폴더로 이동하세요. 이 빌드는 Developer ID로 서명되지 않았고 Apple 공증을 받지 않았으므로 최초 실행이 차단될 수 있습니다. 공식 GitHub Release에서 내려받았고 SHA-256이 위 값과 일치하는 경우에만 `시스템 설정 → 개인정보 보호 및 보안`에서 MonglePet의 개별 실행 허용 여부를 판단해 주세요. Gatekeeper를 끄거나 quarantine을 제거하지 마세요.
 
-[릴리스 정보·체크섬·빌드 manifest 보기](https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.1.0-preview.1)
+[릴리스 정보·체크섬·빌드 manifest 보기](https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.2.0-preview.1)
 ```
 
 ## 복사 가능한 HTML 예시
@@ -157,28 +157,28 @@ ZIP을 압축 해제하고 `MonglePet.app`을 응용 프로그램 폴더로 이�
 </section>
 
 <section aria-labelledby="monglepet-macos-preview-title">
-  <h2 id="monglepet-macos-preview-title">MonglePet macOS 1.1.0 Preview 1</h2>
+  <h2 id="monglepet-macos-preview-title">MonglePet macOS 1.2.0 Preview 1</h2>
   <p>미서명·미공증 상태로 제공하는 제한된 테스터용 Preview입니다.</p>
   <p>
-    <a href="https://github.com/saehajoo/MonglePet/releases/download/macos-v1.1.0-preview.1/MonglePet-1.1.0-build.2-preview.zip">
+    <a href="https://github.com/saehajoo/MonglePet/releases/download/macos-v1.2.0-preview.1/MonglePet-1.2.0-build.3-preview.zip">
       macOS용 Preview ZIP 다운로드
     </a>
   </p>
   <ul>
     <li>macOS 14 이상 · Apple Silicon 및 Intel Mac</li>
-    <li>버전 1.1.0 (2) · 약 6.10 MiB</li>
+    <li>버전 1.2.0 (3) · 약 6.68 MiB</li>
     <li>Developer ID 미서명 · Apple 미공증</li>
   </ul>
   <p>
     SHA-256:
-    <code>68A06B58386BE593EE97E9DF8C0E6DA6F2E7B739C04DBEB54C8336C9EE665417</code>
+    <code>4E6347A939D53ACDE931D90B0B89FD65943D2EECB2266A1C83BA7FD0AF67AE93</code>
   </p>
   <p>
     공식 GitHub Release 파일과 SHA-256이 일치할 때만 시스템 설정의
     개인정보 보호 및 보안에서 개별 실행 허용 여부를 판단해 주세요.
   </p>
   <p>
-    <a href="https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.1.0-preview.1">
+    <a href="https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.2.0-preview.1">
       릴리스 정보·체크섬·빌드 manifest 보기
     </a>
   </p>
@@ -207,13 +207,13 @@ Get-FileHash `
 
 ```sh
 shasum -a 256 \
-  "$HOME/Downloads/MonglePet-1.1.0-build.2-preview.zip"
+  "$HOME/Downloads/MonglePet-1.2.0-build.3-preview.zip"
 ```
 
 출력된 값이 아래 값과 정확히 같아야 한다.
 
 ```text
-68A06B58386BE593EE97E9DF8C0E6DA6F2E7B739C04DBEB54C8336C9EE665417
+4E6347A939D53ACDE931D90B0B89FD65943D2EECB2266A1C83BA7FD0AF67AE93
 ```
 
 ## 운영 반영 체크리스트
@@ -221,7 +221,7 @@ shasum -a 256 \
 1. Windows와 macOS 버튼이 각각 해당 플랫폼의 버전 고정 URL을 가리키는지 확인한다.
 2. 각 카드에 릴리스 정보와 체크섬 링크를 제공하고 macOS에는 빌드 manifest 링크도 제공한다.
 3. Windows 최소 버전·x64·미서명·수동 업데이트와 macOS 최소 버전·지원 아키텍처·제한된 테스터용·미서명·미공증 상태를 버튼 근처에 표시한다.
-4. 자체 서버에 파일을 복제한다면 공개 URL에서 다시 내려받아 Windows 63,829,785 bytes, macOS 6,394,628 bytes와 각 SHA-256을 확인한다.
+4. 자체 서버에 파일을 복제한다면 공개 URL에서 다시 내려받아 Windows 63,829,785 bytes, macOS 7,006,673 bytes와 각 SHA-256을 확인한다.
 5. 브라우저에서 실제 다운로드한 파일명이 원본 설치기 또는 ZIP 이름과 같은지 확인한다.
 6. Windows는 기존 `1.0.0.13` 위 업데이트와 데이터 보존을, macOS는 ZIP 해제·응용 프로그램 폴더 이동·시스템 설정의 개별 앱 승인 흐름을 표본 확인한다.
 7. 공식 GitHub 링크가 아닌 임의의 미러나 파일 공유 링크를 추가하지 않는다.

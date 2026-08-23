@@ -29,7 +29,7 @@ Apple 공증과 티켓 부착이 모두 필요합니다.
 
 ## 현재 배포 상태
 
-- macOS `1.2.0 (3)`는 태그 `macos-v1.2.0-preview.1`의 GitHub Pre-release로 게시할 예정이며 ZIP, SHA-256과 빌드 manifest를 함께 제공합니다.
+- macOS `1.2.0 (3)`는 태그 `macos-v1.2.0-preview.1`의 GitHub Pre-release로 게시했으며 ZIP, SHA-256과 빌드 manifest를 함께 제공합니다.
 - 자체 웹사이트의 Windows·macOS 다운로드 화면 반영에는 `../../AGENTS/guides/PREVIEW_DOWNLOAD_HANDOFF.md`의 버전 고정 링크와 사용자 안내를 사용합니다.
 - 회사 Mac에서는 소스·문서·자동 검증까지만 완료합니다.
 - 실제 Preview ZIP 또는 Developer ID DMG 생성과 최종 설치 검증은 개인

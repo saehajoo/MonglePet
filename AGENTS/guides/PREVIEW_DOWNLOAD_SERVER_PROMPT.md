@@ -4,7 +4,7 @@
 
 ---
 
-`https://dev.mapleroom.kr/monglepet`에 MonglePet Windows·macOS `1.1.0 Preview` 다운로드 영역을 구현해 주세요.
+`https://dev.mapleroom.kr/monglepet`에 MonglePet Windows `1.1.0 Preview`와 macOS `1.2.0 Preview` 다운로드 영역을 구현해 주세요.
 
 ## 먼저 확인할 자료
 
@@ -19,7 +19,7 @@
 ## 작업 범위
 
 - 기존 `/monglepet` 페이지의 정보 구조와 디자인 언어를 유지하면서 앱 다운로드 영역을 추가하거나 갱신합니다.
-- 공통 `MonglePet 1.1.0 Preview` 소개 아래에 Windows와 macOS 다운로드 카드를 제공합니다.
+- 공통 MonglePet Preview 소개 아래에 플랫폼별 최신 버전의 Windows와 macOS 다운로드 카드를 제공합니다.
 - Windows 카드는 설치기 직접 다운로드, 릴리스 정보와 체크섬 링크를 제공합니다.
 - macOS 카드는 ZIP 직접 다운로드, 릴리스 정보, 체크섬과 빌드 manifest 링크를 제공합니다.
 - 각 카드에는 지원 환경, 앱 버전, 파일 크기, 서명 상태, SHA-256과 업데이트 방식을 다운로드 버튼 가까이에 표시합니다.
