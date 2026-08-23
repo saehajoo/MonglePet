@@ -71,6 +71,17 @@ MonglePet 펫 공유 커뮤니티의 서버와 웹 UI를 별도 Git 저장소에
 - `PATCH /api/v1/pets/{id}`
 - 댓글·좋아요·신고·관리자 검토 API
 
+## 데스크톱 앱으로 열기
+
+- 공개 펫 상세 화면에 `MonglePet에서 열기`를 추가하고 기존 `최신 버전 다운로드`와 역할을 분리하세요.
+- 앱 링크는 API URL, 버전 UUID나 만료 다운로드 URL이 아니라 현재 환경에서 다시 조합한 canonical 공개 상세 URL을 전달합니다.
+- 개발은 `https://dev.mapleroom.kr/monglepet/pets/{slug}`, 운영은 `https://mapleroom.kr/monglepet/pets/{slug}`를 사용합니다.
+- 정확한 형식은 `monglepet://install?url={encodeURIComponent(canonicalDetailUrl)}`이며 query에는 `url` 하나만 둡니다.
+- 사용자 클릭으로만 앱 링크를 열고, 1~1.5초 뒤에도 페이지가 visible이면 성공·실패를 단정하지 않는 `앱을 열지 못했나요?` 안내를 표시하세요.
+- fallback은 `다시 시도`, `MonglePet 앱 다운로드`, `최신 버전 직접 다운로드`를 제공하되 자동 이동이나 자동 파일 다운로드를 시작하지 않습니다.
+- 모바일과 지원하지 않는 OS에는 앱 열기 대신 데스크톱 앱 안내를 표시합니다.
+- URL 조합 함수, 개발·운영 host, percent encoding, 잘못된 slug와 fallback 상태를 자동 테스트하세요.
+
 ## 작업 방식과 결과물
 
 1. 기존 개인 API 서버, 언어·프레임워크, DB, object storage, reverse proxy, TLS와 인증 방식을 먼저 조사하세요.

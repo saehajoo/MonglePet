@@ -6,6 +6,38 @@ struct SpriteSheetImportPresentation: Identifiable {
     let document: SpriteSheetDocument
 }
 
+private enum SpriteSheetFrameOrderMode: String, CaseIterable, Identifiable {
+    case reading
+    case clicked
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .reading:
+            "읽기 순서"
+        case .clicked:
+            "클릭 순서"
+        }
+    }
+}
+
+private enum SpriteSheetInteractionMode: String, CaseIterable, Identifiable {
+    case selection
+    case bounds
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .selection:
+            "프레임 선택"
+        case .bounds:
+            "범위 편집"
+        }
+    }
+}
+
 struct SpriteSheetImportView: View {
     @Environment(\.dismiss) private var dismiss
 
@@ -21,6 +53,11 @@ struct SpriteSheetImportView: View {
     @State private var tolerance = 28.0
     @State private var previewImage: CGImage
     @State private var errorMessage: String?
+    @State private var frameOrderMode = SpriteSheetFrameOrderMode.reading
+    @State private var clickedRegionOrder: [Int] = []
+    @State private var interactionMode = SpriteSheetInteractionMode.selection
+    @State private var editingRegionID: UUID?
+    @State private var previewRegionID: UUID?
 
     init(
         document: SpriteSheetDocument,
@@ -28,12 +65,17 @@ struct SpriteSheetImportView: View {
     ) {
         self.document = document
         self.onImport = onImport
-        _regions = State(
-            initialValue: document.suggestedRegions.map {
-                SelectableSpriteRegion(rect: $0)
-            }
+        let suggestedRegions = document.suggestedRegions.map {
+            SelectableSpriteRegion(rect: $0)
+        }
+        let dimensions = SpriteSheetFrameExtractor().inferredGridDimensions(
+            for: document.suggestedRegions
         )
-        _columns = State(initialValue: max(1, document.suggestedRegions.count))
+        _regions = State(initialValue: suggestedRegions)
+        _editingRegionID = State(initialValue: suggestedRegions.first?.id)
+        _previewRegionID = State(initialValue: suggestedRegions.first?.id)
+        _rows = State(initialValue: dimensions.rows)
+        _columns = State(initialValue: dimensions.columns)
         _backgroundColor = State(initialValue: document.suggestedBackgroundColor)
         _previewImage = State(initialValue: document.image)
     }
@@ -83,6 +125,17 @@ struct SpriteSheetImportView: View {
                 Text("프레임 경계")
                     .font(.headline)
                 Spacer()
+
+                Picker("경계 작업", selection: $interactionMode) {
+                    ForEach(SpriteSheetInteractionMode.allCases) { mode in
+                        Text(mode.title).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 210)
+                .labelsHidden()
+                .accessibilityIdentifier("monglepet.spriteSheet.interactionMode")
+
                 ControlGroup {
                     Button("전체 선택") {
                         setAllRegionsSelected(true)
@@ -111,11 +164,15 @@ struct SpriteSheetImportView: View {
             SpriteSheetRegionPreview(
                 image: previewImage,
                 pixelSize: document.pixelSize,
-                regions: $regions
+                regions: $regions,
+                editingRegionID: $editingRegionID,
+                interactionMode: interactionMode,
+                orderNumber: displayedOrderNumber,
+                onToggleRegion: toggleRegion
             )
             .accessibilityIdentifier("monglepet.spriteSheet.preview")
 
-            Text("번호가 붙은 경계를 클릭하면 가져올 프레임을 선택하거나 제외할 수 있습니다.")
+            Text(frameSelectionHelp)
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -134,14 +191,169 @@ struct SpriteSheetImportView: View {
                     Text("일정한 격자로 다시 나누기")
                         .font(.subheadline.weight(.semibold))
 
-                    Stepper("행 \(rows)", value: $rows, in: 1...32)
-                    Stepper("열 \(columns)", value: $columns, in: 1...32)
+                    HStack {
+                        Text("행")
+                        Spacer()
+                        TextField("행", value: rowsBinding, format: .number)
+                            .frame(width: 48)
+                            .multilineTextAlignment(.trailing)
+                            .accessibilityIdentifier("monglepet.spriteSheet.rows")
+                        Stepper("", value: rowsBinding, in: 1...32)
+                            .labelsHidden()
+                    }
+
+                    HStack {
+                        Text("열")
+                        Spacer()
+                        TextField("열", value: columnsBinding, format: .number)
+                            .frame(width: 48)
+                            .multilineTextAlignment(.trailing)
+                            .accessibilityIdentifier("monglepet.spriteSheet.columns")
+                        Stepper("", value: columnsBinding, in: 1...32)
+                            .labelsHidden()
+                    }
                     Stepper("안쪽 여백 \(inset) px", value: $inset, in: 0...64)
 
                     Button("격자 적용") {
                         applyGrid()
                     }
                     .disabled(rows * columns > 1_000)
+                }
+                .padding(6)
+            }
+
+            GroupBox("선택 영역 미리보기") {
+                VStack(alignment: .leading, spacing: 10) {
+                    if let previewRegionBinding,
+                       let previewRegionPosition {
+                        HStack {
+                            Button {
+                                movePreviewRegion(by: -1)
+                            } label: {
+                                Label("이전 프레임", systemImage: "chevron.left")
+                                    .labelStyle(.iconOnly)
+                            }
+                            .disabled(orderedSelectedRegionIndices.count < 2)
+                            .accessibilityIdentifier(
+                                "monglepet.spriteSheet.previousSelectedRegion"
+                            )
+
+                            Spacer()
+
+                            Text(
+                                "\(previewRegionPosition + 1) / "
+                                    + "\(orderedSelectedRegionIndices.count)"
+                            )
+                            .font(.caption.weight(.semibold))
+                            .monospacedDigit()
+                            .accessibilityLabel(
+                                "선택 영역 \(previewRegionPosition + 1) / "
+                                    + "\(orderedSelectedRegionIndices.count)"
+                            )
+
+                            Spacer()
+
+                            Button {
+                                movePreviewRegion(by: 1)
+                            } label: {
+                                Label("다음 프레임", systemImage: "chevron.right")
+                                    .labelStyle(.iconOnly)
+                            }
+                            .disabled(orderedSelectedRegionIndices.count < 2)
+                            .accessibilityIdentifier(
+                                "monglepet.spriteSheet.nextSelectedRegion"
+                            )
+                        }
+
+                        Button {
+                            movePreviewRegion(by: 1)
+                        } label: {
+                            CroppedImagePreview(
+                                image: previewImage,
+                                cropRect: previewRegionBinding.wrappedValue.rect
+                            )
+                            .frame(height: 150)
+                            .overlay(alignment: .bottomTrailing) {
+                                Text(
+                                    "\(previewRegionBinding.wrappedValue.rect.width)×"
+                                        + "\(previewRegionBinding.wrappedValue.rect.height) px"
+                                )
+                                .font(.caption2.weight(.semibold))
+                                .monospacedDigit()
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 3)
+                                .background(.regularMaterial, in: Capsule())
+                                .padding(6)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("다음 선택 프레임 미리보기")
+                        .accessibilityIdentifier(
+                            "monglepet.spriteSheet.selectedRegionPreview"
+                        )
+
+                        Text("좌우 버튼이나 미리보기를 눌러 선택한 프레임만 순서대로 확인합니다.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Label(
+                            "가져올 프레임을 선택하면 여기에서 확인할 수 있습니다.",
+                            systemImage: "rectangle.dashed"
+                        )
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(6)
+            }
+
+            if interactionMode == .bounds {
+                GroupBox("선택한 범위") {
+                    VStack(alignment: .leading, spacing: 10) {
+                        if let editingRegionBinding {
+                            CropRectNumericControls(
+                                rect: editingRegionBinding.rect,
+                                pixelSize: document.pixelSize
+                            )
+
+                            Button("모든 경계에 이 크기 적용") {
+                                applyEditingRegionSizeToAll()
+                            }
+
+                            Text("경계 안을 드래그해 이동하고 모서리·변의 핸들로 크기를 조절할 수 있습니다.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Text("편집할 경계를 선택해 주세요.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(6)
+                }
+            }
+
+            GroupBox("프레임 순서") {
+                VStack(alignment: .leading, spacing: 10) {
+                    Picker("순서 지정", selection: $frameOrderMode) {
+                        ForEach(SpriteSheetFrameOrderMode.allCases) { mode in
+                            Text(mode.title).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .accessibilityIdentifier("monglepet.spriteSheet.orderMode")
+                    .onChange(of: frameOrderMode) {
+                        resetSelectionForOrderMode()
+                    }
+
+                    Text(
+                        frameOrderMode == .reading
+                            ? "선택한 프레임을 위에서 아래, 왼쪽에서 오른쪽 순서로 가져옵니다."
+                            : "경계를 누른 순서대로 1, 2, 3… 재생 순서를 지정합니다."
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 }
                 .padding(6)
             }
@@ -240,7 +452,23 @@ struct SpriteSheetImportView: View {
     }
 
     private var selectedRegions: [PixelRect] {
-        regions.compactMap { $0.isSelected ? $0.rect : nil }
+        orderedSelectedRegionIndices.map { regions[$0].rect }
+    }
+
+    private var orderedSelectedRegionIndices: [Int] {
+        SpriteSheetFrameExtractor().orderedSelectedRegionIndices(
+            regionCount: regions.count,
+            selectedIndices: Set(
+                regions.indices.filter { regions[$0].isSelected }
+            ),
+            clickedOrder: frameOrderMode == .clicked ? clickedRegionOrder : nil
+        )
+    }
+
+    private var frameSelectionHelp: String {
+        frameOrderMode == .reading
+            ? "경계를 클릭해 가져올 프레임을 선택하거나 제외할 수 있습니다."
+            : "가져올 프레임을 원하는 재생 순서대로 클릭해 주세요. 다시 누르면 제외됩니다."
     }
 
     private var backgroundColorBinding: Binding<Color> {
@@ -266,6 +494,21 @@ struct SpriteSheetImportView: View {
         )
     }
 
+    private var rowsBinding: Binding<Int> {
+        gridDimensionBinding(value: $rows)
+    }
+
+    private var columnsBinding: Binding<Int> {
+        gridDimensionBinding(value: $columns)
+    }
+
+    private func gridDimensionBinding(value: Binding<Int>) -> Binding<Int> {
+        Binding(
+            get: { min(32, max(1, value.wrappedValue)) },
+            set: { value.wrappedValue = min(32, max(1, $0)) }
+        )
+    }
+
     private func byte(_ component: CGFloat) -> UInt8 {
         UInt8(clamping: Int((component * 255).rounded()))
     }
@@ -274,9 +517,15 @@ struct SpriteSheetImportView: View {
         regions = document.suggestedRegions.map {
             SelectableSpriteRegion(rect: $0)
         }
-        rows = 1
-        columns = max(1, regions.count)
+        let dimensions = SpriteSheetFrameExtractor().inferredGridDimensions(
+            for: document.suggestedRegions
+        )
+        rows = dimensions.rows
+        columns = dimensions.columns
         inset = 0
+        editingRegionID = regions.first?.id
+        previewRegionID = regions.first?.id
+        resetSelectionForCurrentOrderMode()
         errorMessage = nil
     }
 
@@ -289,6 +538,9 @@ struct SpriteSheetImportView: View {
                 inset: inset
             )
             regions = grid.map { SelectableSpriteRegion(rect: $0) }
+            editingRegionID = regions.first?.id
+            previewRegionID = regions.first?.id
+            resetSelectionForCurrentOrderMode()
             errorMessage = nil
         } catch {
             errorMessage = error.localizedDescription
@@ -298,6 +550,123 @@ struct SpriteSheetImportView: View {
     private func setAllRegionsSelected(_ isSelected: Bool) {
         for index in regions.indices {
             regions[index].isSelected = isSelected
+        }
+        clickedRegionOrder = isSelected ? Array(regions.indices) : []
+        normalizePreviewRegion()
+    }
+
+    private func resetSelectionForOrderMode() {
+        resetSelectionForCurrentOrderMode()
+        errorMessage = nil
+    }
+
+    private func resetSelectionForCurrentOrderMode() {
+        switch frameOrderMode {
+        case .reading:
+            setAllRegionsSelected(true)
+        case .clicked:
+            setAllRegionsSelected(false)
+        }
+    }
+
+    private func toggleRegion(at index: Int) {
+        guard regions.indices.contains(index) else {
+            return
+        }
+        if regions[index].isSelected {
+            regions[index].isSelected = false
+            clickedRegionOrder.removeAll { $0 == index }
+        } else {
+            regions[index].isSelected = true
+            if frameOrderMode == .clicked {
+                clickedRegionOrder.append(index)
+            }
+        }
+        normalizePreviewRegion()
+    }
+
+    private func displayedOrderNumber(for index: Int) -> Int? {
+        guard regions.indices.contains(index), regions[index].isSelected else {
+            return nil
+        }
+        guard let orderIndex = orderedSelectedRegionIndices.firstIndex(of: index) else {
+            return nil
+        }
+        return orderIndex + 1
+    }
+
+    private var editingRegionBinding: Binding<SelectableSpriteRegion>? {
+        guard let editingRegionID,
+              let index = regions.firstIndex(where: { $0.id == editingRegionID }) else {
+            return nil
+        }
+        return $regions[index]
+    }
+
+    private var previewRegionBinding: Binding<SelectableSpriteRegion>? {
+        guard let previewRegionID,
+              let index = regions.firstIndex(where: { $0.id == previewRegionID }),
+              regions[index].isSelected else {
+            return nil
+        }
+        return $regions[index]
+    }
+
+    private var previewRegionPosition: Int? {
+        guard let previewRegionID else {
+            return nil
+        }
+        return orderedSelectedRegionIndices.firstIndex {
+            regions[$0].id == previewRegionID
+        }
+    }
+
+    private func normalizePreviewRegion() {
+        let orderedIDs = orderedSelectedRegionIndices.map { regions[$0].id }
+        guard !orderedIDs.isEmpty else {
+            previewRegionID = nil
+            return
+        }
+        if let previewRegionID, orderedIDs.contains(previewRegionID) {
+            return
+        }
+        previewRegionID = orderedIDs.first
+    }
+
+    private func movePreviewRegion(by offset: Int) {
+        let orderedIDs = orderedSelectedRegionIndices.map { regions[$0].id }
+        guard !orderedIDs.isEmpty else {
+            previewRegionID = nil
+            return
+        }
+        guard let previewRegionID,
+              let currentIndex = orderedIDs.firstIndex(of: previewRegionID) else {
+            self.previewRegionID = orderedIDs.first
+            return
+        }
+        let nextIndex = (currentIndex + offset + orderedIDs.count) % orderedIDs.count
+        self.previewRegionID = orderedIDs[nextIndex]
+    }
+
+    private func applyEditingRegionSizeToAll() {
+        guard let editingRegionBinding else {
+            return
+        }
+        let selected = editingRegionBinding.wrappedValue.rect
+        let geometry = ImageCropGeometry()
+        for index in regions.indices {
+            let region = regions[index].rect
+            let centerX = region.x + region.width / 2
+            let centerY = region.y + region.height / 2
+            regions[index].rect = geometry.clamped(
+                PixelRect(
+                    x: centerX - selected.width / 2,
+                    y: centerY - selected.height / 2,
+                    width: selected.width,
+                    height: selected.height
+                ),
+                to: document.pixelSize
+            )
         }
     }
 
@@ -348,7 +717,7 @@ struct SpriteSheetImportView: View {
 
 private struct SelectableSpriteRegion: Identifiable {
     let id = UUID()
-    let rect: PixelRect
+    var rect: PixelRect
     var isSelected = true
 }
 
@@ -356,6 +725,10 @@ private struct SpriteSheetRegionPreview: View {
     let image: CGImage
     let pixelSize: PixelSize
     @Binding var regions: [SelectableSpriteRegion]
+    @Binding var editingRegionID: UUID?
+    let interactionMode: SpriteSheetInteractionMode
+    let orderNumber: (Int) -> Int?
+    let onToggleRegion: (Int) -> Void
 
     var body: some View {
         GeometryReader { geometry in
@@ -371,44 +744,72 @@ private struct SpriteSheetRegionPreview: View {
                     .frame(width: imageFrame.width, height: imageFrame.height)
                     .position(x: imageFrame.midX, y: imageFrame.midY)
 
-                ForEach(Array(regions.enumerated()), id: \.element.id) { index, region in
+                ForEach(regions.indices, id: \.self) { index in
+                    let region = regions[index]
                     let frame = displayFrame(for: region.rect, in: imageFrame)
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(
-                            region.isSelected
-                                ? Color.accentColor.opacity(0.14)
-                                : Color.black.opacity(0.24)
-                        )
-                        .overlay {
+                    ZStack(alignment: .topLeading) {
+                        if interactionMode == .bounds,
+                           region.id == editingRegionID {
+                            CropRectangleEditorOverlay(
+                                cropRect: $regions[index].rect,
+                                pixelSize: pixelSize,
+                                imageFrame: imageFrame
+                            )
+                        } else {
                             RoundedRectangle(cornerRadius: 4)
-                                .stroke(
-                                    region.isSelected ? Color.accentColor : Color.secondary,
-                                    lineWidth: region.isSelected ? 2 : 1
+                                .fill(
+                                    region.isSelected
+                                        ? Color.accentColor.opacity(0.14)
+                                        : Color.black.opacity(0.24)
                                 )
+                                .overlay {
+                                    RoundedRectangle(cornerRadius: 4)
+                                        .stroke(
+                                            region.isSelected
+                                                ? Color.accentColor
+                                                : Color.secondary,
+                                            lineWidth: region.isSelected ? 2 : 1
+                                        )
+                                }
+                                .contentShape(Rectangle())
+                                .frame(width: frame.width, height: frame.height)
+                                .position(x: frame.midX, y: frame.midY)
+                                .onTapGesture {
+                                    if interactionMode == .selection {
+                                        onToggleRegion(index)
+                                    } else {
+                                        editingRegionID = region.id
+                                    }
+                                }
                         }
-                        .overlay(alignment: .topLeading) {
-                            Text("\(index + 1)")
+
+                        if let order = orderNumber(index) {
+                            Text("\(order)")
                                 .font(.caption2.weight(.bold))
                                 .foregroundStyle(.white)
                                 .padding(.horizontal, 5)
                                 .padding(.vertical, 2)
-                                .background(
-                                    region.isSelected ? Color.accentColor : Color.secondary,
-                                    in: Capsule()
+                                .background(Color.accentColor, in: Capsule())
+                                .position(
+                                    x: frame.minX + 16,
+                                    y: frame.minY + 14
                                 )
-                                .padding(4)
                         }
-                        .contentShape(Rectangle())
-                        .frame(width: frame.width, height: frame.height)
-                        .position(x: frame.midX, y: frame.midY)
-                        .onTapGesture {
-                            regions[index].isSelected.toggle()
-                        }
-                        .accessibilityLabel("\(index + 1)번 프레임")
-                        .accessibilityValue(region.isSelected ? "선택됨" : "제외됨")
+                    }
+                    .frame(
+                        maxWidth: .infinity,
+                        maxHeight: .infinity,
+                        alignment: .topLeading
+                    )
+                        .zIndex(region.id == editingRegionID ? 10 : 0)
+                        .accessibilityLabel("\(index + 1)번 경계")
+                        .accessibilityValue(
+                            orderNumber(index).map { "재생 순서 \($0)" } ?? "제외됨"
+                        )
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: 8))
+            .coordinateSpace(name: ImageCropDisplayGeometry.coordinateSpaceName)
         }
         .frame(minHeight: 470)
     }
@@ -444,32 +845,4 @@ private struct SpriteSheetRegionPreview: View {
             height: CGFloat(rect.height) / CGFloat(pixelSize.height) * imageFrame.height
         )
     }
-}
-
-struct SpriteSheetPromptCopyButton: View {
-    @State private var copied = false
-
-    var body: some View {
-        Button {
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(Self.prompt, forType: .string)
-            copied = true
-        } label: {
-            Label(
-                copied ? "프롬프트 복사됨" : "AI 제작 프롬프트 복사",
-                systemImage: copied ? "checkmark" : "doc.on.doc"
-            )
-        }
-        .help("정적 스프라이트 시트 제작용 일반 프롬프트를 복사합니다.")
-    }
-
-    static let prompt = """
-    하나의 일관된 반려 캐릭터로 데스크톱 펫 애니메이션용 정적 스프라이트 시트를 만들어 주세요.
-    총 10프레임을 5열 × 2행의 동일한 셀에 왼쪽 위부터 재생 순서대로 배치해 주세요.
-    모든 프레임에서 캐릭터의 디자인, 크기, 기준선, 시점, 조명과 여백을 동일하게 유지해 주세요.
-    프레임 사이에는 분명한 빈 간격을 두고 캐릭터가 셀 경계를 넘지 않게 해 주세요.
-    번호, 글자, 격자선, 그림자, 장식 테두리는 넣지 말아 주세요.
-    배경은 캐릭터에 사용되지 않은 단일 고채도 색으로 채워 주세요.
-    결과는 animated WebP가 아닌 한 장의 정적 PNG 또는 정적 WebP 이미지로 제공해 주세요.
-    """
 }

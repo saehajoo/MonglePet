@@ -318,7 +318,18 @@ SVG, HTML 또는 사용자 제공 스크립트를 미리보기 자산으로 허�
 - 다운로드 집계는 요청 실패·봇·중복 요청 정책을 정하고 비동기적으로 처리한다.
 - 악용 방지를 위한 IP 기반 rate limit은 원본 IP의 장기 분석 저장과 분리한다.
 
-향후 MonglePet 앱이 URL 설치를 지원하면 다운로드 전에 SHA-256과 최소 앱 버전을 확인하고, 앱 설치 과정에서도 기존 로컬 패키지 검증을 다시 실행한다. 웹 검증 결과만 신뢰해 앱 검증을 생략하지 않는다.
+MonglePet macOS Preview는 공개 상세 URL 가져오기를 지원한다. 다운로드 전에 SHA-256과 최소 앱 버전을 확인하고 앱 설치 과정에서도 기존 로컬 패키지 검증을 다시 실행한다. 웹 검증 결과만 신뢰해 앱 검증을 생략하지 않는다.
+
+### 데스크톱 앱 연결 계약
+
+- 사용자에게 노출하는 단일 원본은 공개 상세 URL `https://{web-host}/monglepet/pets/{slug}`다.
+- 개발 환경의 현재 상세 API는 `GET https://dev-api.mapleroom.kr/api/v1/monglepet/pets/{slug}`다.
+- 앱은 응답의 `representative_version.pet_version_uuid`를 사용해 `GET /api/v1/monglepet/pet-versions/{pet_version_uuid}/download`를 호출한다.
+- 성공 응답의 `download_url`은 같은 API origin의 `/media/monglepet/downloads/{opaque}` 상대 URL이어야 한다. token 기본 수명은 현재 5분이며 웹과 앱이 저장하거나 재사용하지 않는다.
+- API가 성공·실패 모두 HTTP 200을 사용할 수 있으므로 client는 HTTP status만 보지 않고 envelope의 `status`, `code`, `message`와 `data`를 판정한다.
+- 상세·다운로드 응답에는 동일한 `size_bytes`와 소문자 64자리 `sha256`을 제공해야 한다. 앱은 실제 다운로드 뒤에도 두 값을 다시 검증한다.
+- 웹의 `MonglePet에서 열기` 링크는 `monglepet://install?url=<percent-encoded canonical HTTPS detail URL>` 형식을 사용한다. 다운로드 URL·token·로그인 정보는 넣지 않는다.
+- 운영 펫 목록은 `https://mapleroom.kr/monglepet/pets`, 운영 API origin은 `https://api.mapleroom.kr/api/v1`로 확정한다. client는 개발 host를 단순 문자열 치환해 API 주소를 만들지 않는다.
 
 ## 14. 댓글·좋아요·신고
 
@@ -428,8 +439,15 @@ cookie 기반 session을 사용하면 CSRF 방어, `Secure`, `HttpOnly`, 적절�
 
 - 데스크톱 앱용 읽기 전용 catalog API
 - 다운로드 SHA-256과 최소 버전 사전 확인
-- URL 설치 또는 앱으로 열기
+- 공개 상세 URL 붙여넣기와 `monglepet://install?url=...` 앱으로 열기
+- 개발·운영 환경의 명시적 host 매핑과 운영 API host 확정
+- 웹 상세 화면의 `MonglePet에서 열기` 링크와 앱 미설치 fallback 안내
 - macOS·Windows 교차 설치 QA
+
+2026-08-23 기준 macOS 앱의 공개 상세 URL 붙여넣기, 실행 중·종료 상태
+custom scheme, 다운로드 검증과 기존 설치 검토 연결은 실제 개발 API QA까지
+완료했다. 운영 목록·API host도 확정했으며 웹 링크·미설치 fallback과 Windows
+구현·교차 QA는 후속 범위다.
 
 각 Phase는 독립 배포와 롤백이 가능해야 한다. W1 검증 전 W2 업로드를 공개하지 않는다.
 

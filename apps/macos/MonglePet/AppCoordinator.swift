@@ -11,6 +11,7 @@ final class AppCoordinator: NSObject {
     private let desktopEnvironmentMonitor: PetDesktopEnvironmentMonitor
     private let presentationResourceCache: PetPresentationResourceCache
     private let runtimeControlSession: PetRuntimeControlSession
+    private let remotePetImportRequestCenter: RemotePetImportRequestCenter
     private let startupRecoveryStore: any PetStartupRecoveryStoring
     private let startupRestorer: PetStartupRestorer
     private let workspaceNotificationCenter: NotificationCenter
@@ -78,11 +79,14 @@ final class AppCoordinator: NSObject {
         )
         let loginLaunchSettings = LoginLaunchSettings()
         self.loginLaunchSettings = loginLaunchSettings
+        let remotePetImportRequestCenter = RemotePetImportRequestCenter()
+        self.remotePetImportRequestCenter = remotePetImportRequestCenter
         settingsWindowController = SettingsWindowController(
             settingsSession: settingsSession,
             petLibrarySession: petLibrarySession,
             loginLaunchSettings: loginLaunchSettings,
-            runtimeControlSession: effectiveRuntimeControlSession
+            runtimeControlSession: effectiveRuntimeControlSession,
+            remotePetImportRequestCenter: remotePetImportRequestCenter
         )
         var availableBootstrapController: PetWindowController? =
             bootstrapWindowController
@@ -306,6 +310,14 @@ final class AppCoordinator: NSObject {
         presentationResourceCache.removeReleasedEntries()
         menuBarController?.stop()
         menuBarController = nil
+    }
+
+    func openExternalURLs(_ urls: [URL]) {
+        guard let url = urls.last else {
+            return
+        }
+        settingsWindowController.show()
+        remotePetImportRequestCenter.submit(deepLinkURL: url)
     }
 
     private func setAllPetsAwake(_ isAwake: Bool) {

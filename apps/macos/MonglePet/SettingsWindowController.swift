@@ -7,18 +7,25 @@ final class SettingsWindowController {
     private let petLibrarySession: PetLibrarySession
     private let loginLaunchSettings: LoginLaunchSettings
     private let runtimeControlSession: PetRuntimeControlSession
+    private let remotePetImportRequestCenter: RemotePetImportRequestCenter
+    private let remotePetImportService: RemotePetImportService
     private lazy var windowController = makeWindowController()
 
     init(
         settingsSession: AppSettingsSession,
         petLibrarySession: PetLibrarySession,
         loginLaunchSettings: LoginLaunchSettings,
-        runtimeControlSession: PetRuntimeControlSession
+        runtimeControlSession: PetRuntimeControlSession,
+        remotePetImportRequestCenter: RemotePetImportRequestCenter =
+            RemotePetImportRequestCenter(),
+        remotePetImportService: RemotePetImportService = RemotePetImportService()
     ) {
         self.settingsSession = settingsSession
         self.petLibrarySession = petLibrarySession
         self.loginLaunchSettings = loginLaunchSettings
         self.runtimeControlSession = runtimeControlSession
+        self.remotePetImportRequestCenter = remotePetImportRequestCenter
+        self.remotePetImportService = remotePetImportService
     }
 
     var window: NSWindow? {
@@ -46,7 +53,9 @@ final class SettingsWindowController {
                 settingsSession: settingsSession,
                 petLibrarySession: petLibrarySession,
                 loginLaunchSettings: loginLaunchSettings,
-                runtimeControlSession: runtimeControlSession
+                runtimeControlSession: runtimeControlSession,
+                remotePetImportRequestCenter: remotePetImportRequestCenter,
+                remotePetImportService: remotePetImportService
             )
         )
         window.isReleasedWhenClosed = false

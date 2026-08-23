@@ -84,6 +84,26 @@ final class SimpleAnimationPetPackageAdapterTests: XCTestCase {
         XCTAssertGreaterThan(colors[1].red, colors[1].blue)
     }
 
+    func testPNGSequenceUses450MillisecondDefaultFrameDuration() throws {
+        let fixture = try makeEnvironment()
+        let imageURL = fixture.temporaryURL.appendingPathComponent("frame.png")
+        try writePNG(
+            to: imageURL,
+            color: CGColor(red: 0, green: 0, blue: 1, alpha: 1)
+        )
+
+        let package = try SimpleAnimationPetPackageAdapter().convertPNGSequence(
+            [imageURL],
+            metadata: metadata(id: "local.default-duration"),
+            to: fixture.outputURL
+        )
+
+        XCTAssertEqual(
+            package.definition.defaultMotion?.frames.map(\.duration),
+            [.milliseconds(450)]
+        )
+    }
+
     func testUsesFallbackForTooShortAnimatedDelay() throws {
         let fixture = try makeEnvironment()
         let gifURL = fixture.temporaryURL.appendingPathComponent("fast.gif")

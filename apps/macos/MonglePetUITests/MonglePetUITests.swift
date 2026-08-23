@@ -41,7 +41,17 @@ final class MonglePetUITests: XCTestCase {
         )
         XCTAssertEqual(
             app.buttons["monglepet.settings.importPackage"].label,
-            "패키지 가져오기"
+            "패키지 파일 선택…"
+        )
+        XCTAssertTrue(
+            app.links["monglepet.settings.browseWebPets"].exists
+                || app.buttons["monglepet.settings.browseWebPets"].exists
+        )
+        XCTAssertTrue(
+            app.textFields["monglepet.settings.remotePetURL"].exists
+        )
+        XCTAssertTrue(
+            app.buttons["monglepet.settings.importRemotePackage"].exists
         )
         XCTAssertTrue(
             app.buttons["monglepet.settings.createUserPet"].exists
@@ -200,8 +210,12 @@ final class MonglePetUITests: XCTestCase {
         )
         XCTAssertTrue(app.descendants(matching: .any)["monglepet.userPet.author"].exists)
         XCTAssertTrue(app.descendants(matching: .any)["monglepet.userPet.version"].exists)
-        XCTAssertTrue(app.descendants(matching: .any)["monglepet.userPet.license"].exists)
         XCTAssertTrue(app.descendants(matching: .any)["monglepet.userPet.description"].exists)
+        let frameDuration = app.descendants(matching: .any)[
+            "monglepet.userPet.frameDuration"
+        ]
+        XCTAssertTrue(frameDuration.exists)
+        XCTAssertEqual(frameDuration.value as? String, "450")
 
         let frameImportMenu = app.descendants(matching: .any)[
             "monglepet.userPet.frameImportMenu"
@@ -212,6 +226,7 @@ final class MonglePetUITests: XCTestCase {
         let choosePNGsMenuItem = app.menuItems["개별 PNG 추가…"]
         XCTAssertTrue(choosePNGsMenuItem.waitForExistence(timeout: 5))
         XCTAssertTrue(choosePNGsMenuItem.isHittable)
+        XCTAssertFalse(app.menuItems["AI 제작 프롬프트 복사"].exists)
         app.typeKey(.escape, modifierFlags: [])
         XCTAssertTrue(app.buttons["monglepet.userPet.save"].exists)
     }

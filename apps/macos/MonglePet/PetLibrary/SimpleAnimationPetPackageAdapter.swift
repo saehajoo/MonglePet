@@ -123,7 +123,7 @@ nonisolated struct SimpleAnimationPetPackageAdapter {
 
     func convertPNGSequence(
         _ sourceURLs: [URL],
-        frameDurationMilliseconds: Int = 120,
+        frameDurationMilliseconds: Int = 450,
         metadata: SimplePetImportMetadata,
         to destinationURL: URL
     ) throws -> LoadedPetPackage {
@@ -137,7 +137,7 @@ nonisolated struct SimpleAnimationPetPackageAdapter {
 
     func buildPNGSequenceAtlas(
         _ sourceURLs: [URL],
-        frameDurationMilliseconds: Int = 120
+        frameDurationMilliseconds: Int = 450
     ) throws -> PNGSequenceAtlas {
         guard Self.minimumDurationMilliseconds...Self.maximumDurationMilliseconds
             ~= frameDurationMilliseconds else {

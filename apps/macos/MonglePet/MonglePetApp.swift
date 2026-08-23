@@ -21,6 +21,7 @@ enum MonglePetApp {
 @MainActor
 final class MonglePetAppDelegate: NSObject, NSApplicationDelegate {
     private var coordinator: AppCoordinator?
+    private var pendingExternalURLs: [URL] = []
     private var uiTestingSettingsDirectoryURL: URL?
     private var qaTerminationTimer: Timer?
 
@@ -50,6 +51,10 @@ final class MonglePetAppDelegate: NSObject, NSApplicationDelegate {
             )
             coordinator.start(openSettingsOnLaunch: isOpeningSettingsForUITest)
             self.coordinator = coordinator
+            if !pendingExternalURLs.isEmpty {
+                coordinator.openExternalURLs(pendingExternalURLs)
+                pendingExternalURLs = []
+            }
             scheduleQATerminationIfNeeded(qaConfiguration)
         } catch {
             let alert = NSAlert(error: error)
@@ -61,6 +66,14 @@ final class MonglePetAppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
+    }
+
+    func application(_ application: NSApplication, open urls: [URL]) {
+        if let coordinator {
+            coordinator.openExternalURLs(urls)
+        } else {
+            pendingExternalURLs.append(contentsOf: urls)
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {

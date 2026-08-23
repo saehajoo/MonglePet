@@ -1,96 +1,181 @@
-# MonglePet
+# MonglePet · 몽글펫
 
-MonglePet(몽글펫)은 데스크톱 위에서 움직이는 반려 캐릭터를 표시하는
-네이티브 데스크톱 펫 프로젝트입니다. 현재 macOS 메뉴 막대 앱을 먼저
-개발하고 있으며 기능과 배포 절차를 검증하는 **Preview** 단계입니다.
-Windows 앱은 같은 저장소에서 독립적인 네이티브 프로젝트로 후속 개발합니다.
+**일할 때도, 쉴 때도 곁에 있는 가벼운 데스크톱 펫**
+
+MonglePet은 데스크톱 위에 반려 캐릭터를 띄우고, 사용자의 설정과 작업 상황에
+맞춰 애니메이션과 행동을 바꾸는 네이티브 데스크톱 앱입니다. 여러 펫을 함께
+띄울 수 있으며 각 펫의 위치, 이동, 행동과 말풍선을 따로 설정할 수 있습니다.
+
+현재 macOS 앱은 기능과 배포 절차를 검증하는 **Preview** 단계입니다.
+
+- [MonglePet 안내 및 다운로드](https://dev.mapleroom.kr/monglepet)
+- [GitHub Releases](https://github.com/saehajoo/MonglePet/releases)
+- [문제 및 의견 남기기](https://github.com/saehajoo/MonglePet/issues)
 
 ## 주요 기능
 
-- 펫 깨우기·재우기와 크기, 투명도, 클릭 통과 설정
-- 고정, 마우스 따라가기, 자유 이동 모드
-- 사용 중인 앱과 유휴 시간에 반응하는 자동 행동
+- 여러 펫을 동시에 표시하고 개별적으로 깨우기·재우기
+- 펫 크기, 투명도, 앞뒤 순서와 클릭 통과 설정
+- 위치 고정, 마우스 따라가기, 자유 이동, 마우스 도망가기
 - 원하는 애니메이션을 반복하는 수동 행동
-- 펫별 행동·이동 프로필과 다중 디스플레이 경계 설정
-- `.monglepet`, Codex 호환 패키지, GIF, APNG, PNG 시퀀스 가져오기
-- 편집한 펫을 데이터 전용 `.monglepet` 패키지로 내보내기
-- 로그인 시 자동 실행
+- 현재 사용 중인 앱과 입력이 없었던 시간에 반응하는 자동 행동
+- 펫별 행동 루틴, 쓰다듬기 반응과 말풍선 대사
+- `.monglepet`, 여러 PNG와 정적 PNG·WebP 스프라이트 시트 가져오기
+- 사용자 펫의 정보·애니메이션·프레임 간격 편집
+- 데이터 전용 `.monglepet` 패키지 가져오기·내보내기
+- 다중 디스플레이와 로그인 시 자동 실행
 
-MonglePet은 Dock 아이콘 없이 메뉴 막대에서 실행됩니다. 앱 메뉴의 설정에서
-펫과 행동, 이동 방식을 관리할 수 있습니다.
+## macOS 설치
 
-## 현재 macOS 시스템 요구사항
+### 시스템 요구사항
 
 - macOS 14 Sonoma 이상
 - Apple silicon 또는 Intel Mac
 
-## 설치
+### Preview ZIP 설치
 
-### 공증된 DMG
+현재 제공되는 macOS Preview ZIP은 **미서명·미공증 테스트 빌드**입니다.
+출처와 체크섬을 확인할 수 있는 파일만 실행해 주세요.
 
-릴리스 설명에 **Developer ID 서명 및 Apple 공증 완료**라고 표시된 경우:
+1. [다운로드 페이지](https://dev.mapleroom.kr/monglepet) 또는
+   [GitHub Releases](https://github.com/saehajoo/MonglePet/releases)에서 macOS용
+   Preview ZIP과 같은 이름의 `.sha256` 파일을 받습니다.
+2. 두 파일을 같은 폴더에 둔 뒤 필요하면 터미널에서 체크섬을 확인합니다.
 
-1. DMG와 함께 제공된 SHA-256 체크섬을 확인합니다.
-2. DMG를 열고 `MonglePet.app`을 `Applications` 폴더로 드래그합니다.
-3. 응용 프로그램 폴더에서 MonglePet을 실행합니다.
+   ```sh
+   cd ~/Downloads
+   shasum -a 256 -c MonglePet-*-preview.zip.sha256
+   ```
 
-### 미서명 Preview ZIP
+   파일 이름 뒤에 `OK`가 표시되면 배포 파일과 체크섬이 일치합니다.
+3. ZIP의 압축을 풀고 `MonglePet.app`을 **응용 프로그램** 폴더로 옮깁니다.
+4. 응용 프로그램 폴더에서 MonglePet을 한 번 실행합니다.
+5. macOS가 개발자를 확인할 수 없다고 차단하면 **시스템 설정 → 개인정보 보호 및
+   보안**에서 차단된 MonglePet의 **확인 없이 열기**를 선택하고 다시 확인합니다.
 
-릴리스 설명에 **미서명·미공증 Preview**라고 표시된 파일은 제한된 테스트
-목적으로만 사용합니다.
+Gatekeeper를 끄거나 `xattr` 명령으로 다운로드 보호 속성을 제거할 필요는
+없습니다. 출처와 SHA-256을 확인할 수 없는 빌드는 실행하지 마세요.
 
-1. ZIP과 함께 제공된 SHA-256 체크섬을 확인하고 압축을 풉니다.
-2. `MonglePet.app`을 응용 프로그램 폴더로 옮긴 뒤 실행합니다.
-3. macOS가 개발자를 확인할 수 없다고 차단하면 시스템 설정의
-   **개인정보 보호 및 보안**에서 해당 앱의 **확인 없이 열기**를 선택합니다.
+향후 릴리스 설명에 **Developer ID 서명 및 Apple 공증 완료**라고 표시된 DMG가
+제공되면, DMG를 열어 `MonglePet.app`을 응용 프로그램 폴더로 드래그한 뒤
+실행하면 됩니다.
 
-Gatekeeper를 끄거나 다운로드 격리 속성을 제거하는 명령은 사용하지 않습니다.
-출처와 체크섬을 확인할 수 없는 빌드는 실행하지 마세요.
+## 처음 사용하는 방법
+
+MonglePet은 실행 중에 Dock 아이콘을 계속 표시하지 않습니다. 화면 위쪽 메뉴
+막대의 **발바닥 아이콘**이 앱의 기본 제어 메뉴입니다.
+
+1. 메뉴 막대의 발바닥 아이콘을 누릅니다.
+2. **설정…**을 열고 **활성 펫**에서 화면에 표시할 펫을 관리합니다.
+3. **표시 및 이동**에서 크기, 투명도, 클릭 통과와 이동 방식을 정합니다.
+4. **행동 루틴**에서 `자동` 또는 `수동` 모드를 선택합니다.
+5. 필요하면 **말풍선**과 **자동 규칙**에서 대사와 앱·입력 없음 조건을 추가합니다.
+
+설정은 변경하는 즉시 로컬에 저장됩니다.
+
+### 자주 쓰는 조작
+
+- 펫이 보이지 않으면 메뉴 막대에서 해당 펫의 **현재 화면으로 가져오기**를
+  선택합니다.
+- 펫을 직접 옮기려면 **표시 및 이동**에서 `클릭 통과`를 끈 뒤 펫을 드래그합니다.
+- 잠시 숨기려면 해당 펫의 **펫 재우기**, 다시 표시하려면 **펫 깨우기**를
+  선택합니다.
+- 모든 펫을 잠시 멈추려면 **모든 펫 일시정지**를 사용합니다. 저장된 설정은
+  바뀌지 않습니다.
+- 앱을 완전히 닫으려면 메뉴 막대에서 **MonglePet 종료**를 선택합니다.
+
+## 펫 추가와 편집
+
+### `.monglepet` 패키지 가져오기
+
+1. 메뉴 막대에서 **설정… → 펫 보관함**을 엽니다.
+2. **Mac의 패키지 가져오기 → 패키지 파일 선택…**을 선택합니다.
+3. 이름, 제작자, 애니메이션과 선택적인 권장 설정을 확인합니다.
+4. 펫만 설치할지 권장 설정도 적용할지 선택합니다.
+5. 설치한 펫을 화면에 더 띄우려면 **활성 펫 → 펫 추가**를 선택합니다.
+
+가져온 읽기 전용 펫을 수정하려면 **편집 가능한 사본 만들기**를 먼저
+선택하세요. 원본 패키지는 직접 변경하지 않습니다.
+
+### MonglePet 웹 주소로 가져오기
+
+1. MonglePet 웹에서 공개 펫 상세 주소를 복사합니다.
+2. **설정… → 펫 보관함 → 웹에서 펫 가져오기**의 MonglePet 펫 주소에 붙여 넣습니다.
+3. **주소에서 가져오기**를 선택합니다.
+4. 앱이 최소 버전, 파일 크기와 SHA-256을 확인한 뒤 표시하는 설치 내용을 검토합니다.
+
+웹의 **MonglePet에서 열기** 링크를 사용해도 같은 확인 화면이 열립니다. 앱은
+다운로드만으로 펫을 자동 설치하지 않으며 로그인 정보나 만료 다운로드 주소를
+저장하지 않습니다. 앱의 **펫 보러가기**는 운영 MonglePet 웹을 엽니다. 주소나
+연결에 문제가 있으면 입력란 아래에 원인을 표시하며 주소를 수정하거나 **다시 시도**할
+수 있습니다.
+
+### 이미지로 새 펫 만들기
+
+1. **설정… → 펫 보관함 → 새 펫 만들기**를 선택합니다.
+2. 펫 이름, 제작자, 버전과 첫 애니메이션 이름을 입력합니다.
+3. 개별 PNG 여러 장 또는 정적 PNG·WebP 스프라이트 시트를 불러옵니다.
+4. PNG는 여러 장을 선택해 자른 결과를 함께 미리보거나 일괄 조정하고, 스프라이트 시트는 선택한 프레임을 좌우로 넘겨 미리보며 각 경계를 직접 이동·크기 조절합니다.
+5. `읽기 순서` 또는 `클릭 순서`로 재생 순서를 정하고 프레임을 추가합니다.
+6. 첫 프레임 겹쳐보기를 참고해 미리보기에서 각 펫을 직접 이동·크기 조절한 뒤 전체 애니메이션을 재생해 확인합니다.
+
+새 프레임 간격의 기본값은 `450ms`이며 프레임별로 수정할 수 있습니다.
+
+### 만든 펫 공유하기
+
+**설정… → 펫 보관함 → 현재 펫 내보내기**에서 `.monglepet` 파일을 만들 수
+있습니다. 공유하기 전에 이미지와 캐릭터를 게시할 권한이 있는지 확인해 주세요.
+내장 몽글이는 내보낼 수 없습니다.
+
+`.monglepet`은 이미지와 JSON 데이터만 포함하며 실행 코드나 스크립트는
+허용하지 않습니다. 자세한 형식은
+[펫 패키지 명세](AGENTS/specifications/PET_PACKAGE.md)를 참고하세요.
+
+## 문제가 있을 때
+
+- **앱 창이 보이지 않음:** Dock 대신 메뉴 막대의 발바닥 아이콘을 확인합니다.
+- **펫이 보이지 않음:** 해당 펫을 깨운 뒤 **현재 화면으로 가져오기**를 사용합니다.
+- **펫을 클릭하거나 드래그할 수 없음:** **표시 및 이동**에서 `클릭 통과`를
+  끕니다.
+- **이전 실행 후 펫 복원이 멈춤:** **설정… → 활성 펫**의 안전 시작 안내에서
+  한 마리씩 또는 모두 복원합니다.
+- **첫 실행이 차단됨:** 위의 Preview ZIP 설치 절차를 따릅니다. Gatekeeper를
+  비활성화하지 마세요.
+
+재현되는 문제는 사용한 macOS 버전, MonglePet 버전, 발생 순서와 함께
+[GitHub Issues](https://github.com/saehajoo/MonglePet/issues)에 남겨 주세요.
+개인정보가 포함된 화면이나 설정 파일은 그대로 첨부하지 마세요.
 
 ## 개인정보 보호
 
-MonglePet은 행동 결정을 위해 다음 정보만 기기 안에서 일시적으로 사용합니다.
+MonglePet은 행동과 이동을 결정하기 위해 다음 정보만 기기 안에서 일시적으로
+사용합니다.
 
 - 현재 사용 중인 앱의 Bundle Identifier
 - 사용자 유휴 시간과 잠금·잠자기·깨우기 상태
-- 마우스 따라가기 중인 현재 포인터 위치
+- 관련 이동 기능을 사용하는 동안의 현재 포인터 위치
 - 자유 이동 경계를 계산하기 위한 현재 전면 창의 대표 영역
 
-키 입력 내용, 화면 내용, 창 제목, 문서명, 브라우저 URL, 포인터 이동 기록이나
+실제 키 입력, 화면 내용, 창 제목, 문서명, 브라우저 URL, 포인터 이동 기록이나
 창 위치 기록은 수집하거나 저장하지 않습니다. 현재 Preview에는 분석 도구,
-클라우드 동기화 또는 네트워크 전송 기능이 없습니다. 설정과 설치한 펫은
-버전이 지정된 JSON과 파일 형태로 로컬에 저장됩니다.
+클라우드 동기화 또는 사용자 데이터를 전송하는 네트워크 기능이 없습니다.
+설정과 설치한 펫은 이 Mac의 로컬 파일로만 저장됩니다.
 
-## 펫 패키지
+## 개발자 안내
 
-`.monglepet`은 이미지와 JSON 데이터만 포함하는 디렉터리 또는 ZIP 기반
-패키지입니다. 실행 코드나 스크립트는 허용하지 않습니다. 패키지 구조와
-호환성 규칙은 [PET_PACKAGE.md](AGENTS/specifications/PET_PACKAGE.md)를
-참고하세요.
-
-저장소의 `shared/Samples/ReadOnlySample.monglepet`은 가져오기 검증용 테스트
-샘플이며 배포용 펫이 아닙니다.
-
-## 저장소 구조
+저장소는 macOS와 Windows 네이티브 앱을 독립적으로 관리하며 `.monglepet`
+규격, 데이터 fixture와 공통 테스트 시나리오만 공유합니다.
 
 ```text
 MonglePet/
-├── apps/
-│   ├── macos/       # 현재 Swift·AppKit 앱
-│   └── windows/     # 후속 Windows 네이티브 앱
-├── shared/          # 공통 패키지 샘플과 향후 schema fixture
+├── apps/macos/      # Swift·SwiftUI·AppKit macOS 앱
+├── apps/windows/    # C#·.NET·WinUI 3 Windows 앱
+├── shared/          # 공통 패키지 샘플과 schema fixture
 ├── AGENTS/          # 제품·아키텍처·명세·작업 계획
 └── AGENTS.md        # 저장소 공통 작업 지침
 ```
 
-두 플랫폼은 UI와 운영체제 연동 코드를 공유하지 않습니다. `.monglepet`
-패키지 규격, 권장 프로필, 데이터 fixture와 공통 테스트 시나리오만
-공유합니다.
-
-## macOS 개발
-
-현재 기준 환경은 Xcode 26.6, Swift 6이며 프로젝트는 macOS 14 이상을
-대상으로 합니다.
+macOS Debug 빌드:
 
 ```sh
 xcodebuild -project apps/macos/MonglePet.xcodeproj \
@@ -102,31 +187,20 @@ xcodebuild -project apps/macos/MonglePet.xcodeproj \
   build
 ```
 
-```sh
-xcodebuild -project apps/macos/MonglePet.xcodeproj \
-  -scheme MonglePet \
-  -configuration Debug \
-  -destination 'platform=macOS' \
-  -derivedDataPath /tmp/MonglePetDerivedData \
-  -parallel-testing-enabled NO \
-  CODE_SIGNING_ALLOWED=NO \
-  test -only-testing:MonglePetTests
-```
-
 작업 전에는 [AGENTS.md](AGENTS.md)와 작업 유형에 맞는 `AGENTS/` 문서를
-먼저 확인합니다. macOS 전용 지침은
-[apps/macos/AGENTS.md](apps/macos/AGENTS.md), 배포 파일 생성 절차는
-[apps/macos/DISTRIBUTION.md](apps/macos/DISTRIBUTION.md)에 정리되어
-있습니다.
+확인합니다. macOS 전용 지침은
+[apps/macos/AGENTS.md](apps/macos/AGENTS.md), 배포 절차는
+[apps/macos/DISTRIBUTION.md](apps/macos/DISTRIBUTION.md)에 있습니다.
 
 ## 라이선스
 
 MonglePet의 자체 소스 코드는
-[PolyForm Noncommercial License 1.0.0](LICENSE)에 따라 공개됩니다.
-이는 비상업적 사용을 허용하는 소스 공개 라이선스이며 OSI 승인 오픈 소스
-라이선스는 아닙니다. 저작권자 표기는 [NOTICE](NOTICE)를 확인하세요.
+[PolyForm Noncommercial License 1.0.0](LICENSE)에 따라 공개됩니다. 이는
+비상업적 사용을 허용하는 소스 공개 라이선스이며 OSI 승인 오픈 소스
+라이선스는 아닙니다. 저작권자는 `joosaeha`이며 자세한 표기는
+[NOTICE](NOTICE)를 확인하세요.
 
 제3자 소프트웨어에는 각각의 라이선스가 적용됩니다. 자세한 내용은
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)를 확인하세요. 앱 아이콘,
-캐릭터 이미지, 샘플 펫을 포함한 자산은 소스 코드 라이선스 범위에서 제외되며
+캐릭터 이미지와 샘플 펫을 포함한 자산은 소스 코드 라이선스 범위에서 제외되며
 [ASSET_LICENSE.md](ASSET_LICENSE.md)의 조건을 따릅니다.

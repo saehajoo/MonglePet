@@ -75,6 +75,11 @@ nonisolated struct SpriteSheetBackgroundRemoval: Equatable, Sendable {
     let tolerance: Int
 }
 
+nonisolated struct SpriteSheetGridDimensions: Equatable, Sendable {
+    let rows: Int
+    let columns: Int
+}
+
 nonisolated struct SpriteSheetFrameExtractor {
     private static let maximumGridDimension = 32
     fileprivate static let alphaThreshold: UInt8 = 12
@@ -187,6 +192,61 @@ nonisolated struct SpriteSheetFrameExtractor {
         }
     }
 
+    func inferredGridDimensions(
+        for regions: [PixelRect]
+    ) -> SpriteSheetGridDimensions {
+        guard !regions.isEmpty else {
+            return SpriteSheetGridDimensions(rows: 1, columns: 1)
+        }
+
+        let rowOrigins = Set(regions.map(\.y))
+        let columnOrigins = Set(regions.map(\.x))
+        let rows = rowOrigins.count
+        let columns = columnOrigins.count
+        guard 1...Self.maximumGridDimension ~= rows,
+              1...Self.maximumGridDimension ~= columns,
+              rows * columns >= regions.count else {
+            return SpriteSheetGridDimensions(
+                rows: 1,
+                columns: min(Self.maximumGridDimension, regions.count)
+            )
+        }
+        return SpriteSheetGridDimensions(rows: rows, columns: columns)
+    }
+
+    func orderedSelectedRegions(
+        _ regions: [PixelRect],
+        selectedIndices: Set<Int>,
+        clickedOrder: [Int]?
+    ) -> [PixelRect] {
+        orderedSelectedRegionIndices(
+            regionCount: regions.count,
+            selectedIndices: selectedIndices,
+            clickedOrder: clickedOrder
+        ).map { regions[$0] }
+    }
+
+    func orderedSelectedRegionIndices(
+        regionCount: Int,
+        selectedIndices: Set<Int>,
+        clickedOrder: [Int]?
+    ) -> [Int] {
+        guard regionCount > 0 else {
+            return []
+        }
+        let validIndices = 0..<regionCount
+        let candidateIndices = clickedOrder ?? Array(validIndices)
+        var included = Set<Int>()
+        return candidateIndices.compactMap { index in
+            guard validIndices.contains(index),
+                  selectedIndices.contains(index),
+                  included.insert(index).inserted else {
+                return nil
+            }
+            return index
+        }
+    }
+
     func processedImage(
         from document: SpriteSheetDocument,
         removingBackground removal: SpriteSheetBackgroundRemoval?
@@ -221,14 +281,7 @@ nonisolated struct SpriteSheetFrameExtractor {
         }
         let image = try processedImage(from: document, removingBackground: removal)
         return try regions.map { region in
-            guard let frame = image.cropping(
-                to: CGRect(
-                    x: region.x,
-                    y: region.y,
-                    width: region.width,
-                    height: region.height
-                )
-            ) else {
+            guard let frame = ImageCropProcessor().crop(image, to: region) else {
                 throw SpriteSheetImportError.invalidFrameRegion
             }
             return frame

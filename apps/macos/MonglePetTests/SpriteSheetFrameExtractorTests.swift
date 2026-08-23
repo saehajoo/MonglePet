@@ -45,6 +45,70 @@ final class SpriteSheetFrameExtractorTests: XCTestCase {
         )
     }
 
+    func testInfersGridDimensionsFromSuggestedRegionLayout() throws {
+        let extractor = SpriteSheetFrameExtractor()
+        let regions = try extractor.uniformGridRegions(
+            pixelSize: PixelSize(width: 700, height: 800),
+            rows: 8,
+            columns: 7
+        )
+
+        XCTAssertEqual(
+            extractor.inferredGridDimensions(for: regions),
+            SpriteSheetGridDimensions(rows: 8, columns: 7)
+        )
+
+        var regionsWithEmptyCell = regions
+        regionsWithEmptyCell.remove(at: 10)
+        XCTAssertEqual(
+            extractor.inferredGridDimensions(for: regionsWithEmptyCell),
+            SpriteSheetGridDimensions(rows: 8, columns: 7)
+        )
+    }
+
+    func testOrdersSelectedRegionsByReadingOrClickOrder() throws {
+        let extractor = SpriteSheetFrameExtractor()
+        let regions = try extractor.uniformGridRegions(
+            pixelSize: PixelSize(width: 40, height: 10),
+            rows: 1,
+            columns: 4
+        )
+        let selected = Set([0, 1, 3])
+
+        XCTAssertEqual(
+            extractor.orderedSelectedRegionIndices(
+                regionCount: regions.count,
+                selectedIndices: selected,
+                clickedOrder: nil
+            ),
+            [0, 1, 3]
+        )
+        XCTAssertEqual(
+            extractor.orderedSelectedRegionIndices(
+                regionCount: regions.count,
+                selectedIndices: selected,
+                clickedOrder: [3, 0, 3, 7, -1, 2, 1]
+            ),
+            [3, 0, 1]
+        )
+        XCTAssertEqual(
+            extractor.orderedSelectedRegions(
+                regions,
+                selectedIndices: selected,
+                clickedOrder: nil
+            ),
+            [regions[0], regions[1], regions[3]]
+        )
+        XCTAssertEqual(
+            extractor.orderedSelectedRegions(
+                regions,
+                selectedIndices: selected,
+                clickedOrder: [3, 0, 3, 2, 1]
+            ),
+            [regions[3], regions[0], regions[1]]
+        )
+    }
+
     func testLoadsStaticWebPSpriteSheet() throws {
         let sourceURL = temporaryDirectory.appendingPathComponent("static.webp")
         let webPData = try XCTUnwrap(
