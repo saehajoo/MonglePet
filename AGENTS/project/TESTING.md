@@ -827,6 +827,15 @@ UI 테스트는 앱 실행과 접근성 자동화가 가능한 macOS 세션에�
 - 활성 펫 목록은 상태 이벤트 중 collection 전체 교체를 하지 않고 instance ID별 view model을 제자리 갱신한다. 실제 Release UI에서 별칭 TextBox에 포커스를 둔 뒤 500ms 간격 8회 동안 동일 Automation Runtime ID와 포커스가 유지되어 반복 등장 전환과 편집 포커스 초기화가 재현되지 않았다.
 - 2026-08-16 Windows `1.1.0.13` unpackaged Preview 후보에서 `--startup`이 첫 WinUI 활성화 전에 `AppWindow.Hide()`를 호출해 `E_NOINTERFACE`로 종료되는 문제를 재현했다. 주 창을 먼저 활성화하고 초기화 뒤 Win32 `ShowWindow(SW_HIDE)`로 HWND만 숨기도록 수정했다. 게시본과 실제 사용자별 업그레이드 설치본의 일반 실행·`--startup`이 각각 응답 상태를 유지하고 전용 메시지로 정상 종료됐으며 관련 Application 오류 0건, 라이브러리 10개 파일 해시 보존을 확인했다. x64 Debug·Release 빌드와 각 구성 186개 테스트도 통과했다.
 
+### macOS 1.2.0 Preview 배포 사전 검증
+
+- 측정일: 2026-08-23
+- macOS 앱 마케팅 버전 `1.2.0`, 빌드 번호 `3`과 설정 화면 표시값 `MonglePet 1.2.0 (3)`의 자동 테스트를 통과했다.
+- 새로 내보내는 `.monglepet`의 제작 앱 버전과 최소 필요 앱 버전이 모두 `1.2.0`으로 기록되는지 확인했다.
+- 전체 `MonglePetTests` 456개 중 455개가 통과했고 실패 0개였다. 외부 로컬 WebP fixture가 있을 때만 실행하는 기존 선택형 테스트 1개는 건너뛰었다.
+- 코드서명 없는 Debug 테스트 빌드와 `generic/platform=macOS` Release 빌드가 통과했다. Release 앱의 `CFBundleShortVersionString=1.2.0`, `CFBundleVersion=3`, 실행 파일 `arm64`·`x86_64` Universal 구성을 확인했다.
+- 최종 ZIP 체크섬·manifest, 별도 위치의 압축 해제·실행 스모크 테스트와 GitHub 원격 digest는 배포 산출물 생성 뒤 기록한다.
+
 ## 변경 유형별 최소 검증
 
 ### 후속 단계 필수 검증
@@ -853,4 +862,4 @@ UI 테스트는 앱 실행과 접근성 자동화가 가능한 macOS 세션에�
 ---
 
 문서 상태: active
-마지막 갱신: 2026-08-13
+마지막 갱신: 2026-08-23

@@ -86,9 +86,9 @@ final class MonglePetVersionTests: XCTestCase {
 
         XCTAssertEqual(
             version.semanticVersion,
-            try XCTUnwrap(SemanticVersion("1.1.0"))
+            try XCTUnwrap(SemanticVersion("1.2.0"))
         )
-        XCTAssertEqual(version.buildNumber, "2")
-        XCTAssertEqual(version.displayText, "MonglePet 1.1.0 (2)")
+        XCTAssertEqual(version.buildNumber, "3")
+        XCTAssertEqual(version.displayText, "MonglePet 1.2.0 (3)")
     }
 }

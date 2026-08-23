@@ -653,3 +653,11 @@
 - 결정: 데스크톱 앱의 원격 펫 가져오기 입력은 MonglePet 공개 웹 상세 URL로 통일한다. Preview macOS 앱은 `https://dev.mapleroom.kr/monglepet/pets/{slug}`와 `https://mapleroom.kr/monglepet/pets/{slug}`를 정확한 host·path allowlist로 허용하고 각각 개발·운영 API 환경에 매핑한다. 상세 API의 대표 버전 UUID로 짧은 수명 다운로드 URL을 매번 새로 발급받아 크기·SHA-256·최소 앱 버전을 사전 확인한 뒤 기존 로컬 `가져오기 내용 확인`과 중복 설치 흐름을 그대로 사용한다.
 - 이유: 사용자가 API UUID나 만료 token을 다루지 않고 안정적인 공유 URL만 사용할 수 있게 하면서, 서버 redirect·응답 변조나 오래된 다운로드 URL 재사용이 기존 패키지 보안 검증을 우회하지 못하게 하기 위해서다.
 - 비고: `monglepet://install?url=<percent-encoded HTTPS detail URL>`은 같은 동작을 여는 전달 수단일 뿐 다운로드 token이나 설치 승인을 포함하지 않는다. 앱은 ephemeral session을 사용하고 cookie·credential을 저장하지 않으며 같은 API origin의 `/media/monglepet/downloads/{opaque}`만 다운로드한다. 상세·다운로드 metadata 불일치, 20MiB 초과, 실제 크기·SHA-256 불일치는 거부하고 임시 파일은 설치·취소 후 제거한다. 운영 목록은 `https://mapleroom.kr/monglepet/pets`, 운영 API는 `https://api.mapleroom.kr/api/v1`로 확정하며 Windows는 네이티브 URL protocol과 같은 검증 흐름으로 후속 구현한다.
+
+## D-084 macOS 제작·웹 가져오기 Preview 버전
+
+- 상태: accepted
+- 날짜: 2026-08-23
+- 결정: 스프라이트 시트·PNG crop과 다중 미리보기, 새 프레임 간격 450ms, 공개 웹 상세 URL 가져오기를 포함한 다음 macOS Preview를 `1.2.0 (3)`으로 게시한다. 플랫폼 태그는 `macos-v1.2.0-preview.1`을 사용한다.
+- 이유: `1.1.0 (2)` 게시 뒤 사용자에게 보이는 펫 제작·가져오기 기능이 확장됐으므로 새 minor 버전으로 구분하고, 같은 macOS 배포 이력의 다음 빌드 번호를 사용하기 위해서다.
+- 비고: Windows는 기존 `1.1.0.13` Preview를 유지하고 Windows 환경에서 같은 기능을 구현·검증할 때 별도 버전을 올린다. macOS 산출물은 Apple Developer Program을 사용할 수 없는 동안 Developer ID 미서명·Apple 미공증 ZIP으로 제한된 테스터에게만 제공한다. `.monglepet` format/schema와 펫 콘텐츠 버전은 앱 버전과 계속 분리한다.
