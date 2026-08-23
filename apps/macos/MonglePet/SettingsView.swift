@@ -1021,7 +1021,7 @@ private struct RemotePetImportControls: View {
                 .foregroundStyle(.secondary)
 
             TextField(
-                "https://mapleroom.kr/monglepet/pets/...",
+                "펫 상세 주소를 붙여 넣으세요",
                 text: $urlText
             )
             .textFieldStyle(.roundedBorder)

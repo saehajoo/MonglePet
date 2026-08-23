@@ -42,7 +42,7 @@ macOS에서 개발을 시작했다는 이유만으로 AppKit 타입, Bundle Iden
 | 이동·다중 모니터 | 기준 구현 | 진행 중 | 네 모드별 조건부 설정, 이동 감각·범위·공통/4/8방향 모션·사용자 영역·상호작용을 구현하고 16ms 논리 소수점 위치 누적으로 저속 끊김과 모든 화면의 모니터 경계 고착을 수정; 혼합 DPI 물리 횡단 QA 남음 |
 | 쓰다듬기·말풍선 | 기준 구현 | 진행 중 | 실제 frame 알파 쓰다듬기와 행동 우선·주기 runtime, 행동/주기 대사 분리, draft·즉시 저장·위치 미리보기를 구현; gap을 잇는 가변 꼬리와 행동 대사 유지 중 주기 예약을 보완했으며 물리 포인터·혼합 DPI·성능 최종 QA 남음 |
 | 로컬 가져오기·내보내기 | 기준 구현 | 진행 중 | 설치 전 메타데이터·모션·권장 설정 검토, schema-v1~v7 호환, 펫만/권장 설정 적용, 교체 기본 보존·별도 설치, canonical 자산 선별·권리 확인·ZIP 왕복·원자적 저장 구현; 실제 대화상자와 macOS 교차 왕복 QA 남음 |
-| 웹 URL 가져오기 | 기준 구현 | 계획됨 | macOS는 개발·운영 공개 상세 URL allowlist, catalog·download API, 최소 버전·20MiB·크기·SHA-256 검증, 기존 검토·중복 흐름과 `monglepet://install?url=...`를 구현하고 실제 개발 URL로 실행 중·종료 상태 scheme QA 완료; 운영 목록 `/monglepet/pets`와 API `https://api.mapleroom.kr/api/v1` 확정, Windows 네이티브 구현·QA 필요 |
+| 웹 URL 가져오기 | 기준 구현 | 계획됨 | macOS는 개발·운영 공개 상세 URL allowlist, catalog·download API, 최소 버전·20MiB·크기·SHA-256 검증, 기존 검토·중복 흐름과 `monglepet://install?url=...`를 구현하고 실제 개발 URL로 실행 중·종료 상태 scheme QA 완료; 운영 목록 `/monglepet/pets`와 API `https://api.mapleroom.kr/api/v1` 확정, Windows는 `AGENTS/guides/WINDOWS_WEB_PET_IMPORT_HANDOFF.md`의 UI·protocol·검증·QA 기준으로 후속 구현 필요 |
 | 배포·업데이트 | 진행 중 | 진행 중 | macOS 1.1.0 (2) ZIP·SHA-256·manifest와 Windows 1.1.0.13 x64 설치기·SHA256SUMS를 각각 플랫폼별 GitHub Pre-release로 게시하고 원격 digest 검증 통과; 통합 웹 전달 자료 작성 완료, 자체 웹 다운로드 화면 반영·서명·HTTPS·깨끗한 PC와 향후 자동 업데이트 QA 남음 |
 | 멀티펫 | 기준 구현 (`1.1.0`) | 진행 중 (`1.1.0`) | Windows 10~11단계 schema-v11 계약, `PetInstanceManager`, instance별 HWND/runtime, NavigationView 활성 펫·notification area·일시정지·자원 경고·안전 시작 완료; 실제 환경 QA는 12단계 |
 

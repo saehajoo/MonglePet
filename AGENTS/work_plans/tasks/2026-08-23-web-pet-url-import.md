@@ -85,6 +85,7 @@
 - 2026-08-23: 웹 URL, Mac의 로컬 패키지, 현재 펫 내보내기를 독립된 설정 섹션으로 분리하고 Debug에서는 개발 웹·Release에서는 운영 웹을 여는 `펫 보러가기`, 세로 주소 입력, 진행 상태와 인라인 오류·재시도 안내를 추가했다. 웹 저장소 전달 프롬프트에도 custom scheme과 미설치 fallback 계약을 반영했다.
 - 2026-08-23: 운영 펫 목록을 `https://mapleroom.kr/monglepet/pets`, 운영 API를 `https://api.mapleroom.kr/api/v1`로 확정하고 Debug·Release의 `펫 보러가기`도 각 환경의 `/monglepet/pets` 목록으로 맞췄다.
 - 2026-08-23: 웹 가져오기에서 `펫 보러가기`를 전체 폭 버튼으로 분리하고 구분선 아래에 `주소로 직접 가져오기` 텍스트 필드와 가져오기·재시도 동작을 배치해 두 경로가 한 작업처럼 보이지 않게 정리했다.
+- 2026-08-23: URL처럼 보이던 주소 입력 placeholder를 `펫 상세 주소를 붙여 넣으세요`로 바꾸고, 현재 macOS의 세로 섹션 순서·문구·버튼 위계·인라인 오류와 Windows packaged/unpackaged protocol·자동 테스트·실제 QA를 `AGENTS/guides/WINDOWS_WEB_PET_IMPORT_HANDOFF.md`에 구체적으로 인계했다.
 
 ## 완료 결과
 
