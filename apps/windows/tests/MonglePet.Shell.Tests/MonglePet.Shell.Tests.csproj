@@ -22,4 +22,16 @@
     <ProjectReference Include="..\..\src\MonglePet.Shell\MonglePet.Shell.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="..\..\src\MonglePet.Windows\Package.appxmanifest"
+          Link="Fixtures\Package.appxmanifest"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\MonglePet.Windows\MonglePet.Windows.csproj"
+          Link="Fixtures\MonglePet.Windows.csproj"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\installer\MonglePet.iss"
+          Link="Fixtures\MonglePet.iss"
+          CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

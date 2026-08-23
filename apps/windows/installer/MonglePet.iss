@@ -48,7 +48,7 @@ WizardStyle=modern
 CloseApplications=yes
 CloseApplicationsFilter={#AppExeName}
 RestartApplications=no
-ChangesAssociations=no
+ChangesAssociations=yes
 VersionInfoCompany={#AppPublisher}
 VersionInfoDescription={#AppName} Windows Installer
 VersionInfoProductName={#AppName}
@@ -69,6 +69,12 @@ Source: "{#PublishDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
 Name: "{group}\MonglePet"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"
 Name: "{autodesktop}\MonglePet"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"; Tasks: desktopicon
 
+[Registry]
+Root: HKCU; Subkey: "Software\Classes\monglepet"; ValueType: string; ValueName: ""; ValueData: "URL:MonglePet Protocol"
+Root: HKCU; Subkey: "Software\Classes\monglepet"; ValueType: string; ValueName: "URL Protocol"; ValueData: ""
+Root: HKCU; Subkey: "Software\Classes\monglepet\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#AppExeName},0"
+Root: HKCU; Subkey: "Software\Classes\monglepet\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#AppExeName}"" ""%1"""
+
 [Run]
 Filename: "{app}\{#AppExeName}"; Description: "MonglePet 실행"; WorkingDir: "{app}"; Flags: nowait postinstall skipifsilent
 
@@ -76,6 +82,8 @@ Filename: "{app}\{#AppExeName}"; Description: "MonglePet 실행"; WorkingDir: "{
 const
   RunKey = 'Software\Microsoft\Windows\CurrentVersion\Run';
   RunValueName = 'MonglePet';
+  ProtocolKey = 'Software\Classes\monglepet';
+  ProtocolCommandKey = 'Software\Classes\monglepet\shell\open\command';
 
 function RequestRunningAppToQuit: Boolean;
 var
@@ -127,6 +135,8 @@ procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
   ExistingCommand: String;
   InstalledCommand: String;
+  ExistingProtocolCommand: String;
+  InstalledProtocolCommand: String;
 begin
   if CurUninstallStep <> usPostUninstall then
     Exit;
@@ -136,5 +146,16 @@ begin
      (CompareText(ExistingCommand, InstalledCommand) = 0) then
   begin
     RegDeleteValue(HKCU, RunKey, RunValueName);
+  end;
+
+  InstalledProtocolCommand := '"' + ExpandConstant('{app}\{#AppExeName}') + '" "%1"';
+  if RegQueryStringValue(
+       HKCU,
+       ProtocolCommandKey,
+       '',
+       ExistingProtocolCommand) and
+     (CompareText(ExistingProtocolCommand, InstalledProtocolCommand) = 0) then
+  begin
+    RegDeleteKeyIncludingSubkeys(HKCU, ProtocolKey);
   end;
 end;

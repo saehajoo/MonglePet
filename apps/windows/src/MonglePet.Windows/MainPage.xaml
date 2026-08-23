@@ -1194,22 +1194,111 @@
                     </StackPanel>
 
                     <Border Style="{StaticResource SettingsDividerStyle}" />
+                    <StackPanel Spacing="10">
+                        <StackPanel Spacing="2">
+                            <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="웹에서 펫 가져오기" />
+                            <TextBlock
+                                Style="{StaticResource SettingsCaptionStyle}"
+                                Text="MonglePet 웹에서 원하는 펫을 찾아보세요."
+                                TextWrapping="Wrap" />
+                            <TextBlock
+                                Style="{StaticResource SettingsCaptionStyle}"
+                                Text="펫 상세 화면에서 앱으로 가져오거나 주소를 복사할 수 있습니다."
+                                TextWrapping="Wrap" />
+                        </StackPanel>
+                        <Button
+                            x:Name="BrowseWebPetsButton"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Center"
+                            AutomationProperties.Name="MonglePet 웹에서 펫 보러가기"
+                            Click="BrowseWebPetsButton_Click"
+                            Content="펫 보러가기"
+                            Style="{StaticResource AccentButtonStyle}" />
+                        <Border Style="{StaticResource SettingsDividerStyle}" />
+                        <StackPanel Spacing="2">
+                            <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="주소로 직접 가져오기" />
+                            <TextBlock
+                                Style="{StaticResource SettingsCaptionStyle}"
+                                Text="MonglePet 펫 상세 주소가 있다면 아래에 붙여 넣으세요."
+                                TextWrapping="Wrap" />
+                        </StackPanel>
+                        <TextBox
+                            x:Name="RemotePetUrlTextBox"
+                            AutomationProperties.Name="MonglePet 펫 상세 주소"
+                            KeyDown="RemotePetUrlTextBox_KeyDown"
+                            PlaceholderText="펫 상세 주소를 붙여 넣으세요"
+                            TextChanged="RemotePetUrlTextBox_TextChanged" />
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <Button
+                                x:Name="ImportRemotePetButton"
+                                AutomationProperties.Name="주소에서 펫 가져오기"
+                                Click="ImportRemotePetButton_Click"
+                                Content="주소에서 가져오기" />
+                            <ProgressRing
+                                x:Name="RemotePetImportProgressRing"
+                                Width="20"
+                                Height="20"
+                                VerticalAlignment="Center"
+                                AutomationProperties.Name="웹 펫을 가져오는 중"
+                                IsActive="False"
+                                Visibility="Collapsed" />
+                            <TextBlock
+                                x:Name="RemotePetImportStatusText"
+                                VerticalAlignment="Center"
+                                Style="{StaticResource SettingsCaptionStyle}"
+                                Text="펫 정보를 확인하고 있습니다."
+                                Visibility="Collapsed" />
+                        </StackPanel>
+                        <InfoBar
+                            x:Name="RemotePetImportInfoBar"
+                            AutomationProperties.Name="웹 펫 가져오기 오류"
+                            IsClosable="True"
+                            IsOpen="False"
+                            Severity="Error" />
+                    </StackPanel>
+
+                    <Border Style="{StaticResource SettingsDividerStyle}" />
                     <StackPanel Spacing="8">
-                        <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="MonglePet 패키지" />
+                        <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Windows의 패키지 가져오기" />
                         <TextBlock
-                            x:Name="PetPackageCaptionText"
                             Style="{StaticResource SettingsCaptionStyle}"
-                            Text="macOS와 Windows에서 동일한 .monglepet 패키지를 가져오거나 공유합니다."
+                            Text="PC에 저장된 .monglepet 파일을 선택해 설치 내용을 확인합니다."
                             TextWrapping="Wrap" />
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <Button
-                                x:Name="ImportPackageButton"
-                                Click="ImportPackageButton_Click"
-                                Content="패키지 가져오기…" />
-                            <Button
-                                x:Name="ExportPackageButton"
-                                Click="ExportPackageButton_Click"
-                                Content="현재 펫 내보내기…" />
+                        <Button
+                            x:Name="ImportPackageButton"
+                            HorizontalAlignment="Left"
+                            AutomationProperties.Name="MonglePet 패키지 파일 선택"
+                            Click="ImportPackageButton_Click"
+                            Content="패키지 파일 선택…" />
+                    </StackPanel>
+
+                    <Border Style="{StaticResource SettingsDividerStyle}" />
+                    <StackPanel Spacing="8">
+                        <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="현재 펫 내보내기" />
+                        <TextBlock
+                            Style="{StaticResource SettingsCaptionStyle}"
+                            Text="선택한 펫과 선택적인 권장 설정을 .monglepet 파일로 저장합니다."
+                            TextWrapping="Wrap" />
+                        <Button
+                            x:Name="ExportPackageButton"
+                            HorizontalAlignment="Left"
+                            AutomationProperties.Name="현재 펫을 MonglePet 패키지로 저장"
+                            Click="ExportPackageButton_Click"
+                            Content="패키지 파일로 저장…" />
+                        <StackPanel
+                            x:Name="BuiltInPetExportLockPanel"
+                            Orientation="Horizontal"
+                            Spacing="8"
+                            Visibility="Collapsed">
+                            <FontIcon
+                                VerticalAlignment="Center"
+                                FontSize="14"
+                                Glyph="&#xE72E;" />
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                Style="{StaticResource SettingsCaptionStyle}"
+                                Text="내장 몽글이는 패키지 파일로 내보낼 수 없습니다."
+                                TextWrapping="Wrap" />
                         </StackPanel>
                     </StackPanel>
 

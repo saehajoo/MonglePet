@@ -1,3 +1,4 @@
+using Microsoft.Windows.AppLifecycle;
 using Microsoft.UI.Xaml;
 using MonglePet.Activity;
 using MonglePet.Core.Behavior;
@@ -13,7 +14,10 @@ public partial class App : Application
 {
     private const string DevelopmentPackageFamilyName =
         "4B7E245F-A59A-4E0F-84D7-52B511356256_1z32rh13vfry6";
+    private const string MainAppInstanceKey = "MonglePet.Main";
     private Window? _window;
+    private AppInstance? _appInstance;
+    private Microsoft.UI.Dispatching.DispatcherQueue? _dispatcherQueue;
     private PetInstanceManager? _instanceManager;
     private PetResourceMonitor? _resourceMonitor;
     private PetRestoreJournal? _restoreJournal;
@@ -153,8 +157,47 @@ public partial class App : Application
 
     protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
     {
+        string[] commandLineArguments = Environment.GetCommandLineArgs().Skip(1).ToArray();
+        AppActivationArguments activationArguments =
+            AppInstance.GetCurrent().GetActivatedEventArgs();
+        AppInstance primaryInstance = AppInstance.FindOrRegisterForKey(MainAppInstanceKey);
+        if (!primaryInstance.IsCurrent)
+        {
+            if (activationArguments.Kind != ExtendedActivationKind.Protocol &&
+                WindowsUrlProtocolCommand.TryGetProtocolUri(
+                    commandLineArguments,
+                    out Uri? commandLineProtocolUri) &&
+                commandLineProtocolUri is not null)
+            {
+                bool forwarded = WindowsProtocolActivationMessage.TrySend(
+                        commandLineProtocolUri,
+                        Environment.ProcessPath ?? throw new InvalidOperationException(
+                            "현재 실행 파일 경로를 확인할 수 없습니다."),
+                        TimeSpan.FromSeconds(5));
+                if (!forwarded)
+                {
+                    primaryInstance.RedirectActivationToAsync(activationArguments)
+                        .AsTask()
+                        .GetAwaiter()
+                        .GetResult();
+                }
+            }
+            else
+            {
+                primaryInstance.RedirectActivationToAsync(activationArguments)
+                    .AsTask()
+                    .GetAwaiter()
+                    .GetResult();
+            }
+            Exit();
+            return;
+        }
+
+        _appInstance = primaryInstance;
+        _appInstance.Activated += AppInstance_Activated;
+        _dispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
         bool isStartupLaunch = WindowsRunAtLoginCommand.IsStartupLaunch(
-            Environment.GetCommandLineArgs().Skip(1));
+            commandLineArguments);
         var mainWindow = new MainWindow();
         _window = mainWindow;
         mainWindow.Activate();
@@ -167,6 +210,91 @@ public partial class App : Application
             Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread().TryEnqueue(
                 Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,
                 mainWindow.HideForStartup);
+        }
+
+        HandleActivation(activationArguments, commandLineArguments);
+    }
+
+    private void AppInstance_Activated(object? sender, AppActivationArguments args)
+    {
+        void Dispatch() => HandleActivation(args, []);
+        if (_dispatcherQueue?.TryEnqueue(Dispatch) != true)
+        {
+            Dispatch();
+        }
+    }
+
+    private void HandleActivation(
+        AppActivationArguments activationArguments,
+        IReadOnlyList<string> commandLineArguments)
+    {
+        Uri? protocolUri = null;
+        if (activationArguments.Kind == ExtendedActivationKind.Protocol &&
+            activationArguments.Data is
+                global::Windows.ApplicationModel.Activation.IProtocolActivatedEventArgs protocol)
+        {
+            protocolUri = protocol.Uri;
+        }
+        else if (activationArguments.Data is
+                     global::Windows.ApplicationModel.Activation.ICommandLineActivatedEventArgs
+                     commandLineActivation &&
+                 WindowsUrlProtocolCommand.TryGetProtocolUri(
+                     commandLineActivation.Operation.Arguments,
+                     out Uri? redirectedCommandLineUri))
+        {
+            protocolUri = redirectedCommandLineUri;
+        }
+        else if (activationArguments.Data is
+                     global::Windows.ApplicationModel.Activation.ILaunchActivatedEventArgs
+                     launchActivation &&
+                 WindowsUrlProtocolCommand.TryGetProtocolUri(
+                     launchActivation.Arguments,
+                     out Uri? redirectedLaunchUri))
+        {
+            protocolUri = redirectedLaunchUri;
+        }
+        else if (WindowsUrlProtocolCommand.TryGetProtocolUri(
+                     commandLineArguments,
+                     out Uri? commandLineUri))
+        {
+            protocolUri = commandLineUri;
+        }
+
+        if (protocolUri is null)
+        {
+            if (commandLineArguments.Count == 0 && _window is MainWindow existingWindow)
+            {
+                existingWindow.ShowAndActivate();
+            }
+            return;
+        }
+
+        HandleProtocolUri(protocolUri);
+    }
+
+    private void HandleProtocolUri(Uri protocolUri)
+    {
+        ArgumentNullException.ThrowIfNull(protocolUri);
+
+        if (_window is not MainWindow mainWindow)
+        {
+            return;
+        }
+
+        try
+        {
+            RemotePetImportDeepLink deepLink =
+                RemotePetImportDeepLink.Parse(
+                    WindowsUrlProtocolCommand.NormalizeForApplication(protocolUri));
+            mainWindow.OpenRemotePetImport(
+                deepLink.Source.CanonicalWebUri.AbsoluteUri,
+                errorMessage: null);
+        }
+        catch (RemotePetImportException exception)
+        {
+            mainWindow.OpenRemotePetImport(
+                canonicalUrl: null,
+                errorMessage: exception.Message);
         }
     }
 
@@ -523,6 +651,12 @@ public partial class App : Application
             _instanceManager.Dispose();
             _instanceManager = null;
         }
+        if (_appInstance is not null)
+        {
+            _appInstance.Activated -= AppInstance_Activated;
+            _appInstance.UnregisterKey();
+            _appInstance = null;
+        }
         Window? window = _window;
         _window = null;
         if (window is not null)
@@ -677,7 +811,8 @@ public partial class App : Application
             _notificationArea = new WindowsNotificationAreaIcon(
                 NotificationAreaState,
                 Path.Combine(AppContext.BaseDirectory, "Assets", "AppIcon.ico"),
-                HandleNotificationAreaCommand);
+                HandleNotificationAreaCommand,
+                HandleProtocolUri);
             _notificationArea.ErrorOccurred += NotificationArea_ErrorOccurred;
         }
         catch (Exception exception)

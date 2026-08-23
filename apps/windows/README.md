@@ -83,7 +83,22 @@ Add-AppxPackage -Register $manifestPath
 Start-Process explorer.exe -ArgumentList 'shell:AppsFolder\4B7E245F-A59A-4E0F-84D7-52B511356256_1z32rh13vfry6!App'
 ```
 
-사용자 펫은 macOS와 같은 schema-v1 `monglepet-editor.json` marker로 편집 가능 상태를 식별하며 새 펫 만들기, 정보 수정, 삭제와 애니메이션 추가·수정·삭제를 지원한다. 가져온 패키지는 읽기 전용이고 편집하려면 새 package ID의 독립 사본을 만든다. 설정의 펫 탭은 `MonglePet 패키지 / 패키지 가져오기 / 현재 펫 내보내기` 흐름을 제공한다. 편집은 별도 staging에서 전체 loader 검증 후 같은 설치 UUID에 원자적으로 반영하며 공유 파일에는 editor marker를 포함하지 않는다.
+## 웹에서 펫 가져오기
+
+`펫 보관함`은 MonglePet 웹 목록 열기, 공개 상세 주소 직접 가져오기, Windows의
+로컬 `.monglepet` 선택과 현재 펫 내보내기를 독립된 세로 섹션으로 제공한다.
+Debug의 웹 버튼은 개발 목록, Release는 운영 목록을 연다. 주소 가져오기는
+`dev.mapleroom.kr`과 `mapleroom.kr`의 정확한 상세 URL만 허용하고 API envelope,
+최소 앱 버전, 상세·다운로드 metadata, same-origin HTTPS redirect, 20MiB 상한과
+실제 크기·SHA-256을 검증한다. 검증된 임시 파일은 기존 가져오기 검토·중복 흐름이
+끝날 때까지만 유지하며 다운로드·검토·취소만으로 선택 인스턴스를 변경하지 않는다.
+
+packaged 앱은 manifest의 `monglepet` protocol을, unpackaged 설치기는 현재 사용자
+`Software\Classes\monglepet` handler를 사용한다. unpackaged 실행 중 두 번째 요청은
+기존 AppInstance와 notification area HWND로 전달한다. 제거 시 현재 command가 해당
+설치 EXE와 일치할 때만 protocol tree를 삭제한다.
+
+사용자 펫은 macOS와 같은 schema-v1 `monglepet-editor.json` marker로 편집 가능 상태를 식별하며 새 펫 만들기, 정보 수정, 삭제와 애니메이션 추가·수정·삭제를 지원한다. 가져온 패키지는 읽기 전용이고 편집하려면 새 package ID의 독립 사본을 만든다. 설정의 펫 보관함은 `웹에서 펫 가져오기 / Windows의 패키지 가져오기 / 현재 펫 내보내기` 흐름을 제공한다. 편집은 별도 staging에서 전체 loader 검증 후 같은 설치 UUID에 원자적으로 반영하며 공유 파일에는 editor marker를 포함하지 않는다.
 
 ## 빌드와 테스트
 
@@ -97,7 +112,7 @@ dotnet test apps/windows/MonglePet.slnx --configuration Debug --no-build --no-re
 
 SDK는 루트 `global.json`의 .NET 10.0.302로 고정한다. .NET 10이 제공하는 안정 Windows API 계약은 build 26100을 대상으로 컴파일하며, 실제 제품 설치 최소 버전 build 26200은 `Package.appxmanifest`의 MSIX 대상 제품군에서 적용한다.
 
-2026-08-09 기준 x64 Debug·Release 전체 빌드와 Activity 27개, Core 38개, Packages 18개, PetLibrary 18개, Settings 58개, Shell 12개로 총 171개 xUnit 테스트가 통과했다. startup task와 펫 편집·로컬 공유 기능을 포함한 1.0.0.13 x64 Release MSIX도 생성됐으며 로컬 `mspdbcmf.exe` 부재로 symbols package만 생략됐다. Windows 설정 화면은 macOS와 같은 6개 기능 구조와 사용자 문구를 따르고, 펫·애니메이션 관리, 모드별 이동 설정, 행동·입력 없음 규칙과 말풍선 대사·위치 미리보기를 제공한다. 설정 콘텐츠는 Mica 위의 중앙 반응형 최대 폭, 탭별 아이콘 헤더와 20px 카드·14px 하위 카드 계층을 사용해 넓은 창의 빈 공간과 왼쪽 쏠림을 줄인다. 말풍선 본체와 꼬리는 하나의 연속 외곽선으로 그리며, 꼬리는 고정 높이를 유지한 채 설정 간격에 따라 말풍선과 함께 이동한다. XAML Island 측정 실패는 글자·여백 기반 안전 크기로 복구한다. `다음 대사까지 유지` 행동 대사 중에도 주기 대사가 예약되며 주기 대기 timer는 설정창 가시성과 분리한다. 서로 다른 이미지 atlas의 행동 전환은 이전 프레임을 유지한 채 새 surface를 준비해 투명 번쩍임을 막고, notification area 메뉴가 닫힌 뒤 설정창을 전면 활성화한다.
+2026-08-24 기준 x64 Debug·Release 전체 빌드와 Activity 27개, Core 38개, Packages 18개, PetLibrary 63개, Settings 69개, Shell 20개로 총 235개 xUnit 테스트가 통과했다. unpackaged 앱은 실제 개발 웹 펫으로 종료·실행 중 protocol 검토와 취소, packaged 앱은 `1.1.0.13`→`1.2.0.13` 등록 업데이트와 protocol 검토·취소를 확인했으며 두 경로 모두 라이브러리 무변경·임시 파일 삭제를 통과했다. 운영 URL과 설치·중복·Windows→macOS 왕복은 후속 QA다. Windows 설정 화면은 macOS와 같은 기능 구조와 사용자 문구를 따르고, 펫·애니메이션 관리, 모드별 이동 설정, 행동·입력 없음 규칙과 말풍선 대사·위치 미리보기를 제공한다. 설정 콘텐츠는 Mica 위의 중앙 반응형 최대 폭, 탭별 아이콘 헤더와 20px 카드·14px 하위 카드 계층을 사용해 넓은 창의 빈 공간과 왼쪽 쏠림을 줄인다. 말풍선 본체와 꼬리는 하나의 연속 외곽선으로 그리며, 꼬리는 고정 높이를 유지한 채 설정 간격에 따라 말풍선과 함께 이동한다. XAML Island 측정 실패는 글자·여백 기반 안전 크기로 복구한다. `다음 대사까지 유지` 행동 대사 중에도 주기 대사가 예약되며 주기 대기 timer는 설정창 가시성과 분리한다. 서로 다른 이미지 atlas의 행동 전환은 이전 프레임을 유지한 채 새 surface를 준비해 투명 번쩍임을 막고, notification area 메뉴가 닫힌 뒤 설정창을 전면 활성화한다.
 
 Windows 기반부터 로컬 공유까지의 완료 기록은 `../../AGENTS/work_plans/INDEX.md`에서 확인한다. 이번 가져오기 검토·권장 설정·내보내기 구현은 `../../AGENTS/work_plans/tasks/2026-08-09-windows-local-sharing.md`에 정리했다. 다음 구현을 시작하기 전 이 디렉터리의 `AGENTS.md`와 새 작업 계획을 함께 확인한다.
 
