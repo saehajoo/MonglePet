@@ -12,9 +12,10 @@ public sealed class NotificationAreaErrorEventArgs(Exception exception) : EventA
 
 public sealed class WindowsNotificationAreaIcon : IDisposable
 {
-    private const string WindowClassName = "MonglePet.NotificationArea.Window";
+    private const string WindowClassName = WindowsProtocolActivationMessage.WindowClassName;
     private const string PackagedWindowName = "MonglePet Notification Area";
-    private const string UnpackagedWindowName = "MonglePet Unpackaged Notification Area";
+    private const string UnpackagedWindowName =
+        WindowsProtocolActivationMessage.UnpackagedWindowName;
     private const string QuitMessageName = "MonglePet.Quit.1";
     private const uint CallbackMessage = WmApp + 17;
     private const uint WmApp = 0x8000;
@@ -60,6 +61,7 @@ public sealed class WindowsNotificationAreaIcon : IDisposable
     private static readonly WindowProcedure SharedWindowProcedure = WindowProc;
 
     private readonly Action<NotificationAreaMenuItem> _onCommand;
+    private readonly Action<Uri>? _onProtocolActivation;
     private readonly Dictionary<uint, NotificationAreaMenuItem> _menuCommands = [];
     private readonly uint _taskbarCreatedMessage;
     private readonly uint _quitMessage;
@@ -72,7 +74,8 @@ public sealed class WindowsNotificationAreaIcon : IDisposable
     public WindowsNotificationAreaIcon(
         NotificationAreaState state,
         string iconPath,
-        Action<NotificationAreaMenuItem> onCommand)
+        Action<NotificationAreaMenuItem> onCommand,
+        Action<Uri>? onProtocolActivation = null)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentException.ThrowIfNullOrWhiteSpace(iconPath);
@@ -84,6 +87,7 @@ public sealed class WindowsNotificationAreaIcon : IDisposable
 
         _state = state;
         _onCommand = onCommand;
+        _onProtocolActivation = onProtocolActivation;
         _taskbarCreatedMessage = RegisterWindowMessage("TaskbarCreated");
         _quitMessage = RegisterWindowMessage(QuitMessageName);
         _window = CreateMessageWindow();
@@ -466,6 +470,20 @@ public sealed class WindowsNotificationAreaIcon : IDisposable
                         NotificationAreaMenuItemKind.Command,
                         "MonglePet 종료",
                         NotificationAreaCommand.Quit));
+                    return 0;
+                }
+
+                if (message == WindowsProtocolActivationMessage.CopyDataMessage)
+                {
+                    if (owner._onProtocolActivation is not null &&
+                        WindowsProtocolActivationMessage.TryRead(
+                            lParam,
+                            out Uri? protocolUri) &&
+                        protocolUri is not null)
+                    {
+                        owner._onProtocolActivation(protocolUri);
+                        return 1;
+                    }
                     return 0;
                 }
 

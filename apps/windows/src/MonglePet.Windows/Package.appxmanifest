@@ -11,7 +11,7 @@
   <Identity
     Name="4B7E245F-A59A-4E0F-84D7-52B511356256"
     Publisher="CN=AppPublisher"
-    Version="1.1.0.13" />
+    Version="1.2.0.13" />
 
   <mp:PhoneIdentity PhoneProductId="4B7E245F-A59A-4E0F-84D7-52B511356256" PhonePublisherId="00000000-0000-0000-0000-000000000000"/>
 
@@ -43,6 +43,11 @@
         <uap:SplashScreen Image="Assets\SplashScreen.png" />
       </uap:VisualElements>
       <Extensions>
+        <uap:Extension Category="windows.protocol">
+          <uap:Protocol Name="monglepet">
+            <uap:DisplayName>MonglePet에서 펫 가져오기</uap:DisplayName>
+          </uap:Protocol>
+        </uap:Extension>
         <desktop:Extension
           Category="windows.startupTask"
           Executable="MonglePet.Windows.exe"

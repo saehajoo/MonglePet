@@ -72,6 +72,15 @@ public sealed partial class MainWindow : Window
         _ = SetForegroundWindow(windowHandle);
     }
 
+    internal void OpenRemotePetImport(string? canonicalUrl, string? errorMessage)
+    {
+        ShowAndActivate();
+        if (RootFrame.Content is MainPage page)
+        {
+            page.OpenRemotePetImport(canonicalUrl, errorMessage);
+        }
+    }
+
     internal void HideForStartup()
     {
         // AppWindow.Hide can fail with E_NOINTERFACE during the first WinUI

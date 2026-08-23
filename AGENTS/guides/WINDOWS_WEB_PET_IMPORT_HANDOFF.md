@@ -171,6 +171,18 @@ Enter는 값이 있을 때 `주소에서 가져오기`와 같은 동작을 수�
   정책을 문서화하고 실제 Windows에서 확인한다.
 - 잘못된 activation은 앱을 자동 설치 화면으로 넘기지 않고 `펫 보관함`을 연 뒤
   inline 오류를 표시한다.
+- Windows Shell은 authority 뒤 빈 path를 `/`로 정규화해
+  `monglepet://install/?url=...`를 전달할 수 있다. Windows activation 경계에서만
+  이 정확한 한 개의 slash를 제거하고, 공통 deep link parser는 `/`, `//`, 추가
+  path와 다른 query를 계속 거부한다.
+- packaged는 manifest association을 소유하고 unpackaged 설치기는 HKCU
+  `Software\Classes\monglepet` handler를 등록한다. 두 채널이 공존할 때 OS가 고른
+  기본 handler를 따르며, unpackaged 제거 시 command가 제거 대상 EXE와 정확히
+  일치할 때만 HKCU protocol tree를 삭제한다. packaged 등록 자체는 수정하지 않는다.
+- unpackaged 실행 중 요청은 AppInstance 단일 인스턴스 판정 뒤 기존 notification
+  area HWND의 class·title·소유 실행 파일을 확인하고 최대 8KiB `WM_COPYDATA`로
+  전달한다. 수신 측은 scheme과 공통 deep link 전체를 다시 검증하며 자동 설치하지
+  않는다.
 
 ## 권장 구현 경계
 
@@ -208,10 +220,16 @@ Enter는 값이 있을 때 `주소에서 가져오기`와 같은 동작을 수�
 6. packaged와 unpackaged 설치에서 protocol activation을 각각 확인한다.
 7. 정상 개발·운영 주소, 잘못된 주소, offline, timeout과 checksum 불일치 상태를
    확인한다.
+
 8. 설치 취소, 설치, 기존 설치 교체, 별도 설치 뒤 임시 파일과 선택 상태를 확인한다.
 9. 키보드 Tab·Enter, Narrator 이름, 100%·150%·200% DPI와 좁은 설정창을 확인한다.
 10. Windows에서 URL로 설치한 패키지를 내보내 macOS에서 다시 가져오는 왕복을
     확인한다.
+
+2026-08-24 Windows `1.2.0.13` 개발 MSIX에서 기존 `1.1.0.13` LocalState
+22개 파일을 그대로 보존한 등록 업데이트와 실제 packaged 개발 URL activation을
+확인했다. 검토 화면의 설치·취소 버튼이 표시됐고 취소 뒤 라이브러리 변경과
+`MonglePetRemoteImport-*` 임시 폴더는 0개였다.
 
 ## 완료 조건
 

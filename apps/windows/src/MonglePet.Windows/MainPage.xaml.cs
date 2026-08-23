@@ -39,7 +39,13 @@ public sealed partial class MainPage : Page
     private readonly ObservableCollection<SpeechPhraseEditorItem> _behaviorSpeechPhrases = [];
     private readonly ObservableCollection<SpeechPhraseEditorItem> _periodicSpeechPhrases = [];
     private readonly WindowsLoginLaunchService _loginLaunchService = new();
+    private readonly RemotePetImportService _remotePetImportService = new(
+        CurrentAppSemanticVersion());
+    private readonly CancellationTokenSource _remotePetImportCancellation = new();
+    private RemotePetImportInteractionState _remotePetImportState =
+        RemotePetImportInteractionState.Initial;
     private bool _isLoaded;
+    private bool _isPreparedForShutdown;
     private bool _isRefreshingDisplayControls;
     private bool _isRefreshingBehaviorControls;
     private bool _isRefreshingBehaviorEditor;
@@ -117,7 +123,16 @@ public sealed partial class MainPage : Page
 
     internal void PrepareForShutdown()
     {
+        if (_isPreparedForShutdown)
+        {
+            return;
+        }
+
+        _isPreparedForShutdown = true;
         _isLoaded = false;
+        _remotePetImportCancellation.Cancel();
+        _remotePetImportCancellation.Dispose();
+        _remotePetImportService.Dispose();
         _displaySaveTimer?.Stop();
         _speechSaveTimer?.Stop();
         _petAnimationPreviewTimer?.Stop();
@@ -137,6 +152,40 @@ public sealed partial class MainPage : Page
     }
 
     private PetOverlayWindow? Overlay => (Application.Current as App)?.Overlay;
+
+    internal void OpenRemotePetImport(string? canonicalUrl, string? errorMessage)
+    {
+        NavigationViewItem? libraryItem = SettingsNavigationView.MenuItems
+            .OfType<NavigationViewItem>()
+            .FirstOrDefault(item => item.Tag?.ToString() == "pet");
+        if (libraryItem is not null)
+        {
+            SettingsNavigationView.SelectedItem = libraryItem;
+        }
+        ShowSettingsSection("pet");
+
+        if (_remotePetImportState.IsBusy)
+        {
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(canonicalUrl))
+        {
+            RemotePetUrlTextBox.Text = canonicalUrl;
+        }
+
+        if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            _remotePetImportState = _remotePetImportState.Fail(errorMessage);
+            RenderRemotePetImportState();
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(canonicalUrl))
+        {
+            _ = ImportRemotePetAsync();
+        }
+    }
 
     private void SettingsNavigationView_SelectionChanged(
         NavigationView sender,
@@ -419,6 +468,112 @@ public sealed partial class MainPage : Page
         MovementModeComboBox.SelectedIndex = selectedIndex;
     }
 
+    private async void BrowseWebPetsButton_Click(object sender, RoutedEventArgs e)
+    {
+#if DEBUG
+        var catalogUri = new Uri("https://dev.mapleroom.kr/monglepet/pets");
+#else
+        var catalogUri = new Uri("https://mapleroom.kr/monglepet/pets");
+#endif
+        bool opened = await global::Windows.System.Launcher.LaunchUriAsync(catalogUri);
+        if (!opened)
+        {
+            _remotePetImportState = _remotePetImportState.Fail(
+                "MonglePet 웹페이지를 열 수 없습니다. 잠시 뒤 다시 시도해 주세요.");
+            RenderRemotePetImportState();
+        }
+    }
+
+    private void RemotePetUrlTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        _remotePetImportState = _remotePetImportState.WithInput(RemotePetUrlTextBox.Text);
+        RenderRemotePetImportState();
+    }
+
+    private void RemotePetUrlTextBox_KeyDown(
+        object sender,
+        Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+    {
+        if (e.Key != global::Windows.System.VirtualKey.Enter)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        _ = ImportRemotePetAsync();
+    }
+
+    private void ImportRemotePetButton_Click(object sender, RoutedEventArgs e) =>
+        _ = ImportRemotePetAsync();
+
+    private async Task ImportRemotePetAsync()
+    {
+        if (Application.Current is not App app)
+        {
+            return;
+        }
+
+        _remotePetImportState = _remotePetImportState.WithInput(RemotePetUrlTextBox.Text);
+        if (!_remotePetImportState.TryBegin(out _remotePetImportState))
+        {
+            return;
+        }
+        RenderRemotePetImportState();
+
+        try
+        {
+            using RemotePetPreparedPackage prepared =
+                await _remotePetImportService.PreparePackageAsync(
+                    _remotePetImportState.UserInput,
+                    _remotePetImportCancellation.Token);
+            PetPackageImportReview review = app.ReviewPackage(prepared.PackagePath);
+            await ReviewAndImportPackageAsync(
+                app,
+                review,
+                usesRemoteErrorSurface: true);
+            if (_remotePetImportState.IsBusy)
+            {
+                _remotePetImportState = _remotePetImportState.Complete();
+                RenderRemotePetImportState();
+            }
+        }
+        catch (OperationCanceledException)
+            when (_remotePetImportCancellation.IsCancellationRequested)
+        {
+            _remotePetImportState = _remotePetImportState.Complete();
+        }
+        catch (Exception exception)
+        {
+            _remotePetImportState = _remotePetImportState.Fail(exception.Message);
+            RenderRemotePetImportState();
+        }
+    }
+
+    private void RenderRemotePetImportState()
+    {
+        if (ImportRemotePetButton is null)
+        {
+            return;
+        }
+
+        bool canInstall = (Application.Current as App)?.SettingsStore.IsWritingEnabled == true;
+        ImportRemotePetButton.Content = _remotePetImportState.ActionText;
+        ImportRemotePetButton.IsEnabled = canInstall && !_remotePetImportState.IsBusy;
+        BrowseWebPetsButton.IsEnabled = !_remotePetImportState.IsBusy;
+        RemotePetUrlTextBox.IsEnabled = !_remotePetImportState.IsBusy;
+        RemotePetImportProgressRing.IsActive = _remotePetImportState.IsBusy;
+        RemotePetImportProgressRing.Visibility = _remotePetImportState.IsBusy
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        RemotePetImportStatusText.Visibility = _remotePetImportState.IsBusy
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        RemotePetImportInfoBar.Message = _remotePetImportState.ErrorMessage ?? string.Empty;
+        RemotePetImportInfoBar.Title = "웹에서 펫을 가져오지 못했습니다";
+        RemotePetImportInfoBar.IsOpen = !string.IsNullOrWhiteSpace(
+            _remotePetImportState.ErrorMessage);
+    }
+
     private async void ImportPackageButton_Click(object sender, RoutedEventArgs e)
     {
         if (Application.Current is not App app || app.MainWindowHandle == IntPtr.Zero)
@@ -450,6 +605,14 @@ public sealed partial class MainPage : Page
             return;
         }
 
+        await ReviewAndImportPackageAsync(app, review, usesRemoteErrorSurface: false);
+    }
+
+    private async Task ReviewAndImportPackageAsync(
+        App app,
+        PetPackageImportReview review,
+        bool usesRemoteErrorSurface)
+    {
         bool? appliesRecommendedProfile = await ShowImportReview(review);
         if (appliesRecommendedProfile is null)
         {
@@ -474,11 +637,12 @@ public sealed partial class MainPage : Page
                 app,
                 review,
                 exception.MatchingInstallationIds[0],
-                appliesRecommendedProfile.Value);
+                appliesRecommendedProfile.Value,
+                usesRemoteErrorSurface);
         }
         catch (Exception exception)
         {
-            ShowLibraryMessage(InfoBarSeverity.Error, "가져오기 실패", exception.Message);
+            ShowImportFailure(usesRemoteErrorSurface, exception.Message);
         }
 
         RefreshLibraryState();
@@ -490,7 +654,8 @@ public sealed partial class MainPage : Page
         App app,
         PetPackageImportReview review,
         Guid existingInstallationId,
-        bool appliesRecommendedProfileToSeparateInstall)
+        bool appliesRecommendedProfileToSeparateInstall,
+        bool usesRemoteErrorSurface)
     {
         var replaceProfileCheckBox = new CheckBox
         {
@@ -541,8 +706,20 @@ public sealed partial class MainPage : Page
         }
         catch (Exception exception)
         {
-            ShowLibraryMessage(InfoBarSeverity.Error, "가져오기 실패", exception.Message);
+            ShowImportFailure(usesRemoteErrorSurface, exception.Message);
         }
+    }
+
+    private void ShowImportFailure(bool usesRemoteErrorSurface, string message)
+    {
+        if (usesRemoteErrorSurface)
+        {
+            _remotePetImportState = _remotePetImportState.Fail(message);
+            RenderRemotePetImportState();
+            return;
+        }
+
+        ShowLibraryMessage(InfoBarSeverity.Error, "가져오기 실패", message);
     }
 
     private async Task<bool?> ShowImportReview(PetPackageImportReview review)
@@ -1673,6 +1850,10 @@ public sealed partial class MainPage : Page
             ImportPackageButton.IsEnabled = canManage;
             ExportPackageButton.IsEnabled = canManage && isInstalled;
             ExportPackageButton.Visibility = isInstalled ? Visibility.Visible : Visibility.Collapsed;
+            BuiltInPetExportLockPanel.Visibility = isInstalled
+                ? Visibility.Collapsed
+                : Visibility.Visible;
+            RenderRemotePetImportState();
             InstallSampleButton.IsEnabled = canManage;
             InstalledPetsList.IsEnabled = canManage;
             CreatePetButton.IsEnabled = canManage;
@@ -1689,9 +1870,6 @@ public sealed partial class MainPage : Page
                 : isInstalled
                     ? "가져온 패키지는 원본 보존을 위해 읽기 전용입니다. 편집하려면 사본을 만들어 주세요."
                     : "기본 몽글이는 읽기 전용입니다. 새 펫을 만들거나 패키지를 가져와 주세요.";
-            PetPackageCaptionText.Text = isInstalled
-                ? ".monglepet 형식으로 펫 정보와 애니메이션을 가져오거나 공유합니다."
-                : "내장 몽글이는 패키지로 내보낼 수 없습니다.";
             PetManagementCaptionText.Text = isEditable
                 ? "MonglePet에서 만든 펫입니다. 정보와 애니메이션을 직접 수정할 수 있습니다."
                 : isInstalled
@@ -1898,6 +2076,17 @@ public sealed partial class MainPage : Page
         {
             return "MonglePet 개발 빌드";
         }
+    }
+
+    private static RemotePetSemanticVersion CurrentAppSemanticVersion()
+    {
+        Version? version = Assembly.GetEntryAssembly()?.GetName().Version;
+        return version is null
+            ? new RemotePetSemanticVersion(1, 2, 0)
+            : new RemotePetSemanticVersion(
+                Math.Max(version.Major, 0),
+                Math.Max(version.Minor, 0),
+                Math.Max(version.Build, 0));
     }
 
     private void ShowLibraryMessage(InfoBarSeverity severity, string title, string message)
