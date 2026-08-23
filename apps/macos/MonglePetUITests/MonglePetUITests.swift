@@ -44,8 +44,7 @@ final class MonglePetUITests: XCTestCase {
             "패키지 파일 선택…"
         )
         XCTAssertTrue(
-            app.links["monglepet.settings.browseWebPets"].exists
-                || app.buttons["monglepet.settings.browseWebPets"].exists
+            app.buttons["monglepet.settings.browseWebPets"].exists
         )
         XCTAssertTrue(
             app.textFields["monglepet.settings.remotePetURL"].exists

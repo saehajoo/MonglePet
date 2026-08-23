@@ -983,6 +983,7 @@ private struct PetSettingsView: View {
 }
 
 private struct RemotePetImportControls: View {
+    @Environment(\.openURL) private var openURL
     @Binding var urlText: String
     let isImporting: Bool
     let isBusy: Bool
@@ -992,27 +993,32 @@ private struct RemotePetImportControls: View {
     let onImport: () -> Void
 
     var body: some View {
-        HStack(alignment: .center, spacing: 16) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text("MonglePet 웹에서 원하는 펫을 찾아보세요.")
-                    .font(.callout)
-                Text("펫 상세 화면의 주소를 복사하면 앱에서 설치 전에 내용을 확인합니다.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+        VStack(alignment: .leading, spacing: 10) {
+            Text("MonglePet 웹에서 원하는 펫을 찾아보세요.")
+                .font(.callout)
+            Text("펫 상세 화면에서 앱으로 가져오거나 주소를 복사할 수 있습니다.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
 
-            Spacer(minLength: 12)
-
-            Link(destination: catalogURL) {
+            Button {
+                openURL(catalogURL)
+            } label: {
                 Label("펫 보러가기", systemImage: "safari")
+                    .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(.borderedProminent)
             .accessibilityIdentifier("monglepet.settings.browseWebPets")
         }
 
+        Divider()
+            .padding(.vertical, 4)
+
         VStack(alignment: .leading, spacing: 8) {
-            Text("MonglePet 펫 주소")
+            Text("주소로 직접 가져오기")
                 .font(.subheadline.weight(.medium))
+            Text("MonglePet 펫 상세 주소가 있다면 아래에 붙여 넣으세요.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
 
             TextField(
                 "https://mapleroom.kr/monglepet/pets/...",
@@ -1042,7 +1048,7 @@ private struct RemotePetImportControls: View {
                     )
                 }
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.bordered)
             .disabled(isBusy || trimmedURLText.isEmpty)
             .accessibilityIdentifier(
                 "monglepet.settings.importRemotePackage"
