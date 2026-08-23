@@ -827,6 +827,16 @@ UI 테스트는 앱 실행과 접근성 자동화가 가능한 macOS 세션에�
 - 활성 펫 목록은 상태 이벤트 중 collection 전체 교체를 하지 않고 instance ID별 view model을 제자리 갱신한다. 실제 Release UI에서 별칭 TextBox에 포커스를 둔 뒤 500ms 간격 8회 동안 동일 Automation Runtime ID와 포커스가 유지되어 반복 등장 전환과 편집 포커스 초기화가 재현되지 않았다.
 - 2026-08-16 Windows `1.1.0.13` unpackaged Preview 후보에서 `--startup`이 첫 WinUI 활성화 전에 `AppWindow.Hide()`를 호출해 `E_NOINTERFACE`로 종료되는 문제를 재현했다. 주 창을 먼저 활성화하고 초기화 뒤 Win32 `ShowWindow(SW_HIDE)`로 HWND만 숨기도록 수정했다. 게시본과 실제 사용자별 업그레이드 설치본의 일반 실행·`--startup`이 각각 응답 상태를 유지하고 전용 메시지로 정상 종료됐으며 관련 Application 오류 0건, 라이브러리 10개 파일 해시 보존을 확인했다. x64 Debug·Release 빌드와 각 구성 186개 테스트도 통과했다.
 
+### Windows 1.2.0 Preview 배포 사전 검증
+
+- 측정일: 2026-08-24
+- Windows 마케팅 버전 `1.2.0`, Assembly·File·MSIX 버전 `1.2.0.13`의 자동 계약 테스트를 추가했다.
+- x64 Debug·Release 전체 솔루션 빌드와 Activity 27개, Core 38개, Packages 18개, PetLibrary 63개, Settings 69개, Shell 20개로 각 구성 235개 테스트가 모두 통과했다.
+- 기존 `1.1.0.13` 개발 MSIX를 `1.2.0.13`으로 등록 업데이트해 LocalState 22개 파일의 크기·SHA-256 차이 0개를 확인했다. 실제 packaged 개발 URL이 검토 화면을 열었고 취소 뒤 라이브러리 차이와 임시 폴더가 0개였다.
+- 초기 EXE 설치기 후보를 기존 `1.1.0.13` 위에 설치했을 때 `%LOCALAPPDATA%\MonglePet` 11개 파일의 크기·SHA-256 차이가 0개였고 설치된 파일 버전과 protocol command가 `1.2.0.13` 실행 파일을 가리켰다.
+- EXE의 정확한 protocol 명령으로 종료 상태와 실행 중 상태 모두 실제 개발 URL 검토·취소를 통과했고 라이브러리 변경과 임시 폴더가 0개였다. 같은 PC에 개발 MSIX와 EXE가 함께 등록된 상태에서는 Windows Shell scheme 선택이 실행되지 않아 두 배포 채널 공존 association QA는 별도 환경 후속으로 남겼다.
+- 초기 후보에서 전용 종료 뒤 창·트레이는 닫히지만 프로세스가 남는 결함을 재현했다. 마지막 창을 닫기 전에 낮은 우선순위로 `Application.Exit`를 예약하도록 수정한 Release publish는 검토·취소 뒤 전용 종료 메시지만으로 프로세스 0개가 됐다.
+
 ### macOS 1.2.0 Preview 배포 사전 검증
 
 - 측정일: 2026-08-23
@@ -864,4 +874,4 @@ UI 테스트는 앱 실행과 접근성 자동화가 가능한 macOS 세션에�
 ---
 
 문서 상태: active
-마지막 갱신: 2026-08-23
+마지막 갱신: 2026-08-24
