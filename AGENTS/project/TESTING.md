@@ -836,6 +836,8 @@ UI 테스트는 앱 실행과 접근성 자동화가 가능한 macOS 세션에�
 - 초기 EXE 설치기 후보를 기존 `1.1.0.13` 위에 설치했을 때 `%LOCALAPPDATA%\MonglePet` 11개 파일의 크기·SHA-256 차이가 0개였고 설치된 파일 버전과 protocol command가 `1.2.0.13` 실행 파일을 가리켰다.
 - EXE의 정확한 protocol 명령으로 종료 상태와 실행 중 상태 모두 실제 개발 URL 검토·취소를 통과했고 라이브러리 변경과 임시 폴더가 0개였다. 같은 PC에 개발 MSIX와 EXE가 함께 등록된 상태에서는 Windows Shell scheme 선택이 실행되지 않아 두 배포 채널 공존 association QA는 별도 환경 후속으로 남겼다.
 - 초기 후보에서 전용 종료 뒤 창·트레이는 닫히지만 프로세스가 남는 결함을 재현했다. 마지막 창을 닫기 전에 낮은 우선순위로 `Application.Exit`를 예약하도록 수정한 Release publish는 검토·취소 뒤 전용 종료 메시지만으로 프로세스 0개가 됐다.
+- 병합된 소스 커밋 `3ee61a22979a12c42cdaf7d7bbc2c0b08640792b`에서 63,847,413 bytes의 미서명 `MonglePet-Windows-1.2.0.13-x64-Setup.exe`를 생성했다. SHA-256은 `95C4446A42266E279D55138862EE4E2076BA46661F33E4FAFAA26D4CDF064A8A`이다.
+- 최종 설치기를 기존 설치 위에 다시 적용해 `%LOCALAPPDATA%\MonglePet` 11개 파일 차이 0개, 실제 개발 URL 검토·취소, 라이브러리 10개 파일 차이 0개, 임시 폴더 0개와 전용 종료 뒤 프로세스 0개를 확인했다. GitHub `windows-v1.2.0-preview.1` Pre-release 자산을 다시 내려받아 크기·설치기 SHA-256·체크섬 파일이 로컬 최종본과 일치함을 확인했다.
 
 ### macOS 1.2.0 Preview 배포 사전 검증
 

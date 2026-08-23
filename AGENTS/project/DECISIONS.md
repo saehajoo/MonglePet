@@ -661,3 +661,11 @@
 - 결정: 스프라이트 시트·PNG crop과 다중 미리보기, 새 프레임 간격 450ms, 공개 웹 상세 URL 가져오기를 포함한 다음 macOS Preview를 `1.2.0 (3)`으로 게시한다. 플랫폼 태그는 `macos-v1.2.0-preview.1`을 사용한다.
 - 이유: `1.1.0 (2)` 게시 뒤 사용자에게 보이는 펫 제작·가져오기 기능이 확장됐으므로 새 minor 버전으로 구분하고, 같은 macOS 배포 이력의 다음 빌드 번호를 사용하기 위해서다.
 - 비고: Windows는 기존 `1.1.0.13` Preview를 유지하고 Windows 환경에서 같은 기능을 구현·검증할 때 별도 버전을 올린다. macOS 산출물은 Apple Developer Program을 사용할 수 없는 동안 Developer ID 미서명·Apple 미공증 ZIP으로 제한된 테스터에게만 제공한다. `.monglepet` format/schema와 펫 콘텐츠 버전은 앱 버전과 계속 분리한다.
+
+## D-085 Windows 웹 펫 가져오기 Preview 버전
+
+- 상태: accepted
+- 날짜: 2026-08-24
+- 결정: macOS `1.2.0`에서 확정한 공개 웹 상세 URL 가져오기와 최신 펫 보관함 UI를 반영한 Windows Preview를 `1.2.0.13`으로 게시한다. 플랫폼 태그는 `windows-v1.2.0-preview.1`을 사용하며 기존 Inno Setup AppId와 사용자 데이터 경로를 유지한다.
+- 이유: 두 플랫폼에서 같은 사용자 기능을 같은 마케팅 버전으로 표시하고 기존 Windows `1.1.0.13` 사용자가 설정과 설치 펫을 보존한 채 수동 업데이트할 수 있게 하기 위해서다.
+- 비고: 코드 서명 자격 증명이 없으므로 이번 산출물도 미서명 x64 EXE Preview로 제한한다. 릴리스 태그는 검증된 소스 커밋 `3ee61a22979a12c42cdaf7d7bbc2c0b08640792b`을 가리킨다. 향후 서명된 MSIX·App Installer 채널과 자체 웹사이트 기본 진입점 결정은 유지한다.
