@@ -8,7 +8,6 @@
 
 | 상태 | 작업명 | 파일 | 마지막 갱신 |
 | --- | --- | --- | --- |
-| in_progress | macOS 1.3.1 이미지 편집 UI 보정 Preview 릴리스 | `tasks/2026-08-24-macos-1-3-1-image-editor-polish-release.md` | 2026-08-24 |
 | in_progress | 웹 펫 URL 가져오기 | `tasks/2026-08-23-web-pet-url-import.md` | 2026-08-24 |
 | in_progress | 스프라이트 시트 순서·격자·프레임 간격 개선 | `tasks/2026-08-23-sprite-sheet-ordering-and-duration.md` | 2026-08-23 |
 | in_progress | Windows 웹 배포와 자동 업데이트 준비 | `tasks/2026-08-09-windows-web-distribution.md` | 2026-08-16 |
@@ -30,6 +29,7 @@
 
 | 상태 | 작업명 | 파일 | 완료일 |
 | --- | --- | --- | --- |
+| completed | macOS 1.3.1 이미지 편집 UI 보정 Preview 릴리스 | `tasks/2026-08-24-macos-1-3-1-image-editor-polish-release.md` | 2026-08-24 |
 | completed | 이미지 편집 결과 미리보기와 스크롤 다듬기 | `tasks/2026-08-24-image-editor-preview-polish.md` | 2026-08-24 |
 | completed | macOS 1.3 편집기·호환성 안내 Preview 릴리스 | `tasks/2026-08-24-macos-1-3-editor-and-compatibility-release.md` | 2026-08-24 |
 | completed | 내장 몽글이 교체와 기본 행동 프로필 적용 | `tasks/2026-08-24-builtin-mongle-replacement.md` | 2026-08-24 |

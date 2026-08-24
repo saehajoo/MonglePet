@@ -2,7 +2,7 @@
 
 ## 상태
 
-- 상태: in_progress
+- 상태: completed
 - 생성일: 2026-08-24
 - 마지막 갱신: 2026-08-24
 
@@ -48,17 +48,17 @@
 ### macOS
 
 - [x] 2단계: 앱 버전과 버전 테스트를 `1.3.1 (6)`로 올린다.
-- [ ] 3단계: 전체 단위 테스트, Debug·Universal Release 빌드와 실제 앱 QA를 완료한다.
-- [ ] 4단계: 깨끗한 원격 커밋에서 Preview ZIP·체크섬·manifest를 생성하고 재검증한다.
-- [ ] 5단계: GitHub Pre-release를 게시하고 원격 자산을 다시 받아 digest를 비교한다.
+- [x] 3단계: 전체 단위 테스트, Debug·Universal Release 빌드와 실제 앱 QA를 완료한다.
+- [x] 4단계: 깨끗한 원격 커밋에서 Preview ZIP·체크섬·manifest를 생성하고 재검증한다.
+- [x] 5단계: GitHub Pre-release를 게시하고 원격 자산을 다시 받아 digest를 비교한다.
 
 ### Windows
 
-- [ ] 6단계: Windows 인계 문서·실행 프롬프트에 최신 macOS UI 기준과 릴리스 커밋을 기록한다.
+- [x] 6단계: Windows 인계 문서·실행 프롬프트에 최신 macOS UI 기준과 릴리스 커밋을 기록한다.
 
 ### 플랫폼 동등성
 
-- [ ] 7단계: Windows 구현·실제 QA 전에는 이미지 편집 기능을 플랫폼 동등 완료로 표시하지 않는다.
+- [x] 7단계: Windows 구현·실제 QA 전에는 이미지 편집 기능을 플랫폼 동등 완료로 표시하지 않는다.
 
 ## 검증 방법
 
@@ -72,10 +72,16 @@
 - 2026-08-24: 원격 `main`과 작업 트리가 깨끗하고 최신 공개 macOS 릴리스가 `1.3.0 (5)`, 태그 `macos-v1.3.0-preview.1`임을 확인했다.
 - 2026-08-24: 공개 뒤 세 번의 이미지 편집 UI 보정을 patch 릴리스 `1.3.1 (6)`, 태그 `macos-v1.3.1-preview.1`로 묶기로 확정했다.
 - 2026-08-24: 버전 테스트 4개와 전체 `MonglePetTests` 469개를 실행해 468개 성공·선택형 WebP fixture 1개 건너뜀·실패 0개를 확인했고 Debug 빌드가 성공했다.
+- 2026-08-24: 깨끗한 원격 소스 커밋 `89ceb5444478eeb2717ac29ec930f4661503a794`에서 arm64·x86_64 Universal Release와 7,413,980 bytes ZIP을 생성했다. 별도 임시 경로에 풀어 `1.3.1 (6)`, Bundle ID와 두 아키텍처를 확인했다.
+- 2026-08-24: 압축 해제한 Release 앱의 PNG 편집 화면에서 좌우 본문·고정 결과 미리보기·동일한 확대 버튼·footer를, 스프라이트 편집 화면에서 종횡비 기반 전체 시트·고정 선택 결과·독립 설정 영역을 실제로 확인했다.
+- 2026-08-24: ZIP SHA-256 `BD0E59171DE502AC123ABE71F8EDD73D4C12A938D65A06186B644F2C8761CC04`와 manifest를 태그 `macos-v1.3.1-preview.1` Pre-release에 게시했다. 원격 세 자산을 다시 내려받아 로컬 파일과 바이트 단위로 비교했고 태그가 기준 커밋을 가리킴을 확인했다.
+- 2026-08-24: 공개 다운로드 자료, 배포 상태, 플랫폼 현황과 Windows 구현 인계·실행 프롬프트를 `1.3.1 (6)` 기준으로 갱신했다.
 
 ## 완료 결과
 
-- 진행 중
+- [`MonglePet macOS 1.3.1 Preview 1`](https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.3.1-preview.1)을 미서명·미공증 제한 테스트용 GitHub Pre-release로 게시했다.
+- Universal ZIP, SHA-256과 manifest가 소스 커밋·버전·빌드·원격 자산과 일치한다.
+- Windows에는 같은 정보 구조와 사용자 결과를 WinUI 3 네이티브 UI로 구현하도록 인계했으며 실제 Windows QA 전까지 플랫폼 동등성은 진행 중으로 유지한다.
 
 ## 남은 위험 / 후속 작업
 

@@ -4,11 +4,11 @@
 
 ---
 
-MonglePet Windows 앱에 macOS `1.3.0 (5)`에서 확정한 새 내장 몽글이, 펫 최소 앱 버전 권장 정책과 PNG·스프라이트 제작기 개선을 모두 반영해주세요.
+MonglePet Windows 앱에 macOS `1.3.1 (6)`에서 확정한 새 내장 몽글이, 펫 최소 앱 버전 권장 정책과 PNG·스프라이트 제작기 개선을 모두 반영해주세요.
 
-`macos-v1.3.0-preview.1` 이후의 이미지 편집 UI 보정도 최신 `main`에서 함께 확인하세요. 단일 PNG와 스프라이트 선택 결과는 투명 격자·바깥 캔버스 테두리·실제 crop 전체 범위의 파란 경계를 동일하게 표시하세요. PNG는 왼쪽 원본 자르기 캔버스와 오른쪽 상단 고정 결과 패널을 동시에 보여주고, 선택 범위와 crop 썸네일 PNG 목록만 결과 아래에서 독립 스크롤하세요. 다중 선택 결과는 고정 패널의 이전·다음 버튼으로 탐색하며 별도 하단 결과 목록은 두지 않습니다. 스프라이트 전체 시트는 원본 종횡비와 가용 높이에 맞춰 불필요한 위·아래 공백을 줄이고, 선택 영역 미리보기는 오른쪽 상단에 고정한 채 나머지 설정만 독립 스크롤하세요. 1×에서는 내부 이미지 pan이 바깥 스크롤을 가로채지 않고 확대했을 때만 양축 pan을 사용하며, 확대·축소 버튼 크기와 높이를 완전히 같게 맞추세요.
+`macos-v1.3.1-preview.1`의 기준 소스 커밋 `89ceb5444478eeb2717ac29ec930f4661503a794`와 최신 `main`의 인계 문서를 함께 확인하세요. 단일 PNG와 스프라이트 선택 결과는 투명 격자·바깥 캔버스 테두리·실제 crop 전체 범위의 파란 경계를 동일하게 표시하세요. PNG는 왼쪽 원본 자르기 캔버스와 오른쪽 상단 고정 결과 패널을 동시에 보여주고, 선택 범위와 crop 썸네일 PNG 목록만 결과 아래에서 독립 스크롤하세요. 다중 선택 결과는 고정 패널의 이전·다음 버튼으로 탐색하며 별도 하단 결과 목록은 두지 않습니다. 스프라이트 전체 시트는 원본 종횡비와 가용 높이에 맞춰 불필요한 위·아래 공백을 줄이고, 선택 영역 미리보기는 오른쪽 상단에 고정한 채 나머지 설정만 독립 스크롤하세요. 1×에서는 내부 이미지 pan이 바깥 스크롤을 가로채지 않고 확대했을 때만 양축 pan을 사용하며, 확대·축소 버튼 크기와 높이를 완전히 같게 맞추세요.
 
-먼저 `AGENTS.md`, `apps/windows/AGENTS.md`, `AGENTS/guides/WINDOWS_MACOS_1_3_HANDOFF.md`, `AGENTS/guides/WINDOWS_BUILTIN_MONGLE_HANDOFF.md`, `AGENTS/specifications/PET_PACKAGE.md`, `AGENTS/project/DECISIONS.md`의 D-086~D-089, `AGENTS/project/PLATFORM_PARITY.md`를 읽으세요. `git status -sb`와 원격 차이를 확인하고 최신 이미지 편집 보정 커밋이 없으면 먼저 `git pull --ff-only` 필요 여부를 알려주세요. 사용자 변경을 보존하고 Windows 소스 수정 전 별도 작업 계획을 만드세요.
+먼저 `AGENTS.md`, `apps/windows/AGENTS.md`, `AGENTS/guides/WINDOWS_MACOS_1_3_HANDOFF.md`, `AGENTS/guides/WINDOWS_BUILTIN_MONGLE_HANDOFF.md`, `AGENTS/specifications/PET_PACKAGE.md`, `AGENTS/project/DECISIONS.md`의 D-086~D-090, `AGENTS/project/PLATFORM_PARITY.md`를 읽으세요. `git status -sb`와 원격 차이를 확인하고 최신 이미지 편집 보정 및 릴리스 인계 커밋이 없으면 먼저 `git pull --ff-only` 필요 여부를 알려주세요. 사용자 변경을 보존하고 Windows 소스 수정 전 별도 작업 계획을 만드세요.
 
 핵심 요구사항:
 

@@ -2,9 +2,9 @@
 
 ## 목적과 시작 조건
 
-macOS `1.3.0 (5)`에서 확정한 펫 버전 정책, 최소 앱 버전 권장 안내, PNG·스프라이트 편집 결과와 새 내장 몽글이 및 공개 뒤 이미지 편집 UI 보정을 Windows 네이티브 앱에 반영한다. Windows 소스·빌드·실제 QA는 Windows 작업 공간에서만 수행한다.
+macOS `1.3.1 (6)`에서 확정한 펫 버전 정책, 최소 앱 버전 권장 안내, PNG·스프라이트 편집 결과와 새 내장 몽글이 및 이미지 편집 UI 보정을 Windows 네이티브 앱에 반영한다. Windows 소스·빌드·실제 QA는 Windows 작업 공간에서만 수행한다.
 
-작업 전 `AGENTS.md`, `apps/windows/AGENTS.md`, 이 문서, `AGENTS/specifications/PET_PACKAGE.md`, `AGENTS/project/DECISIONS.md`의 D-086~D-089, `AGENTS/guides/WINDOWS_BUILTIN_MONGLE_HANDOFF.md`, `AGENTS/project/PLATFORM_PARITY.md`를 읽는다. 태그 `macos-v1.3.0-preview.1`뿐 아니라 이 문서의 공개 뒤 편집 보정까지 포함한 최신 `main`을 `pull --ff-only`한 뒤 별도 Windows 작업 계획을 만든다.
+작업 전 `AGENTS.md`, `apps/windows/AGENTS.md`, 이 문서, `AGENTS/specifications/PET_PACKAGE.md`, `AGENTS/project/DECISIONS.md`의 D-086~D-090, `AGENTS/guides/WINDOWS_BUILTIN_MONGLE_HANDOFF.md`, `AGENTS/project/PLATFORM_PARITY.md`를 읽는다. 태그 `macos-v1.3.1-preview.1`의 기준 소스 커밋 `89ceb5444478eeb2717ac29ec930f4661503a794`와 이 인계 문서를 포함한 최신 `main`을 `pull --ff-only`한 뒤 별도 Windows 작업 계획을 만든다.
 
 ## 공통 계약
 
