@@ -861,7 +861,9 @@ UI 테스트는 앱 실행과 접근성 자동화가 가능한 macOS 세션에�
 - 전체 `MonglePetTests` 464개 중 463개가 통과했고 실패 0개였다. 외부 로컬 WebP fixture가 있을 때만 실행하는 기존 선택형 테스트 1개는 건너뛰었다.
 - 코드서명 없는 Debug 테스트 빌드와 `arm64`·`x86_64` Universal Release 빌드가 통과했다. Release 앱의 `CFBundleShortVersionString=1.3.0`, `CFBundleVersion=5`, Bundle ID `kr.mapleroom.MonglePet`을 확인했다.
 - 설정창·새 펫 시트 대상 XCUITest 두 개는 앱 assertion 전 test runner bootstrap 연결 실패로 실행되지 않았다. 격리된 Release 앱을 `--ui-testing --ui-testing-open-settings`로 대신 실행해 새 몽글이 overlay, 활성 펫 카드와 설정창 표시, 프로세스 생존을 확인했다.
-- ZIP·GitHub prerelease 자산 재다운로드 결과는 릴리스 완료 시 이 절에 추가 기록한다.
+- 깨끗한 원격 커밋 `bf7874b3ef197f2badbe5fc8f3060864dda38843`에서 7,334,062 bytes의 `MonglePet-1.3.0-build.5-preview.zip`과 SHA-256·manifest를 생성했다. ZIP SHA-256 `187629C944C4FAD36AC21548413B212EE9F2ED16CF669B84559BDD9C3CEE6B5F`이 재계산 결과와 일치했다.
+- 별도 임시 디렉터리의 압축 해제본에서 버전·Bundle ID·Universal 아키텍처와 미서명·미공증 Preview 상태를 확인하고 설정 열기 격리 모드로 실제 실행했다.
+- GitHub 태그 `macos-v1.3.0-preview.1`의 Pre-release에 ZIP·SHA-256·manifest를 게시한 뒤 세 파일을 다시 내려받아 ZIP digest와 보조 파일이 로컬 최종본과 바이트 단위로 일치함을 확인했다.
 
 ### macOS 내장 몽글이 1.0.1 교체 검증
 

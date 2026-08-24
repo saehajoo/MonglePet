@@ -23,16 +23,14 @@ Apple 공증과 티켓 부착이 모두 필요합니다.
 - 두 값이 바뀌면 `MonglePetVersionTests`의 기대값도 같은 커밋에서 갱신합니다.
 - `.monglepet` 패키지 스키마 버전은 앱 마케팅 버전과 별도로 관리합니다.
 
-현재 소스의 macOS 검증·배포 후보는 `1.3.0 (5)`입니다. 공개된 최신 Preview는
-`1.2.0 (3)`이며, `1.3.0 (5)`는 새 내장 몽글이, 최소 앱 버전 권장 안내와
-PNG·스프라이트 제작기 개선의 전체 검증이 끝난 뒤 게시합니다. 새 배포 후보를
+현재 소스와 공개된 최신 macOS Preview는 `1.3.0 (5)`입니다. 새 내장 몽글이,
+최소 앱 버전 권장 안내와 PNG·스프라이트 제작기 개선을 포함합니다. 새 배포 후보를
 만드는 사이 코드나 설정이 바뀌면 빌드 번호와 `MonglePetVersionTests` 기대값을
 함께 올립니다.
 
 ## 현재 배포 상태
 
-- macOS `1.2.0 (3)`는 태그 `macos-v1.2.0-preview.1`의 GitHub Pre-release로 게시했으며 ZIP, SHA-256과 빌드 manifest를 함께 제공합니다.
-- macOS `1.3.0 (5)`의 예정 태그는 `macos-v1.3.0-preview.1`이며 검증과 게시 전에는 최신 공개 버전으로 표시하지 않습니다.
+- macOS `1.3.0 (5)`는 태그 `macos-v1.3.0-preview.1`의 GitHub Pre-release로 게시했으며 ZIP, SHA-256과 빌드 manifest를 함께 제공합니다.
 - 자체 웹사이트의 Windows·macOS 다운로드 화면 반영에는 `../../AGENTS/guides/PREVIEW_DOWNLOAD_HANDOFF.md`의 버전 고정 링크와 사용자 안내를 사용합니다.
 - 회사 Mac에서는 소스·문서·자동 검증까지만 완료합니다.
 - 실제 Preview ZIP 또는 Developer ID DMG 생성과 최종 설치 검증은 개인

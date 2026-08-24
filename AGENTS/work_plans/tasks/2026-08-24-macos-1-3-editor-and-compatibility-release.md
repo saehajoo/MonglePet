@@ -2,7 +2,7 @@
 
 ## 상태
 
-- 상태: in_progress
+- 상태: completed
 - 생성일: 2026-08-24
 - 마지막 갱신: 2026-08-24
 
@@ -54,7 +54,7 @@
 - [x] 3단계: 로컬·웹 가져오기 최소 앱 버전 경고를 비차단 권장 안내로 바꾸고 공식 다운로드 버튼을 추가한다.
 - [x] 4단계: PNG·스프라이트 crop 결과 미리보기, 확대, 프레임 복사, PNG 추가와 좌우·상하 뒤집기를 구현한다.
 - [x] 5단계: 관련 단위·UI 회귀 테스트, 전체 테스트, Debug·Release 빌드와 실제 앱 QA를 완료한다.
-- [ ] 6단계: `1.3.0 (5)` 미서명 Preview ZIP을 생성하고 GitHub prerelease를 게시·검증한다.
+- [x] 6단계: `1.3.0 (5)` 미서명 Preview ZIP을 생성하고 GitHub prerelease를 게시·검증한다.
 
 ### Windows
 
@@ -78,10 +78,12 @@
 - 2026-08-24: 자유 문자열 펫 버전과 비차단 최소 앱 버전 권장 정책, 공통 내장 펫 fixture, crop→flip→canvas 처리 순서를 명세·결정·Windows 인계에 반영했다.
 - 2026-08-24: 전체 `MonglePetTests` 464개 중 463개 통과, 선택형 WebP fixture 1개 건너뜀, 실패 0개를 확인했다. Debug 테스트 빌드와 `arm64`·`x86_64` Universal Release 빌드가 성공했다.
 - 2026-08-24: 대상 XCUITest 두 개는 앱 assertion 전 runner bootstrap 연결 실패로 실행되지 않았다. 대신 격리된 Release 앱을 설정 열기 모드로 실행해 새 내장 몽글이 overlay와 활성 펫 설정 카드 표시, 프로세스 생존을 직접 확인했다.
+- 2026-08-24: 원격 커밋 `bf7874b3ef197f2badbe5fc8f3060864dda38843`에서 7,334,062 bytes의 `MonglePet-1.3.0-build.5-preview.zip`을 생성했다. SHA-256 `187629C944C4FAD36AC21548413B212EE9F2ED16CF669B84559BDD9C3CEE6B5F`, 앱 버전·Bundle ID·Universal 아키텍처와 압축 해제본 실행을 확인했다.
+- 2026-08-24: 태그 `macos-v1.3.0-preview.1` GitHub Pre-release에 ZIP·체크섬·manifest를 게시하고 세 자산을 다시 내려받아 로컬 최종본과 바이트 단위로 일치함을 확인했다.
 
 ## 완료 결과
 
-- 진행 중.
+- macOS `1.3.0 (5)` 구현·검증·문서·공통 fixture·Windows 인계와 미서명 GitHub Preview 게시를 완료했다.
 
 ## 남은 위험 / 후속 작업
 
