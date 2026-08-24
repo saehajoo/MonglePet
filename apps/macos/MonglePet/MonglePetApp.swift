@@ -63,11 +63,7 @@ final class MonglePetAppDelegate: NSObject, NSApplicationDelegate {
             coordinator.start(openSettingsOnLaunch: isOpeningSettingsForUITest)
             self.coordinator = coordinator
             if isOpeningImageEditorForUITest {
-                openPNGEditorForUITest(
-                    startsAtResultPreview: arguments.contains(
-                        "--ui-testing-png-editor-start-scrolled"
-                    )
-                )
+                openPNGEditorForUITest()
             }
             if isOpeningSpriteEditorForUITest {
                 openSpriteEditorForUITest()
@@ -159,7 +155,7 @@ final class MonglePetAppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func openPNGEditorForUITest(startsAtResultPreview: Bool) {
+    private func openPNGEditorForUITest() {
         guard let context = CGContext(
             data: nil,
             width: 180,
@@ -179,13 +175,12 @@ final class MonglePetAppDelegate: NSObject, NSApplicationDelegate {
         }
 
         let editor = PNGFrameCropEditorView(
-            images: [
+            images: (1...8).map { index in
                 UserPetSourceImage(
-                    displayName: "몽글이-기본-프레임.png",
+                    displayName: "몽글이-프레임-\(index).png",
                     image: image
                 )
-            ],
-            initialScrollsToResultPreview: startsAtResultPreview,
+            },
             onImport: { _ in }
         )
         let window = NSWindow(

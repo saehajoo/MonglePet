@@ -12,7 +12,6 @@ struct PNGFrameCropEditorView: View {
 
     let images: [UserPetSourceImage]
     let onImport: ([UserPetSourceImage]) -> Void
-    private let initialScrollsToResultPreview: Bool
 
     @State private var drafts: [PNGFrameCropDraft]
     @State private var selectedIDs: Set<UUID>
@@ -22,11 +21,9 @@ struct PNGFrameCropEditorView: View {
 
     init(
         images: [UserPetSourceImage],
-        initialScrollsToResultPreview: Bool = false,
         onImport: @escaping ([UserPetSourceImage]) -> Void
     ) {
         self.images = images
-        self.initialScrollsToResultPreview = initialScrollsToResultPreview
         self.onImport = onImport
         let drafts = images.map(PNGFrameCropDraft.init)
         _drafts = State(initialValue: drafts)
@@ -39,27 +36,42 @@ struct PNGFrameCropEditorView: View {
             header
             Divider()
 
-            ScrollViewReader { proxy in
-                ScrollView(.vertical) {
-                    HStack(alignment: .top, spacing: 16) {
-                        selectedPreview
-                            .frame(minWidth: 440, maxWidth: .infinity)
+            GeometryReader { geometry in
+                let canvasHeight = PNGFrameCropEditorLayout.canvasHeight(
+                    availableHeight: geometry.size.height
+                )
 
-                        sidebar
-                            .frame(width: 280)
+                HStack(
+                    alignment: .top,
+                    spacing: PNGFrameCropEditorLayout.columnSpacing
+                ) {
+                    cropEditor(canvasHeight: canvasHeight)
+                        .frame(minWidth: 440, maxWidth: .infinity)
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        pinnedResultPreview
+
+                        Divider()
+
+                        ScrollView(.vertical) {
+                            sidebarControls
+                                .padding(.trailing, 4)
+                        }
+                        .scrollIndicators(.visible)
+                        .accessibilityIdentifier(
+                            "monglepet.pngCrop.settingsScroll"
+                        )
                     }
-                    .padding(20)
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                    .frame(width: PNGFrameCropEditorLayout.sidebarWidth)
+                    .frame(maxHeight: .infinity, alignment: .top)
                 }
+                .padding(20)
+                .frame(
+                    maxWidth: .infinity,
+                    maxHeight: .infinity,
+                    alignment: .topLeading
+                )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .accessibilityIdentifier("monglepet.pngCrop.contentScroll")
-                .task {
-                    guard initialScrollsToResultPreview else {
-                        return
-                    }
-                    await Task.yield()
-                    proxy.scrollTo(Self.resultPreviewScrollID, anchor: .bottom)
-                }
             }
 
             Divider()
@@ -84,7 +96,7 @@ struct PNGFrameCropEditorView: View {
     }
 
     @ViewBuilder
-    private var selectedPreview: some View {
+    private func cropEditor(canvasHeight: CGFloat) -> some View {
         if let selectedDraftBinding {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
@@ -108,25 +120,19 @@ struct PNGFrameCropEditorView: View {
                     cropRect: selectedDraftBinding.cropRect,
                     zoomScale: zoomScale
                 )
-                .frame(minHeight: selectedIDs.count > 1 ? 330 : 470)
+                .frame(height: canvasHeight)
                 .accessibilityIdentifier("monglepet.pngCrop.preview")
 
                 Text("파란 경계 안을 드래그해 이동하고 모서리·변의 핸들로 크기를 조절합니다.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-
-                focusedCropResultPreview(selectedDraftBinding.wrappedValue)
-
-                if selectedIDs.count > 1 {
-                    selectedCropsPreview
-                }
             }
         } else {
             ContentUnavailableView("선택한 PNG가 없습니다.", systemImage: "photo")
         }
     }
 
-    private var sidebar: some View {
+    private var sidebarControls: some View {
         VStack(alignment: .leading, spacing: 14) {
             GroupBox("선택 범위") {
                 if let selectedDraftBinding {
@@ -196,6 +202,7 @@ struct PNGFrameCropEditorView: View {
                             selectedIDs = Set(drafts.map(\.id))
                             focusedID = drafts.first?.id
                         }
+                        .accessibilityIdentifier("monglepet.pngCrop.selectAll")
 
                         Button("전체 해제") {
                             selectedIDs.removeAll()
@@ -219,7 +226,16 @@ struct PNGFrameCropEditorView: View {
                                     flipsHorizontally: draft.flipsHorizontally,
                                     flipsVertically: draft.flipsVertically
                                 )
-                                .frame(width: 36, height: 36)
+                                .frame(width: 42, height: 42)
+                                .overlay {
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(
+                                            draft.id == focusedID
+                                                ? Color.accentColor
+                                                : Color.clear,
+                                            lineWidth: 2
+                                        )
+                                }
                                 Text("\(index + 1)")
                                     .monospacedDigit()
                                     .foregroundStyle(.secondary)
@@ -227,6 +243,11 @@ struct PNGFrameCropEditorView: View {
                                     .lineLimit(1)
                             }
                             .tag(draft.id)
+                            .simultaneousGesture(
+                                TapGesture().onEnded {
+                                    focusedID = draft.id
+                                }
+                            )
                         }
                     }
                     .frame(minHeight: 230)
@@ -250,8 +271,6 @@ struct PNGFrameCropEditorView: View {
                     .font(.caption)
                     .foregroundStyle(.orange)
             }
-
-            Spacer(minLength: 0)
         }
     }
 
@@ -402,84 +421,110 @@ struct PNGFrameCropEditorView: View {
         }
     }
 
-    private var selectedCropsPreview: some View {
-        GroupBox("선택한 PNG 결과") {
-            VStack(alignment: .leading, spacing: 8) {
-                ScrollView(.horizontal) {
-                    LazyHStack(spacing: 10) {
-                        ForEach(
-                            drafts.filter { selectedIDs.contains($0.id) }
-                        ) { draft in
-                            VStack(spacing: 5) {
-                                CroppedImagePreview(
-                                    image: draft.source.image,
-                                    cropRect: draft.cropRect,
-                                    flipsHorizontally: draft.flipsHorizontally,
-                                    flipsVertically: draft.flipsVertically
-                                )
-                                .frame(width: 104, height: 104)
-                                .overlay {
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .stroke(
-                                            draft.id == focusedID
-                                                ? Color.accentColor
-                                                : Color.clear,
-                                            lineWidth: 2
-                                        )
-                                }
-
-                                Text(draft.source.displayName)
-                                    .font(.caption2)
-                                    .lineLimit(1)
-                                    .frame(width: 104)
-                            }
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                focusedID = draft.id
-                            }
+    @ViewBuilder
+    private var pinnedResultPreview: some View {
+        GroupBox("잘라낸 결과 미리보기") {
+            if let draft = selectedDraftBinding?.wrappedValue {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Button {
+                            moveFocusedSelection(by: -1)
+                        } label: {
+                            Label("이전 PNG", systemImage: "chevron.left")
+                                .labelStyle(.iconOnly)
                         }
-                    }
-                }
-                .frame(height: 132)
+                        .disabled(orderedSelectedDraftIDs.count < 2)
+                        .accessibilityIdentifier(
+                            "monglepet.pngCrop.previousSelectedResult"
+                        )
 
-                Text("각 파란 경계가 실제로 추가될 PNG 프레임 전체 범위입니다.")
+                        Spacer()
+
+                        Text(focusedSelectionCounter)
+                            .font(.caption.weight(.semibold))
+                            .monospacedDigit()
+
+                        Spacer()
+
+                        Button {
+                            moveFocusedSelection(by: 1)
+                        } label: {
+                            Label("다음 PNG", systemImage: "chevron.right")
+                                .labelStyle(.iconOnly)
+                        }
+                        .disabled(orderedSelectedDraftIDs.count < 2)
+                        .accessibilityIdentifier(
+                            "monglepet.pngCrop.nextSelectedResult"
+                        )
+                    }
+
+                    Text(draft.source.displayName)
+                        .font(.caption.weight(.medium))
+                        .lineLimit(1)
+
+                    CroppedImagePreview(
+                        image: draft.source.image,
+                        cropRect: draft.cropRect,
+                        flipsHorizontally: draft.flipsHorizontally,
+                        flipsVertically: draft.flipsVertically
+                    )
+                    .frame(height: 130)
+                    .accessibilityIdentifier("monglepet.pngCrop.resultPreview")
+
+                    HStack {
+                        Label(
+                            "파란 경계가 저장될 프레임 범위입니다.",
+                            systemImage: "rectangle.dashed"
+                        )
+                        Spacer()
+                        Text("\(draft.cropRect.width)×\(draft.cropRect.height) px")
+                            .monospacedDigit()
+                    }
                     .font(.caption)
                     .foregroundStyle(.secondary)
-            }
-            .padding(6)
-        }
-    }
-
-    private func focusedCropResultPreview(_ draft: PNGFrameCropDraft) -> some View {
-        GroupBox("잘라낸 결과 미리보기") {
-            VStack(alignment: .leading, spacing: 8) {
-                CroppedImagePreview(
-                    image: draft.source.image,
-                    cropRect: draft.cropRect,
-                    flipsHorizontally: draft.flipsHorizontally,
-                    flipsVertically: draft.flipsVertically
-                )
-                .frame(height: 180)
-                .accessibilityIdentifier("monglepet.pngCrop.resultPreview")
-
-                HStack {
-                    Label(
-                        "파란 경계가 저장될 프레임 범위입니다.",
-                        systemImage: "rectangle.dashed"
-                    )
-                    Spacer()
-                    Text("\(draft.cropRect.width)×\(draft.cropRect.height) px")
-                        .monospacedDigit()
                 }
+                .padding(6)
+            } else {
+                Label(
+                    "PNG를 선택하면 잘라낸 결과가 여기에 표시됩니다.",
+                    systemImage: "rectangle.dashed"
+                )
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                .padding(6)
             }
-            .padding(6)
         }
-        .id(Self.resultPreviewScrollID)
+        .accessibilityIdentifier("monglepet.pngCrop.resultPanel")
     }
 
-    private static let resultPreviewScrollID = "png-crop-result-preview"
+    private var orderedSelectedDraftIDs: [UUID] {
+        drafts.compactMap { draft in
+            selectedIDs.contains(draft.id) ? draft.id : nil
+        }
+    }
+
+    private var focusedSelectionCounter: String {
+        guard let focusedID,
+              let position = orderedSelectedDraftIDs.firstIndex(of: focusedID) else {
+            return "0 / \(orderedSelectedDraftIDs.count)"
+        }
+        return "\(position + 1) / \(orderedSelectedDraftIDs.count)"
+    }
+
+    private func moveFocusedSelection(by offset: Int) {
+        let orderedIDs = orderedSelectedDraftIDs
+        guard !orderedIDs.isEmpty else {
+            focusedID = nil
+            return
+        }
+        guard let focusedID,
+              let currentIndex = orderedIDs.firstIndex(of: focusedID) else {
+            self.focusedID = orderedIDs.first
+            return
+        }
+        let nextIndex = (currentIndex + offset + orderedIDs.count) % orderedIDs.count
+        self.focusedID = orderedIDs[nextIndex]
+    }
 
     private func importCroppedImages() {
         do {
@@ -503,6 +548,21 @@ struct PNGFrameCropEditorView: View {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+}
+
+struct PNGFrameCropEditorLayout {
+    static let sidebarWidth: CGFloat = 300
+    static let columnSpacing: CGFloat = 16
+    static let verticalPadding: CGFloat = 40
+    static let editorChromeHeight: CGFloat = 82
+    static let minimumCanvasHeight: CGFloat = 260
+
+    static func canvasHeight(availableHeight: CGFloat) -> CGFloat {
+        max(
+            minimumCanvasHeight,
+            availableHeight - verticalPadding - editorChromeHeight
+        )
     }
 }
 

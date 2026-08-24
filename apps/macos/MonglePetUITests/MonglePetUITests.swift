@@ -231,7 +231,7 @@ final class MonglePetUITests: XCTestCase {
     }
 
     @MainActor
-    func testPNGEditorKeepsFooterVisibleAndScrollsThroughContent() throws {
+    func testPNGEditorKeepsResultPreviewVisibleWhileSettingsScroll() throws {
         let app = XCUIApplication()
         app.launchArguments.append("--ui-testing-open-png-editor")
         app.launch()
@@ -249,19 +249,40 @@ final class MonglePetUITests: XCTestCase {
         XCTAssertTrue(zoomIn.exists)
         XCTAssertEqual(zoomOut.frame.height, zoomIn.frame.height, accuracy: 1)
 
-        let contentScroll = app.scrollViews["monglepet.pngCrop.contentScroll"]
-        XCTAssertTrue(contentScroll.waitForExistence(timeout: 5))
-        contentScroll.scroll(byDeltaX: 0, deltaY: -620)
-
         let resultPreview = app.descendants(matching: .any)[
             "monglepet.pngCrop.resultPreview"
         ]
         XCTAssertTrue(resultPreview.waitForExistence(timeout: 5))
         XCTAssertTrue(resultPreview.isHittable)
+
+        let resultPanel = app.descendants(matching: .any)[
+            "monglepet.pngCrop.resultPanel"
+        ]
+        XCTAssertTrue(resultPanel.waitForExistence(timeout: 5))
+
+        let settingsScroll = app.scrollViews[
+            "monglepet.pngCrop.settingsScroll"
+        ]
+        XCTAssertTrue(settingsScroll.waitForExistence(timeout: 5))
+        settingsScroll.scroll(byDeltaX: 0, deltaY: -420)
+
+        let selectAll = app.buttons["monglepet.pngCrop.selectAll"]
+        XCTAssertTrue(selectAll.waitForExistence(timeout: 5))
+        selectAll.click()
+
+        let nextResult = app.buttons[
+            "monglepet.pngCrop.nextSelectedResult"
+        ]
+        XCTAssertTrue(nextResult.waitForExistence(timeout: 5))
+        XCTAssertTrue(nextResult.isEnabled)
+        nextResult.click()
+
+        XCTAssertTrue(resultPanel.isHittable)
+        XCTAssertTrue(resultPreview.isHittable)
         XCTAssertTrue(importButton.isHittable)
 
         let attachment = XCTAttachment(screenshot: window.screenshot())
-        attachment.name = "png-editor-scrolled-minimum-size"
+        attachment.name = "png-editor-pinned-result-preview"
         attachment.lifetime = .keepAlways
         add(attachment)
     }

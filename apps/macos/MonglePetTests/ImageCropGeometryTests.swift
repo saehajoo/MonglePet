@@ -162,6 +162,18 @@ final class ImageCropGeometryTests: XCTestCase {
     }
 
     @MainActor
+    func testPNGEditorCanvasUsesRemainingViewportHeight() {
+        XCTAssertEqual(
+            PNGFrameCropEditorLayout.canvasHeight(availableHeight: 520),
+            398
+        )
+        XCTAssertEqual(
+            PNGFrameCropEditorLayout.canvasHeight(availableHeight: 300),
+            260
+        )
+    }
+
+    @MainActor
     func testCropResultPreviewProducesVisualQAReference() throws {
         let context = try XCTUnwrap(
             CGContext(
