@@ -22,6 +22,42 @@ final class SpriteSheetFrameExtractorTests: XCTestCase {
         temporaryDirectory = nil
     }
 
+    @MainActor
+    func testEditorCanvasHeightFollowsSheetAspectRatioWithinViewport() {
+        XCTAssertEqual(
+            SpriteSheetEditorLayout.canvasHeight(
+                pixelSize: PixelSize(width: 1_200, height: 300),
+                availableWidth: 600,
+                availableHeight: 400
+            ),
+            160
+        )
+        XCTAssertEqual(
+            SpriteSheetEditorLayout.canvasHeight(
+                pixelSize: PixelSize(width: 300, height: 1_200),
+                availableWidth: 600,
+                availableHeight: 400
+            ),
+            400
+        )
+        XCTAssertEqual(
+            SpriteSheetEditorLayout.canvasHeight(
+                pixelSize: PixelSize(width: 400, height: 400),
+                availableWidth: 500,
+                availableHeight: 320
+            ),
+            320
+        )
+        XCTAssertEqual(
+            SpriteSheetEditorLayout.canvasHeight(
+                pixelSize: PixelSize(width: 800, height: 400),
+                availableWidth: 500,
+                availableHeight: 320
+            ),
+            250
+        )
+    }
+
     func testBuildsUniformGridInReadingOrder() throws {
         let regions = try SpriteSheetFrameExtractor().uniformGridRegions(
             pixelSize: PixelSize(width: 100, height: 60),

@@ -267,6 +267,42 @@ final class MonglePetUITests: XCTestCase {
     }
 
     @MainActor
+    func testSpriteEditorKeepsSelectedPreviewVisibleWhileSettingsScroll() throws {
+        let app = XCUIApplication()
+        app.launchArguments.append("--ui-testing-open-sprite-editor")
+        app.launch()
+
+        let window = app.windows["스프라이트 시트 가져오기"]
+        XCTAssertTrue(window.waitForExistence(timeout: 5))
+
+        let sheetPreview = app.descendants(matching: .any)[
+            "monglepet.spriteSheet.preview"
+        ]
+        XCTAssertTrue(sheetPreview.waitForExistence(timeout: 5))
+        XCTAssertLessThanOrEqual(sheetPreview.frame.height, 180)
+
+        let selectedPreview = app.descendants(matching: .any)[
+            "monglepet.spriteSheet.selectedRegionPanel"
+        ]
+        XCTAssertTrue(selectedPreview.waitForExistence(timeout: 5))
+        XCTAssertTrue(selectedPreview.isHittable)
+
+        let settingsScroll = app.scrollViews[
+            "monglepet.spriteSheet.settingsScroll"
+        ]
+        XCTAssertTrue(settingsScroll.waitForExistence(timeout: 5))
+        settingsScroll.scroll(byDeltaX: 0, deltaY: -420)
+
+        XCTAssertTrue(selectedPreview.isHittable)
+        XCTAssertTrue(app.buttons["monglepet.spriteSheet.import"].isHittable)
+
+        let attachment = XCTAttachment(screenshot: window.screenshot())
+        attachment.name = "sprite-editor-pinned-selected-preview"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    @MainActor
     private func scrollPetTab(
         in app: XCUIApplication,
         by deltaY: CGFloat

@@ -86,16 +86,52 @@ struct SpriteSheetImportView: View {
             header
             Divider()
 
-            ScrollView(.vertical) {
+            GeometryReader { geometry in
+                let contentWidth = max(
+                    420,
+                    geometry.size.width
+                        - SpriteSheetEditorLayout.sidebarWidth
+                        - SpriteSheetEditorLayout.columnSpacing
+                        - SpriteSheetEditorLayout.horizontalPadding
+                )
+                let canvasHeight = SpriteSheetEditorLayout.canvasHeight(
+                    pixelSize: document.pixelSize,
+                    availableWidth: contentWidth,
+                    availableHeight: max(
+                        SpriteSheetEditorLayout.minimumCanvasHeight,
+                        geometry.size.height
+                            - SpriteSheetEditorLayout.verticalPadding
+                            - SpriteSheetEditorLayout.previewChromeHeight
+                    )
+                )
+
                 HStack(alignment: .top, spacing: 18) {
-                    preview
+                    preview(canvasHeight: canvasHeight)
                         .frame(minWidth: 420, maxWidth: .infinity)
 
-                    controls
-                        .frame(width: 290)
+                    VStack(alignment: .leading, spacing: 12) {
+                        selectedRegionPreview
+
+                        Divider()
+
+                        ScrollView(.vertical) {
+                            settingsControls
+                                .padding(.trailing, 4)
+                        }
+                        .scrollIndicators(.visible)
+                        .accessibilityIdentifier(
+                            "monglepet.spriteSheet.settingsScroll"
+                        )
+                    }
+                    .frame(width: SpriteSheetEditorLayout.sidebarWidth)
+                    .frame(maxHeight: .infinity, alignment: .top)
                 }
                 .padding(20)
-                .frame(maxWidth: .infinity, alignment: .topLeading)
+                .frame(
+                    maxWidth: .infinity,
+                    maxHeight: .infinity,
+                    alignment: .topLeading
+                )
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
@@ -120,13 +156,20 @@ struct SpriteSheetImportView: View {
         .padding(.vertical, 16)
     }
 
-    private var preview: some View {
+    private func preview(canvasHeight: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text("프레임 경계")
                     .font(.headline)
                 Spacer()
 
+                Text("\(selectedRegions.count)개 선택")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            }
+
+            HStack {
                 Picker("경계 작업", selection: $interactionMode) {
                     ForEach(SpriteSheetInteractionMode.allCases) { mode in
                         Text(mode.title).tag(mode)
@@ -155,11 +198,6 @@ struct SpriteSheetImportView: View {
                     )
                 }
                 .controlSize(.small)
-
-                Text("\(selectedRegions.count)개 선택")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
             }
 
             ImageEditorZoomControls(zoomScale: $zoomScale)
@@ -174,6 +212,7 @@ struct SpriteSheetImportView: View {
                 orderNumber: displayedOrderNumber,
                 onToggleRegion: toggleRegion
             )
+            .frame(height: canvasHeight)
             .accessibilityIdentifier("monglepet.spriteSheet.preview")
 
             Text(frameSelectionHelp)
@@ -182,7 +221,132 @@ struct SpriteSheetImportView: View {
         }
     }
 
-    private var controls: some View {
+    private var selectedRegionPreview: some View {
+        GroupBox("선택 영역 미리보기") {
+            VStack(alignment: .leading, spacing: 8) {
+                if let previewRegionBinding,
+                   let previewRegionPosition {
+                    HStack {
+                        Button {
+                            movePreviewRegion(by: -1)
+                        } label: {
+                            Label("이전 프레임", systemImage: "chevron.left")
+                                .labelStyle(.iconOnly)
+                        }
+                        .disabled(orderedSelectedRegionIndices.count < 2)
+                        .accessibilityIdentifier(
+                            "monglepet.spriteSheet.previousSelectedRegion"
+                        )
+
+                        Spacer()
+
+                        Text(
+                            "\(previewRegionPosition + 1) / "
+                                + "\(orderedSelectedRegionIndices.count)"
+                        )
+                        .font(.caption.weight(.semibold))
+                        .monospacedDigit()
+                        .accessibilityLabel(
+                            "선택 영역 \(previewRegionPosition + 1) / "
+                                + "\(orderedSelectedRegionIndices.count)"
+                        )
+
+                        Spacer()
+
+                        Button {
+                            movePreviewRegion(by: 1)
+                        } label: {
+                            Label("다음 프레임", systemImage: "chevron.right")
+                                .labelStyle(.iconOnly)
+                        }
+                        .disabled(orderedSelectedRegionIndices.count < 2)
+                        .accessibilityIdentifier(
+                            "monglepet.spriteSheet.nextSelectedRegion"
+                        )
+                    }
+
+                    Button {
+                        movePreviewRegion(by: 1)
+                    } label: {
+                        CroppedImagePreview(
+                            image: previewImage,
+                            cropRect: previewRegionBinding.wrappedValue.rect,
+                            flipsHorizontally: previewRegionBinding
+                                .wrappedValue.flipsHorizontally,
+                            flipsVertically: previewRegionBinding
+                                .wrappedValue.flipsVertically
+                        )
+                        .frame(height: 130)
+                        .overlay(alignment: .bottomTrailing) {
+                            Text(
+                                "\(previewRegionBinding.wrappedValue.rect.width)×"
+                                    + "\(previewRegionBinding.wrappedValue.rect.height) px"
+                            )
+                            .font(.caption2.weight(.semibold))
+                            .monospacedDigit()
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
+                            .background(.regularMaterial, in: Capsule())
+                            .padding(6)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("다음 선택 프레임 미리보기")
+                    .accessibilityIdentifier(
+                        "monglepet.spriteSheet.selectedRegionPreview"
+                    )
+
+                    HStack {
+                        Button {
+                            previewRegionBinding.wrappedValue
+                                .flipsHorizontally.toggle()
+                        } label: {
+                            Label(
+                                previewRegionBinding.wrappedValue.flipsHorizontally
+                                    ? "좌우 뒤집기 해제"
+                                    : "좌우 뒤집기",
+                                systemImage: "arrow.left.and.right"
+                            )
+                        }
+                        .accessibilityIdentifier(
+                            "monglepet.spriteSheet.flipHorizontal"
+                        )
+
+                        Button {
+                            previewRegionBinding.wrappedValue
+                                .flipsVertically.toggle()
+                        } label: {
+                            Label(
+                                previewRegionBinding.wrappedValue.flipsVertically
+                                    ? "상하 뒤집기 해제"
+                                    : "상하 뒤집기",
+                                systemImage: "arrow.up.and.down"
+                            )
+                        }
+                        .accessibilityIdentifier(
+                            "monglepet.spriteSheet.flipVertical"
+                        )
+                    }
+                    .controlSize(.small)
+
+                    Text("파란 경계가 실제 저장 프레임 범위입니다.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Label(
+                        "가져올 프레임을 선택하면 여기에서 확인할 수 있습니다.",
+                        systemImage: "rectangle.dashed"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+            }
+            .padding(6)
+        }
+        .accessibilityIdentifier("monglepet.spriteSheet.selectedRegionPanel")
+    }
+
+    private var settingsControls: some View {
         VStack(alignment: .leading, spacing: 16) {
             GroupBox("경계 설정") {
                 VStack(alignment: .leading, spacing: 10) {
@@ -222,128 +386,6 @@ struct SpriteSheetImportView: View {
                         applyGrid()
                     }
                     .disabled(rows * columns > 1_000)
-                }
-                .padding(6)
-            }
-
-            GroupBox("선택 영역 미리보기") {
-                VStack(alignment: .leading, spacing: 10) {
-                    if let previewRegionBinding,
-                       let previewRegionPosition {
-                        HStack {
-                            Button {
-                                movePreviewRegion(by: -1)
-                            } label: {
-                                Label("이전 프레임", systemImage: "chevron.left")
-                                    .labelStyle(.iconOnly)
-                            }
-                            .disabled(orderedSelectedRegionIndices.count < 2)
-                            .accessibilityIdentifier(
-                                "monglepet.spriteSheet.previousSelectedRegion"
-                            )
-
-                            Spacer()
-
-                            Text(
-                                "\(previewRegionPosition + 1) / "
-                                    + "\(orderedSelectedRegionIndices.count)"
-                            )
-                            .font(.caption.weight(.semibold))
-                            .monospacedDigit()
-                            .accessibilityLabel(
-                                "선택 영역 \(previewRegionPosition + 1) / "
-                                    + "\(orderedSelectedRegionIndices.count)"
-                            )
-
-                            Spacer()
-
-                            Button {
-                                movePreviewRegion(by: 1)
-                            } label: {
-                                Label("다음 프레임", systemImage: "chevron.right")
-                                    .labelStyle(.iconOnly)
-                            }
-                            .disabled(orderedSelectedRegionIndices.count < 2)
-                            .accessibilityIdentifier(
-                                "monglepet.spriteSheet.nextSelectedRegion"
-                            )
-                        }
-
-                        Button {
-                            movePreviewRegion(by: 1)
-                        } label: {
-                            CroppedImagePreview(
-                                image: previewImage,
-                                cropRect: previewRegionBinding.wrappedValue.rect,
-                                flipsHorizontally: previewRegionBinding
-                                    .wrappedValue.flipsHorizontally,
-                                flipsVertically: previewRegionBinding
-                                    .wrappedValue.flipsVertically
-                            )
-                            .frame(height: 150)
-                            .overlay(alignment: .bottomTrailing) {
-                                Text(
-                                    "\(previewRegionBinding.wrappedValue.rect.width)×"
-                                        + "\(previewRegionBinding.wrappedValue.rect.height) px"
-                                )
-                                .font(.caption2.weight(.semibold))
-                                .monospacedDigit()
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 3)
-                                .background(.regularMaterial, in: Capsule())
-                                .padding(6)
-                            }
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("다음 선택 프레임 미리보기")
-                        .accessibilityIdentifier(
-                            "monglepet.spriteSheet.selectedRegionPreview"
-                        )
-
-                        HStack {
-                            Button {
-                                previewRegionBinding.wrappedValue
-                                    .flipsHorizontally.toggle()
-                            } label: {
-                                Label(
-                                    previewRegionBinding.wrappedValue.flipsHorizontally
-                                        ? "좌우 뒤집기 해제"
-                                        : "좌우 뒤집기",
-                                    systemImage: "arrow.left.and.right"
-                                )
-                            }
-                            .accessibilityIdentifier(
-                                "monglepet.spriteSheet.flipHorizontal"
-                            )
-
-                            Button {
-                                previewRegionBinding.wrappedValue
-                                    .flipsVertically.toggle()
-                            } label: {
-                                Label(
-                                    previewRegionBinding.wrappedValue.flipsVertically
-                                        ? "상하 뒤집기 해제"
-                                        : "상하 뒤집기",
-                                    systemImage: "arrow.up.and.down"
-                                )
-                            }
-                            .accessibilityIdentifier(
-                                "monglepet.spriteSheet.flipVertical"
-                            )
-                        }
-                        .controlSize(.small)
-
-                        Text("파란 경계가 실제 저장 프레임 범위입니다. 좌우 버튼이나 미리보기를 눌러 선택한 프레임만 순서대로 확인합니다.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    } else {
-                        Label(
-                            "가져올 프레임을 선택하면 여기에서 확인할 수 있습니다.",
-                            systemImage: "rectangle.dashed"
-                        )
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    }
                 }
                 .padding(6)
             }
@@ -762,6 +804,27 @@ struct SpriteSheetImportView: View {
     }
 }
 
+struct SpriteSheetEditorLayout {
+    static let sidebarWidth: CGFloat = 290
+    static let columnSpacing: CGFloat = 18
+    static let horizontalPadding: CGFloat = 40
+    static let verticalPadding: CGFloat = 40
+    static let previewChromeHeight: CGFloat = 118
+    static let minimumCanvasHeight: CGFloat = 160
+
+    static func canvasHeight(
+        pixelSize: PixelSize,
+        availableWidth: CGFloat,
+        availableHeight: CGFloat
+    ) -> CGFloat {
+        let sourceWidth = CGFloat(max(1, pixelSize.width))
+        let sourceHeight = CGFloat(max(1, pixelSize.height))
+        let aspectFitHeight = max(1, availableWidth) * sourceHeight / sourceWidth
+        let upperBound = max(minimumCanvasHeight, availableHeight)
+        return min(max(minimumCanvasHeight, aspectFitHeight), upperBound)
+    }
+}
+
 private struct SelectableSpriteRegion: Identifiable {
     let id = UUID()
     var rect: PixelRect
@@ -805,7 +868,6 @@ private struct SpriteSheetRegionPreview: View {
             .background(.quaternary)
             .clipShape(RoundedRectangle(cornerRadius: 8))
         }
-        .frame(minHeight: 470)
     }
 
     private func regionEditorCanvas(

@@ -35,8 +35,12 @@ final class MonglePetAppDelegate: NSObject, NSApplicationDelegate {
         let isOpeningImageEditorForUITest = arguments.contains(
             "--ui-testing-open-png-editor"
         )
+        let isOpeningSpriteEditorForUITest = arguments.contains(
+            "--ui-testing-open-sprite-editor"
+        )
         let isUITesting = isOpeningSettingsForUITest
             || isOpeningImageEditorForUITest
+            || isOpeningSpriteEditorForUITest
             || arguments.contains("--ui-testing")
         let qaConfiguration = MultiPetQALaunchConfiguration(
             arguments: arguments
@@ -64,6 +68,9 @@ final class MonglePetAppDelegate: NSObject, NSApplicationDelegate {
                         "--ui-testing-png-editor-start-scrolled"
                     )
                 )
+            }
+            if isOpeningSpriteEditorForUITest {
+                openSpriteEditorForUITest()
             }
             if !pendingExternalURLs.isEmpty {
                 coordinator.openExternalURLs(pendingExternalURLs)
@@ -190,6 +197,87 @@ final class MonglePetAppDelegate: NSObject, NSApplicationDelegate {
         window.title = "PNG 프레임 자르기"
         window.contentViewController = NSHostingController(rootView: editor)
         window.minSize = NSSize(width: 860, height: 680)
+        window.center()
+        window.makeKeyAndOrderFront(nil)
+        NSApplication.shared.activate(ignoringOtherApps: true)
+        uiTestingImageEditorWindow = window
+    }
+
+    private func openSpriteEditorForUITest() {
+        let columns = 12
+        let rows = 3
+        let frameLength = 100
+        guard let context = CGContext(
+            data: nil,
+            width: columns * frameLength,
+            height: rows * frameLength,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else {
+            return
+        }
+        context.clear(
+            CGRect(
+                x: 0,
+                y: 0,
+                width: columns * frameLength,
+                height: rows * frameLength
+            )
+        )
+        for row in 0..<rows {
+            for column in 0..<columns {
+                context.setFillColor(
+                    NSColor(
+                        calibratedHue: CGFloat(row * columns + column)
+                            / CGFloat(rows * columns),
+                        saturation: 0.72,
+                        brightness: 0.94,
+                        alpha: 1
+                    ).cgColor
+                )
+                context.fill(
+                    CGRect(
+                        x: column * frameLength + 12,
+                        y: row * frameLength + 12,
+                        width: frameLength - 24,
+                        height: frameLength - 24
+                    )
+                )
+            }
+        }
+        guard let image = context.makeImage() else {
+            return
+        }
+        let regions = (0..<rows).flatMap { row in
+            (0..<columns).map { column in
+                PixelRect(
+                    x: column * frameLength,
+                    y: row * frameLength,
+                    width: frameLength,
+                    height: frameLength
+                )
+            }
+        }
+        let document = SpriteSheetDocument(
+            sourceURL: URL(fileURLWithPath: "/tmp/monglepet-qa-12x3.png"),
+            image: image,
+            pixelSize: PixelSize(width: image.width, height: image.height),
+            suggestedRegions: regions,
+            suggestedBackgroundColor: .clear,
+            hasTransparentBackground: true
+        )
+        let editor = SpriteSheetImportView(document: document) { _ in }
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 780, height: 590),
+            styleMask: [.titled, .closable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "스프라이트 시트 가져오기"
+        window.contentViewController = NSHostingController(rootView: editor)
+        window.minSize = NSSize(width: 780, height: 590)
         window.center()
         window.makeKeyAndOrderFront(nil)
         NSApplication.shared.activate(ignoringOtherApps: true)
