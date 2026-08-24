@@ -1358,16 +1358,7 @@ nonisolated struct AppSettings: Equatable, Sendable {
     private static func defaultProfile(
         for petKey: PetBehaviorKey
     ) -> BehaviorProfile {
-        BehaviorProfile(
-            petKey: petKey,
-            mode: .automatic,
-            manualSequenceID: BuiltInBehaviorPresets.defaultManualSequenceID,
-            sequences: BuiltInBehaviorPresets.sequences,
-            automaticRules: [],
-            movement: .default,
-            pettingMotionID: nil,
-            speech: .default
-        )
+        BuiltInBehaviorPresets.defaultProfile(for: petKey)
     }
 
     private static func emptyProfile(

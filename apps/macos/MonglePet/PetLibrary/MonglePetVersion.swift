@@ -92,13 +92,10 @@ nonisolated struct PetPackageCompatibility: Equatable, Sendable {
 nonisolated enum PetPackageCompatibilityAssessment: Equatable, Sendable {
     case compatible
     case createdWithNewerVersion(SemanticVersion)
-    case requiresNewerVersion(SemanticVersion)
+    case updateRecommended(SemanticVersion)
 
     var canInstall: Bool {
-        if case .requiresNewerVersion = self {
-            return false
-        }
-        return true
+        true
     }
 }
 
@@ -109,7 +106,7 @@ nonisolated enum PetPackageCompatibilityPolicy {
     ) -> PetPackageCompatibilityAssessment {
         if let minimumVersion = compatibility?.minimumMonglePetVersion,
            currentVersion < minimumVersion {
-            return .requiresNewerVersion(minimumVersion)
+            return .updateRecommended(minimumVersion)
         }
         if let createdWithVersion = compatibility?.createdWithMonglePetVersion,
            currentVersion < createdWithVersion {

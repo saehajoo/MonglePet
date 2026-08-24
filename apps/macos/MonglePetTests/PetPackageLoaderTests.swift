@@ -24,6 +24,16 @@ final class PetPackageLoaderTests: XCTestCase {
         XCTAssertEqual(idle.frames[0].duration, .milliseconds(120))
     }
 
+    func testPreservesArbitraryPetContentVersionWithoutSemanticParsing() throws {
+        var manifest = validManifest()
+        manifest["version"] = "봄 에디션 release-A"
+        let fixture = try makePackage(manifest: manifest)
+
+        let package = try PetPackageLoader().loadPackage(at: fixture.packageURL)
+
+        XCTAssertEqual(package.metadata.version, "봄 에디션 release-A")
+    }
+
     func testUsesIdleWhenDefaultMotionIsOmitted() throws {
         var manifest = validManifest()
         manifest.removeValue(forKey: "defaultMotion")

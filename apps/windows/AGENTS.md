@@ -22,6 +22,7 @@
 - 첫 웹 Preview용 unpackaged x64 publish와 Inno Setup 사용자별 EXE 설치기를 추가했다. packaged는 `ApplicationData.LocalFolder`·`StartupTask`, unpackaged는 `%LOCALAPPDATA%\MonglePet`·현재 사용자 Run을 사용한다. 대상 데이터가 비었을 때만 기존 개발 MSIX LocalState를 원본 보존 복사하고, 제거는 전용 종료 메시지로 실행 중 앱을 정리한 뒤 사용자 데이터를 남긴다. 실제 설치·업그레이드·로그인 숨김 실행·데이터 이전·실행 중 제거 QA를 통과했다. Windows `1.2.0.13`은 태그 `windows-v1.2.0-preview.1`의 GitHub Pre-release로 게시했고 원격 설치기 digest를 검증했으며, 자체 웹 다운로드 화면은 별도 서버 반영을 위한 전달 자료를 제공한다.
 - 신규 기능은 macOS 기준 구현과 필수 검증이 완료된 뒤 순차 반영한다.
 - 웹 URL 펫 가져오기는 개발·운영 URL allowlist, API envelope·최소 버전·20MiB·크기·SHA-256·same-origin redirect 검증, 검토 수명 temp session과 최신 보관함 UI를 구현했다. MSIX manifest와 Inno protocol, unpackaged 종료·실행 중과 packaged 실제 개발 URL 검토·취소 QA를 통과했다. `1.1.0.13`→`1.2.0.13` 개발 MSIX 등록 업데이트에서 LocalState를 보존했고 Debug·Release 각 235개 테스트가 통과했다. 운영·설치·중복·교차 왕복·혼합 DPI QA 전까지 진행 중이며 `../../AGENTS/guides/WINDOWS_WEB_PET_IMPORT_HANDOFF.md`를 계속 완료 기준으로 사용한다.
+- macOS `1.3.0 (5)`의 최소 앱 버전 비차단 권장 안내, PNG·스프라이트 확대·좌우/상하 flip·PNG 추가·프레임 복사와 공통 내장 몽글이 기준본은 Windows에 아직 미적용이다. 후속 구현의 최신 원본은 `../../AGENTS/guides/WINDOWS_MACOS_1_3_HANDOFF.md`이며 기존 개별 인계와 충돌하면 D-087·D-088 및 통합 인계를 따른다.
 - Windows 앱의 신규 소스 변경, 빌드와 테스트는 Windows 환경에서 진행한다. macOS 환경에서는 Windows 인계를 위한 공통 명세·fixture와 작업 계획만 정리한다.
 
 ## 기술 기준

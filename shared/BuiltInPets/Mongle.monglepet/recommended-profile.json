@@ -1,0 +1,130 @@
+{
+  "automaticRules" : [
+    {
+      "condition" : {
+        "milliseconds" : 60000,
+        "type" : "idleAtLeast"
+      },
+      "id" : "308C8E4B-EDEA-4C71-B354-CC67532AF99C",
+      "isEnabled" : true,
+      "priority" : 1,
+      "sequenceID" : "수면 중"
+    }
+  ],
+  "behavior" : {
+    "manualSequenceID" : "__monglepet_default_behavior__",
+    "mode" : "automatic",
+    "sequences" : [
+      {
+        "id" : "__monglepet_default_behavior__",
+        "repeats" : true,
+        "steps" : [
+          {
+            "motionID" : "__monglepet_current_pet_default__",
+            "repeatCount" : 1
+          },
+          {
+            "motionID" : "물뿜기",
+            "repeatCount" : 1
+          },
+          {
+            "motionID" : "정면",
+            "repeatCount" : 1
+          }
+        ]
+      },
+      {
+        "id" : "수면 중",
+        "repeats" : true,
+        "steps" : [
+          {
+            "motionID" : "자는중",
+            "repeatCount" : 1
+          }
+        ]
+      },
+      {
+        "id" : "일해라",
+        "repeats" : true,
+        "steps" : [
+          {
+            "motionID" : "일하는 중",
+            "repeatCount" : 1
+          }
+        ]
+      }
+    ]
+  },
+  "movement" : {
+    "cursorAvoidingAnimation" : {
+      "directionMotionIDs" : {
+        "down" : "정면",
+        "left" : "보글보글",
+        "right" : "오른쪽",
+        "up" : "위로"
+      },
+      "fallbackMotionID" : "보글보글",
+      "usesDiagonalMotions" : false,
+      "usesDirectionalMotions" : true
+    },
+    "cursorAvoidingDetectionDistance" : 160,
+    "cursorAvoidingIdleBehavior" : "stationary",
+    "cursorAvoidingSpeed" : 320,
+    "cursorDistance" : 96,
+    "cursorFollowingAnimation" : {
+      "directionMotionIDs" : {
+
+      },
+      "usesDiagonalMotions" : false,
+      "usesDirectionalMotions" : false
+    },
+    "freeRoamingAnimation" : {
+      "directionMotionIDs" : {
+
+      },
+      "usesDiagonalMotions" : false,
+      "usesDirectionalMotions" : false
+    },
+    "freeRoamingDwellMilliseconds" : 6000,
+    "mode" : "cursorAvoiding",
+    "prefersFrontmostWindow" : true,
+    "speed" : 160,
+    "stopRadius" : 16
+  },
+  "pettingMotionID" : "해피",
+  "schemaVersion" : 7,
+  "speech" : {
+    "behaviorChangePolicy" : "dismiss",
+    "isEnabled" : false,
+    "periodicIntervalMilliseconds" : 60000,
+    "periodicIsEnabled" : false,
+    "periodicOrder" : "random",
+    "phrases" : [
+
+    ],
+    "placement" : {
+      "gap" : 8,
+      "horizontalOffset" : 0,
+      "preferredPosition" : "automatic"
+    },
+    "theme" : {
+      "backgroundOpacity" : 0.96,
+      "colorStyle" : "system",
+      "contentPadding" : 12,
+      "cornerRadius" : 14,
+      "customBackgroundColor" : {
+        "blue" : 1,
+        "green" : 1,
+        "red" : 1
+      },
+      "customTextColor" : {
+        "blue" : 0,
+        "green" : 0,
+        "red" : 0
+      },
+      "fontSize" : 14,
+      "showsTail" : false,
+      "tailAlignment" : "center"
+    }
+  }
+}

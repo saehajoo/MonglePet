@@ -1,4 +1,6 @@
+import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct PNGFrameCropPresentation: Identifiable {
     let id = UUID()
@@ -15,6 +17,7 @@ struct PNGFrameCropEditorView: View {
     @State private var selectedIDs: Set<UUID>
     @State private var focusedID: UUID?
     @State private var errorMessage: String?
+    @State private var zoomScale = 1.0
 
     init(
         images: [UserPetSourceImage],
@@ -82,9 +85,12 @@ struct PNGFrameCropEditorView: View {
                     .monospacedDigit()
                 }
 
+                ImageEditorZoomControls(zoomScale: $zoomScale)
+
                 SingleImageCropPreview(
                     image: selectedDraftBinding.wrappedValue.source.image,
-                    cropRect: selectedDraftBinding.cropRect
+                    cropRect: selectedDraftBinding.cropRect,
+                    zoomScale: zoomScale
                 )
                 .frame(minHeight: selectedIDs.count > 1 ? 330 : 470)
                 .accessibilityIdentifier("monglepet.pngCrop.preview")
@@ -120,6 +126,32 @@ struct PNGFrameCropEditorView: View {
                     Button("원본 전체로 되돌리기") {
                         selectedDraftBinding.wrappedValue.resetCrop()
                     }
+
+                    Divider()
+
+                    Button {
+                        toggleHorizontalFlip()
+                    } label: {
+                        Label(
+                            selectedDraftBinding.wrappedValue.flipsHorizontally
+                                ? "선택한 PNG 좌우 뒤집기 해제"
+                                : "선택한 PNG 좌우 뒤집기",
+                            systemImage: "arrow.left.and.right"
+                        )
+                    }
+                    .accessibilityIdentifier("monglepet.pngCrop.flipHorizontal")
+
+                    Button {
+                        toggleVerticalFlip()
+                    } label: {
+                        Label(
+                            selectedDraftBinding.wrappedValue.flipsVertically
+                                ? "선택한 PNG 상하 뒤집기 해제"
+                                : "선택한 PNG 상하 뒤집기",
+                            systemImage: "arrow.up.and.down"
+                        )
+                    }
+                    .accessibilityIdentifier("monglepet.pngCrop.flipVertical")
 
                     if selectedIDs.count > 1 {
                         Divider()
@@ -165,7 +197,9 @@ struct PNGFrameCropEditorView: View {
                             HStack(spacing: 8) {
                                 CroppedImagePreview(
                                     image: draft.source.image,
-                                    cropRect: draft.cropRect
+                                    cropRect: draft.cropRect,
+                                    flipsHorizontally: draft.flipsHorizontally,
+                                    flipsVertically: draft.flipsVertically
                                 )
                                 .frame(width: 36, height: 36)
                                 Text("\(index + 1)")
@@ -179,6 +213,13 @@ struct PNGFrameCropEditorView: View {
                     }
                     .frame(minHeight: 230)
                     .accessibilityIdentifier("monglepet.pngCrop.frames")
+
+                    Button {
+                        addPNGFiles()
+                    } label: {
+                        Label("PNG 더 추가…", systemImage: "plus")
+                    }
+                    .accessibilityIdentifier("monglepet.pngCrop.addFiles")
 
                     Text("⌘ 키를 누른 채 클릭하면 여러 PNG를 선택할 수 있습니다.")
                         .font(.caption)
@@ -238,6 +279,11 @@ struct PNGFrameCropEditorView: View {
         from oldValue: Set<UUID>,
         to newValue: Set<UUID>
     ) {
+        if let focusedID,
+           newValue.contains(focusedID),
+           !oldValue.contains(focusedID) {
+            return
+        }
         if let added = newValue.subtracting(oldValue).first {
             focusedID = added
         } else if let focusedID, !newValue.contains(focusedID) {
@@ -284,6 +330,60 @@ struct PNGFrameCropEditorView: View {
         errorMessage = nil
     }
 
+    private func toggleHorizontalFlip() {
+        guard let focused = selectedDraftBinding?.wrappedValue else {
+            return
+        }
+        let newValue = !focused.flipsHorizontally
+        for index in drafts.indices where selectedIDs.contains(drafts[index].id) {
+            drafts[index].flipsHorizontally = newValue
+        }
+    }
+
+    private func toggleVerticalFlip() {
+        guard let focused = selectedDraftBinding?.wrappedValue else {
+            return
+        }
+        let newValue = !focused.flipsVertically
+        for index in drafts.indices where selectedIDs.contains(drafts[index].id) {
+            drafts[index].flipsVertically = newValue
+        }
+    }
+
+    private func addPNGFiles() {
+        let panel = NSOpenPanel()
+        panel.title = "PNG 프레임 추가"
+        panel.prompt = "추가"
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = true
+        panel.resolvesAliases = true
+        panel.allowedContentTypes = [.png]
+
+        guard panel.runModal() == .OK else {
+            return
+        }
+
+        do {
+            let newDrafts = try panel.urls.map { sourceURL in
+                let image = try SimpleAnimationPetPackageAdapter()
+                    .loadStaticPNGWithSecurityScope(at: sourceURL)
+                return PNGFrameCropDraft(
+                    source: UserPetSourceImage(
+                        displayName: sourceURL.lastPathComponent,
+                        image: image
+                    )
+                )
+            }
+            drafts.append(contentsOf: newDrafts)
+            selectedIDs = Set(newDrafts.map(\.id))
+            focusedID = newDrafts.first?.id
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
     private var selectedCropsPreview: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("선택한 PNG 미리보기")
@@ -297,7 +397,9 @@ struct PNGFrameCropEditorView: View {
                         VStack(spacing: 4) {
                             CroppedImagePreview(
                                 image: draft.source.image,
-                                cropRect: draft.cropRect
+                                cropRect: draft.cropRect,
+                                flipsHorizontally: draft.flipsHorizontally,
+                                flipsVertically: draft.flipsVertically
                             )
                             .frame(width: 92, height: 92)
                             .overlay {
@@ -329,9 +431,11 @@ struct PNGFrameCropEditorView: View {
     private func importCroppedImages() {
         do {
             let cropped = try drafts.map { draft in
-                guard let image = ImageCropProcessor().crop(
+                guard let image = ImageCropProcessor().cropAndTransform(
                     draft.source.image,
-                    to: draft.cropRect
+                    to: draft.cropRect,
+                    flipsHorizontally: draft.flipsHorizontally,
+                    flipsVertically: draft.flipsVertically
                 ) else {
                     throw PNGFrameCropError.cannotCrop(draft.source.displayName)
                 }
@@ -352,6 +456,8 @@ struct PNGFrameCropEditorView: View {
 private struct PNGFrameCropDraft: Identifiable {
     let source: UserPetSourceImage
     var cropRect: PixelRect
+    var flipsHorizontally = false
+    var flipsVertically = false
     private var cachedTransparentBounds: PixelRect?
     private var hasResolvedTransparentBounds = false
 
@@ -465,33 +571,42 @@ struct CropRectNumericControls: View {
 struct SingleImageCropPreview: View {
     let image: CGImage
     @Binding var cropRect: PixelRect
+    let zoomScale: Double
 
     var body: some View {
         GeometryReader { geometry in
             let pixelSize = PixelSize(width: image.width, height: image.height)
+            let contentSize = CGSize(
+                width: geometry.size.width * zoomScale,
+                height: geometry.size.height * zoomScale
+            )
             let imageFrame = ImageCropDisplayGeometry.aspectFitFrame(
                 pixelSize: pixelSize,
-                in: geometry.size
+                in: contentSize
             )
-            ZStack(alignment: .topLeading) {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(.quaternary)
+            ScrollView([.horizontal, .vertical]) {
+                ZStack(alignment: .topLeading) {
+                    Rectangle()
+                        .fill(.quaternary)
 
-                Image(decorative: image, scale: 1)
-                    .resizable()
-                    .interpolation(.none)
-                    .scaledToFit()
-                    .frame(width: imageFrame.width, height: imageFrame.height)
-                    .position(x: imageFrame.midX, y: imageFrame.midY)
+                    Image(decorative: image, scale: 1)
+                        .resizable()
+                        .interpolation(.none)
+                        .scaledToFit()
+                        .frame(width: imageFrame.width, height: imageFrame.height)
+                        .position(x: imageFrame.midX, y: imageFrame.midY)
 
-                CropRectangleEditorOverlay(
-                    cropRect: $cropRect,
-                    pixelSize: pixelSize,
-                    imageFrame: imageFrame
-                )
+                    CropRectangleEditorOverlay(
+                        cropRect: $cropRect,
+                        pixelSize: pixelSize,
+                        imageFrame: imageFrame
+                    )
+                }
+                .frame(width: contentSize.width, height: contentSize.height)
+                .coordinateSpace(name: ImageCropDisplayGeometry.coordinateSpaceName)
             }
+            .background(.quaternary)
             .clipShape(RoundedRectangle(cornerRadius: 8))
-            .coordinateSpace(name: ImageCropDisplayGeometry.coordinateSpaceName)
         }
     }
 }
@@ -499,22 +614,85 @@ struct SingleImageCropPreview: View {
 struct CroppedImagePreview: View {
     let image: CGImage
     let cropRect: PixelRect
+    let flipsHorizontally: Bool
+    let flipsVertically: Bool
+
+    init(
+        image: CGImage,
+        cropRect: PixelRect,
+        flipsHorizontally: Bool = false,
+        flipsVertically: Bool = false
+    ) {
+        self.image = image
+        self.cropRect = cropRect
+        self.flipsHorizontally = flipsHorizontally
+        self.flipsVertically = flipsVertically
+    }
 
     var body: some View {
-        Canvas { context, size in
-            let targetFrame = ImageCropDisplayGeometry.sourceImageFrame(
-                imageSize: PixelSize(width: image.width, height: image.height),
-                cropRect: cropRect,
-                previewSize: size
-            )
-            context.clip(to: Path(CGRect(origin: .zero, size: size)))
-            context.draw(Image(decorative: image, scale: 1), in: targetFrame)
+        Group {
+            if let previewImage = ImageCropProcessor().cropAndTransform(
+                image,
+                to: cropRect,
+                flipsHorizontally: flipsHorizontally,
+                flipsVertically: flipsVertically
+            ) {
+                Image(decorative: previewImage, scale: 1)
+                    .resizable()
+                    .interpolation(.none)
+                    .scaledToFit()
+            } else {
+                Image(systemName: "exclamationmark.triangle")
+                    .foregroundStyle(.secondary)
+            }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(.quaternary.opacity(0.35))
         .clipShape(RoundedRectangle(cornerRadius: 6))
         .accessibilityLabel(
             "자른 이미지 미리보기, \(cropRect.width)×\(cropRect.height) 픽셀"
         )
+    }
+}
+
+struct ImageEditorZoomControls: View {
+    @Binding var zoomScale: Double
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Label("확대", systemImage: "magnifyingglass")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Button {
+                zoomScale = max(1, zoomScale - 0.5)
+            } label: {
+                Image(systemName: "minus")
+            }
+            .disabled(zoomScale <= 1)
+            .accessibilityLabel("축소")
+
+            Slider(value: $zoomScale, in: 1...8, step: 0.5)
+                .frame(maxWidth: 180)
+
+            Button {
+                zoomScale = min(8, zoomScale + 0.5)
+            } label: {
+                Image(systemName: "plus")
+            }
+            .disabled(zoomScale >= 8)
+            .accessibilityLabel("확대")
+
+            Text("\(zoomScale, specifier: "%.1f")×")
+                .font(.caption.monospacedDigit())
+                .frame(width: 36, alignment: .trailing)
+
+            Button("맞춤") {
+                zoomScale = 1
+            }
+            .disabled(zoomScale == 1)
+        }
+        .controlSize(.small)
     }
 }
 

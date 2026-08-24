@@ -127,13 +127,26 @@ nonisolated enum AppSettingsV10ToV11Migrator {
     private static func makeDefaultProfile(
         for petKey: StoredPetBehaviorKeyV2
     ) throws -> StoredPetProfileV10 {
-        let normalized = BuiltInBehaviorPresets.normalizedDefaults(
-            in: .default
-        )
+        let settings: AppSettings
+        switch petKey {
+        case .builtIn:
+            settings = .default
+        case let .installed(installationID):
+            guard let id = UUID(uuidString: installationID) else {
+                throw AppSettingsV10ToV11MigrationError
+                    .unableToCreateDefaultProfile
+            }
+            settings = AppSettings.default.addingPetInstance(
+                for: .installed(id)
+            )
+        }
         guard
-            let template = try? AppSettingsV10Mapper.storedSettings(
-                from: normalized
-            ).behaviorProfiles.first
+            let stored = try? AppSettingsV10Mapper.storedSettings(
+                from: settings
+            ),
+            let template = stored.behaviorProfiles.first(where: {
+                $0.petKey == petKey
+            })
         else {
             throw AppSettingsV10ToV11MigrationError
                 .unableToCreateDefaultProfile

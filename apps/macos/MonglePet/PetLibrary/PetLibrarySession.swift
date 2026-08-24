@@ -248,9 +248,9 @@ final class PetLibrarySession: ObservableObject {
             metadata: PetPackageMetadata(
                 id: builtInDefinition.id,
                 displayName: builtInDefinition.displayName,
-                version: "내장",
-                author: "MonglePet",
-                description: "MonglePet에 기본으로 포함된 펫입니다."
+                version: BuiltInPet.version,
+                author: BuiltInPet.author,
+                description: BuiltInPet.description
             ),
             previewURL: nil,
             definition: builtInDefinition,
@@ -364,14 +364,6 @@ final class PetLibrarySession: ObservableObject {
         _ review: PetPackageImportReview,
         appliesRecommendedProfile: Bool
     ) -> Bool {
-        if case let .requiresNewerVersion(requiredVersion)
-            = review.compatibilityAssessment {
-            errorMessage = PetPackageImportError.minimumAppVersionRequired(
-                required: requiredVersion,
-                current: review.currentMonglePetVersion
-            ).localizedDescription
-            return false
-        }
         if appliesRecommendedProfile, review.recommendedProfile == nil {
             errorMessage = PetPackageImportError
                 .recommendedProfileUnavailable

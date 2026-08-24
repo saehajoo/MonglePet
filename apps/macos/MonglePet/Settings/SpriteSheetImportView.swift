@@ -58,6 +58,7 @@ struct SpriteSheetImportView: View {
     @State private var interactionMode = SpriteSheetInteractionMode.selection
     @State private var editingRegionID: UUID?
     @State private var previewRegionID: UUID?
+    @State private var zoomScale = 1.0
 
     init(
         document: SpriteSheetDocument,
@@ -161,11 +162,14 @@ struct SpriteSheetImportView: View {
                     .monospacedDigit()
             }
 
+            ImageEditorZoomControls(zoomScale: $zoomScale)
+
             SpriteSheetRegionPreview(
                 image: previewImage,
                 pixelSize: document.pixelSize,
                 regions: $regions,
                 editingRegionID: $editingRegionID,
+                zoomScale: zoomScale,
                 interactionMode: interactionMode,
                 orderNumber: displayedOrderNumber,
                 onToggleRegion: toggleRegion
@@ -270,7 +274,11 @@ struct SpriteSheetImportView: View {
                         } label: {
                             CroppedImagePreview(
                                 image: previewImage,
-                                cropRect: previewRegionBinding.wrappedValue.rect
+                                cropRect: previewRegionBinding.wrappedValue.rect,
+                                flipsHorizontally: previewRegionBinding
+                                    .wrappedValue.flipsHorizontally,
+                                flipsVertically: previewRegionBinding
+                                    .wrappedValue.flipsVertically
                             )
                             .frame(height: 150)
                             .overlay(alignment: .bottomTrailing) {
@@ -291,6 +299,39 @@ struct SpriteSheetImportView: View {
                         .accessibilityIdentifier(
                             "monglepet.spriteSheet.selectedRegionPreview"
                         )
+
+                        HStack {
+                            Button {
+                                previewRegionBinding.wrappedValue
+                                    .flipsHorizontally.toggle()
+                            } label: {
+                                Label(
+                                    previewRegionBinding.wrappedValue.flipsHorizontally
+                                        ? "좌우 뒤집기 해제"
+                                        : "좌우 뒤집기",
+                                    systemImage: "arrow.left.and.right"
+                                )
+                            }
+                            .accessibilityIdentifier(
+                                "monglepet.spriteSheet.flipHorizontal"
+                            )
+
+                            Button {
+                                previewRegionBinding.wrappedValue
+                                    .flipsVertically.toggle()
+                            } label: {
+                                Label(
+                                    previewRegionBinding.wrappedValue.flipsVertically
+                                        ? "상하 뒤집기 해제"
+                                        : "상하 뒤집기",
+                                    systemImage: "arrow.up.and.down"
+                                )
+                            }
+                            .accessibilityIdentifier(
+                                "monglepet.spriteSheet.flipVertical"
+                            )
+                        }
+                        .controlSize(.small)
 
                         Text("좌우 버튼이나 미리보기를 눌러 선택한 프레임만 순서대로 확인합니다.")
                             .font(.caption)
@@ -451,8 +492,14 @@ struct SpriteSheetImportView: View {
         .padding(.vertical, 12)
     }
 
-    private var selectedRegions: [PixelRect] {
-        orderedSelectedRegionIndices.map { regions[$0].rect }
+    private var selectedRegions: [SpriteSheetFrameSelection] {
+        orderedSelectedRegionIndices.map { index in
+            SpriteSheetFrameSelection(
+                rect: regions[index].rect,
+                flipsHorizontally: regions[index].flipsHorizontally,
+                flipsVertically: regions[index].flipsVertically
+            )
+        }
     }
 
     private var orderedSelectedRegionIndices: [Int] {
@@ -696,7 +743,7 @@ struct SpriteSheetImportView: View {
         do {
             let images = try SpriteSheetFrameExtractor().extractFrames(
                 from: document,
-                regions: selectedRegions,
+                selections: selectedRegions,
                 removingBackground: backgroundRemoval
             )
             let sourceName = document.sourceURL.deletingPathExtension().lastPathComponent
@@ -719,6 +766,8 @@ private struct SelectableSpriteRegion: Identifiable {
     let id = UUID()
     var rect: PixelRect
     var isSelected = true
+    var flipsHorizontally = false
+    var flipsVertically = false
 }
 
 private struct SpriteSheetRegionPreview: View {
@@ -726,16 +775,22 @@ private struct SpriteSheetRegionPreview: View {
     let pixelSize: PixelSize
     @Binding var regions: [SelectableSpriteRegion]
     @Binding var editingRegionID: UUID?
+    let zoomScale: Double
     let interactionMode: SpriteSheetInteractionMode
     let orderNumber: (Int) -> Int?
     let onToggleRegion: (Int) -> Void
 
     var body: some View {
         GeometryReader { geometry in
-            let imageFrame = aspectFitFrame(in: geometry.size)
-            ZStack(alignment: .topLeading) {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(.quaternary)
+            let contentSize = CGSize(
+                width: geometry.size.width * zoomScale,
+                height: geometry.size.height * zoomScale
+            )
+            let imageFrame = aspectFitFrame(in: contentSize)
+            ScrollView([.horizontal, .vertical]) {
+                ZStack(alignment: .topLeading) {
+                    Rectangle()
+                        .fill(.quaternary)
 
                 Image(decorative: image, scale: 1)
                     .resizable()
@@ -744,7 +799,7 @@ private struct SpriteSheetRegionPreview: View {
                     .frame(width: imageFrame.width, height: imageFrame.height)
                     .position(x: imageFrame.midX, y: imageFrame.midY)
 
-                ForEach(regions.indices, id: \.self) { index in
+                    ForEach(regions.indices, id: \.self) { index in
                     let region = regions[index]
                     let frame = displayFrame(for: region.rect, in: imageFrame)
                     ZStack(alignment: .topLeading) {
@@ -806,10 +861,13 @@ private struct SpriteSheetRegionPreview: View {
                         .accessibilityValue(
                             orderNumber(index).map { "재생 순서 \($0)" } ?? "제외됨"
                         )
+                    }
                 }
+                .frame(width: contentSize.width, height: contentSize.height)
+                .coordinateSpace(name: ImageCropDisplayGeometry.coordinateSpaceName)
             }
+            .background(.quaternary)
             .clipShape(RoundedRectangle(cornerRadius: 8))
-            .coordinateSpace(name: ImageCropDisplayGeometry.coordinateSpaceName)
         }
         .frame(minHeight: 470)
     }

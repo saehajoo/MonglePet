@@ -236,6 +236,63 @@ final class SpriteSheetFrameExtractorTests: XCTestCase {
         XCTAssertGreaterThan(pixel(in: processed, x: 16, y: 34).blue, 200)
     }
 
+    func testCropsThenFlipsSelectedFrameOnEitherAxis() throws {
+        let image = try makeImage(
+            width: 8,
+            height: 8,
+            background: .clear,
+            rectangles: [
+                (
+                    PixelRect(x: 0, y: 0, width: 4, height: 4),
+                    SpriteSheetColor(red: 255, green: 0, blue: 0, alpha: 255)
+                ),
+                (
+                    PixelRect(x: 4, y: 0, width: 4, height: 4),
+                    SpriteSheetColor(red: 0, green: 255, blue: 0, alpha: 255)
+                ),
+                (
+                    PixelRect(x: 0, y: 4, width: 4, height: 4),
+                    SpriteSheetColor(red: 0, green: 0, blue: 255, alpha: 255)
+                ),
+                (
+                    PixelRect(x: 4, y: 4, width: 4, height: 4),
+                    SpriteSheetColor(red: 255, green: 255, blue: 0, alpha: 255)
+                )
+            ]
+        )
+        let document = SpriteSheetDocument(
+            sourceURL: temporaryDirectory.appendingPathComponent("quadrants.png"),
+            image: image,
+            pixelSize: PixelSize(width: 8, height: 8),
+            suggestedRegions: [PixelRect(x: 0, y: 0, width: 8, height: 8)],
+            suggestedBackgroundColor: .clear,
+            hasTransparentBackground: true
+        )
+        let rect = PixelRect(x: 0, y: 0, width: 8, height: 8)
+        let frames = try SpriteSheetFrameExtractor().extractFrames(
+            from: document,
+            selections: [
+                SpriteSheetFrameSelection(rect: rect, flipsHorizontally: true),
+                SpriteSheetFrameSelection(rect: rect, flipsVertically: true),
+                SpriteSheetFrameSelection(
+                    rect: rect,
+                    flipsHorizontally: true,
+                    flipsVertically: true
+                )
+            ],
+            removingBackground: nil
+        )
+
+        XCTAssertGreaterThan(pixel(in: frames[0], x: 1, y: 1).green, 200)
+        XCTAssertGreaterThan(pixel(in: frames[0], x: 6, y: 1).red, 200)
+        XCTAssertGreaterThan(pixel(in: frames[1], x: 1, y: 1).blue, 200)
+        XCTAssertGreaterThan(pixel(in: frames[1], x: 6, y: 6).green, 200)
+        let bothTopLeft = pixel(in: frames[2], x: 1, y: 1)
+        XCTAssertGreaterThan(bothTopLeft.red, 200)
+        XCTAssertGreaterThan(bothTopLeft.green, 200)
+        XCTAssertGreaterThan(pixel(in: frames[2], x: 6, y: 6).red, 200)
+    }
+
     func testAutomaticRegionsPreserveRegularGridCellsWithUnevenContent() throws {
         let image = try makeImage(
             width: 96,

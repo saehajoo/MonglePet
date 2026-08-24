@@ -477,9 +477,7 @@ final class PetInstanceManagerTests: XCTestCase {
     }
 
     private func builtInItem() -> PetLibraryItem {
-        let definition = BuiltInPet.mongleDefinition(
-            atlasPixelSize: PixelSize(width: 1_024, height: 1_024)
-        )
+        let definition = BuiltInPet.mongleDefinition()
         return PetLibraryItem(
             selection: .builtIn,
             metadata: PetPackageMetadata(

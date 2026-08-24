@@ -44,7 +44,7 @@ final class MonglePetVersionTests: XCTestCase {
         }
     }
 
-    func testCompatibilityPolicyBlocksMinimumAndWarnsForNewerCreator() throws {
+    func testCompatibilityPolicyRecommendsUpdateAndWarnsForNewerCreator() throws {
         let current = try XCTUnwrap(SemanticVersion("0.1.0"))
 
         XCTAssertEqual(
@@ -59,7 +59,7 @@ final class MonglePetVersionTests: XCTestCase {
                 ),
                 currentVersion: current
             ),
-            .requiresNewerVersion(try XCTUnwrap(SemanticVersion("0.2.0")))
+            .updateRecommended(try XCTUnwrap(SemanticVersion("0.2.0")))
         )
         XCTAssertEqual(
             PetPackageCompatibilityPolicy.assess(
@@ -86,9 +86,9 @@ final class MonglePetVersionTests: XCTestCase {
 
         XCTAssertEqual(
             version.semanticVersion,
-            try XCTUnwrap(SemanticVersion("1.2.0"))
+            try XCTUnwrap(SemanticVersion("1.3.0"))
         )
-        XCTAssertEqual(version.buildNumber, "3")
-        XCTAssertEqual(version.displayText, "MonglePet 1.2.0 (3)")
+        XCTAssertEqual(version.buildNumber, "5")
+        XCTAssertEqual(version.displayText, "MonglePet 1.3.0 (5)")
     }
 }

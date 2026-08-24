@@ -89,25 +89,90 @@ final class MotionRuntimeTests: XCTestCase {
     }
 
     func testBuiltInMongleFramesStayInsideAtlas() throws {
-        let atlasSize = PixelSize(width: 1_254, height: 1_254)
-        let definition = BuiltInPet.mongleDefinition(atlasPixelSize: atlasSize)
-        let idle = try XCTUnwrap(definition.defaultMotion)
+        let definition = BuiltInPet.mongleDefinition()
+        let defaultMotion = try XCTUnwrap(definition.defaultMotion)
+        let atlasSizes = Dictionary(
+            uniqueKeysWithValues: BuiltInPet.atlasDescriptors.map {
+                ($0.id, $0.pixelSize)
+            }
+        )
 
         XCTAssertEqual(definition.displayName, "몽글이")
-        XCTAssertEqual(idle.id, "idle")
-        XCTAssertEqual(idle.frames.count, 2)
-        XCTAssertEqual(definition.motions.map(\.id), ["idle"])
+        XCTAssertEqual(definition.id, BuiltInPet.id)
+        XCTAssertEqual(defaultMotion.id, "기본")
+        XCTAssertEqual(defaultMotion.frames.count, 7)
+        XCTAssertEqual(
+            definition.motions.map(\.id),
+            [
+                "기본",
+                "위로",
+                "일하는 중",
+                "정면",
+                "자는중",
+                "물뿜기",
+                "찾는 중",
+                "해피",
+                "오른쪽",
+                "보글보글"
+            ]
+        )
+        XCTAssertEqual(
+            definition.motions.map { $0.frames.count },
+            [7, 4, 7, 6, 2, 2, 2, 2, 1, 3]
+        )
+        XCTAssertEqual(
+            definition.motions.flatMap(\.frames).count,
+            36
+        )
         XCTAssertTrue(
             definition.motions
                 .flatMap(\.frames)
-                .allSatisfy { $0.sourceRect.isContained(in: atlasSize) }
+                .allSatisfy { frame in
+                    atlasSizes[frame.atlasID].map {
+                        frame.sourceRect.isContained(in: $0)
+                    } ?? false
+                }
+        )
+        XCTAssertEqual(
+            definition.motion(id: "자는중")?.frames.map(\.duration),
+            [.milliseconds(450), .milliseconds(3_000)]
+        )
+    }
+
+    func testSharedBuiltInMonglePackageMatchesRuntimeContract() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let packageURL = repositoryRoot
+            .appendingPathComponent("shared/BuiltInPets/Mongle.monglepet")
+
+        let package = try PetPackageLoader().loadPackage(at: packageURL)
+
+        XCTAssertEqual(package.metadata.id, BuiltInPet.id)
+        XCTAssertEqual(package.metadata.displayName, BuiltInPet.displayName)
+        XCTAssertEqual(package.metadata.version, BuiltInPet.version)
+        XCTAssertEqual(package.metadata.author, BuiltInPet.author)
+        XCTAssertEqual(package.metadata.description, BuiltInPet.description)
+        XCTAssertEqual(package.definition.defaultMotionID, BuiltInPet.defaultMotionID)
+        XCTAssertEqual(
+            package.definition.motions.map(\.id),
+            BuiltInPet.mongleDefinition().motions.map(\.id)
+        )
+        XCTAssertEqual(package.definition.motions.flatMap(\.frames).count, 36)
+        XCTAssertEqual(
+            package.compatibility?.minimumMonglePetVersion,
+            SemanticVersion(major: 1, minor: 3, patch: 0)
         )
     }
 
     @MainActor
     func testPetOverlayViewConvertsTopLeftPixelRectToLayerContentsRect() throws {
-        let image = try XCTUnwrap(NSImage(named: "PlaceholderPet"))
-        let view = try XCTUnwrap(PetOverlayView(atlasID: "main", image: image))
+        let image = try XCTUnwrap(NSImage(named: "BuiltInMongleDefault"))
+        let view = try XCTUnwrap(
+            PetOverlayView(atlasID: BuiltInPet.atlasID, image: image)
+        )
         let rect = PixelRect(
             x: view.atlasPixelSize.width / 4,
             y: view.atlasPixelSize.height / 4,
@@ -115,17 +180,34 @@ final class MotionRuntimeTests: XCTestCase {
             height: view.atlasPixelSize.height / 2
         )
         let frame = MotionFrame(
-            atlasID: "main",
+            atlasID: BuiltInPet.atlasID,
             sourceRect: rect,
             duration: .milliseconds(100)
         )
 
         XCTAssertTrue(view.display(frame))
         let contentsRect = try XCTUnwrap(view.layer).contentsRect
-        XCTAssertEqual(contentsRect.origin.x, 0.25, accuracy: 0.001)
-        XCTAssertEqual(contentsRect.origin.y, 0.25, accuracy: 0.001)
-        XCTAssertEqual(contentsRect.width, 0.5, accuracy: 0.001)
-        XCTAssertEqual(contentsRect.height, 0.5, accuracy: 0.001)
+        XCTAssertEqual(
+            contentsRect.origin.x,
+            CGFloat(rect.x) / CGFloat(view.atlasPixelSize.width),
+            accuracy: 0.001
+        )
+        XCTAssertEqual(
+            contentsRect.origin.y,
+            CGFloat(view.atlasPixelSize.height - rect.y - rect.height)
+                / CGFloat(view.atlasPixelSize.height),
+            accuracy: 0.001
+        )
+        XCTAssertEqual(
+            contentsRect.width,
+            CGFloat(rect.width) / CGFloat(view.atlasPixelSize.width),
+            accuracy: 0.001
+        )
+        XCTAssertEqual(
+            contentsRect.height,
+            CGFloat(rect.height) / CGFloat(view.atlasPixelSize.height),
+            accuracy: 0.001
+        )
     }
 
     @MainActor

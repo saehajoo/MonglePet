@@ -131,6 +131,7 @@ nonisolated struct RemotePetPreparedPackage: Equatable, Sendable {
     let temporaryDirectoryURL: URL
     let source: RemotePetImportSource
     let suggestedFileName: String
+    let publishedMinimumMonglePetVersion: SemanticVersion
 }
 
 nonisolated enum RemotePetImportError: Error, Equatable, Sendable {
@@ -142,7 +143,6 @@ nonisolated enum RemotePetImportError: Error, Equatable, Sendable {
     case packageTooLarge(maximumBytes: Int64)
     case packageSizeMismatch
     case checksumMismatch
-    case minimumAppVersionRequired(required: SemanticVersion, current: SemanticVersion)
 }
 
 extension RemotePetImportError: LocalizedError {
@@ -164,8 +164,6 @@ extension RemotePetImportError: LocalizedError {
             "다운로드한 패키지 크기가 게시된 정보와 일치하지 않습니다."
         case .checksumMismatch:
             "다운로드한 패키지의 SHA-256이 게시된 정보와 일치하지 않습니다."
-        case let .minimumAppVersionRequired(required, current):
-            "이 펫은 MonglePet \(required) 이상이 필요합니다. 현재 버전은 \(current)입니다."
         }
     }
 }
@@ -242,19 +240,16 @@ actor RemotePetImportService {
     private let transport: any RemotePetImportTransport
     private let fileManager: FileManager
     private let temporaryDirectoryURL: URL
-    private let currentAppVersion: SemanticVersion
     private let decoder = JSONDecoder()
 
     init(
         transport: any RemotePetImportTransport = URLSessionRemotePetImportTransport(),
         fileManager: FileManager = .default,
-        temporaryDirectoryURL: URL? = nil,
-        currentAppVersion: SemanticVersion = MonglePetAppVersion.current.semanticVersion
+        temporaryDirectoryURL: URL? = nil
     ) {
         self.transport = transport
         self.fileManager = fileManager
         self.temporaryDirectoryURL = temporaryDirectoryURL ?? fileManager.temporaryDirectory
-        self.currentAppVersion = currentAppVersion
     }
 
     func preparePackage(from userInput: String) async throws -> RemotePetPreparedPackage {
@@ -274,13 +269,6 @@ actor RemotePetImportService {
         guard let requiredVersion = SemanticVersion(version.minimumAppVersion) else {
             throw RemotePetImportError.invalidServerResponse
         }
-        if currentAppVersion < requiredVersion {
-            throw RemotePetImportError.minimumAppVersionRequired(
-                required: requiredVersion,
-                current: currentAppVersion
-            )
-        }
-
         guard UUID(uuidString: version.petVersionUUID) != nil else {
             throw RemotePetImportError.invalidServerResponse
         }
@@ -366,7 +354,8 @@ actor RemotePetImportService {
                 packageURL: ownedPackageURL,
                 temporaryDirectoryURL: workspaceURL,
                 source: source,
-                suggestedFileName: download.filename
+                suggestedFileName: download.filename,
+                publishedMinimumMonglePetVersion: requiredVersion
             )
         } catch {
             try? fileManager.removeItem(at: workspaceURL)

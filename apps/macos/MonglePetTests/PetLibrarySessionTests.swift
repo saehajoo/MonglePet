@@ -11,6 +11,24 @@ final class PetLibrarySessionTests: XCTestCase {
         uuidString: "22222222-2222-2222-2222-222222222222"
     )!
 
+    func testBuiltInMongleUsesPublishedMetadataAndMotions() {
+        let session = makeSession(packages: [])
+
+        XCTAssertEqual(session.selectedItem.metadata.id, BuiltInPet.id)
+        XCTAssertEqual(session.selectedItem.metadata.displayName, "몽글이")
+        XCTAssertEqual(session.selectedItem.metadata.version, "1.0.1")
+        XCTAssertEqual(session.selectedItem.metadata.author, "운영자")
+        XCTAssertEqual(
+            session.selectedItem.metadata.description,
+            "MonglePet에서 기본으로 제공되는 몽글펫입니다."
+        )
+        XCTAssertEqual(session.selectedItem.definition.motions.count, 10)
+        XCTAssertEqual(
+            session.selectedItem.definition.defaultMotionID,
+            "기본"
+        )
+    }
+
     func testReloadKeepsBuiltInFirstSortsInstalledPetsAndRestoresSelection() {
         let packages = [
             makeInstalled(id: secondID, name: "나비"),
@@ -780,9 +798,7 @@ final class PetLibrarySessionTests: XCTestCase {
     }
 
     private var builtInDefinition: PetDefinition {
-        BuiltInPet.mongleDefinition(
-            atlasPixelSize: PixelSize(width: 192, height: 208)
-        )
+        BuiltInPet.mongleDefinition()
     }
 
     private func makeBehaviorProfile(

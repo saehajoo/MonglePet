@@ -105,8 +105,7 @@ final class RemotePetImportServiceTests: XCTestCase {
         )
         let service = RemotePetImportService(
             transport: transport,
-            temporaryDirectoryURL: rootURL,
-            currentAppVersion: SemanticVersion(major: 1, minor: 1, patch: 0)
+            temporaryDirectoryURL: rootURL
         )
 
         let prepared = try await service.preparePackage(
@@ -120,6 +119,10 @@ final class RemotePetImportServiceTests: XCTestCase {
 
         XCTAssertEqual(try Data(contentsOf: prepared.packageURL), packageData)
         XCTAssertEqual(prepared.suggestedFileName, "monglepet-abc123-1.0.0.monglepet")
+        XCTAssertEqual(
+            prepared.publishedMinimumMonglePetVersion,
+            SemanticVersion(major: 1, minor: 1, patch: 0)
+        )
         let requestedURLs = await transport.requestedURLs
         XCTAssertEqual(
             requestedURLs,
@@ -195,37 +198,51 @@ final class RemotePetImportServiceTests: XCTestCase {
         }
     }
 
-    func testRejectsNewerMinimumVersionBeforeDownload() async throws {
-        let checksum = String(repeating: "a", count: 64)
+    func testDownloadsPackageWithNewerMinimumVersionForAdvisoryReview() async throws {
+        let rootURL = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "RemotePetImportMinimumVersionTests-\(UUID().uuidString)",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(
+            at: rootURL,
+            withIntermediateDirectories: false
+        )
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        let packageData = Data("newer-version package".utf8)
+        let checksum = sha256(packageData)
+        let downloadedURL = rootURL.appendingPathComponent("download.tmp")
+        try packageData.write(to: downloadedURL)
         let transport = StubRemotePetImportTransport(
             dataResponses: try makeAPIResponses(
-                size: 4,
+                size: Int64(packageData.count),
                 checksum: checksum,
                 minimumVersion: "9.0.0"
             ),
-            downloadURL: URL(fileURLWithPath: "/unreachable"),
+            downloadURL: downloadedURL,
             downloadResponse: try httpResponse(
-                url: URL(string: "https://dev-api.mapleroom.kr/media/monglepet/downloads/token")!
+                url: URL(string: "https://dev-api.mapleroom.kr/media/monglepet/downloads/token")!,
+                contentLength: Int64(packageData.count)
             )
         )
-        let current = SemanticVersion(major: 1, minor: 1, patch: 0)
         let service = RemotePetImportService(
             transport: transport,
-            currentAppVersion: current
+            temporaryDirectoryURL: rootURL
         )
 
-        await XCTAssertThrowsRemotePetImportError(
-            .minimumAppVersionRequired(
-                required: SemanticVersion(major: 9, minor: 0, patch: 0),
-                current: current
-            )
-        ) {
-            _ = try await service.preparePackage(
-                from: "https://dev.mapleroom.kr/monglepet/pets/monglepet-abc123"
-            )
+        let prepared = try await service.preparePackage(
+            from: "https://dev.mapleroom.kr/monglepet/pets/monglepet-abc123"
+        )
+        defer {
+            try? FileManager.default.removeItem(at: prepared.temporaryDirectoryURL)
         }
+        XCTAssertEqual(try Data(contentsOf: prepared.packageURL), packageData)
+        XCTAssertEqual(
+            prepared.publishedMinimumMonglePetVersion,
+            SemanticVersion(major: 9, minor: 0, patch: 0)
+        )
         let downloadRequestCount = await transport.downloadRequestCount
-        XCTAssertEqual(downloadRequestCount, 0)
+        XCTAssertEqual(downloadRequestCount, 1)
     }
 
     func testRejectsOversizedPublishedPackageBeforeDownload() async throws {

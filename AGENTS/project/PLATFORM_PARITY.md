@@ -35,14 +35,14 @@ macOS에서 개발을 시작했다는 이유만으로 AppKit 타입, Bundle Iden
 | 개발·빌드 환경 | 기준 구현 | 진행 중 | Visual Studio 2026·.NET SDK 10.0.302·Windows App SDK 2.3.1 설치, x64 Debug·Release 전체 빌드 통과; CI 남음 |
 | 앱 셸·상태 메뉴 | 기준 구현 | 동등 | Windows notification area에서 현재 펫, 깨우기·재우기, 클릭 통과, 현재 화면 이동, 설정 숨김·재열기와 명시적 종료를 packaged Release 확인 |
 | 투명 펫 오버레이 | 기준 구현 | 진행 중 | 별도 Win32 HWND·ContentIsland Composition에서 공통 PNG 프레임과 입력 통과 말풍선 XAML Island, 가변 크기·투명도·nearest 렌더링·클릭 통과·awake/tuckedAway, 드래그·화면 위치 저장과 실제 알파 픽셀 겹침 투명화를 구현; 고정·포인터 workload 성능 통과, 말풍선·프레임 지연 workload와 실제 시각 QA 남음 |
-| 펫 패키지·애니메이션 | 기준 구현 | 진행 중 | macOS는 행·열 추론, 읽기·클릭 순서, 스프라이트·PNG crop, 직접 배치 미리보기와 새 프레임 450ms를 반영하고 AI 프롬프트 복사를 제거; Windows는 같은 편집 결과와 실제 대형·다중 프레임 이미지 교차 QA 반영 필요 |
+| 펫 패키지·애니메이션 | 기준 구현 | 진행 중 | macOS `1.3.0 (5)`는 새 내장 몽글이 10개 모션·36프레임, 자유 문자열 펫 버전, 최소 앱 버전 비차단 권장 안내, 정확한 crop 미리보기, PNG·스프라이트 1×~8× 확대·좌우/상하 flip, PNG 편집 중 추가와 프레임 복사를 제공한다. `shared/BuiltInPets/Mongle.monglepet` 공통 기준본과 `WINDOWS_MACOS_1_3_HANDOFF.md`를 Windows에서 후속 구현·실제 QA해야 한다. |
 | 자동·수동 행동 | 기준 구현 | 진행 중 | 행동 결정기·cycle scheduler·Composition 전환, 대상 펫·루틴·재생·단계 편집과 앱 규칙·입력 없음 규칙의 별도 생성 흐름, 이동·쓰다듬기 표시 우선순위와 행동 대사 우선·주기 대사 timer를 연결; 실제 말풍선·재실행 QA 남음 |
 | 전면 앱·입력 없음 감지 | 기준 구현 | 진행 중 | PFN/실행 파일명과 `GetLastInputInfo` 1초 polling, WTS·전원 메시지, 실행 중 앱 이름·아이콘 선택·현재 앱 채우기·`.exe` 파일 선택 Release QA 통과; 실제 물리 잠금·절전 복귀 수동 QA 남음 |
 | 설정·펫 라이브러리 | 기준 구현 | 진행 중 | LocalState 라이브러리와 schema-v1~v10 순차 이관, schema-v11 활성 인스턴스·독립 프로필·선택 참조 저장과 공통 fixture 검증에 더해 현재 펫·애니메이션 미리보기와 편집, `MonglePet 패키지 / 패키지 가져오기 / 현재 펫 내보내기`, 새 펫·정보 수정·편집 사본·삭제 흐름을 구현; 다중 펫 UI와 실제 picker·재실행·macOS 교차 QA 남음 |
 | 이동·다중 모니터 | 기준 구현 | 진행 중 | 네 모드별 조건부 설정, 이동 감각·범위·공통/4/8방향 모션·사용자 영역·상호작용을 구현하고 16ms 논리 소수점 위치 누적으로 저속 끊김과 모든 화면의 모니터 경계 고착을 수정; 혼합 DPI 물리 횡단 QA 남음 |
 | 쓰다듬기·말풍선 | 기준 구현 | 진행 중 | 실제 frame 알파 쓰다듬기와 행동 우선·주기 runtime, 행동/주기 대사 분리, draft·즉시 저장·위치 미리보기를 구현; gap을 잇는 가변 꼬리와 행동 대사 유지 중 주기 예약을 보완했으며 물리 포인터·혼합 DPI·성능 최종 QA 남음 |
 | 로컬 가져오기·내보내기 | 기준 구현 | 진행 중 | 설치 전 메타데이터·모션·권장 설정 검토, schema-v1~v7 호환, 펫만/권장 설정 적용, 교체 기본 보존·별도 설치, canonical 자산 선별·권리 확인·ZIP 왕복·원자적 저장 구현; 실제 대화상자와 macOS 교차 왕복 QA 남음 |
-| 웹 URL 가져오기 | 기준 구현 | 진행 중 | Windows는 개발·운영 URL allowlist, API envelope·최소 버전·20MiB·크기·SHA-256·redirect 검증, 검토 수명 temp session, macOS 정보 구조의 WinUI 보관함, MSIX·Inno protocol 등록과 선택 인스턴스 설치 경계를 구현했다. Debug·Release 각 235개 테스트와 unpackaged 종료·실행 중 및 packaged 실제 개발 URL 검토·취소·무변경 QA를 통과했다. 운영 URL, 설치·중복·Windows→macOS 왕복, Narrator·혼합 DPI QA가 남았다. |
+| 웹 URL 가져오기 | 기준 구현 | 진행 중 | macOS는 게시·manifest 최소 앱 버전을 검증하되 높은 값은 설치 가능한 권장 안내와 운영 다운로드 페이지 버튼으로 표시한다. Windows의 기존 구현은 높은 최소 버전을 다운로드 전에 차단하므로 D-087과 `WINDOWS_MACOS_1_3_HANDOFF.md`에 따라 비차단으로 변경해야 한다. 기존 URL allowlist·20MiB·크기·SHA-256·redirect·임시 수명 검증은 유지한다. |
 | 배포·업데이트 | 진행 중 | 진행 중 | macOS 1.2.0 (3) ZIP·SHA-256·manifest와 Windows 1.2.0.13 x64 설치기·SHA256SUMS를 각각 플랫폼별 GitHub Pre-release로 게시하고 원격 digest 검증 통과; 플랫폼별 최신 웹 전달 자료 작성 완료, 자체 웹 다운로드 화면 반영·서명·HTTPS·깨끗한 PC와 향후 자동 업데이트 QA 남음 |
 | 멀티펫 | 기준 구현 (`1.1.0`) | 진행 중 (`1.1.0`) | Windows 10~11단계 schema-v11 계약, `PetInstanceManager`, instance별 HWND/runtime, NavigationView 활성 펫·notification area·일시정지·자원 경고·안전 시작 완료; 실제 환경 QA는 12단계 |
 

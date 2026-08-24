@@ -825,6 +825,8 @@ private struct PetSettingsView: View {
                 remoteImportTemporaryDirectoryURL = prepared.temporaryDirectoryURL
                 importReview = petLibrarySession.reviewPackageForImport(
                     from: prepared.packageURL
+                )?.withPublishedMinimumMonglePetVersion(
+                    prepared.publishedMinimumMonglePetVersion
                 )
                 if importReview == nil {
                     cleanupRemoteImportTemporaryDirectory()
@@ -1332,6 +1334,7 @@ private struct PetImportAction {
 
 private struct PetPackageImportReviewView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
 
     let review: PetPackageImportReview
     let allowsRecommendedProfileApplication: Bool
@@ -1453,7 +1456,7 @@ private struct PetPackageImportReviewView: View {
                 .foregroundStyle(.secondary)
             }
 
-            switch review.compatibilityAssessment {
+            switch review.effectiveCompatibilityAssessment {
             case .compatible:
                 if review.compatibility != nil {
                     Label(
@@ -1468,13 +1471,27 @@ private struct PetPackageImportReviewView: View {
                     systemImage: "exclamationmark.triangle.fill"
                 )
                 .foregroundStyle(.orange)
-            case let .requiresNewerVersion(requiredVersion):
-                Label(
-                    "설치하려면 MonglePet \(requiredVersion.description) 이상이 필요합니다. 현재 버전에서는 설치할 수 없습니다.",
-                    systemImage: "xmark.octagon.fill"
-                )
-                .foregroundStyle(.red)
-                .accessibilityIdentifier("monglepet.import.incompatibleVersion")
+            case let .updateRecommended(requiredVersion):
+                VStack(alignment: .leading, spacing: 8) {
+                    Label(
+                        "MonglePet \(requiredVersion.description) 이상으로 업데이트를 권장합니다. 지금도 설치할 수 있지만 일부 기능이 적용되지 않거나 다르게 보일 수 있습니다.",
+                        systemImage: "exclamationmark.triangle.fill"
+                    )
+                    .foregroundStyle(.orange)
+                    .accessibilityIdentifier("monglepet.import.updateRecommended")
+
+                    Button {
+                        openURL(
+                            URL(string: "https://mapleroom.kr/monglepet/download")!
+                        )
+                    } label: {
+                        Label(
+                            "MonglePet 다운로드 페이지",
+                            systemImage: "arrow.up.right.square"
+                        )
+                    }
+                    .accessibilityIdentifier("monglepet.import.openDownloadPage")
+                }
             }
         }
     }
@@ -2729,6 +2746,14 @@ private struct UserPetAnimationEditorView: View {
             .disabled(index == frames.index(before: frames.endIndex))
             .accessibilityLabel("아래로 이동")
 
+            Button {
+                duplicateFrame(at: index)
+            } label: {
+                Image(systemName: "plus.square.on.square")
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel("프레임 복사")
+
             Button(role: .destructive) {
                 removeFrame(id: frame.id)
             } label: {
@@ -2811,6 +2836,15 @@ private struct UserPetAnimationEditorView: View {
             return
         }
         frames.swapAt(index, destination)
+    }
+
+    private func duplicateFrame(at index: Int) {
+        guard frames.indices.contains(index) else {
+            return
+        }
+        let duplicate = frames[index].duplicated()
+        frames.insert(duplicate, at: index + 1)
+        selectedFrameID = duplicate.id
     }
 
     private func removeFrame(id: UUID) {
@@ -3233,6 +3267,14 @@ private struct UserPetAnimationDetailsEditorView: View {
                                 .disabled(index == frames.index(before: frames.endIndex))
                                 .accessibilityLabel("아래로 이동")
 
+                                Button {
+                                    duplicateFrame(at: index)
+                                } label: {
+                                    Image(systemName: "plus.square.on.square")
+                                }
+                                .buttonStyle(.borderless)
+                                .accessibilityLabel("프레임 복사")
+
                                 Button(role: .destructive) {
                                     removeFrame(id: frame.id)
                                 } label: {
@@ -3422,6 +3464,15 @@ private struct UserPetAnimationDetailsEditorView: View {
         frames.swapAt(index, destination)
     }
 
+    private func duplicateFrame(at index: Int) {
+        guard frames.indices.contains(index) else {
+            return
+        }
+        let duplicate = frames[index].duplicated()
+        frames.insert(duplicate, at: index + 1)
+        selectedFrameID = duplicate.id
+    }
+
     private func removeFrame(id: UUID) {
         guard frames.count > 1 else {
             return
@@ -3459,7 +3510,7 @@ private struct UserPetAnimationDetailsEditorView: View {
 }
 
 private struct UserPetAnimationFrameDraft: Identifiable {
-    let id = UUID()
+    var id = UUID()
     let source: UserPetAnimationFrameSource
     var durationMilliseconds: Int
     let content: TransparentFrameContent
@@ -3525,6 +3576,12 @@ private struct UserPetAnimationFrameDraft: Identifiable {
         offsetX = 0
         offsetY = 0
         refreshPreview()
+    }
+
+    func duplicated() -> UserPetAnimationFrameDraft {
+        var duplicate = self
+        duplicate.id = UUID()
+        return duplicate
     }
 }
 
@@ -4239,9 +4296,7 @@ private struct TransparencyGridView: View {
                     .appendingPathComponent("MonglePet-Preview-settings.json")
             )
         )
-    let definition = BuiltInPet.mongleDefinition(
-        atlasPixelSize: PixelSize(width: 192, height: 208)
-    )
+    let definition = BuiltInPet.mongleDefinition()
     SettingsView(
         settingsSession: settingsSession,
         petLibrarySession: PetLibrarySession(

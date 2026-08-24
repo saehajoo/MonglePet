@@ -460,7 +460,7 @@ UI 테스트는 앱 실행과 접근성 자동화가 가능한 macOS 세션에�
 - 디스플레이 분리·재연결과 visible frame 변경 시 저장한 영역의 안전 폴백·복원 확인
 - schema-v3 → v4 기본값 마이그레이션, v4 저장 왕복, 잘못된 투명도·영역 복구와 미래 스키마 보호 확인
 - 클릭 통과·awake·화면 사용 가능 조건, 현재 프레임 알파 영역 겹침, 투명도 전환과 비활성 timer 해제 확인
-- 앱 SemVer 정수 비교, 최소 버전 미충족 차단, 더 새로운 제작 버전 경고와 호환 정보 없는 기존 패키지 허용 확인
+- 앱 SemVer 정수 비교, 최소 버전 미충족 안내, 더 새로운 제작 버전 경고와 호환 정보 없는 기존 패키지 허용 확인. 최소 버전 미충족 차단 정책은 D-087에서 비차단 권장 안내로 변경했다.
 - 앱 버전·빌드 표시와 호환 필드 포함 `.monglepet` 내보내기·가져오기 왕복 확인
 - 실제 다중 모니터, 클릭 통과, 완전 종료·재실행과 기존 설정·기존 패키지 수동 QA
 
@@ -849,6 +849,30 @@ UI 테스트는 앱 실행과 접근성 자동화가 가능한 macOS 세션에�
 - 깨끗한 원격 커밋 `8eb6e179f952aadce1623ac9abcefce89bde1044`에서 7,006,673 bytes의 `MonglePet-1.2.0-build.3-preview.zip`과 SHA-256·manifest를 생성했다. ZIP SHA-256 `4E6347A939D53ACDE931D90B0B89FD65943D2EECB2266A1C83BA7FD0AF67AE93`이 재계산 결과와 일치했다.
 - 별도 임시 디렉터리의 압축 해제본에서 버전·Bundle ID·Universal 아키텍처·미서명 상태를 확인하고 `--ui-testing --ui-testing-open-settings`로 실제 프로세스가 정상 실행되는지 확인했다.
 - GitHub 태그 `macos-v1.2.0-preview.1`의 Pre-release에 ZIP·SHA-256·manifest를 게시한 뒤 세 파일을 다시 내려받아 ZIP digest와 보조 파일이 로컬 최종본과 바이트 단위로 일치함을 확인했다.
+
+### macOS 1.3.0 Preview 배포 사전 검증
+
+- 측정일: 2026-08-24
+- macOS 앱 마케팅 버전 `1.3.0`, 빌드 번호 `5`와 설정 화면 표시값 `MonglePet 1.3.0 (5)`을 검증한다.
+- 펫 콘텐츠 `manifest.version`은 비어 있지 않은 한글·영문 포함 자유 문자열로 보존하고 자동 승격하지 않는다. 앱 호환성 필드만 엄격한 `MAJOR.MINOR.PATCH`로 비교한다.
+- 현재 앱보다 높은 최소 버전의 로컬·웹 패키지도 보안·형식 검증 후 설치를 허용하고, 일부 기능이 적용되지 않을 수 있다는 권장 안내와 `https://mapleroom.kr/monglepet/download` 버튼을 제공한다.
+- PNG·스프라이트의 crop 결과와 미리보기가 같은 픽셀 처리 경로를 사용하고, 1–8배 확대·프레임 복사·편집 중 PNG 추가·프레임별 좌우/상하 뒤집기와 기존 450ms 기본값을 검증한다.
+- 공통 `shared/BuiltInPets/Mongle.monglepet` fixture와 macOS 내장 몽글이의 메타데이터·권장 설정·자산·모션 계약이 일치하는지 검증한다.
+- 전체 `MonglePetTests` 464개 중 463개가 통과했고 실패 0개였다. 외부 로컬 WebP fixture가 있을 때만 실행하는 기존 선택형 테스트 1개는 건너뛰었다.
+- 코드서명 없는 Debug 테스트 빌드와 `arm64`·`x86_64` Universal Release 빌드가 통과했다. Release 앱의 `CFBundleShortVersionString=1.3.0`, `CFBundleVersion=5`, Bundle ID `kr.mapleroom.MonglePet`을 확인했다.
+- 설정창·새 펫 시트 대상 XCUITest 두 개는 앱 assertion 전 test runner bootstrap 연결 실패로 실행되지 않았다. 격리된 Release 앱을 `--ui-testing --ui-testing-open-settings`로 대신 실행해 새 몽글이 overlay, 활성 펫 카드와 설정창 표시, 프로세스 생존을 확인했다.
+- ZIP·GitHub prerelease 자산 재다운로드 결과는 릴리스 완료 시 이 절에 추가 기록한다.
+
+### macOS 내장 몽글이 1.0.1 교체 검증
+
+- 측정일: 2026-08-24
+- 첨부·개발 웹 최신 `.monglepet`이 971,514 bytes, SHA-256 `00503aab356602e0af8339201c653af05cd24aea8db7dca561e6508d519e8617`로 같음을 확인했다.
+- 저장소의 10개 PNG가 기준 패키지 자산과 각각 바이트 단위로 같고, 10개 atlas·36프레임·150×150 경계·프레임 시간과 기본 모션을 자동 테스트했다.
+- 제작자 `운영자`, 펫 버전 `1.0.1`, 기본 제공 설명과 권장 행동·자동 규칙·마우스 도망가기·4방향 모션·쓰다듬기·말풍선 기본값을 검증했다.
+- 신규·종전 미수정 built-in 프로필만 새 기본값으로 전환하고, 사용자 수정 built-in 프로필과 설치 펫 중립 기본값을 보존한다. 전체 테스트 중 v10→v11의 누락 설치 펫 프로필에 built-in 값이 복사되는 회귀를 발견해 펫 키별 기본 생성으로 수정했다.
+- 전체 `MonglePetTests` 460개 중 459개가 통과했고 실패 0개였다. 외부 로컬 WebP fixture가 있을 때만 실행하는 선택형 테스트 1개는 건너뛰었다.
+- 코드서명 없는 Debug 빌드와 격리된 `--ui-testing` 마우스 도망가기 앱의 5초 실행·정상 종료가 통과했다.
+- 기본 오버레이·설정창 XCUITest 두 개는 앱 assertion에 도달하기 전 target runner materialize 단계에서 173초간 멈춰 중단했다. 기존 Codex 활성 세션 XCUITest 제한과 같은 양상이며, 모션 시각·도망가기 방향·쓰다듬기와 메타데이터 화면은 사용자 실제 앱 QA로 남긴다.
 
 ## 변경 유형별 최소 검증
 

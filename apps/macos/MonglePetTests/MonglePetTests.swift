@@ -178,9 +178,7 @@ final class MonglePetTests: XCTestCase {
         let controller = SettingsWindowController(
             settingsSession: session,
             petLibrarySession: PetLibrarySession(
-                builtInDefinition: BuiltInPet.mongleDefinition(
-                    atlasPixelSize: PixelSize(width: 192, height: 208)
-                ),
+                builtInDefinition: BuiltInPet.mongleDefinition(),
                 installedPackagesProvider: { [] },
                 installationRemover: { _ in }
             ),
@@ -300,9 +298,7 @@ final class MonglePetTests: XCTestCase {
 
     @MainActor
     func testPetPresentationResourceLoaderProvidesBuiltInAtlasForPreview() throws {
-        let definition = BuiltInPet.mongleDefinition(
-            atlasPixelSize: PixelSize(width: 192, height: 208)
-        )
+        let definition = BuiltInPet.mongleDefinition()
         let session = PetLibrarySession(
             builtInDefinition: definition,
             installedPackagesProvider: { [] },
@@ -314,10 +310,13 @@ final class MonglePetTests: XCTestCase {
         )
 
         let atlas = try XCTUnwrap(atlases.first)
-        XCTAssertEqual(atlases.count, 1)
+        XCTAssertEqual(atlases.count, 10)
         XCTAssertEqual(atlas.id, BuiltInPet.atlasID)
-        XCTAssertGreaterThan(atlas.pixelSize.width, 0)
-        XCTAssertGreaterThan(atlas.pixelSize.height, 0)
+        XCTAssertEqual(atlas.pixelSize, PixelSize(width: 1_050, height: 150))
+        XCTAssertEqual(
+            atlases.map(\.id),
+            BuiltInPet.atlasDescriptors.map(\.id)
+        )
     }
 
     @MainActor
@@ -603,8 +602,12 @@ final class MonglePetTests: XCTestCase {
     }
 
     @MainActor
-    func testPetWindowShowsBundledPlaceholderWithoutBecomingKey() throws {
-        XCTAssertNotNil(NSImage(named: "PlaceholderPet"))
+    func testPetWindowShowsBundledMongleWithoutBecomingKey() throws {
+        XCTAssertTrue(
+            BuiltInPet.atlasDescriptors.allSatisfy {
+                NSImage(named: NSImage.Name($0.imageName)) != nil
+            }
+        )
 
         let controller = PetWindowController()
         let panel = try XCTUnwrap(controller.panel)

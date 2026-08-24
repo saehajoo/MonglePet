@@ -80,6 +80,22 @@ nonisolated struct SpriteSheetGridDimensions: Equatable, Sendable {
     let columns: Int
 }
 
+nonisolated struct SpriteSheetFrameSelection: Equatable, Sendable {
+    let rect: PixelRect
+    let flipsHorizontally: Bool
+    let flipsVertically: Bool
+
+    init(
+        rect: PixelRect,
+        flipsHorizontally: Bool = false,
+        flipsVertically: Bool = false
+    ) {
+        self.rect = rect
+        self.flipsHorizontally = flipsHorizontally
+        self.flipsVertically = flipsVertically
+    }
+}
+
 nonisolated struct SpriteSheetFrameExtractor {
     private static let maximumGridDimension = 32
     fileprivate static let alphaThreshold: UInt8 = 12
@@ -270,18 +286,35 @@ nonisolated struct SpriteSheetFrameExtractor {
         regions: [PixelRect],
         removingBackground removal: SpriteSheetBackgroundRemoval?
     ) throws -> [CGImage] {
-        guard !regions.isEmpty else {
+        try extractFrames(
+            from: document,
+            selections: regions.map { SpriteSheetFrameSelection(rect: $0) },
+            removingBackground: removal
+        )
+    }
+
+    func extractFrames(
+        from document: SpriteSheetDocument,
+        selections: [SpriteSheetFrameSelection],
+        removingBackground removal: SpriteSheetBackgroundRemoval?
+    ) throws -> [CGImage] {
+        guard !selections.isEmpty else {
             throw SpriteSheetImportError.emptySelection
         }
-        guard regions.count <= limits.maximumFrameCount else {
+        guard selections.count <= limits.maximumFrameCount else {
             throw SpriteSheetImportError.invalidGrid
         }
-        guard regions.allSatisfy({ $0.isContained(in: document.pixelSize) }) else {
+        guard selections.allSatisfy({ $0.rect.isContained(in: document.pixelSize) }) else {
             throw SpriteSheetImportError.invalidFrameRegion
         }
         let image = try processedImage(from: document, removingBackground: removal)
-        return try regions.map { region in
-            guard let frame = ImageCropProcessor().crop(image, to: region) else {
+        return try selections.map { selection in
+            guard let frame = ImageCropProcessor().cropAndTransform(
+                image,
+                to: selection.rect,
+                flipsHorizontally: selection.flipsHorizontally,
+                flipsVertically: selection.flipsVertically
+            ) else {
                 throw SpriteSheetImportError.invalidFrameRegion
             }
             return frame

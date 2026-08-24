@@ -122,4 +122,55 @@ nonisolated struct ImageCropProcessor {
             )
         )
     }
+
+    func transformed(
+        _ image: CGImage,
+        flipsHorizontally: Bool,
+        flipsVertically: Bool
+    ) -> CGImage? {
+        guard flipsHorizontally || flipsVertically else {
+            return image
+        }
+        guard let context = CGContext(
+            data: nil,
+            width: image.width,
+            height: image.height,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: image.colorSpace ?? CGColorSpace(name: CGColorSpace.sRGB)!,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else {
+            return nil
+        }
+        context.interpolationQuality = .none
+        context.translateBy(
+            x: flipsHorizontally ? CGFloat(image.width) : 0,
+            y: flipsVertically ? CGFloat(image.height) : 0
+        )
+        context.scaleBy(
+            x: flipsHorizontally ? -1 : 1,
+            y: flipsVertically ? -1 : 1
+        )
+        context.draw(
+            image,
+            in: CGRect(x: 0, y: 0, width: image.width, height: image.height)
+        )
+        return context.makeImage()
+    }
+
+    func cropAndTransform(
+        _ image: CGImage,
+        to rect: PixelRect,
+        flipsHorizontally: Bool,
+        flipsVertically: Bool
+    ) -> CGImage? {
+        guard let cropped = crop(image, to: rect) else {
+            return nil
+        }
+        return transformed(
+            cropped,
+            flipsHorizontally: flipsHorizontally,
+            flipsVertically: flipsVertically
+        )
+    }
 }

@@ -31,27 +31,32 @@ enum PetPresentationResourceLoader {
     }
 
     static func loadBuiltInAtlases() throws -> [PetAtlasImage] {
-        guard let image = NSImage(named: "PlaceholderPet") else {
-            throw PetPresentationLoadingError.missingAtlas(BuiltInPet.atlasID)
-        }
-        var proposedRect = NSRect(origin: .zero, size: image.size)
-        guard let cgImage = image.cgImage(
-            forProposedRect: &proposedRect,
-            context: nil,
-            hints: nil
-        ) else {
-            throw PetPresentationLoadingError.invalidAtlas("PlaceholderPet")
-        }
-        return [
-            PetAtlasImage(
-                id: BuiltInPet.atlasID,
-                image: cgImage,
-                pixelSize: PixelSize(
-                    width: cgImage.width,
-                    height: cgImage.height
+        try BuiltInPet.atlasDescriptors.map { descriptor in
+            guard let image = NSImage(
+                named: NSImage.Name(descriptor.imageName)
+            ) else {
+                throw PetPresentationLoadingError.missingAtlas(descriptor.id)
+            }
+            var proposedRect = NSRect(origin: .zero, size: image.size)
+            guard
+                let cgImage = image.cgImage(
+                    forProposedRect: &proposedRect,
+                    context: nil,
+                    hints: nil
+                ),
+                cgImage.width == descriptor.pixelSize.width,
+                cgImage.height == descriptor.pixelSize.height
+            else {
+                throw PetPresentationLoadingError.invalidAtlas(
+                    descriptor.imageName
                 )
+            }
+            return PetAtlasImage(
+                id: descriptor.id,
+                image: cgImage,
+                pixelSize: descriptor.pixelSize
             )
-        ]
+        }
     }
 
     private static func loadAtlases(
@@ -112,7 +117,7 @@ final class PetWindowController: NSWindowController {
     ) {
         guard
             let resources = try? resourceCache.builtInResources(),
-            let builtInAtlas = resources.atlases.first,
+            !resources.atlases.isEmpty,
             let petOverlayView = PetOverlayView(
                 resources: resources,
                 atlasID: BuiltInPet.atlasID
@@ -121,9 +126,7 @@ final class PetWindowController: NSWindowController {
             fatalError("The built-in MonglePet atlas is missing or invalid.")
         }
 
-        let petDefinition = BuiltInPet.mongleDefinition(
-            atlasPixelSize: builtInAtlas.pixelSize
-        )
+        let petDefinition = BuiltInPet.mongleDefinition()
         guard let defaultMotion = petDefinition.defaultMotion else {
             fatalError("The built-in MonglePet definition has no playable motion.")
         }

@@ -281,9 +281,9 @@ final class AppSettingsSessionTests: XCTestCase {
         XCTAssertEqual(session.settings.manualSequenceID, "built-in-custom")
         XCTAssertTrue(session.settings.sequences.contains { $0.id == "built-in-custom" })
         XCTAssertFalse(session.settings.sequences.contains { $0.id == "installed-custom" })
-        XCTAssertEqual(session.settings.automaticRules.count, 1)
+        XCTAssertEqual(session.settings.automaticRules.count, 3)
         XCTAssertEqual(
-            session.settings.automaticRules.first?.condition,
+            session.settings.automaticRules.last?.condition,
             .application(bundleIdentifier: "com.example.BuiltIn")
         )
 
@@ -826,13 +826,16 @@ final class AppSettingsSessionTests: XCTestCase {
 
         XCTAssertEqual(
             session.settings.sequences.map(\.id),
-            [BuiltInBehaviorPresets.defaultSequenceID]
+            BuiltInBehaviorPresets.mongleSequences.map(\.id)
         )
         XCTAssertEqual(
             session.settings.manualSequenceID,
             BuiltInBehaviorPresets.defaultSequenceID
         )
-        XCTAssertTrue(session.settings.automaticRules.isEmpty)
+        XCTAssertEqual(
+            session.settings.automaticRules,
+            BuiltInBehaviorPresets.mongleAutomaticRules
+        )
         XCTAssertEqual(
             AppSettingsStore(settingsURL: settingsURL).load().source,
             .defaults
@@ -844,9 +847,12 @@ final class AppSettingsSessionTests: XCTestCase {
         XCTAssertEqual(reloaded.settings.manualSequenceID, "coding")
         XCTAssertEqual(
             reloaded.settings.sequences.map(\.id),
-            [BuiltInBehaviorPresets.defaultSequenceID, "coding"]
+            BuiltInBehaviorPresets.mongleSequences.map(\.id) + ["coding"]
         )
-        XCTAssertTrue(reloaded.settings.automaticRules.isEmpty)
+        XCTAssertEqual(
+            reloaded.settings.automaticRules,
+            BuiltInBehaviorPresets.mongleAutomaticRules
+        )
     }
 
     @MainActor
@@ -1021,12 +1027,94 @@ final class AppSettingsSessionTests: XCTestCase {
         _ = session.load { _ in self.migrationPetDefinition }
         session.ensureSystemDefaultBehavior()
 
-        XCTAssertEqual(session.settings.sequences, BuiltInBehaviorPresets.sequences)
+        XCTAssertEqual(
+            session.settings.sequences,
+            BuiltInBehaviorPresets.mongleSequences
+        )
         XCTAssertEqual(
             session.settings.manualSequenceID,
             BuiltInBehaviorPresets.defaultSequenceID
         )
-        XCTAssertTrue(session.settings.automaticRules.isEmpty)
+        XCTAssertEqual(
+            session.settings.automaticRules,
+            BuiltInBehaviorPresets.mongleAutomaticRules
+        )
+        XCTAssertEqual(
+            session.settings.movementSettings,
+            BuiltInBehaviorPresets.mongleMovement
+        )
+        XCTAssertEqual(
+            session.settings.pettingMotionID,
+            BuiltInBehaviorPresets.monglePettingMotionID
+        )
+    }
+
+    func testFreshBuiltInProfileUsesPublishedRecommendedOptions() {
+        let normalized = BuiltInBehaviorPresets.normalizedDefaults(in: .default)
+
+        XCTAssertEqual(normalized.selectedPetKey, .builtIn)
+        XCTAssertEqual(normalized.behaviorMode, .automatic)
+        XCTAssertEqual(
+            normalized.manualSequenceID,
+            BuiltInBehaviorPresets.defaultSequenceID
+        )
+        XCTAssertEqual(
+            normalized.sequences,
+            BuiltInBehaviorPresets.mongleSequences
+        )
+        XCTAssertEqual(
+            normalized.automaticRules,
+            BuiltInBehaviorPresets.mongleAutomaticRules
+        )
+        XCTAssertEqual(
+            normalized.movementSettings,
+            BuiltInBehaviorPresets.mongleMovement
+        )
+        XCTAssertEqual(normalized.pettingMotionID, "해피")
+        XCTAssertEqual(normalized.speechSettings, .default)
+    }
+
+    func testModifiedPreviousBuiltInProfileIsPreserved() {
+        let movement = PetMovementSettings(
+            mode: .freeRoaming,
+            speed: 210,
+            cursorDistance: 96,
+            stopRadius: 16,
+            freeRoamingDwellMilliseconds: 6_000,
+            prefersFrontmostWindow: false
+        )
+        let settings = AppSettings(
+            selectedPetInstallationID: nil,
+            lastUserPresentation: .awake,
+            behaviorMode: .automatic,
+            overlay: .default,
+            movement: movement,
+            manualSequenceID: BuiltInBehaviorPresets.defaultSequenceID,
+            sequences: BuiltInBehaviorPresets.sequences,
+            automaticRules: []
+        )
+
+        let normalized = BuiltInBehaviorPresets.normalizedDefaults(in: settings)
+
+        XCTAssertEqual(normalized.sequences, BuiltInBehaviorPresets.sequences)
+        XCTAssertTrue(normalized.automaticRules.isEmpty)
+        XCTAssertEqual(normalized.movementSettings, movement)
+        XCTAssertNil(normalized.pettingMotionID)
+    }
+
+    func testInstalledPetKeepsGenericDefaultProfile() {
+        let installationID = UUID(
+            uuidString: "A1000000-0000-0000-0000-000000000001"
+        )!
+        let settings = AppSettings.default.addingPetInstance(
+            for: .installed(installationID)
+        )
+
+        XCTAssertEqual(settings.selectedPetKey, .installed(installationID))
+        XCTAssertEqual(settings.sequences, BuiltInBehaviorPresets.sequences)
+        XCTAssertTrue(settings.automaticRules.isEmpty)
+        XCTAssertEqual(settings.movementSettings, .default)
+        XCTAssertNil(settings.pettingMotionID)
     }
 
     private var migrationPetDefinition: PetDefinition {

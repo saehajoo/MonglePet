@@ -7,6 +7,7 @@ nonisolated struct PetPackageImportReview: Equatable, Identifiable, Sendable {
     let compatibility: PetPackageCompatibility?
     let currentMonglePetVersion: SemanticVersion
     let compatibilityAssessment: PetPackageCompatibilityAssessment
+    let publishedMinimumMonglePetVersion: SemanticVersion?
     let containsRecommendedProfile: Bool
     let recommendedProfile: RecommendedPetProfile?
     let recommendedProfileIssue: RecommendedPetProfileError?
@@ -18,6 +19,7 @@ nonisolated struct PetPackageImportReview: Equatable, Identifiable, Sendable {
         compatibility: PetPackageCompatibility? = nil,
         currentMonglePetVersion: SemanticVersion = MonglePetAppVersion.current.semanticVersion,
         compatibilityAssessment: PetPackageCompatibilityAssessment = .compatible,
+        publishedMinimumMonglePetVersion: SemanticVersion? = nil,
         containsRecommendedProfile: Bool,
         recommendedProfile: RecommendedPetProfile?,
         recommendedProfileIssue: RecommendedPetProfileError?
@@ -28,6 +30,7 @@ nonisolated struct PetPackageImportReview: Equatable, Identifiable, Sendable {
         self.compatibility = compatibility
         self.currentMonglePetVersion = currentMonglePetVersion
         self.compatibilityAssessment = compatibilityAssessment
+        self.publishedMinimumMonglePetVersion = publishedMinimumMonglePetVersion
         self.containsRecommendedProfile = containsRecommendedProfile
         self.recommendedProfile = recommendedProfile
         self.recommendedProfileIssue = recommendedProfileIssue
@@ -38,7 +41,35 @@ nonisolated struct PetPackageImportReview: Equatable, Identifiable, Sendable {
     }
 
     var canInstall: Bool {
-        compatibilityAssessment.canInstall
+        effectiveCompatibilityAssessment.canInstall
+    }
+
+    var effectiveCompatibilityAssessment: PetPackageCompatibilityAssessment {
+        if let publishedMinimumMonglePetVersion,
+           currentMonglePetVersion < publishedMinimumMonglePetVersion {
+            if case let .updateRecommended(packageMinimum) = compatibilityAssessment {
+                return .updateRecommended(max(packageMinimum, publishedMinimumMonglePetVersion))
+            }
+            return .updateRecommended(publishedMinimumMonglePetVersion)
+        }
+        return compatibilityAssessment
+    }
+
+    func withPublishedMinimumMonglePetVersion(
+        _ version: SemanticVersion
+    ) -> PetPackageImportReview {
+        PetPackageImportReview(
+            sourceURL: sourceURL,
+            metadata: metadata,
+            definition: definition,
+            compatibility: compatibility,
+            currentMonglePetVersion: currentMonglePetVersion,
+            compatibilityAssessment: compatibilityAssessment,
+            publishedMinimumMonglePetVersion: version,
+            containsRecommendedProfile: containsRecommendedProfile,
+            recommendedProfile: recommendedProfile,
+            recommendedProfileIssue: recommendedProfileIssue
+        )
     }
 
     var applicationBundleIdentifiers: [String] {
@@ -78,7 +109,6 @@ nonisolated enum PetPackageImportError: Error, Equatable, Sendable {
     case recommendedProfileFileTooLarge
     case recommendedProfileUnavailable
     case reviewedContentChanged
-    case minimumAppVersionRequired(required: SemanticVersion, current: SemanticVersion)
 }
 
 extension PetPackageImportError: LocalizedError {
@@ -90,8 +120,6 @@ extension PetPackageImportError: LocalizedError {
             "이 패키지의 권장 설정은 적용할 수 없습니다. 펫만 설치해 주세요."
         case .reviewedContentChanged:
             "확인한 뒤 패키지 내용이 변경되었습니다. 다시 가져와 내용을 확인해 주세요."
-        case let .minimumAppVersionRequired(required, current):
-            "이 펫은 MonglePet \(required) 이상이 필요합니다. 현재 버전은 \(current)입니다."
         }
     }
 }
@@ -164,14 +192,6 @@ nonisolated struct PetPackageInstaller {
                    !currentReview.hasSameReviewedContent(as: expectedReview) {
                     throw PetPackageImportError.reviewedContentChanged
                 }
-                if case let .requiresNewerVersion(requiredVersion)
-                    = currentReview.compatibilityAssessment {
-                    throw PetPackageImportError.minimumAppVersionRequired(
-                        required: requiredVersion,
-                        current: currentAppVersion
-                    )
-                }
-
                 let installedPackage = try libraryStore.install(
                     packageAt: packageRootURL,
                     validatedPackage: validatedPackage,

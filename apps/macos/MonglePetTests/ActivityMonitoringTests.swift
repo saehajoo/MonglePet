@@ -202,7 +202,7 @@ final class ActivityMonitoringTests: XCTestCase {
         XCTAssertTrue(coordinator.isPetAwake)
         XCTAssertEqual(
             coordinator.currentSettings.sequences,
-            BuiltInBehaviorPresets.sequences
+            BuiltInBehaviorPresets.mongleSequences
         )
         let activeSnapshot = ActivitySnapshot(
             capturedAt: ContinuousClock().now,
@@ -212,7 +212,7 @@ final class ActivityMonitoringTests: XCTestCase {
             isSystemSleeping: false
         )
         activityMonitor.emit(activeSnapshot)
-        XCTAssertEqual(coordinator.currentMotionID, "idle")
+        XCTAssertEqual(coordinator.currentMotionID, "기본")
 
         let snapshot = ActivitySnapshot(
             capturedAt: ContinuousClock().now,

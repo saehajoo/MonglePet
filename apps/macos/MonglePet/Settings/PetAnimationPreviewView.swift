@@ -22,10 +22,11 @@ struct PetAnimationPreviewView: NSViewRepresentable {
 
     func makeNSView(context: Context) -> PetOverlayView {
         guard
-            let placeholderImage = NSImage(named: "PlaceholderPet"),
+            let atlases = try? PetPresentationResourceLoader
+                .loadBuiltInAtlases(),
             let view = PetOverlayView(
-                atlasID: BuiltInPet.atlasID,
-                image: placeholderImage
+                resources: PetPresentationResources(atlases: atlases),
+                atlasID: BuiltInPet.atlasID
             )
         else {
             fatalError("The built-in MonglePet preview image is missing or invalid.")

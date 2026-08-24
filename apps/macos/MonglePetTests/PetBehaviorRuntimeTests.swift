@@ -184,8 +184,14 @@ final class PetBehaviorRuntimeTests: XCTestCase {
             configuration.defaultSequenceID,
             BuiltInBehaviorPresets.defaultSequenceID
         )
-        XCTAssertEqual(configuration.sequences, BuiltInBehaviorPresets.sequences)
-        XCTAssertTrue(configuration.automaticRules.isEmpty)
+        XCTAssertEqual(
+            configuration.sequences,
+            BuiltInBehaviorPresets.mongleSequences
+        )
+        XCTAssertEqual(
+            configuration.automaticRules,
+            BuiltInBehaviorPresets.mongleAutomaticRules
+        )
         XCTAssertEqual(
             configuration.manualSequenceID,
             BuiltInBehaviorPresets.defaultSequenceID
