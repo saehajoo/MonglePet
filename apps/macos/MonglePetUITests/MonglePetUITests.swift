@@ -231,6 +231,42 @@ final class MonglePetUITests: XCTestCase {
     }
 
     @MainActor
+    func testPNGEditorKeepsFooterVisibleAndScrollsThroughContent() throws {
+        let app = XCUIApplication()
+        app.launchArguments.append("--ui-testing-open-png-editor")
+        app.launch()
+
+        let window = app.windows["PNG 프레임 자르기"]
+        XCTAssertTrue(window.waitForExistence(timeout: 5))
+
+        let importButton = app.buttons["monglepet.pngCrop.import"]
+        XCTAssertTrue(importButton.waitForExistence(timeout: 5))
+        XCTAssertTrue(importButton.isHittable)
+
+        let zoomOut = app.buttons["monglepet.imageEditor.zoomOut"]
+        let zoomIn = app.buttons["monglepet.imageEditor.zoomIn"]
+        XCTAssertTrue(zoomOut.waitForExistence(timeout: 5))
+        XCTAssertTrue(zoomIn.exists)
+        XCTAssertEqual(zoomOut.frame.height, zoomIn.frame.height, accuracy: 1)
+
+        let contentScroll = app.scrollViews["monglepet.pngCrop.contentScroll"]
+        XCTAssertTrue(contentScroll.waitForExistence(timeout: 5))
+        contentScroll.scroll(byDeltaX: 0, deltaY: -620)
+
+        let resultPreview = app.descendants(matching: .any)[
+            "monglepet.pngCrop.resultPreview"
+        ]
+        XCTAssertTrue(resultPreview.waitForExistence(timeout: 5))
+        XCTAssertTrue(resultPreview.isHittable)
+        XCTAssertTrue(importButton.isHittable)
+
+        let attachment = XCTAttachment(screenshot: window.screenshot())
+        attachment.name = "png-editor-scrolled-minimum-size"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    @MainActor
     private func scrollPetTab(
         in app: XCUIApplication,
         by deltaY: CGFloat

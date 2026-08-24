@@ -6,7 +6,9 @@
 
 MonglePet Windows 앱에 macOS `1.3.0 (5)`에서 확정한 새 내장 몽글이, 펫 최소 앱 버전 권장 정책과 PNG·스프라이트 제작기 개선을 모두 반영해주세요.
 
-먼저 `AGENTS.md`, `apps/windows/AGENTS.md`, `AGENTS/guides/WINDOWS_MACOS_1_3_HANDOFF.md`, `AGENTS/guides/WINDOWS_BUILTIN_MONGLE_HANDOFF.md`, `AGENTS/specifications/PET_PACKAGE.md`, `AGENTS/project/DECISIONS.md`의 D-086~D-088, `AGENTS/project/PLATFORM_PARITY.md`를 읽으세요. `git status -sb`와 원격 차이를 확인하고 `macos-v1.3.0-preview.1` 릴리스 커밋이 없으면 먼저 `git pull --ff-only` 필요 여부를 알려주세요. 사용자 변경을 보존하고 Windows 소스 수정 전 별도 작업 계획을 만드세요.
+`macos-v1.3.0-preview.1` 이후의 이미지 편집 UI 보정도 최신 `main`에서 함께 확인하세요. 단일 PNG와 스프라이트 선택 결과는 투명 격자·바깥 캔버스 테두리·실제 crop 전체 범위의 파란 경계를 동일하게 표시하고, PNG dialog 본문 전체를 세로 스크롤할 수 있어야 합니다. 1×에서는 내부 이미지 pan이 바깥 스크롤을 가로채지 않고 확대했을 때만 양축 pan을 사용하며, 확대·축소 버튼 크기와 높이를 완전히 같게 맞추세요.
+
+먼저 `AGENTS.md`, `apps/windows/AGENTS.md`, `AGENTS/guides/WINDOWS_MACOS_1_3_HANDOFF.md`, `AGENTS/guides/WINDOWS_BUILTIN_MONGLE_HANDOFF.md`, `AGENTS/specifications/PET_PACKAGE.md`, `AGENTS/project/DECISIONS.md`의 D-086~D-089, `AGENTS/project/PLATFORM_PARITY.md`를 읽으세요. `git status -sb`와 원격 차이를 확인하고 최신 이미지 편집 보정 커밋이 없으면 먼저 `git pull --ff-only` 필요 여부를 알려주세요. 사용자 변경을 보존하고 Windows 소스 수정 전 별도 작업 계획을 만드세요.
 
 핵심 요구사항:
 
@@ -23,7 +25,7 @@ MonglePet Windows 앱에 macOS `1.3.0 (5)`에서 확정한 새 내장 몽글이,
 - `shared/BuiltInPets/Mongle.monglepet`을 Windows output/publish에 포함하고 내장 몽글이 loader·기본 프로필·이관을 구현하세요. macOS 자산 폴더를 참조하거나 공통 built-in을 다시 만들지 마세요.
 - 공통 권장 프로필에는 앱 규칙이 없으므로 실제 Windows Codex의 `pfn:`/`exe:` 식별자를 확인해 built-in 전용 기본값에 추가하세요.
 
-자동 테스트, 실제 packaged/unpackaged QA, 혼합 DPI·Narrator·큰 이미지 drag 성능, Windows→macOS 교차 왕복을 `WINDOWS_MACOS_1_3_HANDOFF.md`의 완료 조건대로 수행하세요. 공개 Windows `1.2.0.13`을 덮어쓰지 말고 새 버전을 올리세요. 모든 구현·검증 후 커밋·푸시하고 새 Windows GitHub Pre-release를 게시해 원격 설치기 digest까지 검증하세요.
+자동 테스트, 실제 packaged/unpackaged QA, 최소 창 높이의 전체 본문 스크롤, 1×/확대 viewport 스크롤 소유권, 100%·150%·200% DPI의 동일한 `+`·`−` 버튼, Narrator·큰 이미지 drag 성능과 Windows→macOS 교차 왕복을 `WINDOWS_MACOS_1_3_HANDOFF.md`의 완료 조건대로 수행하세요. 공개 Windows `1.2.0.13`을 덮어쓰지 말고 새 버전을 올리세요. 사용자가 남은 수정과 검토 완료를 확정하기 전에는 GitHub Release를 게시하지 말고, 확정 후 모든 구현·검증을 커밋·푸시한 다음 새 Windows Pre-release와 원격 설치기 digest를 검증하세요.
 
 마지막 보고에는 버전과 태그, 변경 파일, 테스트 개수, Debug·Release 빌드, packaged/unpackaged 실제 QA, 교차 왕복, 설치기 digest, 커밋·푸시·릴리스 상태와 남은 위험을 구분해 적으세요. Windows 실제 QA 전에는 플랫폼 동등 완료로 표시하지 마세요.
 

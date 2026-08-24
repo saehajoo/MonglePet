@@ -1,4 +1,6 @@
+import AppKit
 import CoreGraphics
+import SwiftUI
 import XCTest
 @testable import MonglePet
 
@@ -123,4 +125,82 @@ final class ImageCropGeometryTests: XCTestCase {
             CGRect(x: -150, y: 45, width: 600, height: 300)
         )
     }
+
+    @MainActor
+    func testResultPreviewKeepsFrameBoundaryInsideCanvas() {
+        XCTAssertEqual(
+            ImageCropResultPreviewGeometry.fittedFrame(
+                pixelSize: PixelSize(width: 200, height: 100),
+                in: CGSize(width: 300, height: 300),
+                inset: 10
+            ),
+            CGRect(x: 10, y: 80, width: 280, height: 140)
+        )
+        XCTAssertEqual(
+            ImageCropResultPreviewGeometry.fittedFrame(
+                pixelSize: PixelSize(width: 100, height: 200),
+                in: CGSize(width: 300, height: 300),
+                inset: 10
+            ),
+            CGRect(x: 80, y: 10, width: 140, height: 280)
+        )
+        XCTAssertEqual(
+            ImageCropResultPreviewGeometry.fittedFrame(
+                pixelSize: PixelSize(width: 100, height: 100),
+                in: CGSize(width: 300, height: 220),
+                inset: 10
+            ),
+            CGRect(x: 50, y: 10, width: 200, height: 200)
+        )
+    }
+
+    @MainActor
+    func testEditorOnlyOwnsPanWhenImageIsZoomed() {
+        XCTAssertFalse(ImageEditorViewportPolicy.usesInternalPan(at: 1))
+        XCTAssertTrue(ImageEditorViewportPolicy.usesInternalPan(at: 1.5))
+        XCTAssertTrue(ImageEditorViewportPolicy.usesInternalPan(at: 8))
+    }
+
+    @MainActor
+    func testCropResultPreviewProducesVisualQAReference() throws {
+        let context = try XCTUnwrap(
+            CGContext(
+                data: nil,
+                width: 160,
+                height: 120,
+                bitsPerComponent: 8,
+                bytesPerRow: 0,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            )
+        )
+        context.clear(CGRect(x: 0, y: 0, width: 160, height: 120))
+        context.setFillColor(NSColor.systemTeal.cgColor)
+        context.fill(CGRect(x: 35, y: 25, width: 90, height: 70))
+        let image = try XCTUnwrap(context.makeImage())
+        let cropRect = PixelRect(x: 10, y: 10, width: 140, height: 100)
+        let reference = HStack(spacing: 16) {
+            CroppedImagePreview(image: image, cropRect: cropRect)
+                .frame(width: 280, height: 220)
+            CroppedImagePreview(
+                image: image,
+                cropRect: cropRect,
+                flipsHorizontally: true,
+                flipsVertically: false
+            )
+            .frame(width: 280, height: 220)
+        }
+        .padding(16)
+        .frame(width: 608, height: 252)
+        .environment(\.colorScheme, .dark)
+        let renderer = ImageRenderer(content: reference)
+        renderer.scale = 2
+        let renderedImage = try XCTUnwrap(renderer.nsImage)
+
+        let attachment = XCTAttachment(image: renderedImage)
+        attachment.name = "crop-result-preview-boundaries"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
 }

@@ -2,9 +2,9 @@
 
 ## 목적과 시작 조건
 
-macOS `1.3.0 (5)`에서 확정한 펫 버전 정책, 최소 앱 버전 권장 안내, PNG·스프라이트 편집 결과와 새 내장 몽글이를 Windows 네이티브 앱에 반영한다. Windows 소스·빌드·실제 QA는 Windows 작업 공간에서만 수행한다.
+macOS `1.3.0 (5)`에서 확정한 펫 버전 정책, 최소 앱 버전 권장 안내, PNG·스프라이트 편집 결과와 새 내장 몽글이 및 공개 뒤 이미지 편집 UI 보정을 Windows 네이티브 앱에 반영한다. Windows 소스·빌드·실제 QA는 Windows 작업 공간에서만 수행한다.
 
-작업 전 `AGENTS.md`, `apps/windows/AGENTS.md`, 이 문서, `AGENTS/specifications/PET_PACKAGE.md`, `AGENTS/project/DECISIONS.md`의 D-086~D-088, `AGENTS/guides/WINDOWS_BUILTIN_MONGLE_HANDOFF.md`, `AGENTS/project/PLATFORM_PARITY.md`를 읽는다. macOS `1.3.0 (5)` 릴리스 커밋과 태그 `macos-v1.3.0-preview.1`을 포함한 `main`을 `pull --ff-only`한 뒤 별도 Windows 작업 계획을 만든다.
+작업 전 `AGENTS.md`, `apps/windows/AGENTS.md`, 이 문서, `AGENTS/specifications/PET_PACKAGE.md`, `AGENTS/project/DECISIONS.md`의 D-086~D-089, `AGENTS/guides/WINDOWS_BUILTIN_MONGLE_HANDOFF.md`, `AGENTS/project/PLATFORM_PARITY.md`를 읽는다. 태그 `macos-v1.3.0-preview.1`뿐 아니라 이 문서의 공개 뒤 편집 보정까지 포함한 최신 `main`을 `pull --ff-only`한 뒤 별도 Windows 작업 계획을 만든다.
 
 ## 공통 계약
 
@@ -47,7 +47,9 @@ SwiftUI를 복사하지 말고 WinUI 3 네이티브 컨트롤로 아래 정보 �
 - `PNG 더 추가…`로 dialog를 닫지 않고 새 PNG를 append하며 기존 draft를 보존한다.
 - 1×~8× 확대·축소·맞춤과 scroll/pan을 제공한다. 확대 중에도 원본 픽셀 좌표와 drag 안정성을 유지한다.
 - 좌우·상하 뒤집기는 현재 선택 묶음에 적용하고 최종 crop 미리보기에 즉시 반영한다.
-- 선택한 PNG 결과 미리보기는 실제 crop·flip 픽셀을 보여주며 항목을 눌러 집중 대상을 바꾼다.
+- 단일 PNG도 편집 원본 아래에 `잘라낸 결과 미리보기`를 항상 표시한다. 여러 PNG를 선택하면 별도 가로 결과 목록에서 항목을 눌러 집중 대상을 바꾼다.
+- 결과 미리보기는 애니메이션 프레임 미리보기와 같은 10px 투명 격자, 바깥 캔버스 테두리와 실제 crop 전체 픽셀 범위의 파란 실선을 사용한다. 투명 여백도 파란 경계 안에 포함한다.
+- 편집 dialog의 header와 footer는 고정하고 두 열 본문 전체가 세로로 스크롤되어 최소 창 높이에서도 결과 미리보기, PNG 목록, `PNG 더 추가…`와 모든 일괄 작업에 접근할 수 있어야 한다.
 
 ### 스프라이트 시트 편집기
 
@@ -55,6 +57,7 @@ SwiftUI를 복사하지 말고 WinUI 3 네이티브 컨트롤로 아래 정보 �
 - 자동 제안 또는 1~32 행·열 균등 격자에서 시작하고 각 경계를 독립 이동·8방향 크기 조절·숫자 입력한다.
 - `읽기 순서`와 선택을 비운 뒤 누른 순서로 번호를 정하는 `클릭 순서`를 제공한다.
 - 선택 영역 crop 미리보기는 시트의 포함/제외 클릭과 분리한다. 최종 선택 순서의 이전·다음 버튼과 미리보기 클릭으로만 탐색한다.
+- 선택 영역도 PNG 결과와 같은 투명 격자·바깥 테두리·파란 crop 프레임 경계를 표시해 투명 여백과 저장 크기를 구분한다.
 - 현재 미리보기 프레임에 좌우·상하 뒤집기를 독립 적용한다.
 - 전체 시트도 1×~8× 확대·축소·맞춤과 scroll/pan을 제공한다.
 - 배경 제거 미리보기, 선택 crop 미리보기와 최종 추출은 같은 처리된 source를 사용한다.
@@ -64,6 +67,8 @@ SwiftUI를 복사하지 말고 WinUI 3 네이티브 컨트롤로 아래 정보 �
 - 투명 픽셀 경계는 원본당 한 번 분석해 cache한다.
 - drag 중 전체 PNG 또는 전체 atlas를 매 포인터 이벤트마다 다시 디코딩·합성하지 않는다. 고정 좌표의 overlay만 갱신하고 확정 시 필요한 결과를 만든다.
 - 확대 콘텐츠의 scroll 좌표와 crop drag 좌표를 분리해 핸들이 튀거나 영역이 포인터를 뒤늦게 따라오지 않게 한다.
+- 1× 맞춤에서는 이미지 내부 ScrollViewer가 세로 wheel을 소비하지 않고 dialog 본문이 스크롤한다. 1×보다 클 때만 이미지 viewport의 가로·세로 pan을 활성화한다. 확대 영역 위에서 바깥 본문으로 이동할 수 있는 키보드·스크롤 대안도 유지한다.
+- 확대·축소 버튼은 같은 30×24pt 기준 hit area, 같은 12×12pt 아이콘 frame과 같은 border style을 사용해 `+`·`−`의 실제 높이와 정렬을 맞춘다. Windows에서는 DPI 독립 단위로 같은 시각 결과를 구현한다.
 - 취소 시 임시 파일·draft를 제거하고 설치·보관함·기존 프레임을 바꾸지 않는다.
 
 ## 새 내장 몽글이
@@ -79,6 +84,8 @@ SwiftUI를 복사하지 말고 WinUI 3 네이티브 컨트롤로 아래 정보 �
 - 잘못된 호환 버전, 미래 `formatVersion`, archive traversal·symlink·20MiB·digest mismatch는 계속 거부된다.
 - 비대칭 RGBA fixture의 crop, 좌우, 상하, 양축 flip 픽셀이 macOS와 같은 위치다.
 - 확대 배율이 달라도 저장 crop 좌표가 같다.
+- 1×에서는 내부 pan이 비활성이고 확대 배율에서만 활성인 viewport 정책을 검증한다.
+- 가로·세로·정사각 결과가 격자 캔버스 안에 inset을 두고 aspect-fit되어 파란 경계가 잘리지 않는다.
 - PNG 추가 전후 기존 crop·flip·순서 보존, 다중 일괄 flip, 취소 무변경.
 - 스프라이트 `4→1→3` 클릭 순서, 선택 제거 재번호, 서로 다른 frame별 flip, crop 미리보기와 최종 atlas 일치.
 - 프레임 복사가 source·duration·placement를 보존하고 새 독립 ID로 바로 다음에 삽입된다.
@@ -90,10 +97,10 @@ SwiftUI를 복사하지 말고 WinUI 3 네이티브 컨트롤로 아래 정보 �
 
 1. 운영 펫 상세 URL과 로컬 패키지에서 높은 최소 버전 경고 뒤 설치·권장 설정 적용·중복 처리를 확인한다.
 2. 다운로드 페이지 버튼이 정확한 운영 URL을 기본 브라우저로 열며 앱이 백그라운드 업데이트 조회를 하지 않는지 확인한다.
-3. 작은 PNG와 7×8 불규칙 시트를 4× 이상 확대해 crop drag·resize·scroll 안정성과 미리보기 일치를 확인한다.
+3. 작은 PNG와 7×8 불규칙 시트를 4× 이상 확대해 crop drag·resize·scroll 안정성과 미리보기 일치를 확인한다. 최소 창 높이에서 본문을 끝까지 내려 `PNG 더 추가…`, 목록과 일괄 작업에 접근하고 1× 이미지 위 wheel이 바깥 본문을 움직이는지도 확인한다.
 4. PNG 추가, 다중 선택 flip, 스프라이트 frame별 flip, 복사·순서·간격·배치를 저장하고 내보낸다.
 5. Windows 결과를 macOS에서 가져와 atlas 픽셀·frame 순서·duration·표시 크기가 같은지 교차 확인한다.
 6. packaged/unpackaged에서 새 built-in, 기존 수정 프로필 보존, Codex 규칙, 도망가기·쓰다듬기와 업데이트 설치를 확인한다.
-7. 키보드, Narrator, 100%·혼합 DPI, 큰 이미지 반복 drag의 CPU·메모리·응답성을 확인한다.
+7. 키보드, Narrator, 100%·150%·200% DPI에서 `+`·`−` 버튼 높이·초점 사각형, 결과 경계 대비와 중첩 ScrollViewer를 확인하고 큰 이미지 반복 drag의 CPU·메모리·응답성을 측정한다.
 
 Windows 전체 구현·실제 QA와 교차 왕복 전에는 `PLATFORM_PARITY.md`를 완료로 바꾸지 않는다. Windows Preview 버전은 공개 `1.2.0.13`을 덮어쓰지 않고 별도 버전으로 올리며, 사용자 요청대로 모든 구현·검증이 끝난 뒤 새 GitHub Release를 게시한다.

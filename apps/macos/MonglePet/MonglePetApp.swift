@@ -6,6 +6,7 @@
 //
 
 import AppKit
+import SwiftUI
 
 @main
 enum MonglePetApp {
@@ -23,6 +24,7 @@ final class MonglePetAppDelegate: NSObject, NSApplicationDelegate {
     private var coordinator: AppCoordinator?
     private var pendingExternalURLs: [URL] = []
     private var uiTestingSettingsDirectoryURL: URL?
+    private var uiTestingImageEditorWindow: NSWindow?
     private var qaTerminationTimer: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -30,7 +32,12 @@ final class MonglePetAppDelegate: NSObject, NSApplicationDelegate {
         let isOpeningSettingsForUITest = arguments.contains(
             "--ui-testing-open-settings"
         )
-        let isUITesting = isOpeningSettingsForUITest || arguments.contains("--ui-testing")
+        let isOpeningImageEditorForUITest = arguments.contains(
+            "--ui-testing-open-png-editor"
+        )
+        let isUITesting = isOpeningSettingsForUITest
+            || isOpeningImageEditorForUITest
+            || arguments.contains("--ui-testing")
         let qaConfiguration = MultiPetQALaunchConfiguration(
             arguments: arguments
         )
@@ -51,6 +58,13 @@ final class MonglePetAppDelegate: NSObject, NSApplicationDelegate {
             )
             coordinator.start(openSettingsOnLaunch: isOpeningSettingsForUITest)
             self.coordinator = coordinator
+            if isOpeningImageEditorForUITest {
+                openPNGEditorForUITest(
+                    startsAtResultPreview: arguments.contains(
+                        "--ui-testing-png-editor-start-scrolled"
+                    )
+                )
+            }
             if !pendingExternalURLs.isEmpty {
                 coordinator.openExternalURLs(pendingExternalURLs)
                 pendingExternalURLs = []
@@ -136,5 +150,49 @@ final class MonglePetAppDelegate: NSObject, NSApplicationDelegate {
                 NSApplication.shared.terminate(nil)
             }
         }
+    }
+
+    private func openPNGEditorForUITest(startsAtResultPreview: Bool) {
+        guard let context = CGContext(
+            data: nil,
+            width: 180,
+            height: 140,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else {
+            return
+        }
+        context.clear(CGRect(x: 0, y: 0, width: 180, height: 140))
+        context.setFillColor(NSColor.systemPurple.cgColor)
+        context.fill(CGRect(x: 38, y: 30, width: 98, height: 78))
+        guard let image = context.makeImage() else {
+            return
+        }
+
+        let editor = PNGFrameCropEditorView(
+            images: [
+                UserPetSourceImage(
+                    displayName: "몽글이-기본-프레임.png",
+                    image: image
+                )
+            ],
+            initialScrollsToResultPreview: startsAtResultPreview,
+            onImport: { _ in }
+        )
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 860, height: 680),
+            styleMask: [.titled, .closable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "PNG 프레임 자르기"
+        window.contentViewController = NSHostingController(rootView: editor)
+        window.minSize = NSSize(width: 860, height: 680)
+        window.center()
+        window.makeKeyAndOrderFront(nil)
+        NSApplication.shared.activate(ignoringOtherApps: true)
+        uiTestingImageEditorWindow = window
     }
 }

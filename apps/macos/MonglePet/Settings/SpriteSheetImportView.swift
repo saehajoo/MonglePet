@@ -333,7 +333,7 @@ struct SpriteSheetImportView: View {
                         }
                         .controlSize(.small)
 
-                        Text("좌우 버튼이나 미리보기를 눌러 선택한 프레임만 순서대로 확인합니다.")
+                        Text("파란 경계가 실제 저장 프레임 범위입니다. 좌우 버튼이나 미리보기를 눌러 선택한 프레임만 순서대로 확인합니다.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     } else {
@@ -787,89 +787,108 @@ private struct SpriteSheetRegionPreview: View {
                 height: geometry.size.height * zoomScale
             )
             let imageFrame = aspectFitFrame(in: contentSize)
-            ScrollView([.horizontal, .vertical]) {
-                ZStack(alignment: .topLeading) {
-                    Rectangle()
-                        .fill(.quaternary)
-
-                Image(decorative: image, scale: 1)
-                    .resizable()
-                    .interpolation(.none)
-                    .scaledToFit()
-                    .frame(width: imageFrame.width, height: imageFrame.height)
-                    .position(x: imageFrame.midX, y: imageFrame.midY)
-
-                    ForEach(regions.indices, id: \.self) { index in
-                    let region = regions[index]
-                    let frame = displayFrame(for: region.rect, in: imageFrame)
-                    ZStack(alignment: .topLeading) {
-                        if interactionMode == .bounds,
-                           region.id == editingRegionID {
-                            CropRectangleEditorOverlay(
-                                cropRect: $regions[index].rect,
-                                pixelSize: pixelSize,
-                                imageFrame: imageFrame
-                            )
-                        } else {
-                            RoundedRectangle(cornerRadius: 4)
-                                .fill(
-                                    region.isSelected
-                                        ? Color.accentColor.opacity(0.14)
-                                        : Color.black.opacity(0.24)
-                                )
-                                .overlay {
-                                    RoundedRectangle(cornerRadius: 4)
-                                        .stroke(
-                                            region.isSelected
-                                                ? Color.accentColor
-                                                : Color.secondary,
-                                            lineWidth: region.isSelected ? 2 : 1
-                                        )
-                                }
-                                .contentShape(Rectangle())
-                                .frame(width: frame.width, height: frame.height)
-                                .position(x: frame.midX, y: frame.midY)
-                                .onTapGesture {
-                                    if interactionMode == .selection {
-                                        onToggleRegion(index)
-                                    } else {
-                                        editingRegionID = region.id
-                                    }
-                                }
-                        }
-
-                        if let order = orderNumber(index) {
-                            Text("\(order)")
-                                .font(.caption2.weight(.bold))
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 5)
-                                .padding(.vertical, 2)
-                                .background(Color.accentColor, in: Capsule())
-                                .position(
-                                    x: frame.minX + 16,
-                                    y: frame.minY + 14
-                                )
-                        }
-                    }
-                    .frame(
-                        maxWidth: .infinity,
-                        maxHeight: .infinity,
-                        alignment: .topLeading
-                    )
-                        .zIndex(region.id == editingRegionID ? 10 : 0)
-                        .accessibilityLabel("\(index + 1)번 경계")
-                        .accessibilityValue(
-                            orderNumber(index).map { "재생 순서 \($0)" } ?? "제외됨"
+            Group {
+                if ImageEditorViewportPolicy.usesInternalPan(at: zoomScale) {
+                    ScrollView([.horizontal, .vertical]) {
+                        regionEditorCanvas(
+                            contentSize: contentSize,
+                            imageFrame: imageFrame
                         )
                     }
+                } else {
+                    regionEditorCanvas(
+                        contentSize: contentSize,
+                        imageFrame: imageFrame
+                    )
                 }
-                .frame(width: contentSize.width, height: contentSize.height)
-                .coordinateSpace(name: ImageCropDisplayGeometry.coordinateSpaceName)
             }
             .background(.quaternary)
             .clipShape(RoundedRectangle(cornerRadius: 8))
         }
         .frame(minHeight: 470)
+    }
+
+    private func regionEditorCanvas(
+        contentSize: CGSize,
+        imageFrame: CGRect
+    ) -> some View {
+        ZStack(alignment: .topLeading) {
+            Rectangle()
+                .fill(.quaternary)
+
+            Image(decorative: image, scale: 1)
+                .resizable()
+                .interpolation(.none)
+                .scaledToFit()
+                .frame(width: imageFrame.width, height: imageFrame.height)
+                .position(x: imageFrame.midX, y: imageFrame.midY)
+
+            ForEach(regions.indices, id: \.self) { index in
+                let region = regions[index]
+                let frame = displayFrame(for: region.rect, in: imageFrame)
+                ZStack(alignment: .topLeading) {
+                    if interactionMode == .bounds,
+                       region.id == editingRegionID {
+                        CropRectangleEditorOverlay(
+                            cropRect: $regions[index].rect,
+                            pixelSize: pixelSize,
+                            imageFrame: imageFrame
+                        )
+                    } else {
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(
+                                region.isSelected
+                                    ? Color.accentColor.opacity(0.14)
+                                    : Color.black.opacity(0.24)
+                            )
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 4)
+                                    .stroke(
+                                        region.isSelected
+                                            ? Color.accentColor
+                                            : Color.secondary,
+                                        lineWidth: region.isSelected ? 2 : 1
+                                    )
+                            }
+                            .contentShape(Rectangle())
+                            .frame(width: frame.width, height: frame.height)
+                            .position(x: frame.midX, y: frame.midY)
+                            .onTapGesture {
+                                if interactionMode == .selection {
+                                    onToggleRegion(index)
+                                } else {
+                                    editingRegionID = region.id
+                                }
+                            }
+                    }
+
+                    if let order = orderNumber(index) {
+                        Text("\(order)")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 2)
+                            .background(Color.accentColor, in: Capsule())
+                            .position(
+                                x: frame.minX + 16,
+                                y: frame.minY + 14
+                            )
+                    }
+                }
+                .frame(
+                    maxWidth: .infinity,
+                    maxHeight: .infinity,
+                    alignment: .topLeading
+                )
+                .zIndex(region.id == editingRegionID ? 10 : 0)
+                .accessibilityLabel("\(index + 1)번 경계")
+                .accessibilityValue(
+                    orderNumber(index).map { "재생 순서 \($0)" } ?? "제외됨"
+                )
+            }
+        }
+        .frame(width: contentSize.width, height: contentSize.height)
+        .coordinateSpace(name: ImageCropDisplayGeometry.coordinateSpaceName)
     }
 
     private func aspectFitFrame(in size: CGSize) -> CGRect {

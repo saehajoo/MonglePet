@@ -12,6 +12,7 @@ struct PNGFrameCropEditorView: View {
 
     let images: [UserPetSourceImage]
     let onImport: ([UserPetSourceImage]) -> Void
+    private let initialScrollsToResultPreview: Bool
 
     @State private var drafts: [PNGFrameCropDraft]
     @State private var selectedIDs: Set<UUID>
@@ -21,9 +22,11 @@ struct PNGFrameCropEditorView: View {
 
     init(
         images: [UserPetSourceImage],
+        initialScrollsToResultPreview: Bool = false,
         onImport: @escaping ([UserPetSourceImage]) -> Void
     ) {
         self.images = images
+        self.initialScrollsToResultPreview = initialScrollsToResultPreview
         self.onImport = onImport
         let drafts = images.map(PNGFrameCropDraft.init)
         _drafts = State(initialValue: drafts)
@@ -36,15 +39,28 @@ struct PNGFrameCropEditorView: View {
             header
             Divider()
 
-            HStack(alignment: .top, spacing: 16) {
-                selectedPreview
-                    .frame(minWidth: 440, maxWidth: .infinity)
+            ScrollViewReader { proxy in
+                ScrollView(.vertical) {
+                    HStack(alignment: .top, spacing: 16) {
+                        selectedPreview
+                            .frame(minWidth: 440, maxWidth: .infinity)
 
-                sidebar
-                    .frame(width: 280)
+                        sidebar
+                            .frame(width: 280)
+                    }
+                    .padding(20)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .accessibilityIdentifier("monglepet.pngCrop.contentScroll")
+                .task {
+                    guard initialScrollsToResultPreview else {
+                        return
+                    }
+                    await Task.yield()
+                    proxy.scrollTo(Self.resultPreviewScrollID, anchor: .bottom)
+                }
             }
-            .padding(20)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             Divider()
             footer
@@ -98,6 +114,8 @@ struct PNGFrameCropEditorView: View {
                 Text("파란 경계 안을 드래그해 이동하고 모서리·변의 핸들로 크기를 조절합니다.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+
+                focusedCropResultPreview(selectedDraftBinding.wrappedValue)
 
                 if selectedIDs.count > 1 {
                     selectedCropsPreview
@@ -385,48 +403,83 @@ struct PNGFrameCropEditorView: View {
     }
 
     private var selectedCropsPreview: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("선택한 PNG 미리보기")
-                .font(.subheadline.weight(.semibold))
+        GroupBox("선택한 PNG 결과") {
+            VStack(alignment: .leading, spacing: 8) {
+                ScrollView(.horizontal) {
+                    LazyHStack(spacing: 10) {
+                        ForEach(
+                            drafts.filter { selectedIDs.contains($0.id) }
+                        ) { draft in
+                            VStack(spacing: 5) {
+                                CroppedImagePreview(
+                                    image: draft.source.image,
+                                    cropRect: draft.cropRect,
+                                    flipsHorizontally: draft.flipsHorizontally,
+                                    flipsVertically: draft.flipsVertically
+                                )
+                                .frame(width: 104, height: 104)
+                                .overlay {
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(
+                                            draft.id == focusedID
+                                                ? Color.accentColor
+                                                : Color.clear,
+                                            lineWidth: 2
+                                        )
+                                }
 
-            ScrollView(.horizontal) {
-                LazyHStack(spacing: 8) {
-                    ForEach(
-                        drafts.filter { selectedIDs.contains($0.id) }
-                    ) { draft in
-                        VStack(spacing: 4) {
-                            CroppedImagePreview(
-                                image: draft.source.image,
-                                cropRect: draft.cropRect,
-                                flipsHorizontally: draft.flipsHorizontally,
-                                flipsVertically: draft.flipsVertically
-                            )
-                            .frame(width: 92, height: 92)
-                            .overlay {
-                                RoundedRectangle(cornerRadius: 6)
-                                    .stroke(
-                                        draft.id == focusedID
-                                            ? Color.accentColor
-                                            : Color.secondary.opacity(0.35),
-                                        lineWidth: draft.id == focusedID ? 2 : 1
-                                    )
+                                Text(draft.source.displayName)
+                                    .font(.caption2)
+                                    .lineLimit(1)
+                                    .frame(width: 104)
                             }
-
-                            Text(draft.source.displayName)
-                                .font(.caption2)
-                                .lineLimit(1)
-                                .frame(width: 92)
-                        }
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            focusedID = draft.id
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                focusedID = draft.id
+                            }
                         }
                     }
                 }
+                .frame(height: 132)
+
+                Text("각 파란 경계가 실제로 추가될 PNG 프레임 전체 범위입니다.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
-            .frame(height: 118)
+            .padding(6)
         }
     }
+
+    private func focusedCropResultPreview(_ draft: PNGFrameCropDraft) -> some View {
+        GroupBox("잘라낸 결과 미리보기") {
+            VStack(alignment: .leading, spacing: 8) {
+                CroppedImagePreview(
+                    image: draft.source.image,
+                    cropRect: draft.cropRect,
+                    flipsHorizontally: draft.flipsHorizontally,
+                    flipsVertically: draft.flipsVertically
+                )
+                .frame(height: 180)
+                .accessibilityIdentifier("monglepet.pngCrop.resultPreview")
+
+                HStack {
+                    Label(
+                        "파란 경계가 저장될 프레임 범위입니다.",
+                        systemImage: "rectangle.dashed"
+                    )
+                    Spacer()
+                    Text("\(draft.cropRect.width)×\(draft.cropRect.height) px")
+                        .monospacedDigit()
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+            .padding(6)
+        }
+        .id(Self.resultPreviewScrollID)
+    }
+
+    private static let resultPreviewScrollID = "png-crop-result-preview"
 
     private func importCroppedImages() {
         do {
@@ -584,30 +637,52 @@ struct SingleImageCropPreview: View {
                 pixelSize: pixelSize,
                 in: contentSize
             )
-            ScrollView([.horizontal, .vertical]) {
-                ZStack(alignment: .topLeading) {
-                    Rectangle()
-                        .fill(.quaternary)
-
-                    Image(decorative: image, scale: 1)
-                        .resizable()
-                        .interpolation(.none)
-                        .scaledToFit()
-                        .frame(width: imageFrame.width, height: imageFrame.height)
-                        .position(x: imageFrame.midX, y: imageFrame.midY)
-
-                    CropRectangleEditorOverlay(
-                        cropRect: $cropRect,
+            Group {
+                if ImageEditorViewportPolicy.usesInternalPan(at: zoomScale) {
+                    ScrollView([.horizontal, .vertical]) {
+                        cropEditorCanvas(
+                            pixelSize: pixelSize,
+                            contentSize: contentSize,
+                            imageFrame: imageFrame
+                        )
+                    }
+                } else {
+                    cropEditorCanvas(
                         pixelSize: pixelSize,
+                        contentSize: contentSize,
                         imageFrame: imageFrame
                     )
                 }
-                .frame(width: contentSize.width, height: contentSize.height)
-                .coordinateSpace(name: ImageCropDisplayGeometry.coordinateSpaceName)
             }
             .background(.quaternary)
             .clipShape(RoundedRectangle(cornerRadius: 8))
         }
+    }
+
+    private func cropEditorCanvas(
+        pixelSize: PixelSize,
+        contentSize: CGSize,
+        imageFrame: CGRect
+    ) -> some View {
+        ZStack(alignment: .topLeading) {
+            Rectangle()
+                .fill(.quaternary)
+
+            Image(decorative: image, scale: 1)
+                .resizable()
+                .interpolation(.none)
+                .scaledToFit()
+                .frame(width: imageFrame.width, height: imageFrame.height)
+                .position(x: imageFrame.midX, y: imageFrame.midY)
+
+            CropRectangleEditorOverlay(
+                cropRect: $cropRect,
+                pixelSize: pixelSize,
+                imageFrame: imageFrame
+            )
+        }
+        .frame(width: contentSize.width, height: contentSize.height)
+        .coordinateSpace(name: ImageCropDisplayGeometry.coordinateSpaceName)
     }
 }
 
@@ -630,27 +705,56 @@ struct CroppedImagePreview: View {
     }
 
     var body: some View {
-        Group {
+        GeometryReader { geometry in
             if let previewImage = ImageCropProcessor().cropAndTransform(
                 image,
                 to: cropRect,
                 flipsHorizontally: flipsHorizontally,
                 flipsVertically: flipsVertically
             ) {
-                Image(decorative: previewImage, scale: 1)
-                    .resizable()
-                    .interpolation(.none)
-                    .scaledToFit()
+                let previewFrame = ImageCropResultPreviewGeometry.fittedFrame(
+                    pixelSize: PixelSize(
+                        width: previewImage.width,
+                        height: previewImage.height
+                    ),
+                    in: geometry.size,
+                    inset: 10
+                )
+                ZStack(alignment: .topLeading) {
+                    ImagePreviewTransparencyGrid()
+
+                    Image(decorative: previewImage, scale: 1)
+                        .resizable()
+                        .interpolation(.none)
+                        .scaledToFit()
+                        .frame(width: previewFrame.width, height: previewFrame.height)
+                        .position(x: previewFrame.midX, y: previewFrame.midY)
+
+                    Rectangle()
+                        .fill(.clear)
+                        .overlay {
+                            Rectangle()
+                                .stroke(Color.accentColor, lineWidth: 2)
+                        }
+                        .frame(width: previewFrame.width, height: previewFrame.height)
+                        .position(x: previewFrame.midX, y: previewFrame.midY)
+                }
             } else {
-                Image(systemName: "exclamationmark.triangle")
-                    .foregroundStyle(.secondary)
+                ZStack {
+                    ImagePreviewTransparencyGrid()
+                    Image(systemName: "exclamationmark.triangle")
+                        .foregroundStyle(.secondary)
+                }
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(.quaternary.opacity(0.35))
-        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(.secondary.opacity(0.45), lineWidth: 1)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 8))
         .accessibilityLabel(
-            "자른 이미지 미리보기, \(cropRect.width)×\(cropRect.height) 픽셀"
+            "프레임 경계를 표시한 자른 이미지 미리보기, "
+                + "\(cropRect.width)×\(cropRect.height) 픽셀"
         )
     }
 }
@@ -664,24 +768,26 @@ struct ImageEditorZoomControls: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            Button {
+            zoomStepButton(
+                systemImage: "minus",
+                accessibilityLabel: "축소",
+                accessibilityIdentifier: "monglepet.imageEditor.zoomOut",
+                isDisabled: zoomScale <= 1
+            ) {
                 zoomScale = max(1, zoomScale - 0.5)
-            } label: {
-                Image(systemName: "minus")
             }
-            .disabled(zoomScale <= 1)
-            .accessibilityLabel("축소")
 
             Slider(value: $zoomScale, in: 1...8, step: 0.5)
                 .frame(maxWidth: 180)
 
-            Button {
+            zoomStepButton(
+                systemImage: "plus",
+                accessibilityLabel: "확대",
+                accessibilityIdentifier: "monglepet.imageEditor.zoomIn",
+                isDisabled: zoomScale >= 8
+            ) {
                 zoomScale = min(8, zoomScale + 0.5)
-            } label: {
-                Image(systemName: "plus")
             }
-            .disabled(zoomScale >= 8)
-            .accessibilityLabel("확대")
 
             Text("\(zoomScale, specifier: "%.1f")×")
                 .font(.caption.monospacedDigit())
@@ -693,6 +799,86 @@ struct ImageEditorZoomControls: View {
             .disabled(zoomScale == 1)
         }
         .controlSize(.small)
+    }
+
+    private func zoomStepButton(
+        systemImage: String,
+        accessibilityLabel: String,
+        accessibilityIdentifier: String,
+        isDisabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 11, weight: .semibold))
+                .frame(width: 12, height: 12)
+        }
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.roundedRectangle(radius: 5))
+        .frame(width: 30, height: 24)
+        .contentShape(Rectangle())
+        .disabled(isDisabled)
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityIdentifier(accessibilityIdentifier)
+    }
+}
+
+struct ImageCropResultPreviewGeometry {
+    static func fittedFrame(
+        pixelSize: PixelSize,
+        in size: CGSize,
+        inset: CGFloat
+    ) -> CGRect {
+        let inset = min(
+            max(0, inset),
+            max(0, min(size.width, size.height) * 0.08)
+        )
+        let availableSize = CGSize(
+            width: max(1, size.width - inset * 2),
+            height: max(1, size.height - inset * 2)
+        )
+        let fitted = ImageCropDisplayGeometry.aspectFitFrame(
+            pixelSize: pixelSize,
+            in: availableSize
+        )
+        return fitted.offsetBy(dx: inset, dy: inset)
+    }
+}
+
+struct ImageEditorViewportPolicy {
+    static func usesInternalPan(at zoomScale: Double) -> Bool {
+        zoomScale > 1
+    }
+}
+
+private struct ImagePreviewTransparencyGrid: View {
+    private let squareLength = 10.0
+
+    var body: some View {
+        Canvas { context, size in
+            context.fill(
+                Path(CGRect(origin: .zero, size: size)),
+                with: .color(Color(nsColor: .controlBackgroundColor))
+            )
+            let columns = Int(ceil(size.width / squareLength))
+            let rows = Int(ceil(size.height / squareLength))
+            for row in 0..<rows {
+                for column in 0..<columns where (row + column).isMultiple(of: 2) {
+                    context.fill(
+                        Path(
+                            CGRect(
+                                x: Double(column) * squareLength,
+                                y: Double(row) * squareLength,
+                                width: squareLength,
+                                height: squareLength
+                            )
+                        ),
+                        with: .color(.secondary.opacity(0.13))
+                    )
+                }
+            }
+        }
+        .accessibilityHidden(true)
     }
 }
 

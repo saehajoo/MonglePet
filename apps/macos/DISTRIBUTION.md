@@ -28,6 +28,11 @@ Apple 공증과 티켓 부착이 모두 필요합니다.
 만드는 사이 코드나 설정이 바뀌면 빌드 번호와 `MonglePetVersionTests` 기대값을
 함께 올립니다.
 
+`macos-v1.3.0-preview.1` 게시 뒤 이미지 결과 경계·스크롤 UI를 보정했습니다.
+이 후속 변경은 아직 배포 파일에 포함되지 않았으며, 남은 수정과 검토가
+모두 끝난 뒤 다음 버전·빌드 번호와 새 태그를 확정합니다. 기존 GitHub Release
+자산이나 태그는 덮어쓰지 않습니다.
+
 ## 현재 배포 상태
 
 - macOS `1.3.0 (5)`는 태그 `macos-v1.3.0-preview.1`의 GitHub Pre-release로 게시했으며 ZIP, SHA-256과 빌드 manifest를 함께 제공합니다.
