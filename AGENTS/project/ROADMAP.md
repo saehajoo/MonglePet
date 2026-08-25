@@ -378,7 +378,7 @@ macOS에서 검증된 펫 패키지, 설정 스키마와 테스트 시나리오�
 - [x] 행동·이동·말풍선 기능을 Windows adapter와 렌더러에 연결
 - [ ] Windows 설치·업데이트·성능·개인정보 QA
 
-Windows 웹 배포는 자체 웹사이트를 기본 다운로드 경로, GitHub Releases를 버전 기록과 보조 경로로 사용한다. x64 self-contained EXE 설치기와 SHA-256 생성, 사용자별 설치·업그레이드·MSIX 데이터 이전·로그인 실행·실행 중 제거 QA를 완료했다. 이미지 편집기와 새 내장 몽글이를 포함한 Windows `1.3.0.13`은 태그 `windows-v1.3.0-preview.1`의 GitHub Pre-release로 게시했고 원격 설치기 digest를 재검증했다. macOS `1.3.1 (6)`의 ZIP·SHA-256·빌드 manifest도 태그 `macos-v1.3.1-preview.1`에 게시해 독립 압축 해제·실행과 원격 digest 재검증을 통과했으며, 플랫폼별 최신 버전 고정 다운로드 링크와 사용자 안내를 하나의 전달 문서로 정리했다. 별도 서버의 자체 웹 다운로드 화면 반영은 대기 중이다. 서명된 배포와 Windows App Installer 자동화도 보존하며 공개 코드 서명, HTTPS 게시, 깨끗한 PC와 이후 버전 업데이트 QA가 남아 있다.
+Windows 웹 배포는 자체 웹사이트를 기본 다운로드 경로, GitHub Releases를 버전 기록과 보조 경로로 사용한다. x64 self-contained EXE 설치기와 SHA-256 생성, 사용자별 설치·업그레이드·MSIX 데이터 이전·로그인 실행·실행 중 제거 QA를 완료했다. 이미지 편집기와 새 내장 몽글이를 포함한 Windows `1.3.0.13`은 태그 `windows-v1.3.0-preview.1`의 GitHub Pre-release로 게시했고 원격 설치기 digest를 재검증했다. macOS 이동 런타임 성능을 보정한 `1.3.2 (7)`의 ZIP·SHA-256·빌드 manifest도 태그 `macos-v1.3.2-preview.1`에 게시해 독립 압축 해제·실행과 원격 digest 재검증을 통과했으며, 플랫폼별 최신 버전 고정 다운로드 링크와 사용자 안내를 하나의 전달 문서로 정리했다. 별도 서버의 자체 웹 다운로드 화면 반영은 대기 중이다. 서명된 배포와 Windows App Installer 자동화도 보존하며 공개 코드 서명, HTTPS 게시, 깨끗한 PC와 이후 버전 업데이트 QA가 남아 있다.
 
 ## 12단계: 멀티펫 런타임과 활성 펫 관리
 

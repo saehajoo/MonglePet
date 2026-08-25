@@ -2,7 +2,7 @@
 
 ## 상태
 
-- 상태: in_progress
+- 상태: completed
 - 생성일: 2026-08-25
 - 마지막 갱신: 2026-08-25
 
@@ -49,8 +49,8 @@
 
 - [x] 2단계: 앱 버전과 버전 테스트를 `1.3.2 (7)`로 올린다.
 - [x] 3단계: 전체 단위 테스트, Debug 빌드와 기존 Release 성능 회귀를 확인한다.
-- [ ] 4단계: 깨끗한 원격 커밋에서 Universal Preview ZIP·체크섬·manifest를 생성하고 압축 해제본을 검증한다.
-- [ ] 5단계: GitHub Pre-release를 게시하고 원격 자산과 태그 대상을 다시 검증한다.
+- [x] 4단계: 깨끗한 원격 커밋에서 Universal Preview ZIP·체크섬·manifest를 생성하고 압축 해제본을 검증한다.
+- [x] 5단계: GitHub Pre-release를 게시하고 원격 자산과 태그 대상을 다시 검증한다.
 
 ### Windows
 
@@ -58,7 +58,7 @@
 
 ### 플랫폼 동등성
 
-- [ ] 7단계: macOS 배포 결과와 검증 수치를 플랫폼 현황·다운로드 인계 문서에 기록한다.
+- [x] 7단계: macOS 배포 결과와 검증 수치를 플랫폼 현황·다운로드 인계 문서에 기록한다.
 
 ## 검증 방법
 
@@ -74,3 +74,6 @@
 - 2026-08-25: 앱 버전 `1.3.2 (7)`, 태그 `macos-v1.3.2-preview.1`, 릴리스 이름 `MonglePet macOS 1.3.2 Preview 1`로 확정했다.
 - 2026-08-25: 성능 기준선·변경본 비교와 세부 수치는 `2026-08-13-multi-pet-runtime.md`의 9A단계 진행 로그에 기록했다.
 - 2026-08-25: 버전 반영 뒤 전체 `MonglePetTests` 472개 중 471개 성공·선택형 WebP fixture 1개 건너뜀·실패 0개와 코드서명 없는 Debug 빌드를 확인했다.
+- 2026-08-25: 깨끗하게 푸시된 소스 커밋 `8cae849167d71daa28566e930167e3e11e00201d`에서 7,430,815 bytes Universal ZIP을 생성했다. SHA-256은 `96617b60e5187eb0deb16088ab2706a572b0ee750c6adb55b494b9ee40a0b6cd`이며 별도 경로의 압축 해제본에서 `1.3.2 (7)`, Bundle ID `kr.mapleroom.MonglePet`, arm64·x86_64를 확인했다.
+- 2026-08-25: 압축 해제한 실제 Release 앱의 자유 이동과 설정 창·기본 펫 표시 스모크를 정상 종료까지 확인했다.
+- 2026-08-25: [`macos-v1.3.2-preview.1`](https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.3.2-preview.1) GitHub Pre-release에 ZIP·SHA-256·manifest를 게시했다. 원격 세 자산을 다시 내려받아 바이트 단위 일치, ZIP digest와 태그 대상 커밋을 검증했다.
