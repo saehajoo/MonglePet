@@ -232,6 +232,7 @@ final class ActivityMonitoringTests: XCTestCase {
 
     func testAppCoordinatorGatesMovementForSystemStateAndReduceMotion() throws {
         let activityMonitor = FakeActivitySnapshotMonitor()
+        let desktopEnvironmentMonitor = PetDesktopEnvironmentMonitor()
         let notificationCenter = NotificationCenter()
         var shouldReduceMotion = false
         let settingsDirectoryURL = FileManager.default.temporaryDirectory
@@ -265,12 +266,14 @@ final class ActivityMonitoringTests: XCTestCase {
                 libraryRootURL: settingsDirectoryURL.appendingPathComponent("Library")
             ),
             activityMonitor: activityMonitor,
+            desktopEnvironmentMonitor: desktopEnvironmentMonitor,
             workspaceNotificationCenter: notificationCenter,
             reduceMotionProvider: { shouldReduceMotion }
         )
         coordinator.start()
 
         XCTAssertFalse(coordinator.isPetMovementAllowed)
+        XCTAssertTrue(desktopEnvironmentMonitor.isRunning)
 
         activityMonitor.emit(
             ActivitySnapshot(
@@ -307,9 +310,60 @@ final class ActivityMonitoringTests: XCTestCase {
             )
         )
         XCTAssertFalse(coordinator.isPetMovementAllowed)
+        XCTAssertFalse(desktopEnvironmentMonitor.isRunning)
+
+        activityMonitor.emit(
+            ActivitySnapshot(
+                capturedAt: ContinuousClock().now,
+                idleDuration: .zero,
+                frontmostApplicationID: "com.example.Editor",
+                isScreenLocked: false,
+                isSystemSleeping: false
+            )
+        )
+        XCTAssertTrue(coordinator.isPetMovementAllowed)
+        XCTAssertTrue(desktopEnvironmentMonitor.isRunning)
 
         coordinator.stop()
         XCTAssertFalse(coordinator.isPetMovementAllowed)
+    }
+
+    func testAppCoordinatorSkipsPointerPollingForFixedPet() throws {
+        let settingsDirectoryURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: settingsDirectoryURL) }
+        let store = AppSettingsStore(
+            settingsURL: settingsDirectoryURL.appendingPathComponent("settings.json")
+        )
+        try store.save(
+            AppSettings(
+                selectedPetInstallationID: nil,
+                lastUserPresentation: .awake,
+                behaviorMode: .manual,
+                overlay: .default,
+                movement: .default,
+                pettingMotionID: nil,
+                manualSequenceID: nil,
+                sequences: [],
+                automaticRules: []
+            )
+        )
+        let desktopEnvironmentMonitor = PetDesktopEnvironmentMonitor()
+        let coordinator = AppCoordinator(
+            settingsStore: store,
+            petLibraryStore: PetLibraryStore(
+                libraryRootURL: settingsDirectoryURL.appendingPathComponent("Library")
+            ),
+            activityMonitor: FakeActivitySnapshotMonitor(),
+            desktopEnvironmentMonitor: desktopEnvironmentMonitor
+        )
+
+        coordinator.start()
+        XCTAssertFalse(desktopEnvironmentMonitor.isRunning)
+        XCTAssertFalse(
+            desktopEnvironmentMonitor.isPointerMonitoringEnabled
+        )
+        coordinator.stop()
     }
 
     func testAppCoordinatorRestoresUserPresentationFromSettings() throws {

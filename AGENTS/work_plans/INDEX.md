@@ -8,6 +8,7 @@
 
 | 상태 | 작업명 | 파일 | 마지막 갱신 |
 | --- | --- | --- | --- |
+| in_progress | macOS 1.3.2 이동 런타임 성능 보정 Preview 릴리스 | `tasks/2026-08-25-macos-1-3-2-performance-release.md` | 2026-08-25 |
 | in_progress | Windows macOS 1.3.1 호환성·이미지 편집기·내장 몽글이 동등성 | `tasks/2026-08-24-windows-macos-1-3-parity.md` | 2026-08-24 |
 | in_progress | 웹 펫 URL 가져오기 | `tasks/2026-08-23-web-pet-url-import.md` | 2026-08-24 |
 | in_progress | 스프라이트 시트 순서·격자·프레임 간격 개선 | `tasks/2026-08-23-sprite-sheet-ordering-and-duration.md` | 2026-08-23 |
@@ -18,7 +19,7 @@
 | completed | Windows 로컬 가져오기 검토와 내보내기 | `tasks/2026-08-09-windows-local-sharing.md` | 2026-08-09 |
 | complete | Windows 개발 기준선·공통 계약·오버레이 실험 | `tasks/2026-08-08-windows-foundation-and-overlay.md` | 2026-08-08 |
 | in_progress | Phase 10 공개 준비와 이동 성능 보완 | `tasks/2026-07-24-phase-10-release-preparation.md` | 2026-07-31 |
-| in_progress | 멀티펫 런타임과 활성 펫 관리 | `tasks/2026-08-13-multi-pet-runtime.md` | 2026-08-13 |
+| in_progress | 멀티펫 런타임과 활성 펫 관리 | `tasks/2026-08-13-multi-pet-runtime.md` | 2026-08-25 |
 
 ## 보류 / 대기
 

@@ -246,6 +246,10 @@ final class PetWindowController: NSWindowController {
         )
     }
 
+    var movementBoundary: MovementBoundarySettings {
+        appliedOverlaySettings.movementBoundary
+    }
+
     func setMovementOrigin(_ origin: PetMovementPoint) {
         guard let panel, origin.isFinite else {
             return

@@ -55,21 +55,17 @@ protocol PetMovementControlling: AnyObject {
 
 @MainActor
 final class RunLoopPetMovementTickScheduler: NSObject, PetMovementTickScheduling {
+    private static let parkedTimerInterval: TimeInterval = 24 * 60 * 60
     private var timer: Timer?
     private var action: (() -> Void)?
+    private(set) var timerCreationCount = 0
 
     func schedule(after delay: Duration, action: @escaping () -> Void) {
-        cancel()
         self.action = action
-        let timer = Timer(
-            timeInterval: max(delay.timeInterval, 0.001),
-            target: self,
-            selector: #selector(timerDidFire),
-            userInfo: nil,
-            repeats: false
+        let timer = reusableTimer()
+        timer.fireDate = Date(
+            timeIntervalSinceNow: max(delay.timeInterval, 0.001)
         )
-        RunLoop.main.add(timer, forMode: .common)
-        self.timer = timer
     }
 
     func cancel() {
@@ -80,10 +76,28 @@ final class RunLoopPetMovementTickScheduler: NSObject, PetMovementTickScheduling
 
     @objc
     private func timerDidFire() {
-        timer = nil
+        timer?.fireDate = .distantFuture
         let pendingAction = action
         action = nil
         pendingAction?()
+    }
+
+    private func reusableTimer() -> Timer {
+        if let timer, timer.isValid {
+            return timer
+        }
+        let timer = Timer(
+            timeInterval: Self.parkedTimerInterval,
+            target: self,
+            selector: #selector(timerDidFire),
+            userInfo: nil,
+            repeats: true
+        )
+        timer.fireDate = .distantFuture
+        RunLoop.main.add(timer, forMode: .common)
+        self.timer = timer
+        timerCreationCount += 1
+        return timer
     }
 }
 

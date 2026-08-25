@@ -717,3 +717,11 @@
 - 결정: macOS `1.3.1 (6)`에서 확정한 사용자 결과를 Windows 네이티브로 반영한 공개 Preview는 Windows 마케팅 `1.3.0`, File·Assembly·MSIX·설치기 `1.3.0.13`, 태그 `windows-v1.3.0-preview.1`로 게시한다. 기존 Inno Setup AppId와 `%LOCALAPPDATA%\MonglePet` 데이터 경로를 유지하고 미서명 x64 설치기와 `SHA256SUMS.txt`를 GitHub Pre-release에 제공한다.
 - 이유: macOS와 Windows 버전 번호를 자동으로 결합하지 않으면서 공통 내장 몽글이, 펫 버전·최소 앱 버전 정책과 PNG·스프라이트 제작 결과를 기존 Windows 사용자에게 데이터 보존 업데이트로 전달하기 위해서다.
 - 비고: 설치기는 코드 서명되지 않아 SmartScreen·Smart App Control·조직 정책에서 경고 또는 차단될 수 있다. 자동 업데이트는 D-087에 따라 구현하지 않으며 혼합 DPI·Narrator·큰 이미지 반복 drag와 Windows→macOS 교차 왕복은 플랫폼 동등 완료 전에 계속 검증한다.
+
+## D-092 macOS 1.3.2 이동 런타임 성능 보정 Preview
+
+- 상태: accepted
+- 날짜: 2026-08-25
+- 결정: 이동 33ms cadence·속도·애니메이션과 사용자 동작을 유지하면서 Timer 재사용, 화면·이동 범위 cache와 기능 수요 기반 30Hz 포인터 감시를 적용한 macOS Preview를 `1.3.2 (7)`, 태그 `macos-v1.3.2-preview.1`로 게시한다.
+- 이유: `1.3.1 (6)` 공개 뒤 상시 이동 중의 일회성 Timer 생성과 불필요한 환경 조회를 줄였으며, 기능이나 데이터 계약을 바꾸지 않는 런타임 성능 보정이므로 기존 릴리스를 덮어쓰지 않는 patch 버전으로 구분해야 한다.
+- 비고: Apple Developer Program을 사용할 수 없는 동안 Developer ID 미서명·Apple 미공증 Universal ZIP만 제한된 테스터에게 제공한다. `.monglepet` schema와 공통 사용자 결과는 변경하지 않으므로 Windows 소스 변경은 요구하지 않으며, 각 플랫폼은 네이티브 런타임의 성능을 별도로 검증한다.

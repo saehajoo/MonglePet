@@ -14,9 +14,15 @@ nonisolated struct PetDesktopDisplaySnapshot: Equatable, Sendable {
 nonisolated struct PetDesktopEnvironmentSnapshot: Equatable, Sendable {
     let pointerLocation: PetMovementPoint?
     let displays: [PetDesktopDisplaySnapshot]
+    let movementScreens: [PetMovementScreen]
 
-    var movementScreens: [PetMovementScreen] {
-        displays.map(\.movementScreen)
+    init(
+        pointerLocation: PetMovementPoint?,
+        displays: [PetDesktopDisplaySnapshot]
+    ) {
+        self.pointerLocation = pointerLocation
+        self.displays = displays
+        movementScreens = displays.map(\.movementScreen)
     }
 
     var displayLayout: PetMovementDisplayLayout? {
@@ -45,6 +51,8 @@ final class PetDesktopEnvironmentMonitor: NSObject,
     private let displaysProvider: () -> [PetDesktopDisplaySnapshot]
     private var pointerTimer: Timer?
     private var onDisplaysChange: (() -> Void)?
+    private(set) var isStarted = false
+    private(set) var isPointerMonitoringEnabled = true
     private(set) var currentSnapshot: PetDesktopEnvironmentSnapshot
 
     init(
@@ -75,10 +83,11 @@ final class PetDesktopEnvironmentMonitor: NSObject,
     }
 
     func start(onDisplaysChange: @escaping () -> Void) {
-        guard pointerTimer == nil else {
+        guard !isStarted else {
             self.onDisplaysChange = onDisplaysChange
             return
         }
+        isStarted = true
         self.onDisplaysChange = onDisplaysChange
         currentSnapshot = PetDesktopEnvironmentSnapshot(
             pointerLocation: pointerProvider(),
@@ -90,6 +99,32 @@ final class PetDesktopEnvironmentMonitor: NSObject,
             name: NSApplication.didChangeScreenParametersNotification,
             object: nil
         )
+        if isPointerMonitoringEnabled {
+            startPointerTimer()
+        }
+    }
+
+    func setPointerMonitoringEnabled(_ isEnabled: Bool) {
+        guard isEnabled != isPointerMonitoringEnabled else {
+            return
+        }
+        isPointerMonitoringEnabled = isEnabled
+        guard isStarted else {
+            return
+        }
+        guard isEnabled else {
+            pointerTimer?.invalidate()
+            pointerTimer = nil
+            return
+        }
+        refreshPointer()
+        startPointerTimer()
+    }
+
+    private func startPointerTimer() {
+        guard pointerTimer == nil else {
+            return
+        }
         let timer = Timer(
             timeInterval: Self.pointerRefreshInterval,
             target: self,
@@ -110,6 +145,7 @@ final class PetDesktopEnvironmentMonitor: NSObject,
         pointerTimer?.invalidate()
         pointerTimer = nil
         onDisplaysChange = nil
+        isStarted = false
     }
 
     @objc

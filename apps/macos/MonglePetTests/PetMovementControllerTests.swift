@@ -3,6 +3,21 @@ import XCTest
 
 @MainActor
 final class PetMovementControllerTests: XCTestCase {
+    func testRunLoopSchedulerReusesActiveTimerUntilCancelled() {
+        let scheduler = RunLoopPetMovementTickScheduler()
+
+        scheduler.schedule(after: .seconds(60)) {}
+        scheduler.schedule(after: .seconds(30)) {}
+
+        XCTAssertEqual(scheduler.timerCreationCount, 1)
+
+        scheduler.cancel()
+        scheduler.schedule(after: .seconds(60)) {}
+
+        XCTAssertEqual(scheduler.timerCreationCount, 2)
+        scheduler.cancel()
+    }
+
     func testFixedModeDoesNotScheduleOrReadMovementEnvironment() {
         let fixture = Fixture()
 

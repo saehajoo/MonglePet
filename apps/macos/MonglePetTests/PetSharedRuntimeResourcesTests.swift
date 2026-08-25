@@ -58,6 +58,45 @@ final class PetSharedRuntimeResourcesTests: XCTestCase {
         XCTAssertFalse(monitor.isRunning)
     }
 
+    func testDesktopEnvironmentMonitorCanPausePointerPollingOnly() {
+        let notificationCenter = NotificationCenter()
+        var pointer = PetMovementPoint(x: 120, y: 240)
+        var displays = [Self.display(id: "first", x: 0)]
+        var displayChangeCount = 0
+        let monitor = PetDesktopEnvironmentMonitor(
+            notificationCenter: notificationCenter,
+            pointerProvider: { pointer },
+            displaysProvider: { displays }
+        )
+
+        monitor.start {
+            displayChangeCount += 1
+        }
+        monitor.setPointerMonitoringEnabled(false)
+        XCTAssertFalse(monitor.isRunning)
+        XCTAssertFalse(monitor.isPointerMonitoringEnabled)
+
+        displays.append(Self.display(id: "second", x: 1_000))
+        notificationCenter.post(
+            name: NSApplication.didChangeScreenParametersNotification,
+            object: nil
+        )
+        XCTAssertEqual(
+            monitor.currentSnapshot.displays.map(\.id),
+            ["first", "second"]
+        )
+        XCTAssertEqual(displayChangeCount, 1)
+        XCTAssertFalse(monitor.isRunning)
+
+        pointer = PetMovementPoint(x: 1_200, y: 480)
+        monitor.setPointerMonitoringEnabled(true)
+        XCTAssertTrue(monitor.isRunning)
+        XCTAssertTrue(monitor.isPointerMonitoringEnabled)
+        XCTAssertEqual(monitor.currentSnapshot.pointerLocation, pointer)
+
+        monitor.stop()
+    }
+
     func testPresentationCacheSharesResourcesAndReleasesWeakEntries() throws {
         let cache = PetPresentationResourceCache()
         weak var weakResources: PetPresentationResources?

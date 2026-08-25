@@ -4,7 +4,7 @@
 
 - 상태: in_progress
 - 생성일: 2026-08-13
-- 마지막 갱신: 2026-08-13
+- 마지막 갱신: 2026-08-25
 
 ## 목표
 
@@ -157,6 +157,7 @@ schema-v11의 구체적인 DTO는 1단계에서 확정하지만 다음 책임 �
 - [x] 7단계: macOS 활성 펫·펫 보관함·선택한 펫 sidebar UX, 사용자 지정 z-order와 상태 메뉴 빠른 제어 구현
 - [x] 8단계: macOS 비차단 자원 경고·사용자 제어 일시정지·단계적 복원·비정상 종료 안전 시작 구현
 - [x] 9단계: macOS 1마리 기준 회귀와 다수 펫 Release CPU·메모리·다중 모니터·장시간 QA
+- [x] 9A단계: macOS 이동 cadence를 유지한 Timer·환경 snapshot·포인터 감시 비용 보정과 전후 Release 성능 회귀
 
 macOS 9단계를 완료하면 확정 동작, schema-v11·공통 fixture, Windows 구현 범위, 플랫폼 차이와 필수 실제 환경 QA를 이 계획의 진행 로그와 `AGENTS/project/PLATFORM_PARITY.md`에 인계 체크포인트로 기록한다.
 
@@ -226,6 +227,9 @@ macOS 9단계를 완료하면 확정 동작, schema-v11·공통 fixture, Windows
 - 2026-08-13: QA 구성 테스트 3개와 전체 `MonglePetTests` 437개가 통과했고 선택형 로컬 WebP fixture 1개만 건너뛰었다. Release 빌드도 통과했다. macOS 9단계에는 기존 1마리 실제 앱 회귀, 실제 포인터 이동, GPU·프레임 지연, 다중 모니터·Space·화면 재연결과 1시간 메모리 증가 수동 QA가 남아 있다.
 - 2026-08-13: 실제 앱에서 기존 1마리 회귀, 같은 펫 3마리 이상의 독립 설정·동작, 두 모니터 사이 마우스 따라가기·자유 이동·도망가기, 화면 분리·재연결 복귀, 전체 일시정지·재개와 영속 앞뒤 순서를 사용자 확인했다. 남은 9단계 검증은 1시간 메모리 증가와 그 구간의 GPU·프레임 지연 관찰이다.
 - 2026-08-13: 8마리 마우스 따라가기 Release 장시간 workload를 약 5분 동안 일반 작업과 함께 실행해 시각적 끊김이나 기능 이상이 없음을 사용자 확인하고 정상 중단했다. 1시간 측정은 사용자 판단으로 이번 단계의 필수 조건에서 제외하고 공개 배포 전 안정화 QA로 이관했다. 중단 뒤 테스트 앱·측정 프로세스와 임시 프로파일이 남지 않았으며 미완성 TSV는 측정값으로 사용하지 않았다.
+- 2026-08-25: macOS `1.3.1 (6)` Release의 자유 이동 1마리 30초 기준선을 다시 측정해 평균 CPU 1.140%·최대 4.100%, 평균 RSS 51.3MiB·증가 -0.1MiB를 확인했다. 10초 표본 프로파일에서 이동 tick의 주 비용이 `NSWindow.setFrameOrigin`과 AppKit·Core Animation transaction이며, tick마다 일회성 Timer 생성과 화면·이동 범위 조회가 후속 비용임을 확인했다. 이동 33ms cadence·속도·프레임 간격을 낮추지 않고 Timer 재사용, 환경 snapshot 캐시와 포인터 기능 무사용 시에만 30Hz 감시 중지를 적용하기로 했다.
+- 2026-08-25: 이동 tick의 일회성 Timer를 활성 런타임 동안 재사용하고 display→movement screen 변환과 적용된 이동 범위를 캐시했다. 공유 포인터의 30Hz 수집은 깨어 있는 펫의 마우스 따라가기·도망가기·쓰다듬기·겹침 투명화 중 하나가 필요할 때만 실행하며, 전체 일시정지·화면 잠금·절전에는 중지하되 화면 연결 변경 감시는 유지한다. 현재 화면 이동 명령은 포인터 감시 중지 상태에서도 위치를 즉시 한 번 갱신한다.
+- 2026-08-25: 같은 시간대 Release 교차 측정에서 자유 이동 1마리는 기존 평균 CPU 1.650%·최대 5.400%·평균 RSS 51.3MiB였고 변경본 두 표본은 평균 1.280%/0.867%·최대 4.700%/4.900%·평균 RSS 51.1MiB였다. 8마리는 기존 평균 6.163%·최대 13.000%·평균 RSS 53.1MiB, 변경본 평균 6.197%·최대 10.500%·평균 RSS 53.0MiB로 지속 부하는 같은 수준이고 이번 표본의 순간 피크만 낮았다. 변경본 10초 표본에는 `CFRunLoopTimerCreate`가 나타나지 않았고 주 비용은 여전히 실제 `NSWindow` 이동 transaction이었다. 전체 472개 중 471개 성공·선택형 WebP fixture 1개 건너뜀·실패 0개와 Debug·Release 빌드를 통과했다.
 - 2026-08-13: Windows 인계 기준을 확정했다. schema-v11의 인스턴스·독립 프로필·overlay·표시 순서와 v10→v11 공통 fixture를 먼저 portable 계층에 반영하고, 이후 WinUI `NavigationView`, 다중 Win32/Composition overlay, notification area 제어, 사용자 일시정지·비차단 경고와 시작 복구를 Windows 네이티브로 구현한다. 실제 Windows PC에서 혼합 DPI 다중 모니터·잠금/절전·Release 자원·1.1.0 업데이트 복원을 검증하기 전에는 동등으로 표시하지 않는다.
 - 2026-08-13: Windows 앱 마케팅 버전을 `1.1.0`으로 올리고 C# `AppSettings`를 `activePetInstances`, 식별된 독립 `behaviorProfiles`, `selectedPetInstanceID`를 가진 schema-v11 Domain으로 전환했다. v1~v10 순차 이관의 최종 결과를 v11로 연결하고 중복·잘못된 UUID, 누락·공유 프로필, 펫 키 불일치, 잘못된 선택·별명·표시 순서를 항목별로 복구한다.
 - 2026-08-13: Windows Settings 테스트가 공통 v10 입력과 고정 UUID v11 기대 fixture를 정확히 비교하고, 같은 설치 펫 두 인스턴스의 서로 다른 profile·overlay 재로드 독립성, 손상 복구와 알 수 없는 확장 필드 보존을 검증했다. 10단계 당시 단일 펫 WinUI·런타임은 선택 인스턴스 호환 view로 유지했으며 다중 HWND·관리 UI·notification area·자원 경고·안전 시작은 아래 11단계에서 후속 완료했다.

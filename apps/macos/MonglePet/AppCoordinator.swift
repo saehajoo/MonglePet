@@ -335,6 +335,7 @@ final class AppCoordinator: NSObject {
     private func setAllPetsPaused(_ isPaused: Bool) {
         petInstanceManager.setAllPaused(isPaused)
         runtimeControlSession.updateAllPaused(isPaused)
+        updateDesktopPointerMonitoring()
         menuBarController?.setRuntimeState(
             isAllPaused: isPaused,
             resourceWarning: runtimeControlSession.resourceWarning
@@ -504,6 +505,7 @@ final class AppCoordinator: NSObject {
         resourceMonitor?.updateActivePetCount(
             petInstanceManager.activeInstanceIDs.count
         )
+        updateDesktopPointerMonitoring()
     }
 
     private func resourceWarningDidChange(
@@ -517,6 +519,7 @@ final class AppCoordinator: NSObject {
     }
 
     private func bringPetToCurrentScreen(instanceID: UUID) {
+        desktopEnvironmentMonitor.refreshPointer()
         let snapshot = desktopEnvironmentMonitor.currentSnapshot
         let targetDisplay = snapshot.pointerLocation.flatMap { pointer in
             snapshot.displays.first { display in
@@ -540,6 +543,41 @@ final class AppCoordinator: NSObject {
     private func activitySnapshotDidChange(_ snapshot: ActivitySnapshot) {
         latestActivitySnapshot = snapshot
         petInstanceManager.updateActivitySnapshot(snapshot)
+        updateDesktopPointerMonitoring()
+    }
+
+    private func updateDesktopPointerMonitoring() {
+        let isUnavailable = runtimeControlSession.isAllPaused
+            || latestActivitySnapshot?.isScreenLocked == true
+            || latestActivitySnapshot?.isSystemSleeping == true
+        guard !isUnavailable else {
+            desktopEnvironmentMonitor.setPointerMonitoringEnabled(false)
+            return
+        }
+
+        let activeInstanceIDs = Set(petInstanceManager.activeInstanceIDs)
+        let shouldMonitor = settingsSession.settings.activePetInstances
+            .contains { instance in
+                guard
+                    activeInstanceIDs.contains(instance.instanceID),
+                    instance.presentation == .awake,
+                    let runtimeSettings = settingsSession.settings
+                        .runtimeSettings(for: instance.instanceID)
+                else {
+                    return false
+                }
+                let movementMode = runtimeSettings.movementSettings.mode
+                let usesPointerMovement = movementMode == .cursorFollowing
+                    || movementMode == .cursorAvoiding
+                let usesPointerPetting = movementMode != .cursorAvoiding
+                    && runtimeSettings.pettingMotionID != nil
+                let usesPointerOverlapFade = instance.overlay.clickThrough
+                    && instance.overlay.pointerOverlapFadeEnabled
+                return usesPointerMovement
+                    || usesPointerPetting
+                    || usesPointerOverlapFade
+            }
+        desktopEnvironmentMonitor.setPointerMonitoringEnabled(shouldMonitor)
     }
 
     private func settingsDidChange(_ settings: AppSettings) {
@@ -620,7 +658,7 @@ final class AppCoordinator: NSObject {
     }
 
     var isDesktopEnvironmentMonitoring: Bool {
-        desktopEnvironmentMonitor.isRunning
+        desktopEnvironmentMonitor.isStarted
     }
 
     var presentationResourceLoadCount: Int {

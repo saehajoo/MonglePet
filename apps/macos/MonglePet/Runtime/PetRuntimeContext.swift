@@ -140,8 +140,7 @@ final class PetRuntimeContext: PetRuntimeContextType {
                 environmentProvider?.currentSnapshot.movementScreens ?? []
             },
             movementBoundaryProvider: { [weak petWindowController] in
-                petWindowController?.currentOverlaySettings()?
-                    .movementBoundary ?? .default
+                petWindowController?.movementBoundary ?? .default
             },
             pointerProvider: { [weak environmentProvider] in
                 environmentProvider?.currentSnapshot.pointerLocation
