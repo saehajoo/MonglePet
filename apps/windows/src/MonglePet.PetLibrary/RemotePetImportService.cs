@@ -15,12 +15,14 @@ public sealed class RemotePetPreparedPackage : IDisposable
         string packagePath,
         string temporaryDirectoryPath,
         RemotePetImportSource source,
-        string suggestedFileName)
+        string suggestedFileName,
+        RemotePetSemanticVersion publishedMinimumAppVersion)
     {
         PackagePath = packagePath;
         TemporaryDirectoryPath = temporaryDirectoryPath;
         Source = source;
         SuggestedFileName = suggestedFileName;
+        PublishedMinimumAppVersion = publishedMinimumAppVersion;
     }
 
     public string PackagePath { get; }
@@ -30,6 +32,8 @@ public sealed class RemotePetPreparedPackage : IDisposable
     public RemotePetImportSource Source { get; }
 
     public string SuggestedFileName { get; }
+
+    public RemotePetSemanticVersion PublishedMinimumAppVersion { get; }
 
     public void Dispose()
     {
@@ -115,16 +119,6 @@ public sealed class RemotePetImportService : IDisposable
                 throw RemotePetImportException.InvalidServerResponse();
             }
 
-            if (_currentAppVersion < minimumVersion)
-            {
-                throw new RemotePetImportException(
-                    RemotePetImportError.MinimumAppVersionRequired,
-                    $"이 펫은 MonglePet {minimumVersion} 이상이 필요합니다. " +
-                    $"현재 버전은 {_currentAppVersion}입니다.",
-                    requiredVersion: minimumVersion,
-                    currentVersion: _currentAppVersion);
-            }
-
             if (!Guid.TryParse(version.PetVersionUuid, out _))
             {
                 throw RemotePetImportException.InvalidServerResponse();
@@ -156,6 +150,7 @@ public sealed class RemotePetImportService : IDisposable
                 downloadUri,
                 download,
                 source,
+                minimumVersion,
                 cancellationToken);
         }
         catch (RemotePetImportException)
@@ -247,6 +242,7 @@ public sealed class RemotePetImportService : IDisposable
         Uri downloadUri,
         PetDownloadData metadata,
         RemotePetImportSource source,
+        RemotePetSemanticVersion publishedMinimumAppVersion,
         CancellationToken cancellationToken)
     {
         string workspacePath = Path.Combine(
@@ -323,7 +319,8 @@ public sealed class RemotePetImportService : IDisposable
                 packagePath,
                 workspacePath,
                 source,
-                metadata.Filename!);
+                metadata.Filename!,
+                publishedMinimumAppVersion);
         }
         catch
         {

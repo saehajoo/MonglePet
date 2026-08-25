@@ -526,7 +526,9 @@ public sealed partial class MainPage : Page
                 await _remotePetImportService.PreparePackageAsync(
                     _remotePetImportState.UserInput,
                     _remotePetImportCancellation.Token);
-            PetPackageImportReview review = app.ReviewPackage(prepared.PackagePath);
+            PetPackageImportReview review = app.ReviewPackage(
+                prepared.PackagePath,
+                prepared.PublishedMinimumAppVersion);
             await ReviewAndImportPackageAsync(
                 app,
                 review,
@@ -732,6 +734,30 @@ public sealed partial class MainPage : Page
                    $"모션: {review.Manifest.Motions.Count}개",
             TextWrapping = TextWrapping.Wrap,
         });
+        if (review.CompatibilityAdvisory is { HasWarning: true } advisory)
+        {
+            string versionLine = advisory.RecommendsUpdate &&
+                advisory.RequiredMinimumAppVersion is { } required
+                    ? $"이 펫은 MonglePet {required} 이상을 권장합니다. 현재 앱은 {advisory.CurrentAppVersion}입니다."
+                    : $"이 펫은 현재 앱보다 새로운 MonglePet {advisory.CreatedWithAppVersion}에서 제작되었습니다.";
+            var warning = new InfoBar
+            {
+                IsOpen = true,
+                IsClosable = false,
+                Severity = InfoBarSeverity.Warning,
+                Title = "MonglePet 업데이트를 권장합니다",
+                Message = versionLine + " 일부 기능이 적용되지 않거나 다르게 보일 수 있지만 설치는 계속할 수 있습니다.",
+            };
+            var downloadButton = new Button
+            {
+                Content = "MonglePet 다운로드 페이지 열기",
+                HorizontalAlignment = HorizontalAlignment.Left,
+            };
+            downloadButton.Click += async (_, _) => await global::Windows.System.Launcher.LaunchUriAsync(
+                new Uri(PetCompatibilityAdvisory.DownloadPageUrl));
+            content.Children.Add(warning);
+            content.Children.Add(downloadButton);
+        }
         var apply = new CheckBox
         {
             Content = "권장 펫 설정도 적용",
@@ -915,7 +941,7 @@ public sealed partial class MainPage : Page
             ShowLibraryMessage(
                 InfoBarSeverity.Success,
                 "펫 라이브러리",
-                app.InstallOrActivateBundledSample());
+                app.ActivateBuiltInMongle());
         }
         catch (Exception exception)
         {
@@ -1063,17 +1089,10 @@ public sealed partial class MainPage : Page
             return;
         }
 
-        var editor = new PetAnimationEditorControl();
-        var dialog = new ContentDialog
-        {
-            XamlRoot = XamlRoot,
-            Title = "새 펫 만들기",
-            Content = editor,
-            PrimaryButtonText = "펫 만들기",
-            CloseButtonText = "취소",
-            DefaultButton = ContentDialogButton.Primary,
-        };
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+        PetAnimationEditorControl? editor = await ShowPetAnimationEditorAsync(
+            "새 펫 만들기",
+            "펫 만들기");
+        if (editor is null)
         {
             return;
         }
@@ -1094,18 +1113,11 @@ public sealed partial class MainPage : Page
             return;
         }
 
-        var editor = new PetAnimationEditorControl();
-        editor.ConfigureForAnimation(installed.Package, null);
-        var dialog = new ContentDialog
-        {
-            XamlRoot = XamlRoot,
-            Title = "펫 애니메이션 추가",
-            Content = editor,
-            PrimaryButtonText = "추가",
-            CloseButtonText = "취소",
-            DefaultButton = ContentDialogButton.Primary,
-        };
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+        PetAnimationEditorControl? editor = await ShowPetAnimationEditorAsync(
+            "펫 애니메이션 추가",
+            "추가",
+            installed.Package);
+        if (editor is null)
         {
             return;
         }
@@ -1130,18 +1142,12 @@ public sealed partial class MainPage : Page
             return;
         }
 
-        var editor = new PetAnimationEditorControl();
-        editor.ConfigureForAnimation(installed.Package, motion);
-        var dialog = new ContentDialog
-        {
-            XamlRoot = XamlRoot,
-            Title = "펫 애니메이션 수정",
-            Content = editor,
-            PrimaryButtonText = "저장",
-            CloseButtonText = "취소",
-            DefaultButton = ContentDialogButton.Primary,
-        };
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+        PetAnimationEditorControl? editor = await ShowPetAnimationEditorAsync(
+            "펫 애니메이션 수정",
+            "저장",
+            installed.Package,
+            motion);
+        if (editor is null)
         {
             return;
         }
@@ -1156,6 +1162,51 @@ public sealed partial class MainPage : Page
             app.ActivateInstallation(updated.InstallationId);
             return $"'{motion.Id}' 애니메이션을 수정했습니다.";
         });
+    }
+
+    private async Task<PetAnimationEditorControl?> ShowPetAnimationEditorAsync(
+        string title,
+        string primaryButtonText,
+        LoadedPetPackage? package = null,
+        PetPackageMotion? motion = null)
+    {
+        try
+        {
+            var editor = new PetAnimationEditorControl();
+            if (package is not null)
+            {
+                await editor.ConfigureForAnimationAsync(package, motion);
+            }
+            string description = package is null
+                ? "펫 정보와 첫 애니메이션을 설정하고 PNG 또는 스프라이트 프레임을 추가합니다."
+                : motion is null
+                    ? "애니메이션 이름과 재생 방식을 정한 뒤 사용할 프레임을 추가합니다."
+                    : "애니메이션 미리보기와 프레임 순서, 위치 및 재생 간격을 편집합니다.";
+            var window = new EditorWindowHost(
+                title,
+                description,
+                editor,
+                primaryButtonText,
+                "프레임은 16~60000ms 간격을 사용하며 취소하면 기존 펫은 변경되지 않습니다.",
+                width: 900,
+                height: 760,
+                validation: () => editor.ValidationError(package is null));
+            editor.OwnerWindowHandle = window.WindowHandle;
+            nint ownerWindow = Application.Current is App currentApp
+                ? currentApp.MainWindowHandle
+                : nint.Zero;
+            return await window.ShowAsync(ownerWindow)
+                ? editor
+                : null;
+        }
+        catch (Exception exception)
+        {
+            ShowLibraryMessage(
+                InfoBarSeverity.Error,
+                $"{title} 열기 실패",
+                exception.Message);
+            return null;
+        }
     }
 
     private async void DeletePetAnimationButton_Click(object sender, RoutedEventArgs e)
@@ -2082,7 +2133,7 @@ public sealed partial class MainPage : Page
     {
         Version? version = Assembly.GetEntryAssembly()?.GetName().Version;
         return version is null
-            ? new RemotePetSemanticVersion(1, 2, 0)
+            ? new RemotePetSemanticVersion(1, 3, 0)
             : new RemotePetSemanticVersion(
                 Math.Max(version.Major, 0),
                 Math.Max(version.Minor, 0),

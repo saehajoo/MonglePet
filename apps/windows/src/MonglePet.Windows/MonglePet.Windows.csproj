@@ -19,9 +19,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <Version>1.2.0</Version>
-    <AssemblyVersion>1.2.0.13</AssemblyVersion>
-    <FileVersion>1.2.0.13</FileVersion>
+    <Version>1.3.0</Version>
+    <AssemblyVersion>1.3.0.13</AssemblyVersion>
+    <FileVersion>1.3.0.13</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -38,6 +38,10 @@
     <Content Include="Assets\Wide310x150Logo.scale-200.png" />
     <Content Include="..\..\..\..\shared\Samples\ReadOnlySample.monglepet\**\*"
              Link="Samples\ReadOnlySample.monglepet\%(RecursiveDir)%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\..\..\..\shared\BuiltInPets\Mongle.monglepet\**\*"
+             Link="BuiltInPets\Mongle.monglepet\%(RecursiveDir)%(Filename)%(Extension)"
              CopyToOutputDirectory="PreserveNewest"
              CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>

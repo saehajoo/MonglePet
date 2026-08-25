@@ -19,11 +19,31 @@ internal sealed class WindowsUserPetAtlasBuilder : IUserPetAtlasBuilder
                 "애니메이션에는 프레임이 하나 이상 필요합니다.");
         }
 
+        var decodedSources = new Dictionary<string, DecodedFrame>(
+            StringComparer.OrdinalIgnoreCase);
         var decoded = new List<DecodedFrame>(frames.Count);
         foreach (UserPetFrameSourceRequest frame in frames)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            decoded.Add(await DecodeAsync(frame, cancellationToken));
+            string path = Path.GetFullPath(frame.ImagePath);
+            if (!decodedSources.TryGetValue(path, out DecodedFrame? source))
+            {
+                source = await DecodeAsync(path, cancellationToken);
+                decodedSources.Add(path, source);
+            }
+            UserPetProcessedFrame processed = UserPetPixelProcessor.Process(
+                source.Pixels,
+                source.Width,
+                source.Height,
+                frame.SourceFrame,
+                frame.FlipsHorizontally,
+                frame.FlipsVertically,
+                frame.CanvasPlacement,
+                frame.BackgroundRemoval);
+            decoded.Add(new DecodedFrame(
+                processed.Width,
+                processed.Height,
+                processed.BgraPixels));
         }
 
         IReadOnlyList<AtlasPlacement> placements = Arrange(decoded);
@@ -106,37 +126,17 @@ internal sealed class WindowsUserPetAtlasBuilder : IUserPetAtlasBuilder
     }
 
     private static async Task<DecodedFrame> DecodeAsync(
-        UserPetFrameSourceRequest request,
+        string imagePath,
         CancellationToken cancellationToken)
     {
-        StorageFile file = await StorageFile.GetFileFromPathAsync(Path.GetFullPath(request.ImagePath));
+        StorageFile file = await StorageFile.GetFileFromPathAsync(imagePath);
         using IRandomAccessStream stream = await file.OpenAsync(FileAccessMode.Read);
         BitmapDecoder decoder = await BitmapDecoder.CreateAsync(stream);
-        var transform = new BitmapTransform();
-        if (request.SourceFrame is { } source)
-        {
-            if (source.X < 0 || source.Y < 0 || source.Width <= 0 || source.Height <= 0 ||
-                (long)source.X + source.Width > decoder.PixelWidth ||
-                (long)source.Y + source.Height > decoder.PixelHeight)
-            {
-                throw new UserPetEditingException(
-                    UserPetEditingError.FileOperationFailed,
-                    "기존 애니메이션 프레임 영역이 올바르지 않습니다.");
-            }
-            transform.Bounds = new BitmapBounds
-            {
-                X = (uint)source.X,
-                Y = (uint)source.Y,
-                Width = (uint)source.Width,
-                Height = (uint)source.Height,
-            };
-        }
-
         cancellationToken.ThrowIfCancellationRequested();
         using SoftwareBitmap bitmap = await decoder.GetSoftwareBitmapAsync(
             BitmapPixelFormat.Bgra8,
             BitmapAlphaMode.Premultiplied,
-            transform,
+            new BitmapTransform(),
             ExifOrientationMode.IgnoreExifOrientation,
             ColorManagementMode.DoNotColorManage);
         int width = bitmap.PixelWidth;

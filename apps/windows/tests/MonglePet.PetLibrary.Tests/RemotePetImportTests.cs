@@ -89,6 +89,20 @@ public sealed class RemotePetImportSourceTests
     }
 
     [Fact]
+    public void CompatibilityAdvisoryUsesHigherPublishedOrManifestMinimum()
+    {
+        PetCompatibilityAdvisory advisory = PetCompatibilityAdvisory.Create(
+            new MonglePet.Packages.PetPackageCompatibility("8.0.0", "7.0.0"),
+            new RemotePetSemanticVersion(1, 3, 0),
+            new RemotePetSemanticVersion(9, 0, 0));
+
+        Assert.True(advisory.RecommendsUpdate);
+        Assert.True(advisory.WasCreatedWithNewerApp);
+        Assert.Equal(new RemotePetSemanticVersion(9, 0, 0), advisory.RequiredMinimumAppVersion);
+        Assert.Equal("https://mapleroom.kr/monglepet/download", PetCompatibilityAdvisory.DownloadPageUrl);
+    }
+
+    [Fact]
     public void InteractionStatePreventsDuplicateWorkAndClearsErrorOnEdit()
     {
         RemotePetImportInteractionState state = RemotePetImportInteractionState.Initial
@@ -126,6 +140,7 @@ public sealed class RemotePetImportServiceTests
 
         Assert.Equal(package, await File.ReadAllBytesAsync(prepared.PackagePath));
         Assert.Equal("monglepet-abc123-1.0.0.monglepet", prepared.SuggestedFileName);
+        Assert.Equal(CurrentVersion, prepared.PublishedMinimumAppVersion);
         Assert.Empty(library.GetInstalledPackages());
         Assert.Equal(
             [DetailApiUrl, DownloadMetadataUrl, DownloadUrl],
@@ -207,24 +222,24 @@ public sealed class RemotePetImportServiceTests
     }
 
     [Fact]
-    public async Task MinimumAppVersionIsCheckedBeforeDownloadMetadataRequest()
+    public async Task HigherMinimumAppVersionDownloadsAndPreservesAdvisoryMetadata()
     {
-        string checksum = new('a', 64);
+        byte[] package = [1, 2, 3, 4];
+        string checksum = Sha256(package);
         var handler = CreateHandler(
-            package: [1, 2, 3, 4],
+            package: package,
             detailSize: 4,
             detailChecksum: checksum,
             minimumVersion: "9.0.0");
         using var client = new HttpClient(handler);
         using var service = new RemotePetImportService(CurrentVersion, client);
 
-        RemotePetImportException exception = await Assert.ThrowsAsync<RemotePetImportException>(
-            () => service.PreparePackageAsync(DevelopmentUrl));
+        using RemotePetPreparedPackage prepared = await service.PreparePackageAsync(DevelopmentUrl);
 
-        Assert.Equal(RemotePetImportError.MinimumAppVersionRequired, exception.Error);
-        Assert.Equal(new RemotePetSemanticVersion(9, 0, 0), exception.RequiredVersion);
-        Assert.Equal(CurrentVersion, exception.CurrentVersion);
-        Assert.Single(handler.RequestedUris);
+        Assert.Equal(new RemotePetSemanticVersion(9, 0, 0), prepared.PublishedMinimumAppVersion);
+        Assert.Equal(
+            [DetailApiUrl, DownloadMetadataUrl, DownloadUrl],
+            handler.RequestedUris.Select(uri => uri.AbsoluteUri));
     }
 
     [Fact]

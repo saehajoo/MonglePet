@@ -35,6 +35,18 @@ public sealed class PetPackageManifestReaderTests
         Assert.Null(manifest.DefaultMotion);
     }
 
+    [Theory]
+    [InlineData("봄 에디션")]
+    [InlineData("release-A")]
+    public void ContentVersionIsPreservedAsAFreeString(string contentVersion)
+    {
+        using var stream = JsonStream(ValidManifest(version: contentVersion));
+
+        PetPackageManifest manifest = _reader.Read(stream);
+
+        Assert.Equal(contentVersion, manifest.Version);
+    }
+
     [Fact]
     public void RejectsPathTraversal()
     {
@@ -125,13 +137,14 @@ public sealed class PetPackageManifestReaderTests
         int frameWidth = 32,
         string defaultMotionProperty = "\"defaultMotion\": \"idle\",",
         string extraMotion = "",
-        string compatibilityProperty = "") =>
+        string compatibilityProperty = "",
+        string version = "1.0.0") =>
         $$"""
         {
           "formatVersion": 1,
           "id": "com.example.pet",
           "displayName": "Example",
-          "version": "1.0.0",
+          "version": "{{version}}",
           "author": "Example",
           "previewPath": "preview.png",
           {{defaultMotionProperty}}

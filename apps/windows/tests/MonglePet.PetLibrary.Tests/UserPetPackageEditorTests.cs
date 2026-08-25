@@ -89,6 +89,28 @@ public sealed class UserPetPackageEditorTests
         Assert.NotEqual(imported.Package.Manifest.Id, copy.Package.Manifest.Id);
     }
 
+    [Fact]
+    public async Task CanceledFrameEditLeavesInstalledPackageAndTemporaryWorkspaceUnchanged()
+    {
+        using var workspace = new Workspace();
+        var store = workspace.CreateStore();
+        var editor = new UserPetPackageEditor(store, new FixtureAtlasBuilder());
+        InstalledPetPackage installed = await editor.CreatePetAsync(Request());
+        string[] before = FileTree(installed.RootPath);
+        var canceledEditor = new UserPetPackageEditor(store, new CancelingAtlasBuilder());
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            canceledEditor.UpdateAnimationAsync(
+                installed,
+                new UserPetAnimationUpdateRequest("기본", "기본", true, [Frame(450)]),
+                new CancellationToken(canceled: true)));
+
+        Assert.Equal(before, FileTree(installed.RootPath));
+        Assert.DoesNotContain(
+            Directory.EnumerateDirectories(workspace.LibraryPath),
+            value => Path.GetFileName(value).StartsWith(".editor-", StringComparison.Ordinal));
+    }
+
     private static UserPetCreationRequest Request() => new(
         "구름이",
         "기본",
@@ -106,6 +128,12 @@ public sealed class UserPetPackageEditorTests
         "Fixtures",
         "ReadOnlySample.monglepet");
 
+    private static string[] FileTree(string root) => Directory
+        .EnumerateFiles(root, "*", SearchOption.AllDirectories)
+        .OrderBy(path => path, StringComparer.Ordinal)
+        .Select(path => $"{Path.GetRelativePath(root, path)}|{Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(path)))}")
+        .ToArray();
+
     private sealed class FixtureAtlasBuilder : IUserPetAtlasBuilder
     {
         public Task<UserPetBuiltAtlas> BuildAsync(
@@ -122,6 +150,17 @@ public sealed class UserPetPackageEditorTests
                 1254,
                 definitions));
         }
+    }
+
+    private sealed class CancelingAtlasBuilder : IUserPetAtlasBuilder
+    {
+        public Task<UserPetBuiltAtlas> BuildAsync(
+            IReadOnlyList<UserPetFrameSourceRequest> frames,
+            CancellationToken cancellationToken = default) =>
+            Task.FromCanceled<UserPetBuiltAtlas>(
+                cancellationToken.IsCancellationRequested
+                    ? cancellationToken
+                    : new CancellationToken(canceled: true));
     }
 
     private sealed class Workspace : IDisposable

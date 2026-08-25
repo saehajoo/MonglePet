@@ -22,7 +22,10 @@ public sealed record PetPackageImportReview(
     bool ContainsRecommendedProfile,
     BehaviorProfile? RecommendedProfile,
     RecommendedPetProfileError? RecommendedProfileIssue,
-    string? RecommendedProfileIssueDetail)
+    string? RecommendedProfileIssueDetail,
+    RemotePetSemanticVersion? CurrentAppVersion = null,
+    RemotePetSemanticVersion? PublishedMinimumAppVersion = null,
+    PetCompatibilityAdvisory? CompatibilityAdvisory = null)
 {
     public bool CanApplyRecommendedProfile => RecommendedProfile is not null;
 }

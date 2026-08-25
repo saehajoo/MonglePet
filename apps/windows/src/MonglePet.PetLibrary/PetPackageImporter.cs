@@ -24,7 +24,10 @@ public sealed class PetPackageImporter
         _operationIdGenerator = operationIdGenerator ?? Guid.NewGuid;
     }
 
-    public PetPackageImportReview Review(string sourcePath)
+    public PetPackageImportReview Review(
+        string sourcePath,
+        RemotePetSemanticVersion? currentAppVersion = null,
+        RemotePetSemanticVersion? publishedMinimumAppVersion = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sourcePath);
         string fullPath = Path.GetFullPath(sourcePath);
@@ -32,6 +35,12 @@ public sealed class PetPackageImporter
         return WithPreparedPackage(fullPath, packageRoot =>
         {
             LoadedPetPackage package = _loader.LoadDirectory(packageRoot);
+            PetCompatibilityAdvisory? advisory = currentAppVersion is { } current
+                ? PetCompatibilityAdvisory.Create(
+                    package.Manifest.Compatibility,
+                    current,
+                    publishedMinimumAppVersion)
+                : null;
             string recommendedPath = Path.Combine(packageRoot, "recommended-profile.json");
             if (!File.Exists(recommendedPath))
             {
@@ -42,7 +51,10 @@ public sealed class PetPackageImporter
                     false,
                     null,
                     null,
-                    null);
+                    null,
+                    currentAppVersion,
+                    publishedMinimumAppVersion,
+                    advisory);
             }
 
             var info = new FileInfo(recommendedPath);
@@ -66,7 +78,10 @@ public sealed class PetPackageImporter
                     true,
                     profile,
                     null,
-                    null);
+                    null,
+                    currentAppVersion,
+                    publishedMinimumAppVersion,
+                    advisory);
             }
             catch (RecommendedPetProfileException exception)
                 when (exception.Error != RecommendedPetProfileError.TooLarge)
@@ -78,7 +93,10 @@ public sealed class PetPackageImporter
                     true,
                     null,
                     exception.Error,
-                    exception.Message);
+                    exception.Message,
+                    currentAppVersion,
+                    publishedMinimumAppVersion,
+                    advisory);
             }
         });
     }
@@ -89,7 +107,10 @@ public sealed class PetPackageImporter
         Guid? replacementInstallationId = null)
     {
         ArgumentNullException.ThrowIfNull(review);
-        PetPackageImportReview current = Review(review.SourcePath);
+        PetPackageImportReview current = Review(
+            review.SourcePath,
+            review.CurrentAppVersion,
+            review.PublishedMinimumAppVersion);
         if (!string.Equals(
                 current.SourceFingerprint,
                 review.SourceFingerprint,

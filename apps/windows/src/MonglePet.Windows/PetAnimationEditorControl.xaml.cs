@@ -3,16 +3,27 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using MonglePet.Packages;
 using MonglePet.PetLibrary;
+using Windows.Foundation;
 using Windows.Storage.Pickers;
-using Windows.Graphics.Imaging;
 
 namespace MonglePet.Windows;
 
 public sealed partial class PetAnimationEditorControl : UserControl
 {
     private readonly ObservableCollection<FrameItem> _frames = [];
+    private readonly WindowsDecodedImageCache _imageCache = new();
+    private bool _isRefreshingPlacement;
+    private bool _isDraggingPlacement;
+    private UserPetCropHandle _placementDragHandle;
+    private Point _placementDragStart;
+    private UserPetPixelRect _placementDragOriginal;
+    private double _placementDisplayScale = 1;
+    private double _placementDisplayX;
+    private double _placementDisplayY;
+    private bool _isReady;
 
     public PetAnimationEditorControl()
     {
@@ -22,14 +33,48 @@ public sealed partial class PetAnimationEditorControl : UserControl
         AuthorTextBox.Text = "MonglePet 사용자";
         DescriptionTextBox.Text = "MonglePet에서 사용자가 만든 펫입니다.";
         AnimationNameTextBox.Text = "기본";
+        _isReady = true;
+        RefreshFrameEditorVisibility();
     }
 
-    public void ConfigureForAnimation(LoadedPetPackage package, PetPackageMotion? motion)
+    public nint OwnerWindowHandle { get; set; }
+
+    public string? ValidationError(bool requiresPetInformation)
+    {
+        if (requiresPetInformation && string.IsNullOrWhiteSpace(PetNameTextBox.Text))
+        {
+            return "펫 이름을 입력해 주세요.";
+        }
+        if (requiresPetInformation && string.IsNullOrWhiteSpace(VersionTextBox.Text))
+        {
+            return "펫 버전을 입력해 주세요.";
+        }
+        if (requiresPetInformation && string.IsNullOrWhiteSpace(AuthorTextBox.Text))
+        {
+            return "제작자를 입력해 주세요.";
+        }
+        if (string.IsNullOrWhiteSpace(AnimationNameTextBox.Text))
+        {
+            return "애니메이션 이름을 입력해 주세요.";
+        }
+        if (_frames.Count == 0)
+        {
+            return "PNG 또는 스프라이트 시트에서 프레임을 하나 이상 추가해 주세요.";
+        }
+        if (_frames.Any(frame => frame.DurationMilliseconds is < 16 or > 60_000))
+        {
+            return "프레임 간격은 16~60000ms 사이여야 합니다.";
+        }
+        return null;
+    }
+
+    public async Task ConfigureForAnimationAsync(LoadedPetPackage package, PetPackageMotion? motion)
     {
         PetInformationCard.Visibility = Visibility.Collapsed;
         if (motion is null)
         {
             AnimationNameTextBox.Text = string.Empty;
+            RefreshFrameEditorVisibility();
             return;
         }
 
@@ -45,6 +90,12 @@ public sealed partial class PetAnimationEditorControl : UserControl
                 "기존 atlas 프레임"));
         }
         RefreshIndexes();
+        await InitializeUnplacedFramePlacementsAsync();
+        await RefreshFrameThumbnailsAsync(_frames);
+        if (_frames.Count > 0)
+        {
+            FramesList.SelectedIndex = 0;
+        }
     }
 
     public UserPetCreationRequest CreatePetRequest() => new(
@@ -67,140 +118,166 @@ public sealed partial class PetAnimationEditorControl : UserControl
         LoopsToggle.IsOn,
         FrameRequests());
 
-    private IReadOnlyList<UserPetFrameSourceRequest> FrameRequests() => _frames
-        .Select(frame => new UserPetFrameSourceRequest(
-            frame.ImagePath,
-            Math.Clamp(frame.DurationMilliseconds, 16, 60_000),
-            frame.SourceFrame))
-        .ToArray();
+    private IReadOnlyList<UserPetFrameSourceRequest> FrameRequests()
+    {
+        NormalizeCommonCanvas();
+        return _frames
+            .Select(frame => new UserPetFrameSourceRequest(
+                frame.ImagePath,
+                Math.Clamp(frame.DurationMilliseconds, 16, 60_000),
+                frame.SourceFrame,
+                frame.FlipsHorizontally,
+                frame.FlipsVertically,
+                frame.CanvasPlacement,
+                frame.FrameId,
+                frame.BackgroundRemoval))
+            .ToArray();
+    }
 
     private async void ChooseFramesButton_Click(object sender, RoutedEventArgs e)
     {
-        if (Application.Current is not App { MainWindowHandle: not 0 } app)
+        nint ownerWindow = EffectiveOwnerWindowHandle();
+        if (ownerWindow == nint.Zero)
         {
             return;
         }
-        var picker = new FileOpenPicker
+        try
         {
-            SuggestedStartLocation = PickerLocationId.PicturesLibrary,
-            ViewMode = PickerViewMode.Thumbnail,
-        };
-        picker.FileTypeFilter.Add(".png");
-        WinRT.Interop.InitializeWithWindow.Initialize(picker, app.MainWindowHandle);
-        IReadOnlyList<global::Windows.Storage.StorageFile> files = await picker.PickMultipleFilesAsync();
-        int duration = (int)Math.Clamp(NewFrameDurationNumberBox.Value, 16, 60_000);
-        foreach (global::Windows.Storage.StorageFile file in files)
-        {
-            _frames.Add(new FrameItem(file.Path, duration, null, "개별 PNG"));
-        }
-        RefreshIndexes();
-        if (_frames.Count > 0)
-        {
+            var picker = new FileOpenPicker
+            {
+                SuggestedStartLocation = PickerLocationId.PicturesLibrary,
+                ViewMode = PickerViewMode.Thumbnail,
+            };
+            picker.FileTypeFilter.Add(".png");
+            WinRT.Interop.InitializeWithWindow.Initialize(picker, ownerWindow);
+            IReadOnlyList<global::Windows.Storage.StorageFile> files = await picker.PickMultipleFilesAsync();
+            if (files.Count == 0)
+            {
+                return;
+            }
+            int duration = (int)Math.Clamp(NewFrameDurationNumberBox.Value, 16, 60_000);
+            var editor = new PngFrameImportControl(ownerWindow, duration);
+            await editor.AddFilesAsync(files.Select(file => file.Path));
+            var window = new EditorWindowHost(
+                "PNG 프레임 자르기",
+                "여러 PNG를 함께 확인하고 프레임마다 사용할 원본 범위를 조정합니다.",
+                editor,
+                "잘라서 프레임 추가",
+                "목록의 모든 PNG를 추가하며 선택 항목은 일괄 편집 대상을 정합니다.",
+                width: 1_040,
+                height: 760,
+                validation: () => editor.HasFrames ? null : "추가할 PNG가 없습니다.");
+            editor.OwnerWindowHandle = window.WindowHandle;
+            if (!await window.ShowAsync(ownerWindow))
+            {
+                return;
+            }
+            foreach (UserPetFrameSourceRequest request in editor.CreateRequests())
+            {
+                _frames.Add(new FrameItem(
+                    request.ImagePath,
+                    request.DurationMilliseconds,
+                    request.SourceFrame,
+                    "개별 PNG crop",
+                    request.FlipsHorizontally,
+                    request.FlipsVertically,
+                    request.CanvasPlacement,
+                    request.FrameId,
+                    request.BackgroundRemoval));
+            }
+            RefreshIndexes();
+            await InitializeUnplacedFramePlacementsAsync();
+            NormalizeCommonCanvas();
+            await RefreshFrameThumbnailsAsync(_frames);
+            RefreshFrameEditorVisibility();
             FramesList.SelectedIndex = _frames.Count - 1;
+            EditorInfoBar.IsOpen = false;
+        }
+        catch (Exception exception)
+        {
+            ShowEditorError("PNG 프레임을 열지 못했습니다", exception);
         }
     }
 
     private async void ChooseSpriteSheetButton_Click(object sender, RoutedEventArgs e)
     {
-        if (Application.Current is not App { MainWindowHandle: not 0 } app)
+        nint ownerWindow = EffectiveOwnerWindowHandle();
+        if (ownerWindow == nint.Zero)
         {
             return;
         }
-        var picker = new FileOpenPicker
+        try
         {
-            SuggestedStartLocation = PickerLocationId.PicturesLibrary,
-            ViewMode = PickerViewMode.Thumbnail,
-        };
-        picker.FileTypeFilter.Add(".png");
-        picker.FileTypeFilter.Add(".webp");
-        WinRT.Interop.InitializeWithWindow.Initialize(picker, app.MainWindowHandle);
-        global::Windows.Storage.StorageFile? file = await picker.PickSingleFileAsync();
-        if (file is null)
-        {
-            return;
-        }
-
-        uint pixelWidth;
-        uint pixelHeight;
-        using (global::Windows.Storage.Streams.IRandomAccessStream stream =
-               await file.OpenAsync(global::Windows.Storage.FileAccessMode.Read))
-        {
-            BitmapDecoder decoder = await BitmapDecoder.CreateAsync(stream);
-            pixelWidth = decoder.PixelWidth;
-            pixelHeight = decoder.PixelHeight;
-        }
-
-        var columns = new NumberBox
-        {
-            Header = "열 수",
-            Minimum = 1,
-            Maximum = Math.Max(1, pixelWidth),
-            Value = 1,
-            SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Compact,
-        };
-        var rows = new NumberBox
-        {
-            Header = "행 수",
-            Minimum = 1,
-            Maximum = Math.Max(1, pixelHeight),
-            Value = 1,
-            SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Compact,
-        };
-        var panel = new StackPanel { Width = 440, Spacing = 10 };
-        panel.Children.Add(new TextBlock
-        {
-            Text = $"{file.Name} · {pixelWidth}×{pixelHeight}px\n왼쪽 위부터 행 순서로 동일한 크기의 프레임을 나눕니다.",
-            TextWrapping = TextWrapping.Wrap,
-        });
-        panel.Children.Add(columns);
-        panel.Children.Add(rows);
-        var dialog = new ContentDialog
-        {
-            XamlRoot = XamlRoot,
-            Title = "스프라이트 시트 프레임 확인",
-            Content = panel,
-            PrimaryButtonText = "프레임 추가",
-            CloseButtonText = "취소",
-            DefaultButton = ContentDialogButton.Primary,
-        };
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
-        {
-            return;
-        }
-
-        int columnCount = (int)columns.Value;
-        int rowCount = (int)rows.Value;
-        if (columnCount <= 0 || rowCount <= 0 ||
-            pixelWidth % (uint)columnCount != 0 || pixelHeight % (uint)rowCount != 0)
-        {
-            await new ContentDialog
+            var picker = new FileOpenPicker
             {
-                XamlRoot = XamlRoot,
-                Title = "프레임을 나눌 수 없습니다",
-                Content = "이미지 너비와 높이가 입력한 열·행 수로 정확히 나누어져야 합니다.",
-                CloseButtonText = "확인",
-            }.ShowAsync();
-            return;
-        }
-
-        int frameWidth = checked((int)pixelWidth / columnCount);
-        int frameHeight = checked((int)pixelHeight / rowCount);
-        int duration = (int)Math.Clamp(NewFrameDurationNumberBox.Value, 16, 60_000);
-        for (int row = 0; row < rowCount; row++)
-        {
-            for (int column = 0; column < columnCount; column++)
+                SuggestedStartLocation = PickerLocationId.PicturesLibrary,
+                ViewMode = PickerViewMode.Thumbnail,
+            };
+            picker.FileTypeFilter.Add(".png");
+            picker.FileTypeFilter.Add(".webp");
+            WinRT.Interop.InitializeWithWindow.Initialize(picker, ownerWindow);
+            global::Windows.Storage.StorageFile? file = await picker.PickSingleFileAsync();
+            if (file is null)
             {
-                var source = new PetPackageFrame(
-                    column * frameWidth,
-                    row * frameHeight,
-                    frameWidth,
-                    frameHeight,
-                    duration);
-                _frames.Add(new FrameItem(file.Path, duration, source, "스프라이트 시트 프레임"));
+                return;
             }
+            int duration = (int)Math.Clamp(NewFrameDurationNumberBox.Value, 16, 60_000);
+            SpriteSheetImportControl editor = await SpriteSheetImportControl.CreateAsync(
+                file.Path,
+                duration);
+            var window = new EditorWindowHost(
+                "스프라이트 시트 가져오기",
+                $"{Path.GetFileName(file.Path)} · 프레임 경계와 재생 순서를 확인합니다.",
+                editor,
+                "프레임 저장 및 추가",
+                "정적 PNG·WebP만 지원하며 취소하면 원본과 기존 프레임은 변경되지 않습니다.",
+                width: 1_040,
+                height: 760,
+                validation: () => editor.HasSelectedFrames ? null : "가져올 프레임을 하나 이상 선택해 주세요.");
+            if (!await window.ShowAsync(ownerWindow))
+            {
+                return;
+            }
+            IReadOnlyList<UserPetFrameSourceRequest> requests = editor.CreateRequests();
+            foreach (UserPetFrameSourceRequest request in requests)
+            {
+                _frames.Add(new FrameItem(
+                    request.ImagePath,
+                    request.DurationMilliseconds,
+                    request.SourceFrame,
+                    "스프라이트 시트 프레임",
+                    request.FlipsHorizontally,
+                    request.FlipsVertically,
+                    request.CanvasPlacement,
+                    request.FrameId,
+                    request.BackgroundRemoval));
+            }
+            RefreshIndexes();
+            await InitializeUnplacedFramePlacementsAsync();
+            NormalizeCommonCanvas();
+            await RefreshFrameThumbnailsAsync(_frames);
+            RefreshFrameEditorVisibility();
+            FramesList.SelectedIndex = _frames.Count - 1;
+            EditorInfoBar.IsOpen = false;
         }
-        RefreshIndexes();
-        FramesList.SelectedIndex = _frames.Count - 1;
+        catch (Exception exception)
+        {
+            ShowEditorError("스프라이트 시트를 열지 못했습니다", exception);
+        }
+    }
+
+    private nint EffectiveOwnerWindowHandle() => OwnerWindowHandle != nint.Zero
+        ? OwnerWindowHandle
+        : Application.Current is App app
+            ? app.MainWindowHandle
+            : nint.Zero;
+
+    private void ShowEditorError(string title, Exception exception)
+    {
+        EditorInfoBar.Title = title;
+        EditorInfoBar.Message = exception.Message;
+        EditorInfoBar.Severity = InfoBarSeverity.Error;
+        EditorInfoBar.IsOpen = true;
     }
 
     private void MoveFrameUpButton_Click(object sender, RoutedEventArgs e) => MoveSelected(-1);
@@ -235,11 +312,398 @@ public sealed partial class PetAnimationEditorControl : UserControl
         }
     }
 
+    private void DuplicateFrameButton_Click(object sender, RoutedEventArgs e)
+    {
+        int index = FramesList.SelectedIndex;
+        if (index < 0)
+        {
+            return;
+        }
+        _frames.Insert(index + 1, _frames[index].IndependentCopy());
+        RefreshIndexes();
+        FramesList.SelectedIndex = index + 1;
+    }
+
     private void RefreshIndexes()
     {
         for (int index = 0; index < _frames.Count; index++)
         {
             _frames[index].DisplayIndex = $"{index + 1}.";
+        }
+        RefreshFrameEditorVisibility();
+    }
+
+    private void RefreshFrameEditorVisibility()
+    {
+        bool hasFrames = _frames.Count > 0;
+        EmptyFrameState.Visibility = hasFrames ? Visibility.Collapsed : Visibility.Visible;
+        FrameEditorGrid.Visibility = hasFrames ? Visibility.Visible : Visibility.Collapsed;
+        FrameImportButton.Content = hasFrames ? "프레임 추가" : "프레임 선택";
+    }
+
+    private async void FramesList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        try
+        {
+            await RefreshPlacementEditorAsync();
+        }
+        catch (Exception exception)
+        {
+            ShowEditorError("프레임 미리보기를 표시하지 못했습니다", exception);
+        }
+    }
+
+    private async Task RefreshPlacementEditorAsync()
+    {
+        if (FramesList.SelectedItem is not FrameItem selected)
+        {
+            SelectedFramePlacementImage.Source = null;
+            FirstFrameReferenceImage.Source = null;
+            SelectedFramePlacementBorder.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        NormalizeCommonCanvas();
+        UserPetCanvasPlacement placement = selected.CanvasPlacement!;
+        _isRefreshingPlacement = true;
+        try
+        {
+            CanvasWidthNumberBox.Value = placement.CanvasWidth;
+            CanvasHeightNumberBox.Value = placement.CanvasHeight;
+            PlacementXNumberBox.Value = placement.X;
+            PlacementYNumberBox.Value = placement.Y;
+            PlacementWidthNumberBox.Value = placement.Width;
+            PlacementHeightNumberBox.Value = placement.Height;
+        }
+        finally
+        {
+            _isRefreshingPlacement = false;
+        }
+
+        ConfigurePlacementViewport(placement.CanvasWidth, placement.CanvasHeight);
+        var checker = new UserPetProcessedFrame(
+            placement.CanvasWidth,
+            placement.CanvasHeight,
+            new byte[checked(placement.CanvasWidth * placement.CanvasHeight * 4)]);
+        FrameCheckerImage.Source = await WindowsImagePreviewFactory.CreateCheckerboardAsync(checker);
+
+        WindowsDecodedImage decoded = await _imageCache.GetAsync(selected.ImagePath);
+        if (FramesList.SelectedItem != selected)
+        {
+            return;
+        }
+        UserPetProcessedFrame cropped = UserPetPixelProcessor.Process(
+            decoded.BgraPixels,
+            decoded.Width,
+            decoded.Height,
+            selected.SourceFrame,
+            selected.FlipsHorizontally,
+            selected.FlipsVertically,
+            backgroundRemoval: selected.BackgroundRemoval);
+        selected.Thumbnail = await WindowsImagePreviewFactory.CreateCheckerboardAsync(cropped);
+        SelectedFramePlacementImage.Source = await WindowsImagePreviewFactory.CreateTransparentAsync(cropped);
+        LayoutPlacementElement(SelectedFramePlacementImage, placement);
+        LayoutPlacementElement(SelectedFramePlacementBorder, placement);
+        SelectedFramePlacementBorder.Visibility = Visibility.Visible;
+        await RefreshFirstFrameReferenceAsync(selected);
+    }
+
+    private async Task RefreshFrameThumbnailsAsync(IEnumerable<FrameItem> frames)
+    {
+        foreach (FrameItem frame in frames)
+        {
+            WindowsDecodedImage decoded = await _imageCache.GetAsync(frame.ImagePath);
+            UserPetProcessedFrame cropped = UserPetPixelProcessor.Process(
+                decoded.BgraPixels,
+                decoded.Width,
+                decoded.Height,
+                frame.SourceFrame,
+                frame.FlipsHorizontally,
+                frame.FlipsVertically,
+                backgroundRemoval: frame.BackgroundRemoval);
+            frame.Thumbnail = await WindowsImagePreviewFactory.CreateCheckerboardAsync(cropped);
+        }
+    }
+
+    private async Task RefreshFirstFrameReferenceAsync(FrameItem selected)
+    {
+        if (CompareFirstFrameCheckBox.IsChecked != true ||
+            _frames.Count == 0 ||
+            _frames[0] == selected)
+        {
+            FirstFrameReferenceImage.Visibility = Visibility.Collapsed;
+            return;
+        }
+        FrameItem first = _frames[0];
+        WindowsDecodedImage decoded = await _imageCache.GetAsync(first.ImagePath);
+        UserPetProcessedFrame cropped = UserPetPixelProcessor.Process(
+            decoded.BgraPixels,
+            decoded.Width,
+            decoded.Height,
+            first.SourceFrame,
+            first.FlipsHorizontally,
+            first.FlipsVertically,
+            backgroundRemoval: first.BackgroundRemoval);
+        FirstFrameReferenceImage.Source = await WindowsImagePreviewFactory.CreateTransparentAsync(cropped);
+        LayoutPlacementElement(FirstFrameReferenceImage, first.CanvasPlacement!);
+        FirstFrameReferenceImage.Visibility = Visibility.Visible;
+    }
+
+    private void ConfigurePlacementViewport(int canvasWidth, int canvasHeight)
+    {
+        const double availableWidth = 260;
+        const double availableHeight = 220;
+        _placementDisplayScale = Math.Min(availableWidth / canvasWidth, availableHeight / canvasHeight);
+        _placementDisplayX = (availableWidth - (canvasWidth * _placementDisplayScale)) / 2;
+        _placementDisplayY = (availableHeight - (canvasHeight * _placementDisplayScale)) / 2;
+        FrameCheckerImage.Width = canvasWidth * _placementDisplayScale;
+        FrameCheckerImage.Height = canvasHeight * _placementDisplayScale;
+        Canvas.SetLeft(FrameCheckerImage, _placementDisplayX);
+        Canvas.SetTop(FrameCheckerImage, _placementDisplayY);
+    }
+
+    private void LayoutPlacementElement(FrameworkElement element, UserPetCanvasPlacement placement)
+    {
+        element.Width = placement.Width * _placementDisplayScale;
+        element.Height = placement.Height * _placementDisplayScale;
+        Canvas.SetLeft(element, _placementDisplayX + (placement.X * _placementDisplayScale));
+        Canvas.SetTop(element, _placementDisplayY + (placement.Y * _placementDisplayScale));
+    }
+
+    private void NormalizeCommonCanvas()
+    {
+        if (_frames.Count == 0)
+        {
+            return;
+        }
+        bool hasUnplacedFrame = _frames.Any(frame => frame.CanvasPlacement is null);
+        int canvasWidth = hasUnplacedFrame
+            ? _frames.Max(frame => Math.Max(frame.IntrinsicWidth, frame.CanvasPlacement?.CanvasWidth ?? 0))
+            : _frames.Max(frame => frame.CanvasPlacement!.CanvasWidth);
+        int canvasHeight = hasUnplacedFrame
+            ? _frames.Max(frame => Math.Max(frame.IntrinsicHeight, frame.CanvasPlacement?.CanvasHeight ?? 0))
+            : _frames.Max(frame => frame.CanvasPlacement!.CanvasHeight);
+        foreach (FrameItem frame in _frames)
+        {
+            UserPetCanvasPlacement current = frame.CanvasPlacement ?? new UserPetCanvasPlacement(
+                canvasWidth,
+                canvasHeight,
+                (canvasWidth - frame.IntrinsicWidth) / 2,
+                (canvasHeight - frame.IntrinsicHeight) / 2,
+                frame.IntrinsicWidth,
+                frame.IntrinsicHeight);
+            int width = Math.Clamp(current.Width, 1, canvasWidth);
+            int height = Math.Clamp(current.Height, 1, canvasHeight);
+            frame.CanvasPlacement = current with
+            {
+                CanvasWidth = canvasWidth,
+                CanvasHeight = canvasHeight,
+                X = Math.Clamp(current.X, 0, canvasWidth - width),
+                Y = Math.Clamp(current.Y, 0, canvasHeight - height),
+                Width = width,
+                Height = height,
+            };
+        }
+    }
+
+    private async Task InitializeUnplacedFramePlacementsAsync()
+    {
+        FrameItem[] unplaced = _frames.Where(frame => frame.CanvasPlacement is null).ToArray();
+        if (unplaced.Length == 0)
+        {
+            return;
+        }
+        var geometries = new List<UserPetVisibleFrameGeometry>(unplaced.Length);
+        foreach (FrameItem frame in unplaced)
+        {
+            WindowsDecodedImage decoded = await _imageCache.GetAsync(frame.ImagePath);
+            UserPetProcessedFrame cropped = UserPetPixelProcessor.Process(
+                decoded.BgraPixels,
+                decoded.Width,
+                decoded.Height,
+                frame.SourceFrame,
+                frame.FlipsHorizontally,
+                frame.FlipsVertically,
+                backgroundRemoval: frame.BackgroundRemoval);
+            UserPetPixelRect visible = UserPetImageEditingGeometry.FindVisibleBounds(
+                cropped.BgraPixels,
+                cropped.Width,
+                cropped.Height) ?? new UserPetPixelRect(0, 0, cropped.Width, cropped.Height);
+            geometries.Add(new UserPetVisibleFrameGeometry(cropped.Width, cropped.Height, visible));
+        }
+        IReadOnlyList<UserPetCanvasPlacement> placements =
+            UserPetImageEditingGeometry.CreateCommonCanvasPlacements(geometries);
+        int existingWidth = _frames
+            .Where(frame => frame.CanvasPlacement is not null)
+            .Select(frame => frame.CanvasPlacement!.CanvasWidth)
+            .DefaultIfEmpty(0)
+            .Max();
+        int existingHeight = _frames
+            .Where(frame => frame.CanvasPlacement is not null)
+            .Select(frame => frame.CanvasPlacement!.CanvasHeight)
+            .DefaultIfEmpty(0)
+            .Max();
+        int canvasWidth = Math.Max(existingWidth, placements[0].CanvasWidth);
+        int canvasHeight = Math.Max(existingHeight, placements[0].CanvasHeight);
+        foreach (FrameItem existing in _frames.Where(frame => frame.CanvasPlacement is not null))
+        {
+            UserPetCanvasPlacement current = existing.CanvasPlacement!;
+            existing.CanvasPlacement = current with
+            {
+                CanvasWidth = canvasWidth,
+                CanvasHeight = canvasHeight,
+                X = current.X + ((canvasWidth - current.CanvasWidth) / 2),
+                Y = current.Y + ((canvasHeight - current.CanvasHeight) / 2),
+            };
+        }
+        int groupOffsetX = (canvasWidth - placements[0].CanvasWidth) / 2;
+        int groupOffsetY = (canvasHeight - placements[0].CanvasHeight) / 2;
+        for (int index = 0; index < unplaced.Length; index++)
+        {
+            unplaced[index].CanvasPlacement = placements[index] with
+            {
+                CanvasWidth = canvasWidth,
+                CanvasHeight = canvasHeight,
+                X = placements[index].X + groupOffsetX,
+                Y = placements[index].Y + groupOffsetY,
+            };
+        }
+    }
+
+    private void PlacementNumberBox_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
+    {
+        if (!_isReady || _isRefreshingPlacement || FramesList.SelectedItem is not FrameItem selected)
+        {
+            return;
+        }
+        int canvasWidth = NumberValue(CanvasWidthNumberBox, selected.CanvasPlacement!.CanvasWidth);
+        int canvasHeight = NumberValue(CanvasHeightNumberBox, selected.CanvasPlacement.CanvasHeight);
+        int width = Math.Clamp(NumberValue(PlacementWidthNumberBox, selected.CanvasPlacement.Width), 1, canvasWidth);
+        int height = Math.Clamp(NumberValue(PlacementHeightNumberBox, selected.CanvasPlacement.Height), 1, canvasHeight);
+        int x = Math.Clamp(NumberValue(PlacementXNumberBox, selected.CanvasPlacement.X), 0, canvasWidth - width);
+        int y = Math.Clamp(NumberValue(PlacementYNumberBox, selected.CanvasPlacement.Y), 0, canvasHeight - height);
+        foreach (FrameItem frame in _frames)
+        {
+            UserPetCanvasPlacement current = frame.CanvasPlacement!;
+            int frameWidth = Math.Min(current.Width, canvasWidth);
+            int frameHeight = Math.Min(current.Height, canvasHeight);
+            frame.CanvasPlacement = current with
+            {
+                CanvasWidth = canvasWidth,
+                CanvasHeight = canvasHeight,
+                X = Math.Clamp(current.X, 0, canvasWidth - frameWidth),
+                Y = Math.Clamp(current.Y, 0, canvasHeight - frameHeight),
+                Width = frameWidth,
+                Height = frameHeight,
+            };
+        }
+        selected.CanvasPlacement = new UserPetCanvasPlacement(canvasWidth, canvasHeight, x, y, width, height);
+        _ = RefreshPlacementEditorAsync();
+    }
+
+    private static int NumberValue(NumberBox numberBox, int fallback) =>
+        double.IsFinite(numberBox.Value)
+            ? (int)Math.Round(numberBox.Value)
+            : fallback;
+
+    private void FramePlacementCanvas_PointerPressed(object sender, PointerRoutedEventArgs e)
+    {
+        if (FramesList.SelectedItem is not FrameItem selected)
+        {
+            return;
+        }
+        Point point = e.GetCurrentPoint(FramePlacementCanvas).Position;
+        double left = Canvas.GetLeft(SelectedFramePlacementBorder);
+        double top = Canvas.GetTop(SelectedFramePlacementBorder);
+        double right = left + SelectedFramePlacementBorder.Width;
+        double bottom = top + SelectedFramePlacementBorder.Height;
+        const double hit = 8;
+        if (point.X < left - hit || point.X > right + hit || point.Y < top - hit || point.Y > bottom + hit)
+        {
+            return;
+        }
+        bool nearLeft = Math.Abs(point.X - left) <= hit;
+        bool nearRight = Math.Abs(point.X - right) <= hit;
+        bool nearTop = Math.Abs(point.Y - top) <= hit;
+        bool nearBottom = Math.Abs(point.Y - bottom) <= hit;
+        _placementDragHandle = (nearLeft, nearTop, nearRight, nearBottom) switch
+        {
+            (true, true, _, _) => UserPetCropHandle.TopLeft,
+            (_, true, true, _) => UserPetCropHandle.TopRight,
+            (true, _, _, true) => UserPetCropHandle.BottomLeft,
+            (_, _, true, true) => UserPetCropHandle.BottomRight,
+            (true, _, _, _) => UserPetCropHandle.Left,
+            (_, true, _, _) => UserPetCropHandle.Top,
+            (_, _, true, _) => UserPetCropHandle.Right,
+            (_, _, _, true) => UserPetCropHandle.Bottom,
+            _ => UserPetCropHandle.Move,
+        };
+        _placementDragStart = point;
+        _placementDragOriginal = new UserPetPixelRect(
+            selected.CanvasPlacement!.X,
+            selected.CanvasPlacement.Y,
+            selected.CanvasPlacement.Width,
+            selected.CanvasPlacement.Height);
+        _isDraggingPlacement = FramePlacementCanvas.CapturePointer(e.Pointer);
+        e.Handled = _isDraggingPlacement;
+    }
+
+    private void FramePlacementCanvas_PointerMoved(object sender, PointerRoutedEventArgs e)
+    {
+        if (!_isDraggingPlacement || FramesList.SelectedItem is not FrameItem selected)
+        {
+            return;
+        }
+        Point point = e.GetCurrentPoint(FramePlacementCanvas).Position;
+        int deltaX = (int)Math.Round((point.X - _placementDragStart.X) / _placementDisplayScale);
+        int deltaY = (int)Math.Round((point.Y - _placementDragStart.Y) / _placementDisplayScale);
+        UserPetCanvasPlacement placement = selected.CanvasPlacement!;
+        UserPetPixelRect rect = UserPetImageEditingGeometry.DragCrop(
+            _placementDragOriginal,
+            _placementDragHandle,
+            deltaX,
+            deltaY,
+            placement.CanvasWidth,
+            placement.CanvasHeight);
+        selected.CanvasPlacement = placement with { X = rect.X, Y = rect.Y, Width = rect.Width, Height = rect.Height };
+        LayoutPlacementElement(SelectedFramePlacementImage, selected.CanvasPlacement);
+        LayoutPlacementElement(SelectedFramePlacementBorder, selected.CanvasPlacement);
+        UpdatePlacementNumbers(selected.CanvasPlacement);
+        e.Handled = true;
+    }
+
+    private void FramePlacementCanvas_PointerReleased(object sender, PointerRoutedEventArgs e)
+    {
+        if (!_isDraggingPlacement)
+        {
+            return;
+        }
+        _isDraggingPlacement = false;
+        FramePlacementCanvas.ReleasePointerCapture(e.Pointer);
+        e.Handled = true;
+    }
+
+    private void UpdatePlacementNumbers(UserPetCanvasPlacement placement)
+    {
+        _isRefreshingPlacement = true;
+        try
+        {
+            PlacementXNumberBox.Value = placement.X;
+            PlacementYNumberBox.Value = placement.Y;
+            PlacementWidthNumberBox.Value = placement.Width;
+            PlacementHeightNumberBox.Value = placement.Height;
+        }
+        finally
+        {
+            _isRefreshingPlacement = false;
+        }
+    }
+
+    private async void CompareFirstFrameCheckBox_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_isReady && FramesList.SelectedItem is FrameItem selected)
+        {
+            await RefreshFirstFrameReferenceAsync(selected);
         }
     }
 
@@ -247,24 +711,68 @@ public sealed partial class PetAnimationEditorControl : UserControl
     {
         private string _displayIndex = string.Empty;
         private int _durationMilliseconds;
+        private Microsoft.UI.Xaml.Media.ImageSource? _thumbnail;
 
         public FrameItem(
             string imagePath,
             int durationMilliseconds,
             PetPackageFrame? sourceFrame,
-            string sourceDetail)
+            string sourceDetail,
+            bool flipsHorizontally = false,
+            bool flipsVertically = false,
+            UserPetCanvasPlacement? canvasPlacement = null,
+            Guid? frameId = null,
+            UserPetBackgroundRemoval? backgroundRemoval = null)
         {
             ImagePath = imagePath;
             FileName = Path.GetFileName(imagePath);
             _durationMilliseconds = durationMilliseconds;
             SourceFrame = sourceFrame;
             SourceDetail = sourceDetail;
+            FlipsHorizontally = flipsHorizontally;
+            FlipsVertically = flipsVertically;
+            CanvasPlacement = canvasPlacement;
+            FrameId = frameId is { } id && id != Guid.Empty ? id : Guid.NewGuid();
+            BackgroundRemoval = backgroundRemoval;
         }
 
         public string ImagePath { get; }
         public string FileName { get; }
         public PetPackageFrame? SourceFrame { get; }
         public string SourceDetail { get; }
+        public bool FlipsHorizontally { get; }
+        public bool FlipsVertically { get; }
+        public UserPetCanvasPlacement? CanvasPlacement { get; set; }
+        public Guid FrameId { get; }
+        public UserPetBackgroundRemoval? BackgroundRemoval { get; }
+
+        public Microsoft.UI.Xaml.Media.ImageSource? Thumbnail
+        {
+            get => _thumbnail;
+            set => SetField(ref _thumbnail, value);
+        }
+
+        public int IntrinsicWidth => SourceFrame?.Width ?? CanvasPlacement?.Width ?? 1;
+
+        public int IntrinsicHeight => SourceFrame?.Height ?? CanvasPlacement?.Height ?? 1;
+
+        public FrameItem IndependentCopy()
+        {
+            var copy = new FrameItem(
+                ImagePath,
+                DurationMilliseconds,
+                SourceFrame,
+                SourceDetail + " · 복사본",
+                FlipsHorizontally,
+                FlipsVertically,
+                CanvasPlacement,
+                Guid.NewGuid(),
+                BackgroundRemoval)
+            {
+                Thumbnail = Thumbnail,
+            };
+            return copy;
+        }
 
         public string DisplayIndex
         {

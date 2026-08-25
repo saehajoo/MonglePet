@@ -7,7 +7,30 @@ namespace MonglePet.PetLibrary;
 public sealed record UserPetFrameSourceRequest(
     string ImagePath,
     int DurationMilliseconds,
-    PetPackageFrame? SourceFrame = null);
+    PetPackageFrame? SourceFrame = null,
+    bool FlipsHorizontally = false,
+    bool FlipsVertically = false,
+    UserPetCanvasPlacement? CanvasPlacement = null,
+    Guid? FrameId = null,
+    UserPetBackgroundRemoval? BackgroundRemoval = null);
+
+public static class UserPetFrameEditing
+{
+    public static UserPetFrameSourceRequest Duplicate(
+        UserPetFrameSourceRequest source,
+        Func<Guid>? idGenerator = null)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        idGenerator ??= Guid.NewGuid;
+        Guid id;
+        do
+        {
+            id = idGenerator();
+        }
+        while (id == Guid.Empty || id == source.FrameId);
+        return source with { FrameId = id };
+    }
+}
 
 public sealed record UserPetCreationRequest(
     string DisplayName,

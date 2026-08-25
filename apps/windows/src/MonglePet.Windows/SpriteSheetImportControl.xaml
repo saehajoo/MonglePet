@@ -1,0 +1,116 @@
+<UserControl
+    x:Class="MonglePet.Windows.SpriteSheetImportControl"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid ColumnSpacing="18">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="1.35*" MinWidth="440" />
+            <ColumnDefinition Width="320" />
+        </Grid.ColumnDefinitions>
+        <Grid RowSpacing="8">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <Grid ColumnSpacing="8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Spacing="4">
+                    <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="전체 스프라이트 시트" />
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <RadioButton x:Name="SelectionModeRadio" Content="프레임 선택" IsChecked="True" Checked="EditModeRadio_Checked" />
+                        <RadioButton x:Name="RangeModeRadio" Content="범위 편집" Checked="EditModeRadio_Checked" />
+                    </StackPanel>
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                    <Button Width="30" Height="24" Padding="0" Click="ZoomOutButton_Click" AutomationProperties.Name="축소"><FontIcon FontSize="12" Glyph="&#xE738;" /></Button>
+                    <TextBlock x:Name="ZoomText" MinWidth="40" VerticalAlignment="Center" TextAlignment="Center" Text="1×" />
+                    <Button Width="30" Height="24" Padding="0" Click="ZoomInButton_Click" AutomationProperties.Name="확대"><FontIcon FontSize="12" Glyph="&#xE710;" /></Button>
+                    <Button Height="24" Padding="8,0" Click="FitButton_Click" Content="맞춤" />
+                </StackPanel>
+            </Grid>
+            <Border Grid.Row="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Background="{ThemeResource LayerFillColorDefaultBrush}">
+                <ScrollViewer x:Name="SheetScrollViewer" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Disabled" VerticalScrollMode="Disabled" ZoomMode="Disabled">
+                    <Canvas x:Name="SheetCanvas">
+                        <Image x:Name="SheetImage" Stretch="Fill" />
+                    </Canvas>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+        <Grid Grid.Column="1" RowSpacing="10">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="220" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <Grid ColumnSpacing="6">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <StackPanel Spacing="2">
+                    <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="선택 영역 미리보기" />
+                    <TextBlock x:Name="PreviewPositionText" Style="{StaticResource SettingsCaptionStyle}" Text="1 / 1" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                    <Button Width="30" Height="24" Padding="0" Click="PreviousPreviewButton_Click" AutomationProperties.Name="이전 선택 영역"><FontIcon FontSize="12" Glyph="&#xE76B;" /></Button>
+                    <Button Width="30" Height="24" Padding="0" Click="NextPreviewButton_Click" AutomationProperties.Name="다음 선택 영역"><FontIcon FontSize="12" Glyph="&#xE76C;" /></Button>
+                </StackPanel>
+            </Grid>
+            <Border Grid.Row="1" Style="{StaticResource SettingsSubcardStyle}" Padding="12">
+                <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Border BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                        <Border BorderBrush="#FF1877F2" BorderThickness="2"><Image x:Name="PreviewImage" Stretch="Fill" /></Border>
+                    </Border>
+                </Grid>
+            </Border>
+            <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+                <StackPanel Spacing="10" Padding="0,0,6,0">
+                    <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="경계 설정" />
+                    <Grid ColumnSpacing="8">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <NumberBox x:Name="RowsNumberBox" Header="행" Minimum="1" Maximum="32" Value="1" SmallChange="1" SpinButtonPlacementMode="Compact" />
+                        <NumberBox x:Name="ColumnsNumberBox" Grid.Column="1" Header="열" Minimum="1" Maximum="32" Value="1" SmallChange="1" SpinButtonPlacementMode="Compact" />
+                    </Grid>
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Button HorizontalAlignment="Left" Click="ApplySuggestionButton_Click" Content="자동 경계 다시 적용" />
+                        <Button HorizontalAlignment="Left" Click="ApplyGridButton_Click" Content="균등 경계 다시 만들기" />
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="선택 범위" />
+                    <Grid ColumnSpacing="6">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <NumberBox x:Name="FrameXNumberBox" Header="X" Minimum="0" ValueChanged="FrameNumberBox_ValueChanged" />
+                        <NumberBox x:Name="FrameYNumberBox" Grid.Column="1" Header="Y" Minimum="0" ValueChanged="FrameNumberBox_ValueChanged" />
+                        <NumberBox x:Name="FrameWidthNumberBox" Grid.Column="2" Header="너비" Minimum="1" ValueChanged="FrameNumberBox_ValueChanged" />
+                        <NumberBox x:Name="FrameHeightNumberBox" Grid.Column="3" Header="높이" Minimum="1" ValueChanged="FrameNumberBox_ValueChanged" />
+                    </Grid>
+                    <Button HorizontalAlignment="Left" Click="ApplyFrameSizeToAllButton_Click" Content="이 크기를 모든 경계에 적용" />
+                    <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="프레임 순서" />
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <RadioButton x:Name="ReadingOrderRadio" Content="읽기 순서" IsChecked="True" Checked="OrderingRadio_Checked" />
+                        <RadioButton x:Name="ClickOrderRadio" Content="클릭 순서" Checked="OrderingRadio_Checked" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Button Click="SelectAllButton_Click" Content="전체 선택" />
+                        <Button Click="ClearSelectionButton_Click" Content="전체 해제" />
+                        <Button Click="FlipHorizontalButton_Click" Content="좌우 뒤집기" />
+                        <Button Click="FlipVerticalButton_Click" Content="상하 뒤집기" />
+                    </StackPanel>
+                    <TextBlock x:Name="SelectionSummaryText" Style="{StaticResource SettingsCaptionStyle}" TextWrapping="Wrap" />
+                    <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="배경 설정" />
+                    <ToggleSwitch
+                        x:Name="RemoveBackgroundToggle"
+                        Header="단색 배경 제거"
+                        OffContent="원본 배경 유지"
+                        OnContent="선택 색상을 투명하게"
+                        Toggled="RemoveBackgroundToggle_Toggled" />
+                    <Grid ColumnSpacing="8">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <TextBox x:Name="BackgroundColorTextBox" Header="배경색" PlaceholderText="#FFFFFF" TextChanged="BackgroundColorTextBox_TextChanged" />
+                        <NumberBox x:Name="BackgroundToleranceNumberBox" Grid.Column="1" Header="허용 범위" Minimum="0" Maximum="255" Value="12" SmallChange="1" SpinButtonPlacementMode="Compact" ValueChanged="BackgroundToleranceNumberBox_ValueChanged" />
+                    </Grid>
+                    <TextBlock Style="{StaticResource SettingsCaptionStyle}" Text="자동 제안은 알파 또는 네 모서리의 단색 배경을 분석하지만 원본은 변경하지 않습니다. 배경 제거를 켠 경우에만 미리보기와 최종 atlas에 같은 투명 처리를 적용합니다." TextWrapping="Wrap" />
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+    </Grid>
+</UserControl>

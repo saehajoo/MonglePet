@@ -168,5 +168,6 @@ public sealed class BehaviorProfileEditorTests
     }
 
     private static BehaviorProfile Profile() => BehaviorProfileDefaults.Create(
-        PetBehaviorKey.BuiltInKey);
+        new PetBehaviorKey.Installed(
+            Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")));
 }

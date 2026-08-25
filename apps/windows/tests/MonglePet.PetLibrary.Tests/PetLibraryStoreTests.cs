@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Text.Json.Nodes;
 
 namespace MonglePet.PetLibrary.Tests;
 
@@ -221,6 +222,35 @@ public sealed class PetLibraryStoreTests
     }
 
     [Fact]
+    public void ReviewTreatsHigherLocalMinimumAsNonBlockingAdvisory()
+    {
+        using var workspace = new TemporaryDirectory();
+        var store = CreateStore(workspace, [Guid.NewGuid()]);
+        string source = workspace.CopyFixture("future-compatible.monglepet");
+        UpdateManifest(source, json =>
+        {
+            JsonObject document = JsonNode.Parse(json)!.AsObject();
+            document["version"] = "봄 에디션";
+            document["compatibility"] = new JsonObject
+            {
+                ["createdWithMonglePetVersion"] = "8.0.0",
+                ["minimumMonglePetVersion"] = "9.0.0",
+            };
+            return document.ToJsonString();
+        });
+        var importer = new PetPackageImporter(store);
+
+        PetPackageImportReview review = importer.Review(
+            source,
+            new RemotePetSemanticVersion(1, 3, 0));
+
+        Assert.Equal("봄 에디션", review.Manifest.Version);
+        Assert.True(review.CompatibilityAdvisory?.RecommendsUpdate);
+        InstalledPetPackage installed = importer.ImportReviewed(review);
+        Assert.Equal("봄 에디션", installed.Package.Manifest.Version);
+    }
+
+    [Fact]
     public void InvalidOptionalProfileDoesNotBlockReviewButOversizedProfileDoes()
     {
         using var workspace = new TemporaryDirectory();
@@ -266,8 +296,8 @@ public sealed class PetLibraryStoreTests
             entries);
         PetPackageImportReview review = new PetPackageImporter(store).Review(destination);
         Assert.False(review.ContainsRecommendedProfile);
-        Assert.Equal("1.1.0", review.Manifest.Compatibility?.CreatedWithMonglePetVersion);
-        Assert.Equal("1.1.0", review.Manifest.Compatibility?.MinimumMonglePetVersion);
+        Assert.Equal("1.3.0", review.Manifest.Compatibility?.CreatedWithMonglePetVersion);
+        Assert.Equal("1.3.0", review.Manifest.Compatibility?.MinimumMonglePetVersion);
     }
 
     [Fact]

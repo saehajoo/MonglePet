@@ -4,12 +4,19 @@ namespace MonglePet.Settings;
 
 internal static class DefaultAppSettingsDocument
 {
-    public static JsonObject Create(Func<Guid>? settingsIdGenerator = null) =>
-        AppSettingsMigrator.Migrate(
+    public static JsonObject Create(Func<Guid>? settingsIdGenerator = null)
+    {
+        AppSettingsMigrationResult migration = AppSettingsMigrator.Migrate(
             CreateV10(),
             10,
             legacyMotionCycleMillisecondsResolver: null,
-            settingsIdGenerator).Document;
+            settingsIdGenerator);
+        AppSettings settings = AppSettingsDocumentMapper.FromDocument(
+            migration.Document,
+            settingsIdGenerator).Settings;
+        settings = BuiltInBehaviorProfileDefaults.UpgradeLegacyNeutralProfiles(settings);
+        return AppSettingsDocumentMapper.ToDocument(settings, migration.Document);
+    }
 
     internal static JsonObject CreateV10() => JsonNode.Parse(
         """

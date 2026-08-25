@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
+using MonglePet.Packages;
 
 namespace MonglePet.PetLibrary;
 
@@ -19,11 +20,54 @@ public enum RemotePetImportError
     PackageTooLarge,
     PackageSizeMismatch,
     ChecksumMismatch,
-    MinimumAppVersionRequired,
     NetworkUnavailable,
     Timeout,
     ConnectionFailed,
     TlsFailure,
+}
+
+public sealed record PetCompatibilityAdvisory(
+    RemotePetSemanticVersion CurrentAppVersion,
+    RemotePetSemanticVersion? CreatedWithAppVersion,
+    RemotePetSemanticVersion? RequiredMinimumAppVersion)
+{
+    public const string DownloadPageUrl =
+        "https://mapleroom.kr/monglepet/download";
+
+    public bool RecommendsUpdate =>
+        RequiredMinimumAppVersion is { } required && CurrentAppVersion < required;
+
+    public bool WasCreatedWithNewerApp =>
+        CreatedWithAppVersion is { } created && CurrentAppVersion < created;
+
+    public bool HasWarning => RecommendsUpdate || WasCreatedWithNewerApp;
+
+    public static PetCompatibilityAdvisory Create(
+        PetPackageCompatibility? compatibility,
+        RemotePetSemanticVersion currentAppVersion,
+        RemotePetSemanticVersion? publishedMinimumAppVersion = null)
+    {
+        RemotePetSemanticVersion? created = ParseOptional(
+            compatibility?.CreatedWithMonglePetVersion);
+        RemotePetSemanticVersion? manifestMinimum = ParseOptional(
+            compatibility?.MinimumMonglePetVersion);
+        RemotePetSemanticVersion? required = manifestMinimum switch
+        {
+            { } manifest when publishedMinimumAppVersion is { } published =>
+                manifest >= published ? manifest : published,
+            { } manifest => manifest,
+            _ => publishedMinimumAppVersion,
+        };
+        return new PetCompatibilityAdvisory(
+            currentAppVersion,
+            created,
+            required);
+    }
+
+    private static RemotePetSemanticVersion? ParseOptional(string? value) =>
+        RemotePetSemanticVersion.TryParse(value, out RemotePetSemanticVersion parsed)
+            ? parsed
+            : null;
 }
 
 public sealed class RemotePetImportException : Exception

@@ -26,6 +26,9 @@
     <None Include="..\..\..\..\shared\Samples\ReadOnlySample.monglepet\**\*"
           Link="Fixtures\ReadOnlySample.monglepet\%(RecursiveDir)%(Filename)%(Extension)"
           CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\..\..\shared\BuiltInPets\Mongle.monglepet\**\*"
+          Link="Fixtures\BuiltInPets\Mongle.monglepet\%(RecursiveDir)%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

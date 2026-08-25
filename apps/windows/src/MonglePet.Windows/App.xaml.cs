@@ -298,25 +298,11 @@ public partial class App : Application
         }
     }
 
-    public string InstallOrActivateBundledSample()
+    public string ActivateBuiltInMongle()
     {
         EnsureSettingsWritingEnabled();
-        InstalledPetPackage installed;
-        try
-        {
-            installed = PetLibrary.InstallFromDirectory(BundledSamplePath);
-        }
-        catch (PetLibraryException exception)
-            when (exception.Error == PetLibraryError.DuplicatePackage &&
-                  exception.MatchingInstallationIds.Count > 0)
-        {
-            installed = PetLibrary.GetInstallation(exception.MatchingInstallationIds[0]);
-            ActivateInstalledPackage(installed);
-            return $"기존 설치 '{installed.Package.Manifest.DisplayName}'로 전환했습니다.";
-        }
-
-        ActivateInstalledPackage(installed);
-        return $"'{installed.Package.Manifest.DisplayName}' 패키지를 라이브러리에 설치했습니다.";
+        ActivateBuiltInPet();
+        return "기본 몽글이로 전환했습니다.";
     }
 
     public InstalledPetPackage ImportPackage(
@@ -345,8 +331,24 @@ public partial class App : Application
         }
     }
 
-    public PetPackageImportReview ReviewPackage(string sourcePath) =>
-        PetImporter.Review(sourcePath);
+    public PetPackageImportReview ReviewPackage(
+        string sourcePath,
+        RemotePetSemanticVersion? publishedMinimumAppVersion = null) =>
+        PetImporter.Review(
+            sourcePath,
+            CurrentAppSemanticVersion(),
+            publishedMinimumAppVersion);
+
+    private static RemotePetSemanticVersion CurrentAppSemanticVersion()
+    {
+        Version? version = System.Reflection.Assembly.GetEntryAssembly()?.GetName().Version;
+        return version is null
+            ? new RemotePetSemanticVersion(1, 3, 0)
+            : new RemotePetSemanticVersion(
+                Math.Max(version.Major, 0),
+                Math.Max(version.Minor, 0),
+                Math.Max(version.Build, 0));
+    }
 
     public InstalledPetPackage ImportReviewedPackage(
         PetPackageImportReview review,
@@ -421,7 +423,7 @@ public partial class App : Application
     public void ActivateBundledPet()
     {
         EnsureSettingsWritingEnabled();
-        ActivateBundledSample();
+        ActivateBuiltInPet();
     }
 
     public void PreviewOverlaySettings(OverlaySettings settings)
@@ -748,6 +750,13 @@ public partial class App : Application
             AppSettingsLoadResult loadResult = SettingsStore.Load();
             SettingsLoadResult = loadResult;
             CurrentSettings = loadResult.Settings ?? AppSettings.Default;
+            AppSettings upgradedSettings =
+                BuiltInBehaviorProfileDefaults.UpgradeLegacyNeutralProfiles(CurrentSettings);
+            if (upgradedSettings != CurrentSettings && SettingsStore.IsWritingEnabled)
+            {
+                CurrentSettings = upgradedSettings;
+                SettingsStore.Save(CurrentSettings);
+            }
             SettingsStatusMessage = loadResult.Issues.Count == 0
                 ? null
                 : string.Join(" ", loadResult.Issues);
@@ -795,7 +804,7 @@ public partial class App : Application
         SettingsStateChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    private void ActivateBundledSample()
+    private void ActivateBuiltInPet()
     {
         Guid instanceId = CurrentSettings.SelectedPetInstanceId;
         CurrentSettings = ActivePetSettingsEditor.ReplacePet(
@@ -808,8 +817,8 @@ public partial class App : Application
         SettingsStateChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    private LoadedPetPackage LoadBundledSample() =>
-        new PetPackageLoader().LoadDirectory(BundledSamplePath);
+    private LoadedPetPackage LoadBuiltInMongle() =>
+        new PetPackageLoader().LoadDirectory(BuiltInMonglePath);
 
     private void InitializeNotificationArea()
     {
@@ -963,7 +972,7 @@ public partial class App : Application
         Guid? selectedInstallationId,
         string motionId)
     {
-        LoadedPetPackage package = LoadBundledSample();
+        LoadedPetPackage package = LoadBuiltInMongle();
         if (selectedInstallationId is Guid installationId)
         {
             try
@@ -1020,7 +1029,7 @@ public partial class App : Application
 
     private LoadedPetPackage ResolvePackage(PetBehaviorKey key) => key switch
     {
-        PetBehaviorKey.BuiltIn => LoadBundledSample(),
+        PetBehaviorKey.BuiltIn => LoadBuiltInMongle(),
         PetBehaviorKey.Installed installed =>
             PetLibrary.GetInstallation(installed.InstallationId).Package,
         _ => throw new InvalidOperationException("지원하지 않는 펫 식별자입니다."),
@@ -1138,10 +1147,10 @@ public partial class App : Application
         SettingsStateChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    private string BundledSamplePath => Path.Combine(
+    private string BuiltInMonglePath => Path.Combine(
         AppContext.BaseDirectory,
-        "Samples",
-        "ReadOnlySample.monglepet");
+        "BuiltInPets",
+        "Mongle.monglepet");
 
     private void EnsureSettingsWritingEnabled()
     {
