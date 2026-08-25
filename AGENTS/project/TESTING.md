@@ -842,7 +842,7 @@ UI 테스트는 앱 실행과 접근성 자동화가 가능한 macOS 세션에�
 ### Windows 1.3.0 이미지 편집·내장 몽글이 검증
 
 - 측정일: 2026-08-24
-- Windows 마케팅 버전 `1.3.0`, Assembly·File·MSIX `1.3.0.13`과 예정 태그 `windows-v1.3.0-preview.1`을 자동 계약으로 확인했다.
+- Windows 마케팅 버전 `1.3.0`, Assembly·File·MSIX `1.3.0.13`과 태그 `windows-v1.3.0-preview.1`을 자동 계약으로 확인했다.
 - 자유 문자열 펫 버전, 로컬·웹 최소 앱 버전 비차단 advisory, crop·flip·배경 제거·공통 캔버스 픽셀, 자동/균등/독립 경계, 읽기/클릭 순서, 1× pan 소유권, 프레임별 flip·복사·450ms와 취소 원자성을 단위 테스트했다.
 - x64 Debug·Release 전체 솔루션 빌드와 Activity 27개, Core 38개, Packages 22개, PetLibrary 87개, Settings 72개, Shell 20개로 각 구성 총 266개 테스트가 통과했다. 격리 환경의 NuGet 취약성 metadata 조회 `NU1900` 경고 1개 외 컴파일 경고·오류는 없었다.
 - 공통 `shared/BuiltInPets/Mongle.monglepet`, Release loose AppX, unpackaged publish와 실제 설치본의 13개 파일 tree SHA-256은 모두 `08E8E09643B0CEE5FED8D8246729EBB5CF00E18B72871EA6FCD7BE26DB76DB59`로 같았다. 10개 PNG digest, 10개 모션·36프레임과 전용 기본 프로필 계약도 통과했다.
@@ -853,6 +853,7 @@ UI 테스트는 앱 실행과 접근성 자동화가 가능한 macOS 세션에�
 - 후속 실제 packaged 개발 앱에서 PNG 파일 선택 뒤 편집기를 중첩 `ContentDialog`로 여는 경로가 WinRT `0x80000019`와 `Microsoft.UI.Xaml.dll 0xc000027b`로 종료됨을 확인했다. staged 편집기를 독립 owned WinUI 창으로 분리하고 각 단계의 예외 안내 경계를 추가했다. 새 Release loose AppX에서 공통 built-in PNG로 `애니메이션 추가 → PNG 선택 → 자르기 편집기 → 프레임 반환`을 실제 수행했으며 프로세스 응답, macOS 기준 고정 헤더·푸터와 원본/결과/독립 스크롤 구조, 반환된 `프레임 추가` 상태를 확인한 뒤 바깥 편집을 취소해 사용자 데이터가 저장되지 않음을 확인했다. 대상 이미지 테스트 21개와 Debug·Release 각 266개 전체 테스트 및 경고·오류 없는 빌드가 통과했다.
 - 같은 편집기에서 `PNG 더 추가…` 뒤 새 항목 선택 시 발생한 WER `RO_E_CLOSED (0x80000013)` 두 건을 확인했다. 닫힐 수 있는 `SoftwareBitmapSource` 공유를 없애고 `WriteableBitmap` 기반 독립 미리보기, 선택 포커스와 render 직렬화 및 비동기 이벤트 오류 경계를 적용했다. Release loose AppX에서 공통 built-in PNG 두 개를 누적 추가해 automation selection 12회와 실제 포인터 클릭 8회로 왕복했으며 프로세스가 계속 응답하고 테스트 시작 뒤 신규 WER가 없음을 확인했다. 이름 입력은 360 DIP 너비의 비확장 단일 필드로 줄였다. 이후 Debug·Release 빌드와 각 266개 전체 테스트가 경고·오류 없이 통과했다.
 - 스프라이트 `범위 편집`은 동적 프레임 경계를 전체 크기의 접근 가능한 컨트롤로 만들고, 캔버스가 처리된 포인터 이벤트까지 받아 현재 프레임 우선 적중·이동·8방향 크기 조절을 수행한다. Release loose AppX와 공통 1050×150 atlas에서 중앙 실제 드래그가 `X 9→22`로 이동하면서 `141×141`을 보존했고, 겹친 경계의 오른쪽 아래 실제 드래그는 같은 프레임의 위치 `22,0`을 유지하면서 `151×149`로 변경됐다. 취소 뒤 저장 데이터는 바뀌지 않았다. 이미지 geometry 대상 21개, Debug·Release 각 266개 전체 테스트와 두 구성의 경고·오류 없는 빌드가 통과했다.
+- 소스 커밋 `2715cbb799687cbf26084c607848cc052fea666c`에서 64,866,058 bytes의 미서명 `MonglePet-Windows-1.3.0.13-x64-Setup.exe`를 만들었고 SHA-256은 `5F8A14314447F70C74704793BC5ED0EA8744DF0276303470D366500D4777B808`이다. 현재 사용자 업그레이드 설치가 종료 코드 0으로 완료됐고 `%LOCALAPPDATA%\MonglePet` 22개 파일의 경로·크기·SHA-256 inventory digest `F5C2732D15875AC127A95B93FF81C8A023E06D22867994035BBAED4DEC548333`이 전후 동일했다. 설치본 `1.3.0.13` 실행은 응답 상태였고 같은 시간대 Application 오류는 0건이었다. 태그 `windows-v1.3.0-preview.1`의 GitHub Pre-release에 설치기와 체크섬을 게시하고 원격 자산을 다시 내려받아 크기·설치기 SHA-256·체크섬 파일이 로컬 최종본과 일치함을 확인했다.
 
 ### macOS 1.2.0 Preview 배포 사전 검증
 

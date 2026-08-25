@@ -20,21 +20,21 @@
 
 | 항목 | 값 |
 | --- | --- |
-| 제품 버전 | `1.2.0` |
-| Windows 파일 버전 | `1.2.0.13` |
-| 표시 이름 | `MonglePet Windows 1.2.0 Preview 1` |
-| Git 태그 | `windows-v1.2.0-preview.1` |
-| 기준 커밋 | `3ee61a22979a12c42cdaf7d7bbc2c0b08640792b` |
-| 게시일 | 2026-08-24 |
-| 설치기 파일 | `MonglePet-Windows-1.2.0.13-x64-Setup.exe` |
-| 설치기 크기 | 63,847,413 bytes (약 60.89 MiB) |
-| 설치기 SHA-256 | `95C4446A42266E279D55138862EE4E2076BA46661F33E4FAFAA26D4CDF064A8A` |
+| 제품 버전 | `1.3.0` |
+| Windows 파일 버전 | `1.3.0.13` |
+| 표시 이름 | `MonglePet Windows 1.3.0 Preview 1` |
+| Git 태그 | `windows-v1.3.0-preview.1` |
+| 기준 커밋 | `2715cbb799687cbf26084c607848cc052fea666c` |
+| 게시일 | 2026-08-25 |
+| 설치기 파일 | `MonglePet-Windows-1.3.0.13-x64-Setup.exe` |
+| 설치기 크기 | 64,866,058 bytes (약 61.86 MiB) |
+| 설치기 SHA-256 | `5F8A14314447F70C74704793BC5ED0EA8744DF0276303470D366500D4777B808` |
 | 서명 상태 | 미서명 Preview |
 | 업데이트 방식 | 새 설치기를 내려받아 기존 설치 위에 수동 설치 |
 
-- 릴리스 페이지: <https://github.com/saehajoo/MonglePet/releases/tag/windows-v1.2.0-preview.1>
-- 설치기 직접 다운로드: <https://github.com/saehajoo/MonglePet/releases/download/windows-v1.2.0-preview.1/MonglePet-Windows-1.2.0.13-x64-Setup.exe>
-- 체크섬 파일: <https://github.com/saehajoo/MonglePet/releases/download/windows-v1.2.0-preview.1/SHA256SUMS.txt>
+- 릴리스 페이지: <https://github.com/saehajoo/MonglePet/releases/tag/windows-v1.3.0-preview.1>
+- 설치기 직접 다운로드: <https://github.com/saehajoo/MonglePet/releases/download/windows-v1.3.0-preview.1/MonglePet-Windows-1.3.0.13-x64-Setup.exe>
+- 체크섬 파일: <https://github.com/saehajoo/MonglePet/releases/download/windows-v1.3.0-preview.1/SHA256SUMS.txt>
 
 웹사이트에서 GitHub 파일을 그대로 연결할 때는 위 버전 고정 URL을 사용한다. 자체 서버에 복제할 때는 파일명을 바꾸거나 다시 압축하지 말고, 업로드 후 공개 URL에서 내려받은 파일의 SHA-256을 다시 확인한다.
 
@@ -85,22 +85,22 @@ macOS ZIP도 GitHub의 버전 고정 URL을 원본으로 사용한다. 자체 �
 ## 복사 가능한 Markdown 안내
 
 ```markdown
-## MonglePet Windows 1.2.0 Preview 1
+## MonglePet Windows 1.3.0 Preview 1
 
-웹 펫 상세 주소 가져오기와 최신 펫 보관함을 추가하고, 여러 펫의 위치·이동·행동·말풍선 설정을 독립적으로 관리할 수 있는 Windows Preview입니다.
+새 내장 몽글이와 PNG·스프라이트 애니메이션 제작, crop·flip·확대·프레임 복사와 독립 범위 편집을 추가한 Windows Preview입니다.
 
-[Windows용 설치기 다운로드](https://github.com/saehajoo/MonglePet/releases/download/windows-v1.2.0-preview.1/MonglePet-Windows-1.2.0.13-x64-Setup.exe)
+[Windows용 설치기 다운로드](https://github.com/saehajoo/MonglePet/releases/download/windows-v1.3.0-preview.1/MonglePet-Windows-1.3.0.13-x64-Setup.exe)
 
 - 지원 환경: Windows 11 25H2 build 26200 이상, x64
-- 파일 크기: 약 60.89 MiB
-- 버전: 1.2.0.13
-- SHA-256: `95C4446A42266E279D55138862EE4E2076BA46661F33E4FAFAA26D4CDF064A8A`
+- 파일 크기: 약 61.86 MiB
+- 버전: 1.3.0.13
+- SHA-256: `5F8A14314447F70C74704793BC5ED0EA8744DF0276303470D366500D4777B808`
 
 현재 파일은 코드 서명되지 않은 Preview이므로 Windows SmartScreen 경고가 표시될 수 있습니다. 공식 GitHub Release에서 내려받았고 SHA-256이 위 값과 일치할 때만 실행 여부를 판단해 주세요. Smart App Control이나 조직 정책에서 차단되는 환경에서는 보안 설정을 끄지 말고 다음 서명 버전을 기다려 주세요.
 
 기존 MonglePet이 설치되어 있다면 새 설치기를 그대로 실행해 업데이트할 수 있습니다. 기존 설정과 펫 라이브러리는 유지됩니다. 현재 Preview는 자동 업데이트를 제공하지 않습니다.
 
-[릴리스 정보와 체크섬 보기](https://github.com/saehajoo/MonglePet/releases/tag/windows-v1.2.0-preview.1)
+[릴리스 정보와 체크섬 보기](https://github.com/saehajoo/MonglePet/releases/tag/windows-v1.3.0-preview.1)
 ```
 
 ```markdown
@@ -126,31 +126,31 @@ ZIP을 압축 해제하고 `MonglePet.app`을 응용 프로그램 폴더로 이�
 
 ```html
 <section aria-labelledby="monglepet-windows-preview-title">
-  <h2 id="monglepet-windows-preview-title">MonglePet Windows 1.2.0 Preview 1</h2>
+  <h2 id="monglepet-windows-preview-title">MonglePet Windows 1.3.0 Preview 1</h2>
   <p>
-    웹 펫 상세 주소 가져오기와 최신 펫 보관함을 추가하고, 여러 펫의 위치,
-    이동, 행동과 말풍선 설정을 독립적으로 관리할 수 있는 Windows Preview입니다.
+    새 내장 몽글이와 PNG·스프라이트 애니메이션 제작, crop·flip·확대,
+    프레임 복사와 독립 범위 편집을 추가한 Windows Preview입니다.
   </p>
   <p>
-    <a href="https://github.com/saehajoo/MonglePet/releases/download/windows-v1.2.0-preview.1/MonglePet-Windows-1.2.0.13-x64-Setup.exe">
+    <a href="https://github.com/saehajoo/MonglePet/releases/download/windows-v1.3.0-preview.1/MonglePet-Windows-1.3.0.13-x64-Setup.exe">
       Windows용 설치기 다운로드
     </a>
   </p>
   <ul>
     <li>Windows 11 25H2 build 26200 이상, x64</li>
-    <li>버전 1.2.0.13 · 약 60.89 MiB</li>
+    <li>버전 1.3.0.13 · 약 61.86 MiB</li>
     <li>미서명 Preview · 수동 업데이트</li>
   </ul>
   <p>
     SHA-256:
-    <code>95C4446A42266E279D55138862EE4E2076BA46661F33E4FAFAA26D4CDF064A8A</code>
+    <code>5F8A14314447F70C74704793BC5ED0EA8744DF0276303470D366500D4777B808</code>
   </p>
   <p>
     코드 서명되지 않은 Preview이므로 SmartScreen 경고가 표시될 수 있습니다.
     공식 GitHub Release 파일과 SHA-256이 일치할 때만 실행 여부를 판단해 주세요.
   </p>
   <p>
-    <a href="https://github.com/saehajoo/MonglePet/releases/tag/windows-v1.2.0-preview.1">
+    <a href="https://github.com/saehajoo/MonglePet/releases/tag/windows-v1.3.0-preview.1">
       릴리스 정보와 체크섬 보기
     </a>
   </p>
@@ -191,14 +191,14 @@ ZIP을 압축 해제하고 `MonglePet.app`을 응용 프로그램 폴더로 이�
 
 ```powershell
 Get-FileHash `
-    "$env:USERPROFILE\Downloads\MonglePet-Windows-1.2.0.13-x64-Setup.exe" `
+    "$env:USERPROFILE\Downloads\MonglePet-Windows-1.3.0.13-x64-Setup.exe" `
     -Algorithm SHA256
 ```
 
 출력된 `Hash`가 아래 값과 정확히 같아야 한다.
 
 ```text
-95C4446A42266E279D55138862EE4E2076BA46661F33E4FAFAA26D4CDF064A8A
+5F8A14314447F70C74704793BC5ED0EA8744DF0276303470D366500D4777B808
 ```
 
 ## macOS에서 SHA-256 확인
@@ -221,9 +221,9 @@ BD0E59171DE502AC123ABE71F8EDD73D4C12A938D65A06186B644F2C8761CC04
 1. Windows와 macOS 버튼이 각각 해당 플랫폼의 버전 고정 URL을 가리키는지 확인한다.
 2. 각 카드에 릴리스 정보와 체크섬 링크를 제공하고 macOS에는 빌드 manifest 링크도 제공한다.
 3. Windows 최소 버전·x64·미서명·수동 업데이트와 macOS 최소 버전·지원 아키텍처·제한된 테스터용·미서명·미공증 상태를 버튼 근처에 표시한다.
-4. 자체 서버에 파일을 복제한다면 공개 URL에서 다시 내려받아 Windows 63,847,413 bytes, macOS 7,413,980 bytes와 각 SHA-256을 확인한다.
+4. 자체 서버에 파일을 복제한다면 공개 URL에서 다시 내려받아 Windows 64,866,058 bytes, macOS 7,413,980 bytes와 각 SHA-256을 확인한다.
 5. 브라우저에서 실제 다운로드한 파일명이 원본 설치기 또는 ZIP 이름과 같은지 확인한다.
-6. Windows는 기존 `1.1.0.13` 위 업데이트와 데이터 보존을, macOS는 ZIP 해제·응용 프로그램 폴더 이동·시스템 설정의 개별 앱 승인 흐름을 표본 확인한다.
+6. Windows는 기존 `1.2.0.13` 위 업데이트와 데이터 보존을, macOS는 ZIP 해제·응용 프로그램 폴더 이동·시스템 설정의 개별 앱 승인 흐름을 표본 확인한다.
 7. 공식 GitHub 링크가 아닌 임의의 미러나 파일 공유 링크를 추가하지 않는다.
 8. 보안 기능을 전역 비활성화하거나 quarantine을 제거하는 명령을 안내하지 않는다.
 9. 다음 Preview를 게시할 때 기존 버전 파일을 덮어쓰지 않고 새 태그·새 파일·새 체크섬으로 교체한다.

@@ -38,7 +38,7 @@
 
 ## 결정사항
 
-- Windows 마케팅 버전은 `1.3.0`, Assembly·File·MSIX·설치기 버전은 `1.3.0.13`, 예정 태그는 `windows-v1.3.0-preview.1`이다. macOS patch 번호를 자동 재사용하지 않는다.
+- Windows 마케팅 버전은 `1.3.0`, Assembly·File·MSIX·설치기 버전은 `1.3.0.13`, 태그는 `windows-v1.3.0-preview.1`이다. macOS patch 번호를 자동 재사용하지 않는다.
 - 다운로드 안내 URL은 `https://mapleroom.kr/monglepet/download`로 고정하고 업데이트 조회 네트워크 요청은 추가하지 않는다.
 - 이미지 편집 draft는 Windows 로컬 메모리 상태로만 유지하고 공유 패키지에는 최종 atlas 픽셀과 기존 frame 좌표·간격만 저장한다.
 - `shared/Samples/ReadOnlySample.monglepet`은 테스트 fixture로 유지하며 runtime built-in은 공통 `shared/BuiltInPets/Mongle.monglepet`만 사용한다.
@@ -99,6 +99,7 @@
 - 2026-08-25: 위 대화상자에서 `개별 PNG 추가…` 파일을 선택한 뒤 같은 `XamlRoot`에 두 번째 `ContentDialog`를 여는 경로가 WinRT `0x80000019`와 `Microsoft.UI.Xaml.dll 0xc000027b` 종료를 일으키는 것을 WER로 확인했다. 애니메이션·PNG·스프라이트 단계를 Mica 기반 독립 owned WinUI 편집 창으로 바꾸고, macOS와 같은 헤더·스크롤 본문·고정 푸터 및 `왼쪽 원본 / 오른쪽 상단 고정 결과 / 오른쪽 하단 독립 설정 스크롤` 정보 구조로 재배치했다. 실제 Release loose AppX에서 `애니메이션 추가 → 프레임 선택 → 개별 PNG 추가 → 파일 선택 → PNG 자르기 → 프레임 반환 → 취소`를 완료해 프로세스 생존, 프레임 추가와 취소 시 사용자 데이터 불변을 확인했다. 이미지 geometry 대상 21개와 Debug·Release 각 266개 전체 테스트, 경고·오류 없는 두 구성 빌드가 통과했다.
 - 2026-08-25: PNG 편집기에서 `PNG 더 추가…` 뒤 새 항목을 선택하면 `RO_E_CLOSED (0x80000013)`로 종료되는 회귀를 실제 WER 두 건에서 확인했다. `SoftwareBitmapSource`를 목록 썸네일과 결과 이미지가 공유하는 닫힘 수명을 제거하기 위해 독립 `WriteableBitmap` 픽셀 소스로 전환하고, 추가된 항목 선택·포커스·미리보기 render를 직렬화했으며 `ItemClick`과 `SelectionChanged`의 중복 render를 합쳤다. 실제 Release loose AppX에서 두 PNG를 추가한 뒤 selection pattern 12회와 실제 포인터 클릭 8회로 왕복해 프로세스 응답과 신규 WER 0건을 확인했다. 애니메이션 이름 입력은 360×59 DIP 전체 경계의 한 줄 필드로 축소했다. Debug·Release 각 266개 전체 테스트와 경고·오류 없는 빌드가 통과했다.
 - 2026-08-25: 스프라이트 `범위 편집`의 동적 `Button` 경계가 기본 최소 크기·내부 포인터 처리에 종속되어 이동과 8방향 크기 조절을 시작하지 못하는 회귀를 수정했다. 프레임 전체를 그리는 접근 가능한 `ContentControl` 템플릿, 캔버스 좌표 기반 적중·포인터 캡처, 현재 프레임 우선 적중과 z-order를 적용했다. Release loose AppX에서 공통 1050×150 atlas를 열어 중앙 드래그가 `X 9→22`, `141×141` 보존으로 이동하고 오른쪽 아래 드래그가 위치 `22,0`을 유지한 채 `151×149`로 바뀌는 것을 실제 상대 마우스 입력으로 확인했다. 편집을 취소해 사용자 데이터가 바뀌지 않았고 이미지 geometry 21개와 Debug·Release 각 266개 전체 테스트, 경고·오류 없는 빌드가 통과했다.
+- 2026-08-25: 커밋 `2715cbb799687cbf26084c607848cc052fea666c`에서 최종 미서명 x64 설치기를 생성했다. `MonglePet-Windows-1.3.0.13-x64-Setup.exe`는 64,866,058 bytes, SHA-256 `5F8A14314447F70C74704793BC5ED0EA8744DF0276303470D366500D4777B808`이다. 실제 업그레이드 설치에서 사용자 데이터 22개 파일의 inventory digest를 보존하고 설치본 응답·Application 오류 0건을 확인했다. `windows-v1.3.0-preview.1` GitHub Pre-release 게시 후 두 자산을 다시 내려받아 크기·digest·체크섬 파일의 일치를 확인했다.
 
 ## 완료 결과
 

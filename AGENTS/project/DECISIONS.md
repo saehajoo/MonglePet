@@ -709,3 +709,11 @@
 - 결정: `macos-v1.3.0-preview.1` 공개 뒤 완료한 결과 프레임 경계, 중첩 스크롤, 종횡비 기반 전체 시트 높이와 PNG·스프라이트 고정 결과 패널을 macOS `1.3.1 (6)`, 태그 `macos-v1.3.1-preview.1`로 게시한다.
 - 이유: 패키지 규격과 이미지 처리 결과는 바뀌지 않았지만 실제 제작 흐름의 반복 스크롤과 미리보기 가시성을 수정했으므로 기존 `1.3.0`을 덮어쓰지 않는 patch Preview로 구분해야 한다.
 - 비고: Apple Developer Program을 사용할 수 없는 동안 Developer ID 미서명·Apple 미공증 ZIP만 제한된 테스터에게 제공한다. Windows는 최신 macOS UI 기준을 네이티브로 후속 구현하고 실제 Windows QA 전에는 플랫폼 동등 완료로 표시하지 않는다.
+
+## D-091 Windows 1.3.0 이미지 편집·내장 몽글이 Preview
+
+- 상태: accepted
+- 날짜: 2026-08-25
+- 결정: macOS `1.3.1 (6)`에서 확정한 사용자 결과를 Windows 네이티브로 반영한 공개 Preview는 Windows 마케팅 `1.3.0`, File·Assembly·MSIX·설치기 `1.3.0.13`, 태그 `windows-v1.3.0-preview.1`로 게시한다. 기존 Inno Setup AppId와 `%LOCALAPPDATA%\MonglePet` 데이터 경로를 유지하고 미서명 x64 설치기와 `SHA256SUMS.txt`를 GitHub Pre-release에 제공한다.
+- 이유: macOS와 Windows 버전 번호를 자동으로 결합하지 않으면서 공통 내장 몽글이, 펫 버전·최소 앱 버전 정책과 PNG·스프라이트 제작 결과를 기존 Windows 사용자에게 데이터 보존 업데이트로 전달하기 위해서다.
+- 비고: 설치기는 코드 서명되지 않아 SmartScreen·Smart App Control·조직 정책에서 경고 또는 차단될 수 있다. 자동 업데이트는 D-087에 따라 구현하지 않으며 혼합 DPI·Narrator·큰 이미지 반복 drag와 Windows→macOS 교차 왕복은 플랫폼 동등 완료 전에 계속 검증한다.
