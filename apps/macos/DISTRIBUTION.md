@@ -23,10 +23,10 @@ Apple 공증과 티켓 부착이 모두 필요합니다.
 - 두 값이 바뀌면 `MonglePetVersionTests`의 기대값도 같은 커밋에서 갱신합니다.
 - `.monglepet` 패키지 스키마 버전은 앱 마케팅 버전과 별도로 관리합니다.
 
-현재 공개된 최신 macOS Preview는 `1.3.2 (7)`입니다. 이동 33ms cadence와 사용자 동작을 유지하면서
-이동 Timer 재사용, 화면·이동 범위 cache와 기능 수요 기반 포인터 감시를
-적용한 성능 보정을 포함합니다. 다음 배포 후보에서 코드나 설정이 다시
-바뀌면 빌드 번호와 `MonglePetVersionTests` 기대값을 함께 올립니다.
+현재 공개된 최신 macOS Preview는 `1.3.2 (7)`이며, 행동 중심 설정·독립 이동
+프로필·편집 흐름과 내장 몽글이 `1.0.3`을 포함한 다음 배포 후보는
+`1.4.0 (8)`입니다. 다음 배포 후보에서 코드나 설정이 다시 바뀌면 빌드
+번호와 `MonglePetVersionTests` 기대값을 함께 올립니다.
 
 `macos-v1.3.1-preview.1` 게시 뒤 런타임 성능을 보정해
 `macos-v1.3.2-preview.1` 새 Pre-release로 게시했습니다. 기존 GitHub
