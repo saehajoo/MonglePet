@@ -33,6 +33,28 @@ nonisolated struct StoredPetProfileV11: Codable, Equatable, Sendable {
     let pettingMotionID: String?
     let speech: StoredPetSpeechSettingsV10
 
+    init(
+        profileID: String,
+        petKey: StoredPetBehaviorKeyV2,
+        mode: String,
+        manualSequenceID: String?,
+        sequences: [StoredBehaviorSequenceV2],
+        automaticRules: [StoredAutomaticRule],
+        movement: StoredPetMovementSettingsV6,
+        pettingMotionID: String?,
+        speech: StoredPetSpeechSettingsV10
+    ) {
+        self.profileID = profileID
+        self.petKey = petKey
+        self.mode = mode
+        self.manualSequenceID = manualSequenceID
+        self.sequences = sequences
+        self.automaticRules = automaticRules
+        self.movement = movement
+        self.pettingMotionID = pettingMotionID
+        self.speech = speech
+    }
+
     init(profileID: UUID, profile: StoredPetProfileV10) {
         self.profileID = profileID.uuidString
         petKey = profile.petKey

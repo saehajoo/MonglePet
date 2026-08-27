@@ -61,8 +61,11 @@ final class AppSettingsSession: ObservableObject {
                 petKey: settings.selectedPetKey,
                 mode: mode,
                 manualSequenceID: settings.manualSequenceID,
+                randomSequenceIDs: settings.randomSequenceIDs,
                 sequences: settings.sequences,
                 automaticRules: settings.automaticRules,
+                automaticRulePriorityOrder:
+                    settings.automaticRulePriorityOrder,
                 movement: settings.movementSettings,
                 pettingMotionID: settings.pettingMotionID,
                 speech: settings.speechSettings
@@ -82,8 +85,11 @@ final class AppSettingsSession: ObservableObject {
                 petKey: settings.selectedPetKey,
                 mode: settings.behaviorMode,
                 manualSequenceID: settings.manualSequenceID,
+                randomSequenceIDs: settings.randomSequenceIDs,
                 sequences: settings.sequences,
                 automaticRules: settings.automaticRules,
+                automaticRulePriorityOrder:
+                    settings.automaticRulePriorityOrder,
                 movement: movement,
                 pettingMotionID: settings.pettingMotionID,
                 speech: settings.speechSettings
@@ -104,8 +110,11 @@ final class AppSettingsSession: ObservableObject {
                 petKey: settings.selectedPetKey,
                 mode: settings.behaviorMode,
                 manualSequenceID: settings.manualSequenceID,
+                randomSequenceIDs: settings.randomSequenceIDs,
                 sequences: settings.sequences,
                 automaticRules: settings.automaticRules,
+                automaticRulePriorityOrder:
+                    settings.automaticRulePriorityOrder,
                 movement: settings.movementSettings,
                 pettingMotionID: motionID,
                 speech: settings.speechSettings
@@ -119,6 +128,24 @@ final class AppSettingsSession: ObservableObject {
         )
         update(
             BuiltInBehaviorPresets.normalizedDefaults(in: selectedSettings)
+        )
+    }
+
+    func copyActiveBehaviorProfile(from source: BehaviorProfile) {
+        updateActiveProfile(
+            BehaviorProfile(
+                petKey: settings.selectedPetKey,
+                mode: source.mode,
+                manualSequenceID: source.manualSequenceID,
+                randomSequenceIDs: source.randomSequenceIDs,
+                sequences: source.sequences,
+                automaticRules: source.automaticRules,
+                automaticRulePriorityOrder:
+                    source.automaticRulePriorityOrder,
+                movement: source.movement,
+                pettingMotionID: source.pettingMotionID,
+                speech: source.speech
+            )
         )
     }
 
@@ -202,9 +229,15 @@ final class AppSettingsSession: ObservableObject {
         }
 
         behaviorEditErrorMessage = nil
-        updateActiveProfile(
+        var updatedSettings = settings.replacingActiveBehaviorProfile(
             profile.behaviorProfile(for: .installed(installationID))
         )
+        if profile.includesDisplaySettings {
+            updatedSettings = updatedSettings.replacingSelectedOverlay(
+                profile.display.applying(to: updatedSettings.overlay)
+            )
+        }
+        update(updatedSettings)
         return true
     }
 
@@ -237,8 +270,34 @@ final class AppSettingsSession: ObservableObject {
                 petKey: settings.selectedPetKey,
                 mode: settings.behaviorMode,
                 manualSequenceID: sequenceID,
+                randomSequenceIDs: settings.randomSequenceIDs,
                 sequences: settings.sequences,
                 automaticRules: settings.automaticRules,
+                automaticRulePriorityOrder:
+                    settings.automaticRulePriorityOrder,
+                movement: settings.movementSettings,
+                pettingMotionID: settings.pettingMotionID,
+                speech: settings.speechSettings
+            )
+        )
+    }
+
+    func setRandomSequenceIDs(_ sequenceIDs: [String]) {
+        let availableIDs = Set(settings.sequences.map(\.id))
+        var seen = Set<String>()
+        let normalized = sequenceIDs.filter {
+            availableIDs.contains($0) && seen.insert($0).inserted
+        }
+        updateActiveProfile(
+            BehaviorProfile(
+                petKey: settings.selectedPetKey,
+                mode: settings.behaviorMode,
+                manualSequenceID: settings.manualSequenceID,
+                randomSequenceIDs: normalized,
+                sequences: settings.sequences,
+                automaticRules: settings.automaticRules,
+                automaticRulePriorityOrder:
+                    settings.automaticRulePriorityOrder,
                 movement: settings.movementSettings,
                 pettingMotionID: settings.pettingMotionID,
                 speech: settings.speechSettings
@@ -266,8 +325,11 @@ final class AppSettingsSession: ObservableObject {
                 petKey: settings.selectedPetKey,
                 mode: settings.behaviorMode,
                 manualSequenceID: settings.manualSequenceID,
+                randomSequenceIDs: settings.randomSequenceIDs,
                 sequences: settings.sequences,
                 automaticRules: settings.automaticRules,
+                automaticRulePriorityOrder:
+                    settings.automaticRulePriorityOrder,
                 movement: settings.movementSettings,
                 pettingMotionID: settings.pettingMotionID,
                 speech: speech
@@ -277,9 +339,29 @@ final class AppSettingsSession: ObservableObject {
     }
 
     @discardableResult
-    func addBehaviorSequence(named name: String) -> Bool {
+    func addBehaviorSequence(
+        named name: String,
+        initialMotionID: String = PetMotionReference.currentPetDefault,
+        repeats: Bool = true
+    ) -> Bool {
         applyBehaviorEdit {
-            try BehaviorSettingsEditor.addingSequence(named: name, to: settings)
+            try BehaviorSettingsEditor.addingSequence(
+                named: name,
+                initialMotionID: initialMotionID,
+                repeats: repeats,
+                to: settings
+            )
+        }
+    }
+
+    @discardableResult
+    func renameBehaviorSequence(id sequenceID: String, to name: String) -> Bool {
+        applyBehaviorEdit {
+            try BehaviorSettingsEditor.renamingSequence(
+                id: sequenceID,
+                to: name,
+                in: settings
+            )
         }
     }
 
@@ -291,9 +373,16 @@ final class AppSettingsSession: ObservableObject {
     }
 
     @discardableResult
-    func addBehaviorStep(to sequenceID: String) -> Bool {
+    func addBehaviorStep(
+        to sequenceID: String,
+        motionID: String = PetMotionReference.currentPetDefault
+    ) -> Bool {
         applyBehaviorEdit {
-            try BehaviorSettingsEditor.addingStep(to: sequenceID, in: settings)
+            try BehaviorSettingsEditor.addingStep(
+                to: sequenceID,
+                motionID: motionID,
+                in: settings
+            )
         }
     }
 
@@ -370,12 +459,28 @@ final class AppSettingsSession: ObservableObject {
     }
 
     @discardableResult
-    func addIdleRule(minutes: Int, sequenceID: String) -> Bool {
+    func addIdleRule(seconds: Int, sequenceID: String) -> Bool {
         applyBehaviorEdit {
             try BehaviorSettingsEditor.addingIdleRule(
-                minutes: minutes,
+                seconds: seconds,
                 sequenceID: sequenceID,
                 to: settings
+            )
+        }
+    }
+
+    @discardableResult
+    func setIdleRule(
+        seconds: Int,
+        sequenceID: String,
+        isEnabled: Bool
+    ) -> Bool {
+        applyBehaviorEdit {
+            try BehaviorSettingsEditor.settingIdleRule(
+                seconds: seconds,
+                sequenceID: sequenceID,
+                isEnabled: isEnabled,
+                in: settings
             )
         }
     }
@@ -391,6 +496,18 @@ final class AppSettingsSession: ObservableObject {
     func removeAutomaticRule(id: UUID) -> Bool {
         applyBehaviorEdit {
             try BehaviorSettingsEditor.removingRule(id: id, from: settings)
+        }
+    }
+
+    @discardableResult
+    func setAutomaticRulePriorityOrder(
+        _ order: [AutomaticRuleCategory]
+    ) -> Bool {
+        applyBehaviorEdit {
+            try BehaviorSettingsEditor.settingAutomaticRulePriorityOrder(
+                order,
+                in: settings
+            )
         }
     }
 
@@ -418,6 +535,14 @@ final class AppSettingsSession: ObservableObject {
                 movementReplacementMotionID: nil,
                 in: settings
             )
+        }
+    }
+
+    @discardableResult
+    func synchronizeGeneratedSingleStepBehaviorNames() -> Bool {
+        applyBehaviorEdit {
+            try BehaviorSettingsEditor
+                .synchronizingGeneratedSingleStepBehaviorNames(in: settings)
         }
     }
 

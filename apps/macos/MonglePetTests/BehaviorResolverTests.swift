@@ -93,7 +93,8 @@ final class BehaviorResolverTests: XCTestCase {
             mode: .automatic,
             defaultSequenceID: base.defaultSequenceID,
             sequences: base.sequences,
-            automaticRules: [idleRule, applicationRule]
+            automaticRules: [idleRule, applicationRule],
+            automaticRulePriorityOrder: [.application, .idle, .movement]
         )
         var resolver = BehaviorResolver()
 

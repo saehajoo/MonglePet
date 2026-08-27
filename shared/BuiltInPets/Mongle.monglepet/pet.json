@@ -1,400 +1,558 @@
 {
-  "atlases" : [
+  "atlases": [
     {
-      "id" : "user-88d7dd6a-f319-4b6f-a434-74062b30084c",
-      "path" : "assets/user-88d7dd6a-f319-4b6f-a434-74062b30084c.png",
-      "pixelHeight" : 150,
-      "pixelWidth" : 1050
+      "id": "default",
+      "path": "assets/default.png",
+      "pixelHeight": 150,
+      "pixelWidth": 900
     },
     {
-      "id" : "user-e0a7325a-7a51-4bd9-8059-74e2878e4955",
-      "path" : "assets/user-e0a7325a-7a51-4bd9-8059-74e2878e4955.png",
-      "pixelHeight" : 150,
-      "pixelWidth" : 600
+      "id": "left",
+      "path": "assets/left.png",
+      "pixelHeight": 150,
+      "pixelWidth": 900
     },
     {
-      "id" : "user-5978d5d1-cdfa-4b99-b9d0-bf301037cbc8",
-      "path" : "assets/user-5978d5d1-cdfa-4b99-b9d0-bf301037cbc8.png",
-      "pixelHeight" : 150,
-      "pixelWidth" : 1050
+      "id": "right",
+      "path": "assets/right.png",
+      "pixelHeight": 150,
+      "pixelWidth": 900
     },
     {
-      "id" : "user-fba0eae5-c271-4444-b722-7446d0fbcf07",
-      "path" : "assets/user-fba0eae5-c271-4444-b722-7446d0fbcf07.png",
-      "pixelHeight" : 150,
-      "pixelWidth" : 900
+      "id": "up",
+      "path": "assets/up.png",
+      "pixelHeight": 150,
+      "pixelWidth": 600
     },
     {
-      "id" : "user-343c62ee-5795-4071-8560-5de076e7d0c0",
-      "path" : "assets/user-343c62ee-5795-4071-8560-5de076e7d0c0.png",
-      "pixelHeight" : 150,
-      "pixelWidth" : 300
+      "id": "working",
+      "path": "assets/working.png",
+      "pixelHeight": 150,
+      "pixelWidth": 1050
     },
     {
-      "id" : "user-735a4de3-7141-4bb3-a90b-a7a2d3a33421",
-      "path" : "assets/user-735a4de3-7141-4bb3-a90b-a7a2d3a33421.png",
-      "pixelHeight" : 150,
-      "pixelWidth" : 300
+      "id": "front",
+      "path": "assets/front.png",
+      "pixelHeight": 150,
+      "pixelWidth": 900
     },
     {
-      "id" : "user-d4cbae90-1630-477d-b2c1-6eac680ac32f",
-      "path" : "assets/user-d4cbae90-1630-477d-b2c1-6eac680ac32f.png",
-      "pixelHeight" : 150,
-      "pixelWidth" : 300
+      "id": "down",
+      "path": "assets/down.png",
+      "pixelHeight": 150,
+      "pixelWidth": 600
     },
     {
-      "id" : "user-7b12bbf7-8791-427d-a2a1-ac5f2099db79",
-      "path" : "assets/user-7b12bbf7-8791-427d-a2a1-ac5f2099db79.png",
-      "pixelHeight" : 150,
-      "pixelWidth" : 300
+      "id": "sleeping",
+      "path": "assets/sleeping.png",
+      "pixelHeight": 150,
+      "pixelWidth": 300
     },
     {
-      "id" : "user-23c5957d-ac1b-4bfc-8e22-e992c44ad176",
-      "path" : "assets/user-23c5957d-ac1b-4bfc-8e22-e992c44ad176.png",
-      "pixelHeight" : 150,
-      "pixelWidth" : 150
+      "id": "spouting",
+      "path": "assets/spouting.png",
+      "pixelHeight": 150,
+      "pixelWidth": 300
     },
     {
-      "id" : "user-1c8c39ea-b9eb-4836-ba23-63015934a495",
-      "path" : "assets/user-1c8c39ea-b9eb-4836-ba23-63015934a495.png",
-      "pixelHeight" : 150,
-      "pixelWidth" : 450
+      "id": "searching",
+      "path": "assets/searching.png",
+      "pixelHeight": 150,
+      "pixelWidth": 300
+    },
+    {
+      "id": "happy",
+      "path": "assets/happy.png",
+      "pixelHeight": 150,
+      "pixelWidth": 300
+    },
+    {
+      "id": "left-bubbles",
+      "path": "assets/left-bubbles.png",
+      "pixelHeight": 150,
+      "pixelWidth": 450
+    },
+    {
+      "id": "right-bubbles",
+      "path": "assets/right-bubbles.png",
+      "pixelHeight": 150,
+      "pixelWidth": 450
     }
   ],
-  "author" : "운영자",
-  "compatibility" : {
-    "createdWithMonglePetVersion" : "1.3.0",
-    "minimumMonglePetVersion" : "1.3.0"
+  "author": "운영자",
+  "compatibility": {
+    "createdWithMonglePetVersion": "1.3.2",
+    "minimumMonglePetVersion": "1.3.2"
   },
-  "defaultMotion" : "기본",
-  "description" : "MonglePet에서 기본으로 제공되는 몽글펫입니다.",
-  "displayName" : "몽글이",
-  "formatVersion" : 1,
-  "id" : "kr.mapleroom.monglepet.builtin.mongle",
-  "motions" : [
+  "defaultMotion": "기본",
+  "description": "MonglePet에서 기본으로 제공되는 몽글펫입니다.",
+  "displayName": "몽글이",
+  "formatVersion": 1,
+  "id": "kr.mapleroom.monglepet.builtin.mongle",
+  "motions": [
     {
-      "atlas" : "user-88d7dd6a-f319-4b6f-a434-74062b30084c",
-      "frames" : [
+      "atlas": "default",
+      "frames": [
         {
-          "durationMs" : 450,
-          "height" : 150,
-          "width" : 150,
-          "x" : 0,
-          "y" : 0
+          "durationMs": 450,
+          "height": 150,
+          "width": 150,
+          "x": 0,
+          "y": 0
         },
         {
-          "durationMs" : 450,
-          "height" : 150,
-          "width" : 150,
-          "x" : 150,
-          "y" : 0
+          "durationMs": 450,
+          "height": 150,
+          "width": 150,
+          "x": 150,
+          "y": 0
         },
         {
-          "durationMs" : 450,
-          "height" : 150,
-          "width" : 150,
-          "x" : 300,
-          "y" : 0
+          "durationMs": 450,
+          "height": 150,
+          "width": 150,
+          "x": 300,
+          "y": 0
         },
         {
-          "durationMs" : 450,
-          "height" : 150,
-          "width" : 150,
-          "x" : 450,
-          "y" : 0
+          "durationMs": 450,
+          "height": 150,
+          "width": 150,
+          "x": 450,
+          "y": 0
         },
         {
-          "durationMs" : 450,
-          "height" : 150,
-          "width" : 150,
-          "x" : 600,
-          "y" : 0
+          "durationMs": 450,
+          "height": 150,
+          "width": 150,
+          "x": 600,
+          "y": 0
         },
         {
-          "durationMs" : 450,
-          "height" : 150,
-          "width" : 150,
-          "x" : 750,
-          "y" : 0
-        },
-        {
-          "durationMs" : 450,
-          "height" : 150,
-          "width" : 150,
-          "x" : 900,
-          "y" : 0
+          "durationMs": 450,
+          "height": 150,
+          "width": 150,
+          "x": 750,
+          "y": 0
         }
       ],
-      "id" : "기본",
-      "loop" : true
+      "id": "기본",
+      "loop": true
     },
     {
-      "atlas" : "user-e0a7325a-7a51-4bd9-8059-74e2878e4955",
-      "frames" : [
+      "atlas": "left",
+      "frames": [
         {
-          "durationMs" : 450,
-          "height" : 150,
-          "width" : 150,
-          "x" : 0,
-          "y" : 0
+          "durationMs": 450,
+          "height": 150,
+          "width": 150,
+          "x": 0,
+          "y": 0
         },
         {
-          "durationMs" : 450,
-          "height" : 150,
-          "width" : 150,
-          "x" : 150,
-          "y" : 0
+          "durationMs": 450,
+          "height": 150,
+          "width": 150,
+          "x": 150,
+          "y": 0
         },
         {
-          "durationMs" : 450,
-          "height" : 150,
-          "width" : 150,
-          "x" : 300,
-          "y" : 0
+          "durationMs": 450,
+          "height": 150,
+          "width": 150,
+          "x": 300,
+          "y": 0
         },
         {
-          "durationMs" : 450,
-          "height" : 150,
-          "width" : 150,
-          "x" : 450,
-          "y" : 0
+          "durationMs": 450,
+          "height": 150,
+          "width": 150,
+          "x": 450,
+          "y": 0
+        },
+        {
+          "durationMs": 450,
+          "height": 150,
+          "width": 150,
+          "x": 600,
+          "y": 0
+        },
+        {
+          "durationMs": 450,
+          "height": 150,
+          "width": 150,
+          "x": 750,
+          "y": 0
         }
       ],
-      "id" : "위로",
-      "loop" : true
+      "id": "왼쪽",
+      "loop": true
     },
     {
-      "atlas" : "user-5978d5d1-cdfa-4b99-b9d0-bf301037cbc8",
-      "frames" : [
+      "atlas": "right",
+      "frames": [
         {
-          "durationMs" : 450,
-          "height" : 150,
-          "width" : 150,
-          "x" : 0,
-          "y" : 0
+          "durationMs": 450,
+          "height": 150,
+          "width": 150,
+          "x": 0,
+          "y": 0
         },
         {
-          "durationMs" : 450,
-          "height" : 150,
-          "width" : 150,
-          "x" : 150,
-          "y" : 0
+          "durationMs": 450,
+          "height": 150,
+          "width": 150,
+          "x": 150,
+          "y": 0
         },
         {
-          "durationMs" : 450,
-          "height" : 150,
-          "width" : 150,
-          "x" : 300,
-          "y" : 0
+          "durationMs": 450,
+          "height": 150,
+          "width": 150,
+          "x": 300,
+          "y": 0
         },
         {
-          "durationMs" : 450,
-          "height" : 150,
-          "width" : 150,
-          "x" : 450,
-          "y" : 0
+          "durationMs": 450,
+          "height": 150,
+          "width": 150,
+          "x": 450,
+          "y": 0
         },
         {
-          "durationMs" : 450,
-          "height" : 150,
-          "width" : 150,
-          "x" : 600,
-          "y" : 0
+          "durationMs": 450,
+          "height": 150,
+          "width": 150,
+          "x": 600,
+          "y": 0
         },
         {
-          "durationMs" : 450,
-          "height" : 150,
-          "width" : 150,
-          "x" : 750,
-          "y" : 0
-        },
-        {
-          "durationMs" : 450,
-          "height" : 150,
-          "width" : 150,
-          "x" : 900,
-          "y" : 0
+          "durationMs": 450,
+          "height": 150,
+          "width": 150,
+          "x": 750,
+          "y": 0
         }
       ],
-      "id" : "일하는 중",
-      "loop" : true
+      "id": "오른쪽",
+      "loop": true
     },
     {
-      "atlas" : "user-fba0eae5-c271-4444-b722-7446d0fbcf07",
-      "frames" : [
+      "atlas": "up",
+      "frames": [
         {
-          "durationMs" : 450,
-          "height" : 150,
-          "width" : 150,
-          "x" : 0,
-          "y" : 0
+          "durationMs": 450,
+          "height": 150,
+          "width": 150,
+          "x": 0,
+          "y": 0
         },
         {
-          "durationMs" : 450,
-          "height" : 150,
-          "width" : 150,
-          "x" : 150,
-          "y" : 0
+          "durationMs": 450,
+          "height": 150,
+          "width": 150,
+          "x": 150,
+          "y": 0
         },
         {
-          "durationMs" : 450,
-          "height" : 150,
-          "width" : 150,
-          "x" : 300,
-          "y" : 0
+          "durationMs": 450,
+          "height": 150,
+          "width": 150,
+          "x": 300,
+          "y": 0
         },
         {
-          "durationMs" : 450,
-          "height" : 150,
-          "width" : 150,
-          "x" : 450,
-          "y" : 0
-        },
-        {
-          "durationMs" : 450,
-          "height" : 150,
-          "width" : 150,
-          "x" : 600,
-          "y" : 0
-        },
-        {
-          "durationMs" : 450,
-          "height" : 150,
-          "width" : 150,
-          "x" : 750,
-          "y" : 0
+          "durationMs": 450,
+          "height": 150,
+          "width": 150,
+          "x": 450,
+          "y": 0
         }
       ],
-      "id" : "정면",
-      "loop" : true
+      "id": "위",
+      "loop": true
     },
     {
-      "atlas" : "user-343c62ee-5795-4071-8560-5de076e7d0c0",
-      "frames" : [
+      "atlas": "working",
+      "frames": [
         {
-          "durationMs" : 450,
-          "height" : 150,
-          "width" : 150,
-          "x" : 0,
-          "y" : 0
+          "durationMs": 450,
+          "height": 150,
+          "width": 150,
+          "x": 0,
+          "y": 0
         },
         {
-          "durationMs" : 3000,
-          "height" : 150,
-          "width" : 150,
-          "x" : 150,
-          "y" : 0
+          "durationMs": 450,
+          "height": 150,
+          "width": 150,
+          "x": 150,
+          "y": 0
+        },
+        {
+          "durationMs": 450,
+          "height": 150,
+          "width": 150,
+          "x": 300,
+          "y": 0
+        },
+        {
+          "durationMs": 450,
+          "height": 150,
+          "width": 150,
+          "x": 450,
+          "y": 0
+        },
+        {
+          "durationMs": 450,
+          "height": 150,
+          "width": 150,
+          "x": 600,
+          "y": 0
+        },
+        {
+          "durationMs": 450,
+          "height": 150,
+          "width": 150,
+          "x": 750,
+          "y": 0
+        },
+        {
+          "durationMs": 450,
+          "height": 150,
+          "width": 150,
+          "x": 900,
+          "y": 0
         }
       ],
-      "id" : "자는중",
-      "loop" : true
+      "id": "일하는 중",
+      "loop": true
     },
     {
-      "atlas" : "user-735a4de3-7141-4bb3-a90b-a7a2d3a33421",
-      "frames" : [
+      "atlas": "front",
+      "frames": [
         {
-          "durationMs" : 450,
-          "height" : 150,
-          "width" : 150,
-          "x" : 0,
-          "y" : 0
+          "durationMs": 450,
+          "height": 150,
+          "width": 150,
+          "x": 0,
+          "y": 0
         },
         {
-          "durationMs" : 450,
-          "height" : 150,
-          "width" : 150,
-          "x" : 150,
-          "y" : 0
+          "durationMs": 450,
+          "height": 150,
+          "width": 150,
+          "x": 150,
+          "y": 0
+        },
+        {
+          "durationMs": 450,
+          "height": 150,
+          "width": 150,
+          "x": 300,
+          "y": 0
+        },
+        {
+          "durationMs": 450,
+          "height": 150,
+          "width": 150,
+          "x": 450,
+          "y": 0
+        },
+        {
+          "durationMs": 450,
+          "height": 150,
+          "width": 150,
+          "x": 600,
+          "y": 0
+        },
+        {
+          "durationMs": 450,
+          "height": 150,
+          "width": 150,
+          "x": 750,
+          "y": 0
         }
       ],
-      "id" : "물뿜기",
-      "loop" : true
+      "id": "정면",
+      "loop": true
     },
     {
-      "atlas" : "user-d4cbae90-1630-477d-b2c1-6eac680ac32f",
-      "frames" : [
+      "atlas": "down",
+      "frames": [
         {
-          "durationMs" : 450,
-          "height" : 150,
-          "width" : 150,
-          "x" : 0,
-          "y" : 0
+          "durationMs": 450,
+          "height": 150,
+          "width": 150,
+          "x": 0,
+          "y": 0
         },
         {
-          "durationMs" : 450,
-          "height" : 150,
-          "width" : 150,
-          "x" : 150,
-          "y" : 0
+          "durationMs": 450,
+          "height": 150,
+          "width": 150,
+          "x": 150,
+          "y": 0
+        },
+        {
+          "durationMs": 450,
+          "height": 150,
+          "width": 150,
+          "x": 300,
+          "y": 0
+        },
+        {
+          "durationMs": 450,
+          "height": 150,
+          "width": 150,
+          "x": 450,
+          "y": 0
         }
       ],
-      "id" : "찾는 중",
-      "loop" : true
+      "id": "아래",
+      "loop": true
     },
     {
-      "atlas" : "user-7b12bbf7-8791-427d-a2a1-ac5f2099db79",
-      "frames" : [
+      "atlas": "sleeping",
+      "frames": [
         {
-          "durationMs" : 450,
-          "height" : 150,
-          "width" : 150,
-          "x" : 0,
-          "y" : 0
+          "durationMs": 450,
+          "height": 150,
+          "width": 150,
+          "x": 0,
+          "y": 0
         },
         {
-          "durationMs" : 450,
-          "height" : 150,
-          "width" : 150,
-          "x" : 150,
-          "y" : 0
+          "durationMs": 3000,
+          "height": 150,
+          "width": 150,
+          "x": 150,
+          "y": 0
         }
       ],
-      "id" : "해피",
-      "loop" : true
+      "id": "자는 중",
+      "loop": true
     },
     {
-      "atlas" : "user-23c5957d-ac1b-4bfc-8e22-e992c44ad176",
-      "frames" : [
+      "atlas": "spouting",
+      "frames": [
         {
-          "durationMs" : 450,
-          "height" : 150,
-          "width" : 150,
-          "x" : 0,
-          "y" : 0
+          "durationMs": 450,
+          "height": 150,
+          "width": 150,
+          "x": 0,
+          "y": 0
+        },
+        {
+          "durationMs": 450,
+          "height": 150,
+          "width": 150,
+          "x": 150,
+          "y": 0
         }
       ],
-      "id" : "오른쪽",
-      "loop" : true
+      "id": "물 뿜기",
+      "loop": true
     },
     {
-      "atlas" : "user-1c8c39ea-b9eb-4836-ba23-63015934a495",
-      "frames" : [
+      "atlas": "searching",
+      "frames": [
         {
-          "durationMs" : 450,
-          "height" : 150,
-          "width" : 150,
-          "x" : 0,
-          "y" : 0
+          "durationMs": 450,
+          "height": 150,
+          "width": 150,
+          "x": 0,
+          "y": 0
         },
         {
-          "durationMs" : 450,
-          "height" : 150,
-          "width" : 150,
-          "x" : 150,
-          "y" : 0
-        },
-        {
-          "durationMs" : 450,
-          "height" : 150,
-          "width" : 150,
-          "x" : 300,
-          "y" : 0
+          "durationMs": 450,
+          "height": 150,
+          "width": 150,
+          "x": 150,
+          "y": 0
         }
       ],
-      "id" : "보글보글",
-      "loop" : true
+      "id": "찾는 중",
+      "loop": true
+    },
+    {
+      "atlas": "happy",
+      "frames": [
+        {
+          "durationMs": 450,
+          "height": 150,
+          "width": 150,
+          "x": 0,
+          "y": 0
+        },
+        {
+          "durationMs": 450,
+          "height": 150,
+          "width": 150,
+          "x": 150,
+          "y": 0
+        }
+      ],
+      "id": "행복",
+      "loop": true
+    },
+    {
+      "atlas": "left-bubbles",
+      "frames": [
+        {
+          "durationMs": 450,
+          "height": 150,
+          "width": 150,
+          "x": 0,
+          "y": 0
+        },
+        {
+          "durationMs": 450,
+          "height": 150,
+          "width": 150,
+          "x": 150,
+          "y": 0
+        },
+        {
+          "durationMs": 450,
+          "height": 150,
+          "width": 150,
+          "x": 300,
+          "y": 0
+        }
+      ],
+      "id": "왼쪽 보글보글",
+      "loop": true
+    },
+    {
+      "atlas": "right-bubbles",
+      "frames": [
+        {
+          "durationMs": 450,
+          "height": 150,
+          "width": 150,
+          "x": 0,
+          "y": 0
+        },
+        {
+          "durationMs": 450,
+          "height": 150,
+          "width": 150,
+          "x": 150,
+          "y": 0
+        },
+        {
+          "durationMs": 450,
+          "height": 150,
+          "width": 150,
+          "x": 300,
+          "y": 0
+        }
+      ],
+      "id": "오른쪽 보글보글",
+      "loop": true
     }
   ],
-  "previewPath" : "preview.png",
-  "version" : "1.0.1"
+  "previewPath": "preview.png",
+  "version": "1.0.3"
 }

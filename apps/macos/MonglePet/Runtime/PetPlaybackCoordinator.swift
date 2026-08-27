@@ -1,12 +1,45 @@
 import Foundation
 
+nonisolated struct MovementPriorityResolution: Equatable, Sendable {
+    let movementTakesPriority: Bool
+    let blocksMovement: Bool
+}
+
+nonisolated struct MovementPlaybackPriorityResolver: Sendable {
+    func resolve(
+        mode: BehaviorMode,
+        decision: BehaviorDecision?,
+        rules: [AutomaticRule],
+        order: [AutomaticRuleCategory]
+    ) -> MovementPriorityResolution {
+        guard
+            mode == .automatic,
+            case let .sequence(_, source) = decision,
+            case let .automaticRule(ruleID) = source,
+            let rule = rules.first(where: { $0.id == ruleID }),
+            let category = rule.category
+        else {
+            return MovementPriorityResolution(
+                movementTakesPriority: true,
+                blocksMovement: false
+            )
+        }
+
+        let movementIndex = order.firstIndex(of: .movement) ?? 0
+        let ruleIndex = order.firstIndex(of: category) ?? order.count
+        let movementTakesPriority = movementIndex < ruleIndex
+        return MovementPriorityResolution(
+            movementTakesPriority: movementTakesPriority,
+            blocksMovement: !movementTakesPriority
+        )
+    }
+}
+
 @MainActor
 final class PetPlaybackCoordinator {
-    private static let movementSequenceID = "__monglepet_movement__"
-
-    private var petDefinition: PetDefinition
     private var behaviorPlayback: ScheduledMotion?
-    private var movementActivity = PetMovementActivity.stationary
+    private var movementPlayback: ScheduledMotion?
+    private var movementTakesPriority = true
     private let onPlaybackChange: (ScheduledMotion?) -> Void
     private var hasEmittedPlayback = false
     private(set) var currentPlayback: ScheduledMotion?
@@ -15,14 +48,12 @@ final class PetPlaybackCoordinator {
         petDefinition: PetDefinition,
         onPlaybackChange: @escaping (ScheduledMotion?) -> Void
     ) {
-        self.petDefinition = petDefinition
         self.onPlaybackChange = onPlaybackChange
     }
 
     func replacePetDefinition(_ petDefinition: PetDefinition) {
-        self.petDefinition = petDefinition
         behaviorPlayback = nil
-        movementActivity = .stationary
+        movementPlayback = nil
         currentPlayback = nil
         hasEmittedPlayback = false
     }
@@ -32,8 +63,16 @@ final class PetPlaybackCoordinator {
         refresh()
     }
 
-    func setMovementActivity(_ activity: PetMovementActivity) {
-        movementActivity = activity
+    func setMovementPlayback(_ playback: ScheduledMotion?) {
+        movementPlayback = playback
+        refresh()
+    }
+
+    func setMovementTakesPriority(_ takesPriority: Bool) {
+        guard movementTakesPriority != takesPriority else {
+            return
+        }
+        movementTakesPriority = takesPriority
         refresh()
     }
 
@@ -45,31 +84,9 @@ final class PetPlaybackCoordinator {
         if behaviorPlayback?.isInteraction == true {
             return behaviorPlayback
         }
-        return movementPlayback ?? behaviorPlayback
-    }
-
-    private var movementPlayback: ScheduledMotion? {
-        guard
-            movementActivity.isMoving,
-            let motionID = movementActivity.motionID,
-            let motion = petDefinition.motion(id: motionID)
-        else {
-            return nil
-        }
-
-        let loopingMotion = PetMotion(
-            id: motion.id,
-            loops: true,
-            frames: motion.frames
-        )
-        return ScheduledMotion(
-            sequenceID: Self.movementSequenceID,
-            stepIndex: 0,
-            requestedMotionID: motionID,
-            motion: loopingMotion,
-            playbackSpeed: 1,
-            isInteraction: false
-        )
+        return movementTakesPriority
+            ? movementPlayback ?? behaviorPlayback
+            : behaviorPlayback ?? movementPlayback
     }
 
     private func emit(_ playback: ScheduledMotion?) {

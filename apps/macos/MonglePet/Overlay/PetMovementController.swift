@@ -120,6 +120,7 @@ final class PetMovementController: PetMovementControlling {
     private let movementBoundaryProvider: () -> MovementBoundarySettings
     private let pointerProvider: () -> PetMovementPoint?
     private let randomSampleProvider: () -> PetMovementRandomSample
+    private let randomDwellUnitProvider: () -> Double
     private let applyOrigin: (PetMovementPoint) -> Void
     private var onActivityChange: (PetMovementActivity) -> Void
     private let tickInterval: Duration
@@ -132,6 +133,7 @@ final class PetMovementController: PetMovementControlling {
     private var lastTickAt: ContinuousClock.Instant?
     private var lastMovedAt: ContinuousClock.Instant?
     private var cursorAvoidingDwellStartedAt: ContinuousClock.Instant?
+    private var cursorAvoidingDwellDuration: Duration?
     private var directionClassifier = MovementDirectionClassifier()
     private(set) var targetOrigin: PetMovementPoint?
     private(set) var state: PetMovementControllerState = .inactive
@@ -164,6 +166,9 @@ final class PetMovementController: PetMovementControlling {
                 vertical: Double.random(in: 0...1)
             )
         },
+        randomDwellUnitProvider: @escaping () -> Double = {
+            Double.random(in: 0...1)
+        },
         tickInterval: Duration = defaultTickInterval,
         cursorIdleInterval: Duration = defaultCursorIdleInterval,
         stopHysteresis: Duration = defaultStopHysteresis,
@@ -181,6 +186,7 @@ final class PetMovementController: PetMovementControlling {
         self.movementBoundaryProvider = movementBoundaryProvider
         self.pointerProvider = pointerProvider
         self.randomSampleProvider = randomSampleProvider
+        self.randomDwellUnitProvider = randomDwellUnitProvider
         self.tickInterval = max(tickInterval, .milliseconds(1))
         self.cursorIdleInterval = max(cursorIdleInterval, tickInterval)
         self.stopHysteresis = max(stopHysteresis, .zero)
@@ -254,6 +260,7 @@ final class PetMovementController: PetMovementControlling {
             scheduleTick(after: tickInterval)
         } else if settings.mode == .cursorAvoiding {
             cursorAvoidingDwellStartedAt = nil
+            cursorAvoidingDwellDuration = nil
             prepareCursorAvoidingBaselineAndSchedule()
         }
     }
@@ -439,6 +446,7 @@ final class PetMovementController: PetMovementControlling {
         if pointerDistance <= settings.cursorAvoidingDetectionDistance
             || (isEscaping && pointerDistance < releaseDistance) {
             cursorAvoidingDwellStartedAt = nil
+            cursorAvoidingDwellDuration = nil
             guard let route = PetMovementGeometry.cursorAvoidingRoute(
                 pointer: pointer,
                 currentOrigin: origin,
@@ -495,9 +503,8 @@ final class PetMovementController: PetMovementControlling {
         petSize: PetMovementSize
     ) {
         if let dwellStartedAt = cursorAvoidingDwellStartedAt {
-            let dwell = Duration.milliseconds(
-                settings.freeRoamingDwellMilliseconds
-            )
+            let dwell = cursorAvoidingDwellDuration
+                ?? sampledFreeRoamingDwellDuration()
             guard dwellStartedAt.duration(to: now) >= dwell else {
                 state = .cursorAvoidingRoamingDwelling
                 updateStationaryActivityIfNeeded(at: now)
@@ -505,6 +512,7 @@ final class PetMovementController: PetMovementControlling {
                 return
             }
             cursorAvoidingDwellStartedAt = nil
+            cursorAvoidingDwellDuration = nil
         }
 
         guard let targetOrigin else {
@@ -534,6 +542,7 @@ final class PetMovementController: PetMovementControlling {
         }
         self.targetOrigin = nil
         cursorAvoidingDwellStartedAt = now
+        cursorAvoidingDwellDuration = sampledFreeRoamingDwellDuration()
         state = .cursorAvoidingRoamingDwelling
         scheduleTick(after: cursorIdleInterval)
     }
@@ -655,8 +664,20 @@ final class PetMovementController: PetMovementControlling {
         state = .freeRoamingDwelling
         lastMovedAt = nil
         scheduleTick(
-            after: .milliseconds(settings.freeRoamingDwellMilliseconds)
+            after: sampledFreeRoamingDwellDuration()
         )
+    }
+
+    private func sampledFreeRoamingDwellDuration() -> Duration {
+        let maximum = settings.freeRoamingDwellMilliseconds
+        guard settings.randomizesFreeRoamingDwell else {
+            return .milliseconds(maximum)
+        }
+        let minimum = settings.freeRoamingDwellMinimumMilliseconds
+        let unit = min(max(randomDwellUnitProvider(), 0), 1)
+        let span = Double(maximum - minimum)
+        let milliseconds = minimum + Int64((span * unit).rounded())
+        return .milliseconds(milliseconds)
     }
 
     private func freeRoamingDelayDidFinish() {
@@ -822,6 +843,7 @@ final class PetMovementController: PetMovementControlling {
         lastTickAt = nil
         lastMovedAt = nil
         cursorAvoidingDwellStartedAt = nil
+        cursorAvoidingDwellDuration = nil
         directionClassifier.reset()
         emit(activity: .stationary)
     }

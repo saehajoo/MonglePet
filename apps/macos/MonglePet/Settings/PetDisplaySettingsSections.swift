@@ -2,14 +2,22 @@ import SwiftUI
 
 struct PetDisplaySettingsSections: View {
     @ObservedObject var settingsSession: AppSettingsSession
+    let petDisplayName: String
 
     var body: some View {
         Group {
-            Section("표시 상태") {
-                Toggle("펫 깨우기", isOn: awakeBinding)
-                    .accessibilityIdentifier("monglepet.settings.awake")
+            Section {
+                LabeledContent("설정 대상 펫", value: petDisplayName)
+                    .accessibilityIdentifier(
+                        "monglepet.settings.movementPetName"
+                    )
 
-                Text("재워도 메뉴 막대나 활성 펫 화면에서 다시 깨울 수 있습니다.")
+                Toggle("펫 깨우기", isOn: awakeBinding)
+                    .accessibilityIdentifier(
+                        "monglepet.settings.awake"
+                    )
+
+                Text("현재 선택한 펫의 화면 표시와 이동 방식을 설정합니다.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -18,29 +26,69 @@ struct PetDisplaySettingsSections: View {
                 HStack {
                     Text("펫 크기")
                     Slider(
-                        value: overlayWidthBinding,
-                        in: AppSettingsLimits.minimumOverlayWidth
-                            ... AppSettingsLimits.maximumOverlayWidth,
-                        step: 8,
+                        value: overlayScalePercentBinding,
+                        in: AppSettingsLimits.minimumOverlayScalePercent
+                            ... AppSettingsLimits.maximumOverlayScalePercent,
+                        step: 5,
                         onEditingChanged: persistSliderWhenEditingEnds
                     )
                     .accessibilityIdentifier(
                         "monglepet.settings.overlayWidth"
                     )
-                    Text("\(Int(settingsSession.settings.overlay.width)) pt")
+                    HStack(spacing: 3) {
+                        TextField(
+                            "크기",
+                            value: overlayScaleInputPercentBinding,
+                            format: .number.precision(.fractionLength(0))
+                        )
+                        .multilineTextAlignment(.trailing)
+                        .textFieldStyle(.roundedBorder)
                         .monospacedDigit()
-                        .frame(width: 52, alignment: .trailing)
+                        .frame(width: 62)
+
+                        Text("%")
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                            .frame(width: 12, alignment: .leading)
+                    }
+                    .fixedSize(horizontal: true, vertical: false)
                 }
 
-                Toggle(
-                    "픽셀 아트 선명하게",
-                    isOn: pixelArtRenderingBinding
-                )
-                .accessibilityIdentifier(
-                    "monglepet.settings.pixelArtRendering"
-                )
+                HStack(spacing: 6) {
+                    Text("빠른 크기")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 8)
+                    ForEach([10, 25, 50, 100, 150, 200], id: \.self) {
+                        percent in
+                        Button("\(percent)%") {
+                            setOverlayScalePercent(Double(percent))
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(
+                            abs(overlayScalePercent - Double(percent)) < 0.01
+                        )
+                        .help(percent == 100 ? "기본 크기" : "\(percent)% 크기")
+                        .accessibilityIdentifier(
+                            "monglepet.settings.quickScale.\(percent)"
+                        )
+                    }
+                }
 
-                Text("픽셀 아트의 확대 경계를 또렷하게 표시합니다. 일반 일러스트에서는 계단 현상이 보일 수 있습니다.")
+                if overlayScalePercent < 25 {
+                    Label(
+                        "아주 작은 펫은 찾거나 드래그하기 어려울 수 있습니다. 설정에서 다시 크게 만들거나 상태 메뉴의 ‘현재 화면으로 가져오기’를 사용하세요.",
+                        systemImage: "exclamationmark.triangle.fill"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .accessibilityIdentifier(
+                        "monglepet.settings.smallPetWarning"
+                    )
+                }
+
+                Text("100%는 192pt이며 10%~200% 범위에서 펫마다 따로 저장됩니다.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
@@ -61,6 +109,20 @@ struct PetDisplaySettingsSections: View {
                         .frame(width: 48, alignment: .trailing)
                 }
 
+                Toggle(
+                    "픽셀 아트 선명하게",
+                    isOn: pixelArtRenderingBinding
+                )
+                .accessibilityIdentifier(
+                    "monglepet.settings.pixelArtRendering"
+                )
+
+                Text("픽셀 아트의 확대 경계를 또렷하게 표시합니다. 일반 일러스트에서는 계단 현상이 보일 수 있습니다.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Divider()
+
                 Toggle("클릭 통과", isOn: clickThroughBinding)
                     .accessibilityIdentifier(
                         "monglepet.settings.clickThrough"
@@ -73,6 +135,8 @@ struct PetDisplaySettingsSections: View {
                 )
                 .font(.caption)
                 .foregroundStyle(.secondary)
+
+                Divider()
 
                 Toggle(
                     "마우스가 펫과 겹치면 더 투명하게",
@@ -129,10 +193,58 @@ struct PetDisplaySettingsSections: View {
         )
     }
 
-    private var overlayWidthBinding: Binding<Double> {
+    private var overlayScalePercentBinding: Binding<Double> {
         Binding(
-            get: { settingsSession.settings.overlay.width },
-            set: { settingsSession.setOverlayWidth($0, persist: false) }
+            get: {
+                settingsSession.settings.overlay.width
+                    / AppSettingsLimits.defaultOverlayWidth * 100
+            },
+            set: { percent in
+                let clamped = min(
+                    max(
+                        percent,
+                        AppSettingsLimits.minimumOverlayScalePercent
+                    ),
+                    AppSettingsLimits.maximumOverlayScalePercent
+                )
+                settingsSession.setOverlayWidth(
+                    AppSettingsLimits.defaultOverlayWidth * clamped / 100,
+                    persist: false
+                )
+            }
+        )
+    }
+
+    private var overlayScalePercent: Double {
+        settingsSession.settings.overlay.width
+            / AppSettingsLimits.defaultOverlayWidth * 100
+    }
+
+    private func setOverlayScalePercent(_ percent: Double) {
+        let clamped = min(
+            max(percent, AppSettingsLimits.minimumOverlayScalePercent),
+            AppSettingsLimits.maximumOverlayScalePercent
+        )
+        settingsSession.setOverlayWidth(
+            AppSettingsLimits.defaultOverlayWidth * clamped / 100
+        )
+    }
+
+    private var overlayScaleInputPercentBinding: Binding<Double> {
+        Binding(
+            get: { overlayScalePercentBinding.wrappedValue },
+            set: { percent in
+                let clamped = min(
+                    max(
+                        percent,
+                        AppSettingsLimits.minimumOverlayScalePercent
+                    ),
+                    AppSettingsLimits.maximumOverlayScalePercent
+                )
+                settingsSession.setOverlayWidth(
+                    AppSettingsLimits.defaultOverlayWidth * clamped / 100
+                )
+            }
         )
     }
 

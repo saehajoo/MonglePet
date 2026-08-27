@@ -91,25 +91,35 @@ nonisolated struct UserPetSourceFrameRequest: Equatable, Sendable {
     let source: UserPetNewFrameSource
     let durationMilliseconds: Int
     let placement: FrameCanvasPlacement?
+    let flipsHorizontally: Bool
+    let flipsVertically: Bool
 
     init(
         sourceURL: URL,
         durationMilliseconds: Int,
-        placement: FrameCanvasPlacement? = nil
+        placement: FrameCanvasPlacement? = nil,
+        flipsHorizontally: Bool = false,
+        flipsVertically: Bool = false
     ) {
         source = .png(sourceURL)
         self.durationMilliseconds = durationMilliseconds
         self.placement = placement
+        self.flipsHorizontally = flipsHorizontally
+        self.flipsVertically = flipsVertically
     }
 
     init(
         image: UserPetSourceImage,
         durationMilliseconds: Int,
-        placement: FrameCanvasPlacement? = nil
+        placement: FrameCanvasPlacement? = nil,
+        flipsHorizontally: Bool = false,
+        flipsVertically: Bool = false
     ) {
         source = .image(image)
         self.durationMilliseconds = durationMilliseconds
         self.placement = placement
+        self.flipsHorizontally = flipsHorizontally
+        self.flipsVertically = flipsVertically
     }
 }
 
@@ -157,15 +167,21 @@ nonisolated struct UserPetAnimationFrameRequest: Equatable, Sendable {
     let source: UserPetAnimationFrameSource
     let durationMilliseconds: Int
     let placement: FrameCanvasPlacement?
+    let flipsHorizontally: Bool
+    let flipsVertically: Bool
 
     init(
         source: UserPetAnimationFrameSource,
         durationMilliseconds: Int,
-        placement: FrameCanvasPlacement? = nil
+        placement: FrameCanvasPlacement? = nil,
+        flipsHorizontally: Bool = false,
+        flipsVertically: Bool = false
     ) {
         self.source = source
         self.durationMilliseconds = durationMilliseconds
         self.placement = placement
+        self.flipsHorizontally = flipsHorizontally
+        self.flipsVertically = flipsVertically
     }
 }
 
@@ -332,9 +348,6 @@ nonisolated struct UserPetPackageEditor {
         of installedPackage: InstalledPetPackage,
         displayName: String
     ) throws -> InstalledPetPackage {
-        guard !isEditable(installedPackage) else {
-            throw UserPetEditingError.petIsAlreadyEditable
-        }
         let displayName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !displayName.isEmpty else {
             throw UserPetEditingError.invalidPetName
@@ -362,6 +375,131 @@ nonisolated struct UserPetPackageEditor {
                 motions: currentManifest.motions
             )
             try writeManifest(copiedManifest, to: packageURL)
+            try writeMarker(packageID: packageID, to: packageURL)
+            let validated = try loader.loadPackage(at: packageURL)
+            return try store.install(
+                packageAt: packageURL,
+                validatedPackage: validated,
+                mode: .rejectDuplicate
+            )
+        }
+    }
+
+    func createEditableCopy(
+        of definition: PetDefinition,
+        metadata: PetPackageMetadata,
+        atlasImages: [PetAtlasImage],
+        displayName: String
+    ) throws -> InstalledPetPackage {
+        let displayName = displayName.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
+        guard !displayName.isEmpty, !atlasImages.isEmpty else {
+            throw UserPetEditingError.invalidPetName
+        }
+        let packageID =
+            "kr.mapleroom.monglepet.user.\(UUID().uuidString.lowercased())"
+        let atlasesByID = Dictionary(
+            atlasImages.map { ($0.id, $0) },
+            uniquingKeysWith: { current, _ in current }
+        )
+        guard definition.motions.allSatisfy({ motion in
+            guard let atlasID = motion.frames.first?.atlasID else {
+                return false
+            }
+            return motion.frames.allSatisfy { $0.atlasID == atlasID }
+                && atlasesByID[atlasID] != nil
+        }) else {
+            throw UserPetEditingError.cannotReadAnimationAtlas
+        }
+
+        return try withTemporaryPackage { packageURL in
+            do {
+                try fileManager.createDirectory(
+                    at: packageURL,
+                    withIntermediateDirectories: true
+                )
+                try fileManager.createDirectory(
+                    at: packageURL.appendingPathComponent(
+                        "assets",
+                        isDirectory: true
+                    ),
+                    withIntermediateDirectories: true
+                )
+            } catch {
+                throw UserPetEditingError.cannotWritePackage
+            }
+
+            for atlas in atlasImages {
+                try writePNG(
+                    atlas.image,
+                    to: packageURL.appendingPathComponent(
+                        "assets/\(atlas.id).png",
+                        isDirectory: false
+                    )
+                )
+            }
+
+            guard
+                let previewFrame = definition.defaultMotion?.frames.first,
+                let previewAtlas = atlasesByID[previewFrame.atlasID],
+                let previewImage = previewAtlas.image.cropping(
+                    to: CGRect(
+                        x: previewFrame.sourceRect.x,
+                        y: previewAtlas.pixelSize.height
+                            - previewFrame.sourceRect.y
+                            - previewFrame.sourceRect.height,
+                        width: previewFrame.sourceRect.width,
+                        height: previewFrame.sourceRect.height
+                    )
+                )
+            else {
+                throw UserPetEditingError.cannotReadAnimationAtlas
+            }
+            try writePNG(
+                previewImage,
+                to: packageURL.appendingPathComponent("preview.png")
+            )
+
+            let manifest = PetPackageManifest(
+                formatVersion: 1,
+                id: packageID,
+                displayName: displayName,
+                version: metadata.version,
+                author: metadata.author,
+                description: metadata.description,
+                previewPath: "preview.png",
+                defaultMotion: definition.defaultMotionID,
+                atlases: atlasImages.map { atlas in
+                    PetPackageManifest.Atlas(
+                        id: atlas.id,
+                        path: "assets/\(atlas.id).png",
+                        pixelWidth: atlas.pixelSize.width,
+                        pixelHeight: atlas.pixelSize.height
+                    )
+                },
+                motions: definition.motions.map { motion in
+                    PetPackageManifest.Motion(
+                        id: motion.id,
+                        atlas: motion.frames[0].atlasID,
+                        loop: motion.loops,
+                        frames: motion.frames.map { frame in
+                            let components = frame.duration.components
+                            let milliseconds = components.seconds * 1_000
+                                + components.attoseconds
+                                    / 1_000_000_000_000_000
+                            return PetPackageManifest.Frame(
+                                x: frame.sourceRect.x,
+                                y: frame.sourceRect.y,
+                                width: frame.sourceRect.width,
+                                height: frame.sourceRect.height,
+                                durationMs: Int(milliseconds)
+                            )
+                        }
+                    )
+                }
+            )
+            try writeManifest(manifest, to: packageURL)
             try writeMarker(packageID: packageID, to: packageURL)
             let validated = try loader.loadPackage(at: packageURL)
             return try store.install(
@@ -434,6 +572,54 @@ nonisolated struct UserPetPackageEditor {
                 packageAt: packageURL,
                 validatedPackage: validated,
                 mode: .replace(installationID: installedPackage.installationID)
+            )
+        }
+    }
+
+    func duplicateAnimation(
+        id animationID: String,
+        as animationName: String,
+        in installedPackage: InstalledPetPackage
+    ) throws -> InstalledPetPackage {
+        guard isEditable(installedPackage) else {
+            throw UserPetEditingError.importedPackageIsReadOnly
+        }
+        guard installedPackage.package.definition.motion(id: animationID) != nil else {
+            throw UserPetEditingError.animationNotFound(animationID)
+        }
+        let animationName = try validatedAnimationName(animationName)
+        guard !installedPackage.package.definition.motions.contains(where: {
+            $0.id.localizedCaseInsensitiveCompare(animationName) == .orderedSame
+        }) else {
+            throw UserPetEditingError.duplicateAnimationName(animationName)
+        }
+
+        return try editingPackage(installedPackage) { currentManifest in
+            guard let sourceIndex = currentManifest.motions.firstIndex(where: {
+                $0.id == animationID
+            }) else {
+                throw UserPetEditingError.animationNotFound(animationID)
+            }
+            let source = currentManifest.motions[sourceIndex]
+            let duplicate = PetPackageManifest.Motion(
+                id: animationName,
+                atlas: source.atlas,
+                loop: source.loop,
+                frames: source.frames
+            )
+            var motions = currentManifest.motions
+            motions.insert(duplicate, at: sourceIndex + 1)
+            return PetPackageManifest(
+                formatVersion: currentManifest.formatVersion,
+                id: currentManifest.id,
+                displayName: currentManifest.displayName,
+                version: currentManifest.version,
+                author: currentManifest.author,
+                description: currentManifest.description,
+                previewPath: currentManifest.previewPath,
+                defaultMotion: currentManifest.defaultMotion,
+                atlases: currentManifest.atlases,
+                motions: motions
             )
         }
     }
@@ -701,7 +887,12 @@ nonisolated struct UserPetPackageEditor {
                 image = sourceImage.image
             }
             return PNGSequenceFrameImage(
-                image: try composedImage(image, placement: request.placement),
+                image: try composedImage(
+                    image,
+                    placement: request.placement,
+                    flipsHorizontally: request.flipsHorizontally,
+                    flipsVertically: request.flipsVertically
+                ),
                 durationMilliseconds: request.durationMilliseconds
             )
         }
@@ -740,7 +931,12 @@ nonisolated struct UserPetPackageEditor {
                 image = sourceImage.image
             }
             return PNGSequenceFrameImage(
-                image: try composedImage(image, placement: request.placement),
+                image: try composedImage(
+                    image,
+                    placement: request.placement,
+                    flipsHorizontally: request.flipsHorizontally,
+                    flipsVertically: request.flipsVertically
+                ),
                 durationMilliseconds: request.durationMilliseconds
             )
         }
@@ -749,13 +945,37 @@ nonisolated struct UserPetPackageEditor {
 
     private func composedImage(
         _ image: CGImage,
-        placement: FrameCanvasPlacement?
+        placement: FrameCanvasPlacement?,
+        flipsHorizontally: Bool,
+        flipsVertically: Bool
     ) throws -> CGImage {
-        guard let placement else {
-            return image
-        }
         do {
-            return try FrameCanvasComposer().compose(image, placement: placement)
+            guard let placement else {
+                guard let transformed = ImageCropProcessor().transformed(
+                    image,
+                    flipsHorizontally: flipsHorizontally,
+                    flipsVertically: flipsVertically
+                ) else {
+                    throw UserPetEditingError.invalidFramePlacement
+                }
+                return transformed
+            }
+            let composer = FrameCanvasComposer()
+            let content = try composer.transparentContent(in: image)
+            guard let transformed = ImageCropProcessor().transformed(
+                content.image,
+                flipsHorizontally: flipsHorizontally,
+                flipsVertically: flipsVertically
+            ) else {
+                throw UserPetEditingError.invalidFramePlacement
+            }
+            return try composer.compose(
+                TransparentFrameContent(
+                    image: transformed,
+                    sourceBounds: content.sourceBounds
+                ),
+                placement: placement
+            )
         } catch {
             throw UserPetEditingError.invalidFramePlacement
         }

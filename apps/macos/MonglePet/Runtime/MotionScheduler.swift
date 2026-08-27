@@ -87,6 +87,10 @@ nonisolated struct MotionScheduler: Sendable {
         interactionCursor != nil
     }
 
+    var isBaseSequenceComplete: Bool {
+        baseCursor?.isComplete ?? false
+    }
+
     @discardableResult
     mutating func request(_ sequence: BehaviorSequence) -> Bool {
         guard let requestedCursor = makeCursor(for: sequence) else {
@@ -99,7 +103,7 @@ nonisolated struct MotionScheduler: Sendable {
             return true
         }
 
-        if baseCursor.sequence == sequence {
+        if baseCursor.sequence == sequence, !baseCursor.isComplete {
             pendingSequence = nil
             return false
         }

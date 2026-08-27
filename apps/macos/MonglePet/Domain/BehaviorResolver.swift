@@ -38,6 +38,18 @@ nonisolated struct BehaviorResolver: Sendable {
             }
 
             return defaultDecision(configuration: configuration)
+        case .random:
+            if
+                let randomSequenceID = runtimeState.randomSequenceID,
+                configuration.randomSequenceIDs.contains(randomSequenceID),
+                let randomSequence = configuration.sequence(
+                    id: randomSequenceID
+                )
+            {
+                return .sequence(randomSequence, source: .random)
+            }
+
+            return defaultDecision(configuration: configuration)
         case .automatic:
             return resolveAutomatic(configuration: configuration, snapshot: snapshot)
         }
@@ -51,6 +63,17 @@ nonisolated struct BehaviorResolver: Sendable {
             .enumerated()
             .filter { $0.element.isEnabled }
             .sorted { lhs, rhs in
+                let lhsCategoryPriority = categoryPriority(
+                    for: lhs.element,
+                    order: configuration.automaticRulePriorityOrder
+                )
+                let rhsCategoryPriority = categoryPriority(
+                    for: rhs.element,
+                    order: configuration.automaticRulePriorityOrder
+                )
+                if lhsCategoryPriority != rhsCategoryPriority {
+                    return lhsCategoryPriority < rhsCategoryPriority
+                }
                 if lhs.element.priority != rhs.element.priority {
                     return lhs.element.priority > rhs.element.priority
                 }
@@ -69,6 +92,16 @@ nonisolated struct BehaviorResolver: Sendable {
         }
 
         return decision(for: matchingRule, configuration: configuration)
+    }
+
+    private func categoryPriority(
+        for rule: AutomaticRule,
+        order: [AutomaticRuleCategory]
+    ) -> Int {
+        guard let category = rule.category else {
+            return Int.max
+        }
+        return order.firstIndex(of: category) ?? Int.max - 1
     }
 
     private func firstMatchingRule(

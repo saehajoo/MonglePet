@@ -198,6 +198,48 @@ final class PetBehaviorRuntimeTests: XCTestCase {
         )
     }
 
+    func testRandomModeUsesEverySelectedBehaviorBeforeRefillingBag() {
+        let clock = ManualBehaviorRuntimeClock()
+        let tickScheduler = ManualBehaviorTickScheduler()
+        let runtime = PetBehaviorRuntime(
+            petDefinition: makePet(),
+            clock: clock,
+            tickScheduler: tickScheduler,
+            randomIndex: { _ in 0 }
+        ) { _ in }
+        let focus = BehaviorSequence(
+            id: "focus",
+            steps: [BehaviorStep(motionID: "focus", repeatCount: 1)],
+            repeats: true
+        )
+        let rest = BehaviorSequence(
+            id: "rest",
+            steps: [BehaviorStep(motionID: "rest", repeatCount: 1)],
+            repeats: true
+        )
+        let settings = AppSettings(
+            selectedPetInstallationID: nil,
+            lastUserPresentation: .awake,
+            behaviorMode: .random,
+            overlay: .default,
+            manualSequenceID: nil,
+            randomSequenceIDs: [focus.id, rest.id],
+            sequences: [focus, rest],
+            automaticRules: []
+        )
+
+        runtime.update(settings: settings, snapshot: snapshot())
+        XCTAssertEqual(runtime.currentPlayback?.motion.id, "focus")
+
+        clock.advance(by: .milliseconds(100))
+        tickScheduler.fire()
+        XCTAssertEqual(runtime.currentPlayback?.motion.id, "rest")
+
+        clock.advance(by: .milliseconds(100))
+        tickScheduler.fire()
+        XCTAssertEqual(runtime.currentPlayback?.motion.id, "focus")
+    }
+
     func testReplacingPetDefinitionRestartsDecisionWithIdleFallback() {
         let clock = ManualBehaviorRuntimeClock()
         let tickScheduler = ManualBehaviorTickScheduler()

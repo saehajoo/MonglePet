@@ -3,6 +3,77 @@ import XCTest
 @testable import MonglePet
 
 final class BehaviorSettingsEditorTests: XCTestCase {
+    func testBehaviorSelectionLabelShowsAnimationOrStepCount() {
+        XCTAssertEqual(
+            BehaviorSelectionLabel.text(
+                for: BehaviorSequence(
+                    id: "wave",
+                    displayName: "인사 복사본",
+                    steps: [BehaviorStep(motionID: "인사", repeatCount: 1)],
+                    repeats: true
+                )
+            ),
+            "인사"
+        )
+        XCTAssertEqual(
+            BehaviorSelectionLabel.text(
+                for: BehaviorSequence(
+                    id: "default",
+                    displayName: "기본",
+                    steps: [
+                        BehaviorStep(
+                            motionID: PetMotionReference.currentPetDefault,
+                            repeatCount: 1
+                        )
+                    ],
+                    repeats: true
+                )
+            ),
+            "기본 애니메이션"
+        )
+        XCTAssertEqual(
+            BehaviorSelectionLabel.text(
+                for: BehaviorSequence(
+                    id: "routine",
+                    displayName: "아침 루틴",
+                    steps: [
+                        BehaviorStep(motionID: "wake", repeatCount: 1),
+                        BehaviorStep(motionID: "stretch", repeatCount: 1)
+                    ],
+                    repeats: true
+                )
+            ),
+            "wake 외 1개"
+        )
+    }
+
+    func testGeneratedSingleStepBehaviorNamesSynchronizeToCurrentAnimations() throws {
+        var settings = try BehaviorSettingsEditor.addingSequence(
+            named: "인사 복사본",
+            initialMotionID: "인사",
+            to: makeSettings()
+        )
+        settings = try BehaviorSettingsEditor.addingSequence(
+            named: "사용자가 정한 이름",
+            initialMotionID: "행복",
+            to: settings
+        )
+        settings = try BehaviorSettingsEditor.addingSequence(
+            named: "산책 복사본 2",
+            initialMotionID: "산책",
+            to: settings
+        )
+
+        settings = try BehaviorSettingsEditor
+            .synchronizingGeneratedSingleStepBehaviorNames(in: settings)
+
+        XCTAssertNotNil(settings.sequences.first { $0.displayName == "인사" })
+        XCTAssertNotNil(settings.sequences.first { $0.displayName == "산책" })
+        XCTAssertNotNil(
+            settings.sequences.first { $0.displayName == "사용자가 정한 이름" }
+        )
+    }
+
     func testMotionCatalogUsesCurrentPetAnimationsAndPreservesMissingSavedValue() {
         let frame = MotionFrame(
             atlasID: "main",
@@ -35,7 +106,8 @@ final class BehaviorSettingsEditorTests: XCTestCase {
             to: makeSettings()
         )
 
-        XCTAssertEqual(added.sequences.last?.id, "Coding Time")
+        XCTAssertEqual(added.sequences.last?.displayName, "Coding Time")
+        XCTAssertNotEqual(added.sequences.last?.id, "Coding Time")
         XCTAssertThrowsError(
             try BehaviorSettingsEditor.addingSequence(
                 named: "coding time",
@@ -51,14 +123,31 @@ final class BehaviorSettingsEditorTests: XCTestCase {
         }
     }
 
+    func testSequenceCanStartWithDuplicatedAnimation() throws {
+        let added = try BehaviorSettingsEditor.addingSequence(
+            named: "wave 복사본",
+            initialMotionID: "wave 복사본",
+            to: makeSettings()
+        )
+
+        let sequence = try XCTUnwrap(added.sequences.last)
+        XCTAssertEqual(sequence.displayName, "wave 복사본")
+        XCTAssertEqual(
+            sequence.steps,
+            [BehaviorStep(motionID: "wave 복사본", repeatCount: 1)]
+        )
+        XCTAssertTrue(sequence.repeats)
+    }
+
     func testStepsCanBeAddedEditedMovedAndRemovedWhileKeepingOne() throws {
         var settings = try BehaviorSettingsEditor.addingSequence(
             named: "custom",
             to: makeSettings()
         )
-        settings = try BehaviorSettingsEditor.addingStep(to: "custom", in: settings)
+        let customID = try XCTUnwrap(settings.sequences.last?.id)
+        settings = try BehaviorSettingsEditor.addingStep(to: customID, in: settings)
         settings = try BehaviorSettingsEditor.replacingStep(
-            in: "custom",
+            in: customID,
             at: 1,
             with: BehaviorStep(
                 motionID: "focus",
@@ -67,13 +156,13 @@ final class BehaviorSettingsEditorTests: XCTestCase {
             settings: settings
         )
         settings = try BehaviorSettingsEditor.movingStep(
-            in: "custom",
+            in: customID,
             from: 1,
             to: 0,
             settings: settings
         )
 
-        var custom = try XCTUnwrap(settings.sequences.first { $0.id == "custom" })
+        var custom = try XCTUnwrap(settings.sequences.first { $0.id == customID })
         XCTAssertEqual(
             custom.steps.map(\.motionID),
             ["focus", PetMotionReference.currentPetDefault]
@@ -81,15 +170,15 @@ final class BehaviorSettingsEditorTests: XCTestCase {
         XCTAssertEqual(custom.steps[0].repeatCount, 9)
 
         settings = try BehaviorSettingsEditor.removingStep(
-            from: "custom",
+            from: customID,
             at: 1,
             settings: settings
         )
-        custom = try XCTUnwrap(settings.sequences.first { $0.id == "custom" })
+        custom = try XCTUnwrap(settings.sequences.first { $0.id == customID })
         XCTAssertEqual(custom.steps.count, 1)
         XCTAssertThrowsError(
             try BehaviorSettingsEditor.removingStep(
-                from: "custom",
+                from: customID,
                 at: 0,
                 settings: settings
             )
@@ -98,15 +187,38 @@ final class BehaviorSettingsEditorTests: XCTestCase {
         }
     }
 
+    func testSpecificAnimationCanBeAppendedAsBehaviorStep() throws {
+        var settings = try BehaviorSettingsEditor.addingSequence(
+            named: "custom",
+            to: makeSettings()
+        )
+        let customID = try XCTUnwrap(settings.sequences.last?.id)
+
+        settings = try BehaviorSettingsEditor.addingStep(
+            to: customID,
+            motionID: "wave",
+            in: settings
+        )
+
+        let custom = try XCTUnwrap(
+            settings.sequences.first { $0.id == customID }
+        )
+        XCTAssertEqual(
+            custom.steps.last,
+            BehaviorStep(motionID: "wave", repeatCount: 1)
+        )
+    }
+
     func testDeletingCustomSequenceCleansReferencesAndProtectsBuiltIns() throws {
         var settings = try BehaviorSettingsEditor.addingSequence(
             named: "custom",
             to: makeSettings()
         )
-        settings = settingsReplacingManualSequenceID("custom", in: settings)
+        let customID = try XCTUnwrap(settings.sequences.last?.id)
+        settings = settingsReplacingManualSequenceID(customID, in: settings)
         settings = try BehaviorSettingsEditor.addingApplicationRule(
             bundleIdentifier: "com.example.Editor",
-            sequenceID: "custom",
+            sequenceID: customID,
             to: settings
         )
         settings = settings.replacingActiveBehaviorProfile(
@@ -132,7 +244,7 @@ final class BehaviorSettingsEditorTests: XCTestCase {
                         ),
                         PetSpeechPhrase(
                             text: "삭제될 대사",
-                            trigger: .sequence("custom")
+                            trigger: .sequence(customID)
                         )
                     ]
                 )
@@ -140,7 +252,7 @@ final class BehaviorSettingsEditorTests: XCTestCase {
         )
 
         settings = try BehaviorSettingsEditor.removingSequence(
-            id: "custom",
+            id: customID,
             from: settings
         )
 
@@ -148,8 +260,8 @@ final class BehaviorSettingsEditorTests: XCTestCase {
             settings.manualSequenceID,
             BuiltInBehaviorPresets.defaultSequenceID
         )
-        XCTAssertFalse(settings.sequences.contains { $0.id == "custom" })
-        XCTAssertFalse(settings.automaticRules.contains { $0.sequenceID == "custom" })
+        XCTAssertFalse(settings.sequences.contains { $0.id == customID })
+        XCTAssertFalse(settings.automaticRules.contains { $0.sequenceID == customID })
         XCTAssertEqual(
             settings.speechSettings.phrases.map(\.text),
             ["남는 대사"]
@@ -181,6 +293,19 @@ final class BehaviorSettingsEditorTests: XCTestCase {
     func testApplicationAndIdleRulesCanBeAddedUpdatedAndRemoved() throws {
         let applicationRuleID = UUID()
         let idleRuleID = UUID()
+        let disabledIdleSettings = try BehaviorSettingsEditor.settingIdleRule(
+            seconds: 2,
+            sequenceID: BuiltInBehaviorPresets.defaultSequenceID,
+            isEnabled: false,
+            in: makeSettings(rules: [])
+        )
+        XCTAssertEqual(disabledIdleSettings.automaticRules.count, 1)
+        XCTAssertFalse(try XCTUnwrap(disabledIdleSettings.automaticRules.first).isEnabled)
+        XCTAssertEqual(
+            disabledIdleSettings.automaticRules.first?.condition,
+            .idleAtLeast(milliseconds: 2_000)
+        )
+
         var settings = try BehaviorSettingsEditor.addingApplicationRule(
             bundleIdentifier: "com.apple.dt.Xcode",
             sequenceID: BuiltInBehaviorPresets.defaultSequenceID,
@@ -188,16 +313,51 @@ final class BehaviorSettingsEditorTests: XCTestCase {
             to: makeSettings(rules: [])
         )
         settings = try BehaviorSettingsEditor.addingIdleRule(
-            minutes: 3,
+            seconds: 3,
             sequenceID: BuiltInBehaviorPresets.defaultSequenceID,
             id: idleRuleID,
             to: settings
         )
 
+        let updatedIdleSettings = try BehaviorSettingsEditor.addingIdleRule(
+            seconds: 5,
+            sequenceID: BuiltInBehaviorPresets.defaultSequenceID,
+            to: settings
+        )
+        XCTAssertEqual(updatedIdleSettings.automaticRules.count, 2)
+        XCTAssertEqual(
+            updatedIdleSettings.automaticRules[1].condition,
+            .idleAtLeast(milliseconds: 5_000)
+        )
+        XCTAssertThrowsError(
+            try BehaviorSettingsEditor.addingApplicationRule(
+                bundleIdentifier: "COM.APPLE.DT.XCODE",
+                sequenceID: BuiltInBehaviorPresets.defaultSequenceID,
+                to: settings
+            )
+        ) { error in
+            XCTAssertEqual(error as? BehaviorSettingsEditError, .invalidRule)
+        }
+
         XCTAssertEqual(settings.automaticRules.map(\.priority), [0, 1])
         XCTAssertEqual(
             settings.automaticRules[1].condition,
-            .idleAtLeast(milliseconds: 180_000)
+            .idleAtLeast(milliseconds: 3_000)
+        )
+
+        settings = try BehaviorSettingsEditor.settingAutomaticRulePriorityOrder(
+            [.application, .movement, .idle],
+            in: settings
+        )
+        XCTAssertEqual(
+            settings.automaticRulePriorityOrder,
+            [.application, .movement, .idle]
+        )
+        XCTAssertThrowsError(
+            try BehaviorSettingsEditor.settingAutomaticRulePriorityOrder(
+                [.idle, .application],
+                in: settings
+            )
         )
 
         let edited = AutomaticRule(
@@ -224,7 +384,16 @@ final class BehaviorSettingsEditorTests: XCTestCase {
         }
         XCTAssertThrowsError(
             try BehaviorSettingsEditor.addingIdleRule(
-                minutes: 0,
+                seconds: 0,
+                sequenceID: BuiltInBehaviorPresets.defaultSequenceID,
+                to: settings
+            )
+        ) { error in
+            XCTAssertEqual(error as? BehaviorSettingsEditError, .invalidRule)
+        }
+        XCTAssertThrowsError(
+            try BehaviorSettingsEditor.addingIdleRule(
+                seconds: 86_401,
                 sequenceID: BuiltInBehaviorPresets.defaultSequenceID,
                 to: settings
             )
@@ -238,8 +407,9 @@ final class BehaviorSettingsEditorTests: XCTestCase {
             named: "custom",
             to: makeSettings()
         )
+        let customID = try XCTUnwrap(settings.sequences.last?.id)
         settings = try BehaviorSettingsEditor.replacingStep(
-            in: "custom",
+            in: customID,
             at: 0,
             with: BehaviorStep(
                 motionID: "waving",
@@ -247,6 +417,12 @@ final class BehaviorSettingsEditorTests: XCTestCase {
             ),
             settings: settings
         )
+        settings = try BehaviorSettingsEditor.addingSequence(
+            named: "waving",
+            initialMotionID: "waving",
+            to: settings
+        )
+        let synchronizedID = try XCTUnwrap(settings.sequences.last?.id)
         settings = settings.replacingActiveBehaviorProfile(
             BehaviorProfile(
                 petKey: settings.selectedPetKey,
@@ -263,23 +439,23 @@ final class BehaviorSettingsEditorTests: XCTestCase {
                         AppSettingsLimits.defaultFreeRoamingDwellMilliseconds,
                     prefersFrontmostWindow: true,
                     cursorFollowingAnimation: MovementAnimationSettings(
-                        fallbackMotionID: "waving",
+                        fallbackMotionID: customID,
                         usesDirectionalMotions: true,
                         usesDiagonalMotions: true,
                         directionMotionIDs: DirectionalMotionIDs(
-                            left: "waving",
-                            upRight: "waving"
+                            left: customID,
+                            upRight: customID
                         )
                     ),
                     freeRoamingAnimation: MovementAnimationSettings(
-                        fallbackMotionID: "waving",
+                        fallbackMotionID: customID,
                         usesDirectionalMotions: true,
                         directionMotionIDs: DirectionalMotionIDs(
-                            right: "waving"
+                            right: customID
                         )
                     )
                 ),
-                pettingMotionID: "waving"
+                pettingMotionID: customID
             )
         )
 
@@ -290,31 +466,35 @@ final class BehaviorSettingsEditorTests: XCTestCase {
             in: settings
         )
         var step = try XCTUnwrap(
-            settings.sequences.first { $0.id == "custom" }?.steps.first
+            settings.sequences.first { $0.id == customID }?.steps.first
         )
         XCTAssertEqual(step.motionID, "hello")
         XCTAssertEqual(step.repeatCount, 7)
         XCTAssertEqual(
-            settings.movementSettings.cursorFollowingMotionID,
+            settings.sequences.first { $0.id == synchronizedID }?.displayName,
             "hello"
         )
-        XCTAssertEqual(settings.movementSettings.freeRoamingMotionID, "hello")
+        XCTAssertEqual(
+            settings.movementSettings.cursorFollowingMotionID,
+            customID
+        )
+        XCTAssertEqual(settings.movementSettings.freeRoamingMotionID, customID)
         XCTAssertEqual(
             settings.movementSettings.cursorFollowingAnimation
                 .directionMotionIDs.left,
-            "hello"
+            customID
         )
         XCTAssertEqual(
             settings.movementSettings.cursorFollowingAnimation
                 .directionMotionIDs.upRight,
-            "hello"
+            customID
         )
         XCTAssertEqual(
             settings.movementSettings.freeRoamingAnimation
                 .directionMotionIDs.right,
-            "hello"
+            customID
         )
-        XCTAssertEqual(settings.pettingMotionID, "hello")
+        XCTAssertEqual(settings.pettingMotionID, customID)
 
         settings = try BehaviorSettingsEditor.replacingMotionReferences(
             from: "hello",
@@ -323,25 +503,28 @@ final class BehaviorSettingsEditorTests: XCTestCase {
             in: settings
         )
         step = try XCTUnwrap(
-            settings.sequences.first { $0.id == "custom" }?.steps.first
+            settings.sequences.first { $0.id == customID }?.steps.first
         )
         XCTAssertEqual(step.motionID, PetMotionReference.currentPetDefault)
         XCTAssertEqual(step.repeatCount, 7)
-        XCTAssertNil(settings.movementSettings.cursorFollowingMotionID)
-        XCTAssertNil(settings.movementSettings.freeRoamingMotionID)
-        XCTAssertNil(
+        XCTAssertEqual(settings.movementSettings.cursorFollowingMotionID, customID)
+        XCTAssertEqual(settings.movementSettings.freeRoamingMotionID, customID)
+        XCTAssertEqual(
             settings.movementSettings.cursorFollowingAnimation
-                .directionMotionIDs.left
+                .directionMotionIDs.left,
+            customID
         )
-        XCTAssertNil(
+        XCTAssertEqual(
             settings.movementSettings.cursorFollowingAnimation
-                .directionMotionIDs.upRight
+                .directionMotionIDs.upRight,
+            customID
         )
-        XCTAssertNil(
+        XCTAssertEqual(
             settings.movementSettings.freeRoamingAnimation
-                .directionMotionIDs.right
+                .directionMotionIDs.right,
+            customID
         )
-        XCTAssertNil(settings.pettingMotionID)
+        XCTAssertEqual(settings.pettingMotionID, customID)
     }
 
     private func makeSettings(

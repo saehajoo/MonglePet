@@ -51,6 +51,26 @@ final class PetMovementLifecycleTests: XCTestCase {
         XCTAssertEqual(controller.updates.last, Update(settings, true))
     }
 
+    func testHigherPriorityAutomaticRuleStopsAndRestartsMovement() {
+        let controller = RecordingPetMovementController()
+        let lifecycle = PetMovementLifecycle(controller: controller)
+        let settings = cursorFollowingSettings()
+        lifecycle.setSettings(settings)
+        lifecycle.setAwake(true)
+        lifecycle.setSystemSuspended(false)
+        XCTAssertTrue(lifecycle.isMovementAllowed)
+
+        lifecycle.setAutomaticRuleBlockingMovement(true)
+
+        XCTAssertFalse(lifecycle.isMovementAllowed)
+        XCTAssertEqual(controller.updates.last, Update(settings, false))
+
+        lifecycle.setAutomaticRuleBlockingMovement(false)
+
+        XCTAssertTrue(lifecycle.isMovementAllowed)
+        XCTAssertEqual(controller.updates.last, Update(settings, true))
+    }
+
     func testEnvironmentInvalidationAndStopAreForwarded() {
         let controller = RecordingPetMovementController()
         let lifecycle = PetMovementLifecycle(controller: controller)

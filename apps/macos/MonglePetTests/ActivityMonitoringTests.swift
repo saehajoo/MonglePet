@@ -490,7 +490,12 @@ final class ActivityMonitoringTests: XCTestCase {
         )
         XCTAssertEqual(
             coordinator.currentSettings.activePetInstances.map(\.overlay.width),
-            settings.activePetInstances.map(\.overlay.width)
+            [
+                BuiltInBehaviorPresets.mongleDisplay.applying(
+                    to: settings.activePetInstances[0].overlay
+                ).width,
+                settings.activePetInstances[1].overlay.width
+            ]
         )
         XCTAssertEqual(coordinator.presentationResourceLoadCount, 1)
     }

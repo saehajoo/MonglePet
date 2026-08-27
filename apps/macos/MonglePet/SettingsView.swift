@@ -34,7 +34,7 @@ struct SettingsView: View {
                         destination: .movement
                     )
                     navigationRow(
-                        "행동 루틴",
+                        "행동",
                         systemImage: "list.bullet.rectangle",
                         destination: .behavior
                     )
@@ -44,7 +44,7 @@ struct SettingsView: View {
                         destination: .speech
                     )
                     navigationRow(
-                        "자동 규칙",
+                        "자동 동작",
                         systemImage: "bolt.badge.clock",
                         destination: .automaticRules
                     )
@@ -185,6 +185,16 @@ private enum SettingsDestination: Hashable {
     }
 }
 
+private struct AnimationDuplicationFailure: Identifiable {
+    let id = UUID()
+    let message: String
+}
+
+private struct PendingAnimationDuplication {
+    let sourceAnimationID: String
+    let duplicatedAnimationID: String
+}
+
 private struct PetSettingsView: View {
     @ObservedObject var settingsSession: AppSettingsSession
     @ObservedObject var petLibrarySession: PetLibrarySession
@@ -196,6 +206,10 @@ private struct PetSettingsView: View {
     @State private var isCreatingEditableCopy = false
     @State private var userPetEditorMode: UserPetEditorMode?
     @State private var editingAnimation: PetMotion?
+    @State private var animationDuplicationFailure:
+        AnimationDuplicationFailure?
+    @State private var pendingAnimationDuplication:
+        PendingAnimationDuplication?
     @State private var previewMotionID: String?
     @State private var importReview: PetPackageImportReview?
     @State private var pendingImportAction: PetImportAction?
@@ -340,6 +354,26 @@ private struct PetSettingsView: View {
                             "monglepet.settings.editPetAnimation"
                         )
 
+                        Button {
+                            duplicateSelectedAnimation()
+                        } label: {
+                            Label(
+                                "애니메이션 복제…",
+                                systemImage: "doc.on.doc"
+                            )
+                            .frame(
+                                maxWidth: .infinity,
+                                alignment: .leading
+                            )
+                        }
+                        .disabled(
+                            selectedPreviewMotion == nil
+                                || petLibrarySession.isImporting
+                        )
+                        .accessibilityIdentifier(
+                            "monglepet.settings.duplicatePetAnimation"
+                        )
+
                         Button(role: .destructive) {
                             isConfirmingAnimationRemoval = true
                         } label: {
@@ -415,25 +449,24 @@ private struct PetSettingsView: View {
                         .accessibilityIdentifier(
                             "monglepet.settings.editPetDetails"
                         )
-                    } else if !petLibrarySession.selectedItem.isBuiltIn {
-                        Button {
-                            isCreatingEditableCopy = true
-                        } label: {
-                            Label(
-                                "편집 가능한 사본 만들기",
-                                systemImage: "doc.on.doc"
-                            )
-                            .frame(
-                                maxWidth: .infinity,
-                                alignment: .leading
-                            )
-                        }
-                        .disabled(petLibrarySession.isImporting)
-                        .accessibilityIdentifier(
-                            "monglepet.settings.createEditablePetCopy"
-                        )
                     }
 
+                    Button {
+                        isCreatingEditableCopy = true
+                    } label: {
+                        Label(
+                            "펫 사본 새로 만들기",
+                            systemImage: "doc.on.doc"
+                        )
+                        .frame(
+                            maxWidth: .infinity,
+                            alignment: .leading
+                        )
+                    }
+                    .disabled(petLibrarySession.isImporting)
+                    .accessibilityIdentifier(
+                        "monglepet.settings.createEditablePetCopy"
+                    )
                     if !petLibrarySession.selectedItem.isBuiltIn {
                         Button(role: .destructive) {
                             isConfirmingRemoval = true
@@ -514,6 +547,13 @@ private struct PetSettingsView: View {
         } message: {
             Text("이 애니메이션을 사용하던 행동 단계는 현재 펫의 기본 애니메이션으로 복구됩니다.")
         }
+        .alert(item: $animationDuplicationFailure) { failure in
+            Alert(
+                title: Text("애니메이션을 복제하지 못했습니다"),
+                message: Text(failure.message),
+                dismissButton: .default(Text("확인"))
+            )
+        }
         .alert(
             "펫 내보내기 완료",
             isPresented: exportSuccessAlertBinding
@@ -525,7 +565,8 @@ private struct PetSettingsView: View {
         .sheet(item: $userPetEditorMode) { mode in
             UserPetAnimationEditorView(
                 mode: mode,
-                petLibrarySession: petLibrarySession
+                petLibrarySession: petLibrarySession,
+                settingsSession: settingsSession
             )
         }
         .sheet(isPresented: $isEditingPetDetails) {
@@ -537,15 +578,26 @@ private struct PetSettingsView: View {
         .sheet(isPresented: $isCreatingEditableCopy) {
             ReadOnlyPetCopyEditorView(
                 item: petLibrarySession.selectedItem,
-                petLibrarySession: petLibrarySession
+                petLibrarySession: petLibrarySession,
+                settingsSession: settingsSession
             )
         }
-        .sheet(item: $editingAnimation) { motion in
+        .sheet(
+            item: $editingAnimation,
+            onDismiss: rollbackPendingAnimationDuplication
+        ) { motion in
             UserPetAnimationDetailsEditorView(
                 item: petLibrarySession.selectedItem,
                 motion: motion,
                 petLibrarySession: petLibrarySession,
+                settingsSession: settingsSession,
+                duplicationSourceAnimationID:
+                    pendingAnimationDuplication?.duplicatedAnimationID
+                        == motion.id
+                        ? pendingAnimationDuplication?.sourceAnimationID
+                        : nil,
                 onSaved: { animationID in
+                    pendingAnimationDuplication = nil
                     previewMotionID = animationID
                 }
             )
@@ -628,7 +680,7 @@ private struct PetSettingsView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             } else {
-                Text("선택한 펫과 선택적인 권장 설정을 .monglepet 파일로 저장합니다.")
+                Text("선택한 펫의 이미지와 모든 공유 가능한 설정을 .monglepet 파일로 저장합니다.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
@@ -636,7 +688,8 @@ private struct PetSettingsView: View {
                     shareReview = petLibrarySession
                         .reviewSelectedPetForSharing(
                             behaviorProfile: settingsSession.settings
-                                .activeBehaviorProfile
+                                .activeBehaviorProfile,
+                            overlay: settingsSession.settings.overlay
                         )
                 } label: {
                     Label(
@@ -716,6 +769,59 @@ private struct PetSettingsView: View {
             return
         }
         if petLibrarySession.removeSelectedPetAnimation(id: motionID) {
+            synchronizePreviewMotion()
+        }
+    }
+
+    private func duplicateSelectedAnimation() {
+        guard let sourceID = selectedPreviewMotion?.id else {
+            return
+        }
+        guard let duplicateID = petLibrarySession
+            .duplicateSelectedPetAnimation(id: sourceID) else {
+            animationDuplicationFailure = AnimationDuplicationFailure(
+                message: petLibrarySession.errorMessage
+                    ?? "선택한 애니메이션의 사본을 만들 수 없습니다."
+            )
+            return
+        }
+
+        pendingAnimationDuplication = PendingAnimationDuplication(
+            sourceAnimationID: sourceID,
+            duplicatedAnimationID: duplicateID
+        )
+        previewMotionID = duplicateID
+        presentDuplicatedAnimationEditor(id: duplicateID)
+    }
+
+    private func presentDuplicatedAnimationEditor(id animationID: String) {
+        guard let motion = petLibrarySession.selectedItem.definition.motion(
+            id: animationID
+        ) else {
+            rollbackPendingAnimationDuplication()
+            animationDuplicationFailure = AnimationDuplicationFailure(
+                message: "복제본을 만든 뒤 편집 화면을 열지 못했습니다. 다시 시도해 주세요."
+            )
+            return
+        }
+        editingAnimation = motion
+    }
+
+    private func rollbackPendingAnimationDuplication() {
+        guard let pendingAnimationDuplication else {
+            return
+        }
+        self.pendingAnimationDuplication = nil
+
+        _ = petLibrarySession.removeSelectedPetAnimation(
+            id: pendingAnimationDuplication.duplicatedAnimationID
+        )
+
+        if petLibrarySession.selectedItem.definition.motion(
+            id: pendingAnimationDuplication.sourceAnimationID
+        ) != nil {
+            previewMotionID = pendingAnimationDuplication.sourceAnimationID
+        } else {
             synchronizePreviewMotion()
         }
     }
@@ -1120,8 +1226,10 @@ private struct PetAnimationSelectionButton: View {
                 isDefault: isDefault,
                 isSelected: isSelected
             )
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
         .accessibilityLabel(accessibilityLabel)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
@@ -1151,6 +1259,7 @@ private struct PetAnimationListView: View {
                     }
                 }
             }
+            .frame(maxWidth: .infinity)
             .padding(4)
         }
         .frame(height: height)
@@ -1390,7 +1499,7 @@ private struct PetPackageImportReviewView: View {
                     dismiss()
                 }
                 Spacer()
-                Button("펫만 설치") {
+                Button("펫만 설치 · 포함 설정 적용 안 함") {
                     onInstall(false)
                     dismiss()
                 }
@@ -1398,7 +1507,7 @@ private struct PetPackageImportReviewView: View {
                 .accessibilityIdentifier("monglepet.import.petOnly")
                 if review.recommendedProfile != nil,
                    allowsRecommendedProfileApplication {
-                    Button("권장 설정 적용 후 설치") {
+                    Button("포함된 설정 모두 적용 후 설치") {
                         onInstall(true)
                         dismiss()
                     }
@@ -1499,13 +1608,19 @@ private struct PetPackageImportReviewView: View {
     @ViewBuilder
     private var recommendedProfileSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("펫별 행동·이동·말풍선 권장 설정")
+            Text("펫별 표시·행동·이동·말풍선 설정")
                 .font(.headline)
 
             if let profile = review.recommendedProfile {
                 RecommendedProfileSummaryView(
                     summary: RecommendedProfileSummary(profile: profile)
                 )
+
+                Text(
+                    "‘포함된 설정 모두 적용 후 설치’를 선택하면 아래 설정을 새 펫에 함께 적용합니다."
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
 
                 if !allowsRecommendedProfileApplication {
                     Label(
@@ -1754,7 +1869,7 @@ private struct DuplicatePetInstallView: View {
         case .preserveLocal:
             "현재 설치의 행동 모드, 루틴, 자동 규칙, 이동과 쓰다듬기 설정을 그대로 유지합니다."
         case .applyRecommended:
-            "현재 펫별 행동·이동·말풍선 설정 전체를 패키지의 권장 설정으로 바꿉니다. 부분 병합은 제공하지 않습니다."
+            "현재 펫별 표시·행동·이동·말풍선 설정 전체를 패키지 설정으로 바꿉니다. 화면 위치와 기기 공통 이동 범위는 유지합니다. 부분 병합은 제공하지 않습니다."
         }
     }
 
@@ -1784,7 +1899,7 @@ private struct DuplicatePetInstallView: View {
     private var newInstallationDescription: String {
         if request.appliesRecommendedProfileToNewInstallation,
            request.importReview?.recommendedProfile != nil {
-            return "새 설치는 새 설치 ID를 사용하며 확인한 행동·이동·말풍선 권장 설정을 적용합니다."
+            return "새 설치는 새 설치 ID를 사용하며 확인한 표시·행동·이동·말풍선 설정을 적용합니다."
         }
         return "새 설치는 새 설치 ID와 독립된 기본 행동·이동 설정을 사용합니다."
     }
@@ -1867,7 +1982,6 @@ private struct PetPackageShareReviewView: View {
     let onExport: (PetPackageShareOptions) -> Void
 
     @State private var isSharingRightsConfirmed = false
-    @State private var includesRecommendedProfile = false
     @State private var includesApplicationRules = false
 
     var body: some View {
@@ -1925,8 +2039,6 @@ private struct PetPackageShareReviewView: View {
                 Button("저장 위치 선택…") {
                     onExport(
                         PetPackageShareOptions(
-                            includesRecommendedProfile:
-                                includesRecommendedProfile,
                             includesApplicationRules:
                                 includesApplicationRules
                         )
@@ -1934,7 +2046,10 @@ private struct PetPackageShareReviewView: View {
                     dismiss()
                 }
                 .keyboardShortcut(.defaultAction)
-                .disabled(!isSharingRightsConfirmed)
+                .disabled(
+                    !isSharingRightsConfirmed
+                        || review.recommendedProfile == nil
+                )
                 .accessibilityIdentifier("monglepet.share.chooseDestination")
             }
             .padding(.horizontal, 20)
@@ -1942,11 +2057,6 @@ private struct PetPackageShareReviewView: View {
         }
         .frame(width: 560)
         .frame(minHeight: 480, maxHeight: 680)
-        .onChange(of: includesRecommendedProfile) {
-            if !includesRecommendedProfile {
-                includesApplicationRules = false
-            }
-        }
         .accessibilityIdentifier("monglepet.share.review")
     }
 
@@ -1960,11 +2070,10 @@ private struct PetPackageShareReviewView: View {
 
                 Divider()
 
-                Toggle(
-                    "펫별 행동·이동·말풍선 권장 설정 포함",
-                    isOn: $includesRecommendedProfile
+                Label(
+                    "펫별 표시·행동·이동·말풍선 설정 전체",
+                    systemImage: "checkmark.circle.fill"
                 )
-                .disabled(review.recommendedProfile == nil)
                 .accessibilityIdentifier(
                     "monglepet.share.includeRecommendedProfile"
                 )
@@ -1980,13 +2089,9 @@ private struct PetPackageShareReviewView: View {
                     Text("현재 펫에 공유할 행동·이동·말풍선 권장 설정이 없습니다.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                } else if includesRecommendedProfile {
+                } else {
                     recommendedProfileSummary
                     applicationRuleOptions
-                } else {
-                    Text("선택하지 않으면 기존과 같이 펫과 애니메이션만 저장합니다.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -2068,13 +2173,11 @@ private struct RecommendedProfileSummaryView: View {
             ) {
                 informationRow(
                     "행동 모드",
-                    value: summary.mode == .automatic ? "자동" : "수동"
+                    value: behaviorModeName
                 )
                 informationRow(
-                    "선택 루틴",
-                    value: summary.manualSequenceID.map(
-                        BuiltInBehaviorPresets.displayName(for:)
-                    ) ?? "자동 결정"
+                    behaviorSelectionLabel,
+                    value: behaviorSelectionDescription
                 )
                 informationRow(
                     "행동 루틴",
@@ -2085,14 +2188,49 @@ private struct RecommendedProfileSummaryView: View {
                     value: "\(summary.automaticRules.count)개"
                 )
                 informationRow(
+                    "자동 규칙 우선순위",
+                    value: summary.automaticRulePriorityDescription
+                )
+                informationRow(
                     "이동 방식",
                     value: movementModeName(summary.movement.mode)
                 )
+                if summary.includesDisplaySettings {
+                    informationRow(
+                        "펫 표시 · 크기/불투명도",
+                        value: "\(Int(summary.display.scalePercent.rounded()))% · 불투명도 \(Int((summary.display.opacity * 100).rounded()))%"
+                    )
+                    informationRow(
+                        "펫 표시 · 클릭 통과",
+                        value: usageName(summary.display.clickThrough)
+                    )
+                    informationRow(
+                        "펫 표시 · 포인터 겹침",
+                        value: summary.display.pointerOverlapFadeEnabled
+                            ? "사용 · \(Int((summary.display.pointerOverlapOpacity * 100).rounded()))%"
+                            : "사용 안 함"
+                    )
+                    informationRow(
+                        "펫 표시 · 픽셀 방식",
+                        value: usageName(summary.display.pixelArtRendering)
+                    )
+                } else {
+                    informationRow(
+                        "펫 표시",
+                        value: "구형 패키지 · 현재 표시 설정 유지"
+                    )
+                }
                 informationRow(
                     "쓰다듬기",
                     value: summary.movement.mode == .cursorAvoiding
-                        ? "도망가기 모드에서 사용하지 않음"
-                        : summary.pettingMotionID ?? "지정 안 함"
+                        ? "도망가기 중 사용 안 함 · 저장값 "
+                            + (summary.pettingMotionID.map(
+                                summary.behaviorDisplayName(for:)
+                            ) ?? "지정 안 함")
+                        : summary.pettingMotionID.map(
+                            summary.behaviorDisplayName(for:)
+                        )
+                            ?? "지정 안 함"
                 )
                 informationRow(
                     "말풍선",
@@ -2128,9 +2266,7 @@ private struct RecommendedProfileSummaryView: View {
                     ForEach(summary.sequences, id: \.id) { sequence in
                         VStack(alignment: .leading, spacing: 3) {
                             Text(
-                                BuiltInBehaviorPresets.displayName(
-                                    for: sequence.id
-                                )
+                                sequence.displayName
                             )
                                 .font(.caption.weight(.semibold))
                             Text(
@@ -2165,7 +2301,7 @@ private struct RecommendedProfileSummaryView: View {
                                 Text(ruleConditionText(rule.condition))
                                     .textSelection(.enabled)
                                 Text(
-                                    "\(rule.isEnabled ? "사용" : "사용 안 함") · 우선순위 \(rule.priority) · \(BuiltInBehaviorPresets.displayName(for: rule.sequenceID))"
+                                    "\(rule.isEnabled ? "사용" : "사용 안 함") · \(summary.behaviorDisplayName(for: rule.sequenceID))"
                                 )
                                 .foregroundStyle(.secondary)
                             }
@@ -2183,51 +2319,101 @@ private struct RecommendedProfileSummaryView: View {
                         verticalSpacing: 5
                     ) {
                         informationRow(
-                            "이동 속도",
-                            value:
-                                "\(Int(summary.movement.speed.rounded())) pt/s"
-                        )
-                        informationRow(
-                            "마우스와 거리",
-                            value:
-                                "\(Int(summary.movement.cursorDistance.rounded())) pt"
-                        )
-                        informationRow(
-                            "정지 반경",
-                            value:
-                                "\(Int(summary.movement.stopRadius.rounded())) pt"
-                        )
-                        informationRow(
-                            "자유 이동 대기",
-                            value: dwellText(
-                                summary.movement
-                                    .freeRoamingDwellMilliseconds
+                            "따라가기 · 속도",
+                            value: pointsPerSecond(
+                                summary.movement.cursorFollowing.speed
                             )
                         )
                         informationRow(
-                            "활성 앱 창 우선",
-                            value: summary.movement.prefersFrontmostWindow
-                                ? "사용"
-                                : "사용 안 함"
+                            "따라가기 · 마우스 거리",
+                            value: points(
+                                summary.movement.cursorFollowing.cursorDistance
+                            )
                         )
                         informationRow(
-                            "도망가기 평상시",
-                            value:
-                                summary.movement
-                                    .cursorAvoidingIdleBehavior
-                                    == .stationary
+                            "따라가기 · 정지 반경",
+                            value: points(
+                                summary.movement.cursorFollowing.stopRadius
+                            )
+                        )
+                        informationRow(
+                            "자유 이동 · 속도",
+                            value: pointsPerSecond(
+                                summary.movement.freeRoaming.speed
+                            )
+                        )
+                        informationRow(
+                            "자유 이동 · 정지 반경",
+                            value: points(
+                                summary.movement.freeRoaming.stopRadius
+                            )
+                        )
+                        informationRow(
+                            "자유 이동 · 머무는 시간",
+                            value: dwellDescription(
+                                summary.movement.freeRoaming
+                            )
+                        )
+                        informationRow(
+                            "자유 이동 · 활성 앱 창 우선",
+                            value: usageName(
+                                summary.movement.freeRoaming
+                                    .prefersFrontmostWindow
+                            )
+                        )
+                        informationRow(
+                            "도망가기 · 감지 거리",
+                            value: points(
+                                summary.movement.cursorAvoiding
+                                    .detectionDistance
+                            )
+                        )
+                        informationRow(
+                            "도망가기 · 속도",
+                            value: pointsPerSecond(
+                                summary.movement.cursorAvoiding.speed
+                            )
+                        )
+                        informationRow(
+                            "도망가기 · 정지 반경",
+                            value: points(
+                                summary.movement.cursorAvoiding.stopRadius
+                            )
+                        )
+                        informationRow(
+                            "도망가기 · 평상시",
+                            value: summary.movement.cursorAvoiding.idleBehavior
+                                == .stationary
                                 ? "가만히 있기"
                                 : "자유 이동"
                         )
                         informationRow(
-                            "마우스 감지 거리",
-                            value:
-                                "\(Int(summary.movement.cursorAvoidingDetectionDistance.rounded())) pt"
+                            "도망가기 평상시 · 속도",
+                            value: pointsPerSecond(
+                                summary.movement.cursorAvoiding
+                                    .idleFreeRoaming.speed
+                            )
                         )
                         informationRow(
-                            "도망가는 속도",
-                            value:
-                                "\(Int(summary.movement.cursorAvoidingSpeed.rounded())) pt/s"
+                            "도망가기 평상시 · 정지 반경",
+                            value: points(
+                                summary.movement.cursorAvoiding
+                                    .idleFreeRoaming.stopRadius
+                            )
+                        )
+                        informationRow(
+                            "도망가기 평상시 · 머무는 시간",
+                            value: dwellDescription(
+                                summary.movement.cursorAvoiding
+                                    .idleFreeRoaming
+                            )
+                        )
+                        informationRow(
+                            "도망가기 평상시 · 활성 앱 창 우선",
+                            value: usageName(
+                                summary.movement.cursorAvoiding
+                                    .idleFreeRoaming.prefersFrontmostWindow
+                            )
                         )
                     }
 
@@ -2236,9 +2422,10 @@ private struct RecommendedProfileSummaryView: View {
                     movementAnimationSummary(
                         title: "마우스 따라가기",
                         systemImage: "cursorarrow",
-                        mode: .cursorFollowing,
+                        isCurrent:
+                            summary.movement.mode == .cursorFollowing,
                         animation:
-                            summary.movement.cursorFollowingAnimation
+                            summary.movement.cursorFollowing.animation
                     )
 
                     Divider()
@@ -2246,8 +2433,8 @@ private struct RecommendedProfileSummaryView: View {
                     movementAnimationSummary(
                         title: "자유 이동",
                         systemImage: "arrow.triangle.2.circlepath",
-                        mode: .freeRoaming,
-                        animation: summary.movement.freeRoamingAnimation
+                        isCurrent: summary.movement.mode == .freeRoaming,
+                        animation: summary.movement.freeRoaming.animation
                     )
 
                     Divider()
@@ -2255,16 +2442,29 @@ private struct RecommendedProfileSummaryView: View {
                     movementAnimationSummary(
                         title: "마우스 도망가기",
                         systemImage: "figure.run",
-                        mode: .cursorAvoiding,
+                        isCurrent:
+                            summary.movement.mode == .cursorAvoiding,
                         animation:
-                            summary.movement.cursorAvoidingAnimation
+                            summary.movement.cursorAvoiding.animation
+                    )
+
+                    Divider()
+
+                    movementAnimationSummary(
+                        title: "도망가기 평상시 자유 이동",
+                        systemImage: "figure.walk",
+                        isCurrent: summary.movement.mode == .cursorAvoiding
+                            && summary.movement.cursorAvoiding.idleBehavior
+                                == .freeRoaming,
+                        animation: summary.movement.cursorAvoiding
+                            .idleFreeRoaming.animation
                     )
                 }
                 .padding(.top, 6)
             }
 
             Label(
-                "화면 위치·이동 범위·크기·투명도·클릭 통과·픽셀 표시·로그인 실행은 이 패키지에 포함되지 않습니다.",
+                "화면 위치·모니터·모든 펫 공통 이동 범위·깨움 상태·로그인 실행은 기기 전용 값이라 이 패키지에 포함되지 않습니다.",
                 systemImage: "desktopcomputer"
             )
             .font(.caption)
@@ -2282,7 +2482,7 @@ private struct RecommendedProfileSummaryView: View {
     private func movementAnimationSummary(
         title: String,
         systemImage: String,
-        mode: PetMovementMode,
+        isCurrent: Bool,
         animation: MovementAnimationSettings
     ) -> some View {
         VStack(alignment: .leading, spacing: 7) {
@@ -2292,7 +2492,7 @@ private struct RecommendedProfileSummaryView: View {
 
                 Spacer(minLength: 8)
 
-                if summary.movement.mode == mode {
+                if isCurrent {
                     Text("현재 사용")
                         .foregroundStyle(.tint)
                         .font(.caption2.weight(.semibold))
@@ -2315,7 +2515,10 @@ private struct RecommendedProfileSummaryView: View {
             ) {
                 informationRow(
                     "기본 이동",
-                    value: animation.fallbackMotionID ?? "기존 행동 유지"
+                    value: animation.fallbackMotionID.map(
+                        summary.behaviorDisplayName(for:)
+                    )
+                        ?? "기존 행동 유지"
                 )
                 if animation.usesDirectionalMotions {
                     ForEach(displayedDirections(for: animation), id: \.self) {
@@ -2342,6 +2545,49 @@ private struct RecommendedProfileSummaryView: View {
         return "\(seconds)초 간격"
     }
 
+    private var behaviorModeName: String {
+        switch summary.mode {
+        case .automatic:
+            "자동 규칙"
+        case .manual:
+            "직접 선택"
+        case .random:
+            "랜덤 선택"
+        }
+    }
+
+    private var behaviorSelectionLabel: String {
+        summary.mode == .random ? "랜덤 행동" : "선택 행동"
+    }
+
+    private var behaviorSelectionDescription: String {
+        switch summary.mode {
+        case .automatic:
+            "자동 규칙으로 결정"
+        case .manual:
+            summary.manualSequenceID.map(
+                summary.behaviorDisplayName(for:)
+            ) ?? "기본 행동"
+        case .random:
+            summary.randomSequenceIDs.isEmpty
+                ? "기본 행동"
+                : "\(summary.randomSequenceIDs.count)개 · "
+                    + summary.randomSequenceIDs
+                        .map(summary.behaviorDisplayName(for:))
+                        .joined(separator: ", ")
+        }
+    }
+
+    private func dwellDescription(
+        _ roaming: FreeRoamingMovementSettings
+    ) -> String {
+        let maximum = dwellText(roaming.dwellMilliseconds)
+        guard roaming.randomizesDwell else {
+            return maximum
+        }
+        return "\(dwellText(roaming.dwellMinimumMilliseconds))~\(maximum) 랜덤"
+    }
+
     private func animationStyleName(
         _ animation: MovementAnimationSettings
     ) -> String {
@@ -2358,7 +2604,7 @@ private struct RecommendedProfileSummaryView: View {
         animation: MovementAnimationSettings
     ) -> String {
         if let motionID = animation.directionMotionIDs[direction] {
-            return motionID
+            return summary.behaviorDisplayName(for: motionID)
         }
         let availableDirections = animation.usesDiagonalMotions
             ? MovementDirection.cardinalCases
@@ -2371,7 +2617,7 @@ private struct RecommendedProfileSummaryView: View {
             return "가까운 사용 방향 자동 선택"
         }
         if let fallbackMotionID = animation.fallbackMotionID {
-            return "기본 이동 사용 · \(fallbackMotionID)"
+            return "기본 이동 사용 · \(summary.behaviorDisplayName(for: fallbackMotionID))"
         }
         return "기존 행동 유지"
     }
@@ -2395,6 +2641,18 @@ private struct RecommendedProfileSummaryView: View {
             Text(value)
                 .textSelection(.enabled)
         }
+    }
+
+    private func points(_ value: Double) -> String {
+        "\(Int(value.rounded())) pt"
+    }
+
+    private func pointsPerSecond(_ value: Double) -> String {
+        "\(Int(value.rounded())) pt/s"
+    }
+
+    private func usageName(_ isEnabled: Bool) -> String {
+        isEnabled ? "사용" : "사용 안 함"
     }
 
     private func movementModeName(_ mode: PetMovementMode) -> String {
@@ -2461,10 +2719,195 @@ private enum UserPetEditorMode: String, Identifiable {
     var id: String { rawValue }
 }
 
+private enum AnimationBehaviorLinkMode: String, CaseIterable, Identifiable {
+    case none
+    case newBehavior
+    case existingBehavior
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .none:
+            "연결 안 함"
+        case .newBehavior:
+            "새 행동 만들기"
+        case .existingBehavior:
+            "기존 행동에 추가"
+        }
+    }
+}
+
+private func effectiveBehaviorName(
+    enteredName: String,
+    animationID: String
+) -> String {
+    let normalizedName = enteredName.trimmingCharacters(
+        in: .whitespacesAndNewlines
+    )
+    return normalizedName.isEmpty ? animationID : normalizedName
+}
+
+private func animationBehaviorLinkValidationMessage(
+    mode: AnimationBehaviorLinkMode,
+    newBehaviorName: String,
+    existingBehaviorID: String,
+    animationID: String,
+    sequences: [BehaviorSequence]
+) -> String? {
+    switch mode {
+    case .none:
+        return nil
+    case .newBehavior:
+        let behaviorName = effectiveBehaviorName(
+            enteredName: newBehaviorName,
+            animationID: animationID
+        )
+        guard !behaviorName.isEmpty else {
+            return "애니메이션 이름 또는 새 행동 이름을 입력해 주세요."
+        }
+        guard sequences.count < AppSettingsLimits.maximumSequences else {
+            return "행동은 최대 100개까지 만들 수 있습니다."
+        }
+        if sequences.contains(where: {
+            $0.displayName.compare(
+                behaviorName,
+                options: .caseInsensitive
+            ) == .orderedSame
+        }) {
+            return "같은 이름의 행동이 이미 있습니다."
+        }
+        return nil
+    case .existingBehavior:
+        guard let sequence = sequences.first(where: {
+            $0.id == existingBehaviorID
+        }) else {
+            return "애니메이션을 추가할 행동을 선택해 주세요."
+        }
+        guard sequence.steps.count < AppSettingsLimits.maximumStepsPerSequence else {
+            return "선택한 행동에는 단계를 더 추가할 수 없습니다."
+        }
+        return nil
+    }
+}
+
+private struct AnimationBehaviorLinkSection: View {
+    @Binding var mode: AnimationBehaviorLinkMode
+    @Binding var newBehaviorName: String
+    @Binding var existingBehaviorID: String
+    let animationID: String
+    let sequences: [BehaviorSequence]
+    let currentBehaviorNames: [String]?
+
+    var body: some View {
+        GroupBox("행동 연결") {
+            VStack(alignment: .leading, spacing: 12) {
+                if let currentBehaviorNames {
+                    LabeledContent("현재 사용 중") {
+                        Text(
+                            currentBehaviorNames.isEmpty
+                                ? "없음"
+                                : currentBehaviorNames.joined(separator: ", ")
+                        )
+                        .foregroundStyle(
+                            currentBehaviorNames.isEmpty ? .secondary : .primary
+                        )
+                        .multilineTextAlignment(.trailing)
+                    }
+                }
+
+                Picker("저장 후", selection: $mode) {
+                    ForEach(AnimationBehaviorLinkMode.allCases) { option in
+                        Text(option.title).tag(option)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .accessibilityIdentifier("monglepet.animationBehaviorLink.mode")
+
+                switch mode {
+                case .none:
+                    Text("애니메이션만 저장하며 행동 구성은 바꾸지 않습니다.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                case .newBehavior:
+                    TextField(
+                        animationID.isEmpty ? "행동 이름" : animationID,
+                        text: $newBehaviorName
+                    )
+                    .accessibilityIdentifier(
+                        "monglepet.animationBehaviorLink.newBehaviorName"
+                    )
+                    Text("비워 두면 애니메이션 이름으로 한 단계 행동을 만듭니다.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                case .existingBehavior:
+                    if sequences.isEmpty {
+                        Text("추가할 수 있는 행동이 없습니다.")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Picker("추가할 행동", selection: $existingBehaviorID) {
+                            ForEach(sequences) { sequence in
+                                Text(sequence.displayName).tag(sequence.id)
+                            }
+                        }
+                        .accessibilityIdentifier(
+                            "monglepet.animationBehaviorLink.existingBehavior"
+                        )
+
+                        if selectedSequenceContainsAnimation {
+                            Label(
+                                "이 행동에 같은 애니메이션이 이미 있습니다. 저장하면 마지막 단계에 한 번 더 추가됩니다.",
+                                systemImage: "info.circle"
+                            )
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        } else {
+                            Text("선택한 행동의 마지막 단계에 1회 재생으로 추가합니다.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
+                if let validationMessage {
+                    Label(validationMessage, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+            }
+            .padding(8)
+        }
+    }
+
+    var validationMessage: String? {
+        animationBehaviorLinkValidationMessage(
+            mode: mode,
+            newBehaviorName: newBehaviorName,
+            existingBehaviorID: existingBehaviorID,
+            animationID: animationID,
+            sequences: sequences
+        )
+    }
+
+    private var selectedSequence: BehaviorSequence? {
+        sequences.first { $0.id == existingBehaviorID }
+    }
+
+    private var selectedSequenceContainsAnimation: Bool {
+        guard !animationID.isEmpty else {
+            return false
+        }
+        return selectedSequence?.steps.contains {
+            $0.motionID == animationID
+        } ?? false
+    }
+}
+
 private struct UserPetAnimationEditorView: View {
     @Environment(\.dismiss) private var dismiss
     let mode: UserPetEditorMode
     @ObservedObject var petLibrarySession: PetLibrarySession
+    @ObservedObject var settingsSession: AppSettingsSession
 
     @State private var petName = ""
     @State private var version = "1.0.0"
@@ -2477,7 +2920,12 @@ private struct UserPetAnimationEditorView: View {
     @State private var selectedFrameID: UUID?
     @State private var spriteSheetImport: SpriteSheetImportPresentation?
     @State private var pngCropImport: PNGFrameCropPresentation?
+    @State private var existingFrameImport: ExistingPetFramePickerPresentation?
     @State private var imageImportErrorMessage: String?
+    @State private var behaviorLinkMode: AnimationBehaviorLinkMode = .none
+    @State private var newBehaviorName = ""
+    @State private var existingBehaviorID = ""
+    @State private var behaviorLinkErrorMessage: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -2494,6 +2942,9 @@ private struct UserPetAnimationEditorView: View {
                         petInformationSection
                     }
                     animationInformationSection
+                    if mode == .addAnimation {
+                        behaviorLinkSection
+                    }
                     frameEditorSection
 
                     Text("개별 프레임은 512×512 px 투명 PNG를 권장합니다. 정적 PNG·WebP 스프라이트 시트도 경계를 확인한 뒤 여러 프레임으로 가져올 수 있습니다.")
@@ -2504,6 +2955,15 @@ private struct UserPetAnimationEditorView: View {
                         Label(imageImportErrorMessage, systemImage: "exclamationmark.triangle.fill")
                             .font(.callout)
                             .foregroundStyle(.orange)
+                    }
+
+                    if let behaviorLinkErrorMessage {
+                        Label(
+                            behaviorLinkErrorMessage,
+                            systemImage: "exclamationmark.triangle.fill"
+                        )
+                        .font(.callout)
+                        .foregroundStyle(.orange)
                     }
 
                     if let errorMessage = petLibrarySession.errorMessage {
@@ -2537,6 +2997,7 @@ private struct UserPetAnimationEditorView: View {
             if mode == .create {
                 animationName = "기본"
             }
+            selectFirstBehaviorIfNeeded()
         }
         .sheet(item: $spriteSheetImport) { presentation in
             SpriteSheetImportView(document: presentation.document) { images in
@@ -2546,6 +3007,14 @@ private struct UserPetAnimationEditorView: View {
         .sheet(item: $pngCropImport) { presentation in
             PNGFrameCropEditorView(images: presentation.images) { images in
                 appendSpriteImages(images)
+            }
+        }
+        .sheet(item: $existingFrameImport) { presentation in
+            ExistingPetFramePickerView(
+                petName: presentation.petName,
+                groups: presentation.groups
+            ) { selections in
+                appendExistingFrames(selections)
             }
         }
     }
@@ -2615,6 +3084,17 @@ private struct UserPetAnimationEditorView: View {
         }
     }
 
+    private var behaviorLinkSection: some View {
+        AnimationBehaviorLinkSection(
+            mode: $behaviorLinkMode,
+            newBehaviorName: $newBehaviorName,
+            existingBehaviorID: $existingBehaviorID,
+            animationID: normalizedAnimationName,
+            sequences: settingsSession.settings.sequences,
+            currentBehaviorNames: nil
+        )
+    }
+
     private var frameEditorSection: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 12) {
@@ -2627,34 +3107,19 @@ private struct UserPetAnimationEditorView: View {
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
-                    Menu {
-                        Button("개별 PNG 추가…") {
-                            choosePNGs()
-                        }
-                        .accessibilityIdentifier("monglepet.userPet.choosePNGs")
-
-                        Button("스프라이트 시트에서 추가…") {
-                            chooseSpriteSheet()
-                        }
-                        .accessibilityIdentifier("monglepet.userPet.chooseSpriteSheet")
-                    } label: {
-                        Label(
-                            frames.isEmpty ? "프레임 선택" : "프레임 추가",
-                            systemImage: "plus"
-                        )
-                    }
-                    .accessibilityIdentifier(
-                        "monglepet.userPet.frameImportMenu"
-                    )
                 }
 
                 if frames.isEmpty {
-                    ContentUnavailableView(
-                        "추가한 프레임이 없습니다.",
-                        systemImage: "photo.on.rectangle.angled",
-                        description: Text("개별 PNG 또는 정적 PNG·WebP 스프라이트 시트를 추가해 주세요.")
-                    )
-                    .frame(maxWidth: .infinity, minHeight: 220)
+                    VStack(alignment: .trailing, spacing: 8) {
+                        frameImportMenu
+                        ContentUnavailableView(
+                            "추가한 프레임이 없습니다.",
+                            systemImage: "photo.on.rectangle.angled",
+                            description: Text("개별 PNG 또는 정적 PNG·WebP 스프라이트 시트를 추가해 주세요.")
+                        )
+                        .frame(maxWidth: .infinity, minHeight: 220)
+                    }
+                    .frame(maxWidth: .infinity)
                 } else {
                     HStack(alignment: .top, spacing: 16) {
                         VStack(alignment: .leading, spacing: 10) {
@@ -2665,16 +3130,23 @@ private struct UserPetAnimationEditorView: View {
                             )
 
                             if let selectedFrameBinding {
-                                FramePlacementControls(frame: selectedFrameBinding)
+                                FramePlacementControls(
+                                    frame: selectedFrameBinding,
+                                    onDuplicate: duplicateSelectedFrame
+                                )
                             }
                         }
-                        .frame(width: 230)
+                        .frame(width: 260)
 
                         Divider()
 
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("프레임 순서와 간격")
-                                .font(.subheadline.weight(.semibold))
+                            HStack {
+                                Text("프레임 순서와 간격")
+                                    .font(.subheadline.weight(.semibold))
+                                Spacer()
+                                frameImportMenu
+                            }
 
                             List(selection: $selectedFrameID) {
                                 ForEach(Array(frames.enumerated()), id: \.element.id) { index, frame in
@@ -2691,6 +3163,38 @@ private struct UserPetAnimationEditorView: View {
             }
             .padding(8)
         }
+    }
+
+    private var frameImportMenu: some View {
+        Menu {
+            Button("개별 PNG 추가…") {
+                choosePNGs()
+            }
+            .accessibilityIdentifier("monglepet.userPet.choosePNGs")
+
+            Button("스프라이트 시트에서 추가…") {
+                chooseSpriteSheet()
+            }
+            .accessibilityIdentifier("monglepet.userPet.chooseSpriteSheet")
+
+            if mode == .addAnimation {
+                Divider()
+                Button("현재 펫 프레임에서 추가…") {
+                    chooseExistingFrames()
+                }
+                .accessibilityIdentifier(
+                    "monglepet.userPet.chooseExistingFrames"
+                )
+            }
+        } label: {
+            Label(
+                frames.isEmpty ? "프레임 선택" : "프레임 추가",
+                systemImage: "plus"
+            )
+        }
+        .accessibilityIdentifier(
+            "monglepet.userPet.frameImportMenu"
+        )
     }
 
     private func fieldLabel(_ title: String) -> some View {
@@ -2768,6 +3272,8 @@ private struct UserPetAnimationEditorView: View {
         !animationName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !frames.isEmpty
             && frames.allSatisfy { 16...60_000 ~= $0.durationMilliseconds }
+            && (mode != .addAnimation || behaviorLinkValidationMessage == nil)
+            && (behaviorLinkMode == .none || settingsSession.isWritingEnabled)
             && (mode != .create
                 || (!petName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                     && !version.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -2819,10 +3325,35 @@ private struct UserPetAnimationEditorView: View {
         }
     }
 
+    private func chooseExistingFrames() {
+        do {
+            let item = petLibrarySession.selectedItem
+            existingFrameImport = ExistingPetFramePickerPresentation(
+                petName: item.metadata.displayName,
+                groups: try ExistingPetFrameLibrary.load(from: item)
+            )
+            imageImportErrorMessage = nil
+        } catch {
+            imageImportErrorMessage = error.localizedDescription
+        }
+    }
+
     private func appendSpriteImages(_ images: [UserPetSourceImage]) {
         let addedFrames = UserPetAnimationDraftFactory.new(
             images: images,
             durationMilliseconds: frameDurationMilliseconds,
+            reference: frames.first
+        )
+        frames.append(contentsOf: addedFrames)
+        selectedFrameID = addedFrames.first?.id ?? selectedFrameID
+        imageImportErrorMessage = nil
+    }
+
+    private func appendExistingFrames(
+        _ selections: [ExistingPetFrameSelection]
+    ) {
+        let addedFrames = UserPetAnimationDraftFactory.reused(
+            selections: selections,
             reference: frames.first
         )
         frames.append(contentsOf: addedFrames)
@@ -2847,6 +3378,14 @@ private struct UserPetAnimationEditorView: View {
         selectedFrameID = duplicate.id
     }
 
+    private func duplicateSelectedFrame() {
+        guard let selectedFrameID,
+              let index = frames.firstIndex(where: { $0.id == selectedFrameID }) else {
+            return
+        }
+        duplicateFrame(at: index)
+    }
+
     private func removeFrame(id: UUID) {
         frames.removeAll { $0.id == id }
         if selectedFrameID == id {
@@ -2869,6 +3408,7 @@ private struct UserPetAnimationEditorView: View {
     }
 
     private func save() {
+        behaviorLinkErrorMessage = nil
         let succeeded: Bool
         switch mode {
         case .create:
@@ -2886,14 +3426,69 @@ private struct UserPetAnimationEditorView: View {
         case .addAnimation:
             succeeded = petLibrarySession.addAnimationToSelectedPet(
                 UserPetAnimationRequest(
-                    animationName: animationName,
+                    animationName: normalizedAnimationName,
                     loops: loops,
                     frames: sourceFrameRequests
                 )
             )
         }
         if succeeded {
+            if mode == .addAnimation,
+               !applyBehaviorLink(animationID: normalizedAnimationName) {
+                let linkError = settingsSession.behaviorEditErrorMessage
+                    ?? "행동 연결을 저장하지 못했습니다."
+                let rolledBack = petLibrarySession.removeSelectedPetAnimation(
+                    id: normalizedAnimationName
+                )
+                behaviorLinkErrorMessage = rolledBack
+                    ? "\(linkError) 추가한 애니메이션은 되돌렸습니다."
+                    : "\(linkError) 애니메이션은 추가되었을 수 있으니 펫 보관함에서 확인해 주세요."
+                return
+            }
             dismiss()
+        }
+    }
+
+    private var normalizedAnimationName: String {
+        animationName.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var behaviorLinkValidationMessage: String? {
+        animationBehaviorLinkValidationMessage(
+            mode: behaviorLinkMode,
+            newBehaviorName: newBehaviorName,
+            existingBehaviorID: existingBehaviorID,
+            animationID: normalizedAnimationName,
+            sequences: settingsSession.settings.sequences
+        )
+    }
+
+    private func selectFirstBehaviorIfNeeded() {
+        guard !settingsSession.settings.sequences.contains(where: {
+            $0.id == existingBehaviorID
+        }) else {
+            return
+        }
+        existingBehaviorID = settingsSession.settings.sequences.first?.id ?? ""
+    }
+
+    private func applyBehaviorLink(animationID: String) -> Bool {
+        switch behaviorLinkMode {
+        case .none:
+            return true
+        case .newBehavior:
+            return settingsSession.addBehaviorSequence(
+                named: effectiveBehaviorName(
+                    enteredName: newBehaviorName,
+                    animationID: animationID
+                ),
+                initialMotionID: animationID
+            )
+        case .existingBehavior:
+            return settingsSession.addBehaviorStep(
+                to: existingBehaviorID,
+                motionID: animationID
+            )
         }
     }
 
@@ -2906,13 +3501,17 @@ private struct UserPetAnimationEditorView: View {
                 return UserPetSourceFrameRequest(
                     sourceURL: url,
                     durationMilliseconds: frame.durationMilliseconds,
-                    placement: frame.placement
+                    placement: frame.placement,
+                    flipsHorizontally: frame.flipsHorizontally,
+                    flipsVertically: frame.flipsVertically
                 )
             case let .image(image):
                 return UserPetSourceFrameRequest(
                     image: image,
                     durationMilliseconds: frame.durationMilliseconds,
-                    placement: frame.placement
+                    placement: frame.placement,
+                    flipsHorizontally: frame.flipsHorizontally,
+                    flipsVertically: frame.flipsVertically
                 )
             }
         }
@@ -2962,21 +3561,27 @@ private struct ReadOnlyPetCopyEditorView: View {
     @Environment(\.dismiss) private var dismiss
     let item: PetLibraryItem
     @ObservedObject var petLibrarySession: PetLibrarySession
+    @ObservedObject var settingsSession: AppSettingsSession
 
     @State private var displayName: String
 
-    init(item: PetLibraryItem, petLibrarySession: PetLibrarySession) {
+    init(
+        item: PetLibraryItem,
+        petLibrarySession: PetLibrarySession,
+        settingsSession: AppSettingsSession
+    ) {
         self.item = item
         self.petLibrarySession = petLibrarySession
+        self.settingsSession = settingsSession
         _displayName = State(initialValue: "\(item.metadata.displayName) 사본")
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("편집 가능한 사본 만들기")
+            Text("펫 사본 새로 만들기")
                 .font(.title2.weight(.semibold))
 
-            Text("가져온 원본은 읽기 전용으로 그대로 보존됩니다. 사본은 독립된 사용자 펫으로 설치되어 정보와 애니메이션을 수정할 수 있습니다.")
+            Text("현재 펫은 그대로 보존됩니다. 사본은 새 패키지 ID를 가진 독립된 사용자 펫으로 설치되어 정보와 애니메이션을 수정할 수 있습니다.")
                 .foregroundStyle(.secondary)
 
             Form {
@@ -2991,7 +3596,7 @@ private struct ReadOnlyPetCopyEditorView: View {
             }
             .formStyle(.grouped)
 
-            Text("애니메이션과 미리보기 자산만 사본 패키지에 복사합니다. 현재 행동 루틴과 자동 규칙은 앱 설정에 그대로 유지됩니다.")
+            Text("애니메이션과 미리보기 자산을 복사하고, 현재 행동·자동 동작·이동·쓰다듬기·말풍선 설정도 새 펫에 복사합니다.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
@@ -3023,7 +3628,11 @@ private struct ReadOnlyPetCopyEditorView: View {
     }
 
     private func createCopy() {
+        let sourceProfile = settingsSession.settings.activeBehaviorProfile
         if petLibrarySession.createEditableCopyOfSelectedPet(displayName: displayName) {
+            if let sourceProfile {
+                settingsSession.copyActiveBehaviorProfile(from: sourceProfile)
+            }
             dismiss()
         }
     }
@@ -3135,6 +3744,8 @@ private struct UserPetAnimationDetailsEditorView: View {
     @Environment(\.dismiss) private var dismiss
     let motion: PetMotion
     @ObservedObject var petLibrarySession: PetLibrarySession
+    @ObservedObject var settingsSession: AppSettingsSession
+    let duplicationSourceAnimationID: String?
     let onSaved: (String) -> Void
 
     @State private var animationName: String
@@ -3143,17 +3754,26 @@ private struct UserPetAnimationDetailsEditorView: View {
     @State private var selectedFrameID: UUID?
     @State private var spriteSheetImport: SpriteSheetImportPresentation?
     @State private var pngCropImport: PNGFrameCropPresentation?
+    @State private var existingFrameImport: ExistingPetFramePickerPresentation?
     @State private var imageImportErrorMessage: String?
     @State private var frameDurationMilliseconds = 450
+    @State private var behaviorLinkMode: AnimationBehaviorLinkMode = .none
+    @State private var newBehaviorName = ""
+    @State private var existingBehaviorID = ""
+    @State private var behaviorLinkErrorMessage: String?
 
     init(
         item: PetLibraryItem,
         motion: PetMotion,
         petLibrarySession: PetLibrarySession,
+        settingsSession: AppSettingsSession,
+        duplicationSourceAnimationID: String? = nil,
         onSaved: @escaping (String) -> Void
     ) {
         self.motion = motion
         self.petLibrarySession = petLibrarySession
+        self.settingsSession = settingsSession
+        self.duplicationSourceAnimationID = duplicationSourceAnimationID
         self.onSaved = onSaved
         _animationName = State(initialValue: motion.id)
         _loops = State(initialValue: motion.loops)
@@ -3167,8 +3787,20 @@ private struct UserPetAnimationDetailsEditorView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("펫 애니메이션 수정")
+            VStack(alignment: .leading, spacing: 4) {
+                Text(
+                    duplicationSourceAnimationID == nil
+                        ? "펫 애니메이션 수정"
+                        : "애니메이션 복제본 편집"
+                )
                 .font(.title2.weight(.semibold))
+
+                if let duplicationSourceAnimationID {
+                    Text("원본: \(duplicationSourceAnimationID)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
@@ -3190,6 +3822,8 @@ private struct UserPetAnimationDetailsEditorView: View {
             }
             .formStyle(.grouped)
 
+            behaviorLinkSection
+
             HStack(alignment: .top, spacing: 16) {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("편집 미리보기")
@@ -3199,31 +3833,24 @@ private struct UserPetAnimationDetailsEditorView: View {
                             loops: loops,
                             selectedFrameID: selectedFrameID
                         )
-                        .frame(width: 220)
+                        .frame(width: 260)
                         .accessibilityLabel("편집 중인 애니메이션 미리보기")
 
                     if let selectedFrameBinding {
-                        FramePlacementControls(frame: selectedFrameBinding)
-                    }
-
-                    Menu {
-                        Button("개별 PNG 추가…") {
-                            choosePNGs()
-                        }
-                        .accessibilityIdentifier("monglepet.petAnimation.addFrames")
-
-                        Button("스프라이트 시트에서 추가…") {
-                            chooseSpriteSheet()
-                        }
-                        .accessibilityIdentifier("monglepet.petAnimation.addSpriteSheet")
-                    } label: {
-                        Label("프레임 추가", systemImage: "plus")
+                        FramePlacementControls(
+                            frame: selectedFrameBinding,
+                            onDuplicate: duplicateSelectedFrame
+                        )
                     }
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("프레임 순서와 간격")
-                        .font(.headline)
+                    HStack {
+                        Text("프레임 순서와 간격")
+                            .font(.headline)
+                        Spacer()
+                        frameImportMenu
+                    }
 
                     List {
                         ForEach(Array(frames.enumerated()), id: \.element.id) { index, frame in
@@ -3306,38 +3933,36 @@ private struct UserPetAnimationDetailsEditorView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-                    if let imageImportErrorMessage {
-                        Label(
-                            imageImportErrorMessage,
-                            systemImage: "exclamationmark.triangle.fill"
-                        )
-                        .font(.callout)
-                        .foregroundStyle(.orange)
-                    }
-
-                    if let errorMessage = petLibrarySession.errorMessage {
-                        Label(errorMessage, systemImage: "xmark.circle.fill")
-                            .font(.callout)
-                            .foregroundStyle(.orange)
-                    }
                 }
             }
+
+            editorStatusBanner
 
             HStack {
                 Spacer()
                 Button("취소", role: .cancel) {
                     dismiss()
                 }
-                Button("저장") {
+                Button(
+                    duplicationSourceAnimationID == nil
+                        ? "저장"
+                        : "복제본 저장"
+                ) {
                     save()
                 }
                 .keyboardShortcut(.defaultAction)
-                .disabled(!canSave || petLibrarySession.isImporting)
+                .disabled(
+                    saveBlockingMessage != nil
+                        || petLibrarySession.isImporting
+                )
                 .accessibilityIdentifier("monglepet.petAnimation.save")
             }
         }
         .padding(20)
         .frame(minWidth: 720, idealWidth: 780, minHeight: 560, idealHeight: 680)
+        .onAppear {
+            selectFirstBehaviorIfNeeded()
+        }
         .sheet(item: $spriteSheetImport) { presentation in
             SpriteSheetImportView(document: presentation.document) { images in
                 appendSpriteImages(images)
@@ -3348,12 +3973,113 @@ private struct UserPetAnimationDetailsEditorView: View {
                 appendSpriteImages(images)
             }
         }
+        .sheet(item: $existingFrameImport) { presentation in
+            ExistingPetFramePickerView(
+                petName: presentation.petName,
+                groups: presentation.groups
+            ) { selections in
+                appendExistingFrames(selections)
+            }
+        }
     }
 
-    private var canSave: Bool {
-        !animationName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && !frames.isEmpty
-            && frames.allSatisfy { 16...60_000 ~= $0.durationMilliseconds }
+    private var saveBlockingMessage: String? {
+        if normalizedAnimationName.isEmpty {
+            return "애니메이션 이름을 입력해 주세요."
+        }
+        if frames.isEmpty {
+            return "저장할 프레임을 한 개 이상 추가해 주세요."
+        }
+        if !frames.allSatisfy({ 16...60_000 ~= $0.durationMilliseconds }) {
+            return "모든 프레임 간격을 16~60000ms 사이로 입력해 주세요."
+        }
+        if behaviorLinkMode != .none && !settingsSession.isWritingEnabled {
+            return "행동을 연결하려면 설정 저장을 사용할 수 있어야 합니다."
+        }
+        return behaviorLinkValidationMessage
+    }
+
+    @ViewBuilder
+    private var editorStatusBanner: some View {
+        if let message = operationErrorMessage {
+            Label(message, systemImage: "xmark.circle.fill")
+                .font(.callout)
+                .foregroundStyle(.red)
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    Color.red.opacity(0.08),
+                    in: RoundedRectangle(cornerRadius: 8)
+                )
+                .accessibilityIdentifier(
+                    "monglepet.petAnimation.operationError"
+                )
+        } else if let saveBlockingMessage {
+            Label(
+                saveBlockingMessage,
+                systemImage: "exclamationmark.triangle.fill"
+            )
+            .font(.callout)
+            .foregroundStyle(.orange)
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                Color.orange.opacity(0.08),
+                in: RoundedRectangle(cornerRadius: 8)
+            )
+            .accessibilityIdentifier(
+                "monglepet.petAnimation.validationMessage"
+            )
+        }
+    }
+
+    private var operationErrorMessage: String? {
+        behaviorLinkErrorMessage
+            ?? imageImportErrorMessage
+            ?? petLibrarySession.errorMessage
+    }
+
+    private var behaviorLinkSection: some View {
+        AnimationBehaviorLinkSection(
+            mode: $behaviorLinkMode,
+            newBehaviorName: $newBehaviorName,
+            existingBehaviorID: $existingBehaviorID,
+            animationID: normalizedAnimationName,
+            sequences: settingsSession.settings.sequences,
+            currentBehaviorNames: currentBehaviorNames
+        )
+    }
+
+    private var currentBehaviorNames: [String] {
+        settingsSession.settings.sequences.compactMap { sequence in
+            sequence.steps.contains { $0.motionID == motion.id }
+                ? sequence.displayName
+                : nil
+        }
+    }
+
+    private var frameImportMenu: some View {
+        Menu {
+            Button("개별 PNG 추가…") {
+                choosePNGs()
+            }
+            .accessibilityIdentifier("monglepet.petAnimation.addFrames")
+
+            Button("스프라이트 시트에서 추가…") {
+                chooseSpriteSheet()
+            }
+            .accessibilityIdentifier("monglepet.petAnimation.addSpriteSheet")
+
+            Divider()
+            Button("현재 펫 프레임에서 추가…") {
+                chooseExistingFrames()
+            }
+            .accessibilityIdentifier(
+                "monglepet.petAnimation.addExistingFrames"
+            )
+        } label: {
+            Label("프레임 추가", systemImage: "plus")
+        }
     }
 
     @ViewBuilder
@@ -3445,10 +4171,35 @@ private struct UserPetAnimationDetailsEditorView: View {
         }
     }
 
+    private func chooseExistingFrames() {
+        do {
+            let item = petLibrarySession.selectedItem
+            existingFrameImport = ExistingPetFramePickerPresentation(
+                petName: item.metadata.displayName,
+                groups: try ExistingPetFrameLibrary.load(from: item)
+            )
+            imageImportErrorMessage = nil
+        } catch {
+            imageImportErrorMessage = error.localizedDescription
+        }
+    }
+
     private func appendSpriteImages(_ images: [UserPetSourceImage]) {
         let addedFrames = UserPetAnimationDraftFactory.new(
             images: images,
             durationMilliseconds: frameDurationMilliseconds,
+            reference: frames.first
+        )
+        frames.append(contentsOf: addedFrames)
+        selectedFrameID = addedFrames.first?.id ?? selectedFrameID
+        imageImportErrorMessage = nil
+    }
+
+    private func appendExistingFrames(
+        _ selections: [ExistingPetFrameSelection]
+    ) {
+        let addedFrames = UserPetAnimationDraftFactory.reused(
+            selections: selections,
             reference: frames.first
         )
         frames.append(contentsOf: addedFrames)
@@ -3473,6 +4224,14 @@ private struct UserPetAnimationDetailsEditorView: View {
         selectedFrameID = duplicate.id
     }
 
+    private func duplicateSelectedFrame() {
+        guard let selectedFrameID,
+              let index = frames.firstIndex(where: { $0.id == selectedFrameID }) else {
+            return
+        }
+        duplicateFrame(at: index)
+    }
+
     private func removeFrame(id: UUID) {
         guard frames.count > 1 else {
             return
@@ -3484,9 +4243,8 @@ private struct UserPetAnimationDetailsEditorView: View {
     }
 
     private func save() {
-        let normalizedName = animationName.trimmingCharacters(
-            in: .whitespacesAndNewlines
-        )
+        behaviorLinkErrorMessage = nil
+        let normalizedName = normalizedAnimationName
         let succeeded = petLibrarySession.updateSelectedPetAnimation(
             UserPetAnimationDetailsRequest(
                 animationID: motion.id,
@@ -3496,14 +4254,70 @@ private struct UserPetAnimationDetailsEditorView: View {
                     UserPetAnimationFrameRequest(
                         source: $0.source,
                         durationMilliseconds: $0.durationMilliseconds,
-                        placement: $0.placement
+                        placement: $0.placement,
+                        flipsHorizontally: $0.flipsHorizontally,
+                        flipsVertically: $0.flipsVertically
                     )
                 }
             )
         )
         if succeeded {
+            if settingsSession.isWritingEnabled,
+               !settingsSession.synchronizeGeneratedSingleStepBehaviorNames() {
+                behaviorLinkErrorMessage = settingsSession.behaviorEditErrorMessage
+                    ?? "애니메이션은 저장했지만 자동 생성 행동 이름을 갱신하지 못했습니다."
+                return
+            }
+            guard applyBehaviorLink(animationID: normalizedName) else {
+                behaviorLinkErrorMessage = settingsSession.behaviorEditErrorMessage
+                    ?? "애니메이션은 저장했지만 행동 연결을 추가하지 못했습니다. 다시 저장해 주세요."
+                return
+            }
             onSaved(normalizedName)
             dismiss()
+        }
+    }
+
+    private var normalizedAnimationName: String {
+        animationName.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var behaviorLinkValidationMessage: String? {
+        animationBehaviorLinkValidationMessage(
+            mode: behaviorLinkMode,
+            newBehaviorName: newBehaviorName,
+            existingBehaviorID: existingBehaviorID,
+            animationID: normalizedAnimationName,
+            sequences: settingsSession.settings.sequences
+        )
+    }
+
+    private func selectFirstBehaviorIfNeeded() {
+        guard !settingsSession.settings.sequences.contains(where: {
+            $0.id == existingBehaviorID
+        }) else {
+            return
+        }
+        existingBehaviorID = settingsSession.settings.sequences.first?.id ?? ""
+    }
+
+    private func applyBehaviorLink(animationID: String) -> Bool {
+        switch behaviorLinkMode {
+        case .none:
+            return true
+        case .newBehavior:
+            return settingsSession.addBehaviorSequence(
+                named: effectiveBehaviorName(
+                    enteredName: newBehaviorName,
+                    animationID: animationID
+                ),
+                initialMotionID: animationID
+            )
+        case .existingBehavior:
+            return settingsSession.addBehaviorStep(
+                to: existingBehaviorID,
+                motionID: animationID
+            )
         }
     }
 
@@ -3521,6 +4335,9 @@ private struct UserPetAnimationFrameDraft: Identifiable {
     var scalePercent: Double = 100
     var offsetX: Double = 0
     var offsetY: Double = 0
+    var flipsHorizontally = false
+    var flipsVertically = false
+    var transformedContentImage: CGImage
     var previewImage: CGImage?
 
     init?(
@@ -3542,6 +4359,7 @@ private struct UserPetAnimationFrameDraft: Identifiable {
         self.baseScale = baseScale
         self.anchorX = anchorX
         self.anchorBottom = anchorBottom
+        transformedContentImage = content.image
         previewImage = nil
         refreshPreview()
     }
@@ -3566,9 +4384,25 @@ private struct UserPetAnimationFrameDraft: Identifiable {
 
     mutating func refreshPreview() {
         previewImage = try? FrameCanvasComposer().compose(
-            content,
+            TransparentFrameContent(
+                image: transformedContentImage,
+                sourceBounds: content.sourceBounds
+            ),
             placement: placement
         )
+    }
+
+    mutating func refreshTransform() {
+        guard let transformed = ImageCropProcessor().transformed(
+            content.image,
+            flipsHorizontally: flipsHorizontally,
+            flipsVertically: flipsVertically
+        ) else {
+            previewImage = nil
+            return
+        }
+        transformedContentImage = transformed
+        refreshPreview()
     }
 
     mutating func resetPlacement() {
@@ -3576,6 +4410,12 @@ private struct UserPetAnimationFrameDraft: Identifiable {
         offsetX = 0
         offsetY = 0
         refreshPreview()
+    }
+
+    mutating func resetFlips() {
+        flipsHorizontally = false
+        flipsVertically = false
+        refreshTransform()
     }
 
     func duplicated() -> UserPetAnimationFrameDraft {
@@ -3649,19 +4489,39 @@ private enum UserPetAnimationDraftFactory {
             return NewFrameSource(
                 source: .image(sourceImage),
                 image: sourceImage.image,
-                content: content
+                content: content,
+                durationMilliseconds: durationMilliseconds
             )
         }
         return new(
             sources: sources,
-            durationMilliseconds: durationMilliseconds,
             reference: reference
         )
     }
 
+    static func reused(
+        selections: [ExistingPetFrameSelection],
+        reference: UserPetAnimationFrameDraft? = nil
+    ) -> [UserPetAnimationFrameDraft] {
+        let sources = selections.compactMap { selection -> NewFrameSource? in
+            let sourceImage = selection.image
+            guard let content = try? FrameCanvasComposer().transparentContent(
+                in: sourceImage.image
+            ) else {
+                return nil
+            }
+            return NewFrameSource(
+                source: .image(sourceImage),
+                image: sourceImage.image,
+                content: content,
+                durationMilliseconds: selection.durationMilliseconds
+            )
+        }
+        return new(sources: sources, reference: reference)
+    }
+
     private static func new(
         sources: [NewFrameSource],
-        durationMilliseconds: Int,
         reference: UserPetAnimationFrameDraft?
     ) -> [UserPetAnimationFrameDraft] {
         guard !sources.isEmpty else {
@@ -3682,7 +4542,7 @@ private enum UserPetAnimationDraftFactory {
             return sources.compactMap { item in
                 return UserPetAnimationFrameDraft(
                     source: item.source,
-                    durationMilliseconds: durationMilliseconds,
+                    durationMilliseconds: item.durationMilliseconds,
                     image: item.image,
                     canvasSize: reference.canvasSize,
                     baseScale: commonScale,
@@ -3725,7 +4585,7 @@ private enum UserPetAnimationDraftFactory {
             }
             return UserPetAnimationFrameDraft(
                 source: item.source,
-                durationMilliseconds: durationMilliseconds,
+                durationMilliseconds: item.durationMilliseconds,
                 image: image,
                 canvasSize: canvasSize,
                 baseScale: scale,
@@ -3739,6 +4599,7 @@ private enum UserPetAnimationDraftFactory {
         let source: UserPetAnimationFrameSource
         let image: CGImage
         let content: TransparentFrameContent
+        let durationMilliseconds: Int
     }
 
     private static func durationMilliseconds(_ duration: Duration) -> Int {
@@ -3806,9 +4667,10 @@ private struct FrameDurationInput: View {
 
 private struct FramePlacementControls: View {
     @Binding var frame: UserPetAnimationFrameDraft
+    let onDuplicate: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text("자동 맞춤 대비 배율")
                 Spacer()
@@ -3829,28 +4691,115 @@ private struct FramePlacementControls: View {
             )
                 .accessibilityLabel("선택 프레임 배율")
 
-            Stepper(
-                "가로 \(Int(frame.offsetX.rounded())) px (오른쪽 +)",
-                value: horizontalOffsetBinding,
-                in: -Double(frame.canvasSize.width)...Double(frame.canvasSize.width),
-                step: 1
-            )
-            .accessibilityLabel("선택 프레임 가로 위치")
+            editorGroup("위치") {
+                HStack(spacing: 8) {
+                    FrameAxisAdjustmentControl(
+                        title: "가로",
+                        value: horizontalOffsetBinding,
+                        range: -Double(frame.canvasSize.width)...Double(frame.canvasSize.width),
+                        negativeDirectionHint: "왼쪽",
+                        positiveDirectionHint: "오른쪽"
+                    )
+                    FrameAxisAdjustmentControl(
+                        title: "세로",
+                        value: verticalOffsetBinding,
+                        range: -Double(frame.canvasSize.height)...Double(frame.canvasSize.height),
+                        negativeDirectionHint: "위",
+                        positiveDirectionHint: "아래"
+                    )
+                }
 
-            Stepper(
-                "세로 \(Int(frame.offsetY.rounded())) px (아래 +)",
-                value: verticalOffsetBinding,
-                in: -Double(frame.canvasSize.height)...Double(frame.canvasSize.height),
-                step: 1
-            )
-            .accessibilityLabel("선택 프레임 세로 위치")
-
-            Button("배치 초기화") {
-                frame.resetPlacement()
+                Button {
+                    frame.resetPlacement()
+                } label: {
+                    frameActionLabel(
+                        "배치 초기화",
+                        systemImage: "scope"
+                    )
+                }
+                .accessibilityIdentifier(
+                    "monglepet.petAnimation.resetPlacement"
+                )
             }
-            .accessibilityIdentifier("monglepet.petAnimation.resetPlacement")
+
+            editorGroup("이미지 방향") {
+                HStack(spacing: 8) {
+                    Button {
+                        frame.flipsHorizontally.toggle()
+                        frame.refreshTransform()
+                    } label: {
+                        frameActionLabel(
+                            frame.flipsHorizontally ? "좌우 해제" : "좌우 반전",
+                            systemImage: "arrow.left.and.right"
+                        )
+                    }
+                    .accessibilityIdentifier(
+                        "monglepet.petAnimation.flipHorizontal"
+                    )
+
+                    Button {
+                        frame.flipsVertically.toggle()
+                        frame.refreshTransform()
+                    } label: {
+                        frameActionLabel(
+                            frame.flipsVertically ? "상하 해제" : "상하 반전",
+                            systemImage: "arrow.up.and.down"
+                        )
+                    }
+                    .accessibilityIdentifier(
+                        "monglepet.petAnimation.flipVertical"
+                    )
+                }
+
+                Button {
+                    frame.resetFlips()
+                } label: {
+                    frameActionLabel(
+                        "방향 초기화",
+                        systemImage: "arrow.uturn.backward"
+                    )
+                }
+                .disabled(!frame.flipsHorizontally && !frame.flipsVertically)
+                .accessibilityIdentifier(
+                    "monglepet.petAnimation.resetFlips"
+                )
+            }
+
+            editorGroup("프레임 작업") {
+                Button(action: onDuplicate) {
+                    frameActionLabel(
+                        "선택 프레임 복사",
+                        systemImage: "plus.square.on.square"
+                    )
+                }
+                .accessibilityIdentifier(
+                    "monglepet.petAnimation.duplicateFrame"
+                )
+            }
         }
-        .controlSize(.small)
+        .controlSize(.regular)
+        .buttonStyle(.bordered)
+    }
+
+    private func editorGroup<Content: View>(
+        _ title: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+            content()
+        }
+    }
+
+    private func frameActionLabel(
+        _ title: String,
+        systemImage: String
+    ) -> some View {
+        Label(title, systemImage: systemImage)
+            .lineLimit(1)
+            .frame(maxWidth: .infinity, minHeight: 30)
     }
 
     private var scaleBinding: Binding<Double> {
@@ -3880,6 +4829,61 @@ private struct FramePlacementControls: View {
                 frame.refreshPreview()
             }
         )
+    }
+}
+
+private struct FrameAxisAdjustmentControl: View {
+    let title: String
+    @Binding var value: Double
+    let range: ClosedRange<Double>
+    let negativeDirectionHint: String
+    let positiveDirectionHint: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(title)
+                    .font(.caption)
+                Spacer()
+                Text("\(Int(value.rounded())) px")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack(spacing: 6) {
+                adjustmentButton(
+                    systemImage: "minus",
+                    directionHint: negativeDirectionHint,
+                    delta: -1
+                )
+                adjustmentButton(
+                    systemImage: "plus",
+                    directionHint: positiveDirectionHint,
+                    delta: 1
+                )
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("선택 프레임 \(title) 위치")
+    }
+
+    private func adjustmentButton(
+        systemImage: String,
+        directionHint: String,
+        delta: Double
+    ) -> some View {
+        Button {
+            value = min(range.upperBound, max(range.lowerBound, value + delta))
+        } label: {
+            Image(systemName: systemImage)
+                .font(.system(size: 12, weight: .semibold))
+                .frame(maxWidth: .infinity, minHeight: 30)
+        }
+        .disabled(
+            delta < 0 ? value <= range.lowerBound : value >= range.upperBound
+        )
+        .accessibilityLabel("\(title) 위치 \(directionHint)으로 1픽셀")
     }
 }
 
@@ -4244,7 +5248,7 @@ private struct LivePlacedFrameView: View {
             / CGFloat(max(1, frame.canvasSize.width))
         let scaleY = displayedCanvasSize.height
             / CGFloat(max(1, frame.canvasSize.height))
-        Image(decorative: frame.content.image, scale: 1)
+        Image(decorative: frame.transformedContentImage, scale: 1)
             .resizable()
             .interpolation(.high)
             .frame(

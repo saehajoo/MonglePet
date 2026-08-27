@@ -226,7 +226,7 @@ final class AppSettingsV11MapperTests: XCTestCase {
             from: Data(contentsOf: settingsURL)
         )
 
-        XCTAssertEqual(envelope.schemaVersion, 11)
+        XCTAssertEqual(envelope.schemaVersion, 14)
         XCTAssertEqual(migrated.source, .file)
         XCTAssertEqual(reloaded.source, .file)
         XCTAssertEqual(reloaded.settings, migrated.settings)

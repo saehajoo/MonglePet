@@ -225,7 +225,13 @@ GIF, APNG 또는 PNG 시퀀스는 다음 기본 manifest를 생성해 내부 패
 - 사용자 PNG의 권장 원본은 프레임마다 같은 `512×512 px` 투명 캔버스와 같은 캐릭터 크기·기준선이다. 이는 필수 크기가 아니며 패키지 보안 제한 안의 다른 크기도 등록할 수 있다.
 - 크기가 서로 다른 PNG를 함께 선택하면 알파가 있는 영역을 기준으로 공통 캔버스에 자동 배치한다. 사용자는 프레임별 배율과 가로·세로 위치를 조정할 수 있고 미리보기는 저장될 최종 캔버스 전체를 표시한다.
 - 새 펫 만들기와 애니메이션 추가 화면은 첫 선택 이후에도 기존 초안 프레임을 보존한 채 PNG를 누적 추가한다. 새 PNG 기본 간격은 이후 추가분에만 적용하고 등록된 각 프레임의 `durationMs`는 목록에서 개별 편집한다.
+- 편집 가능한 현재 펫에 애니메이션을 추가하거나 수정할 때는 `현재 펫 프레임에서 추가`로 모든 애니메이션의 저장 프레임을 애니메이션별로 한 번에 조회할 수 있다. 사용자가 누른 순서가 새 프레임 순서가 되며 선택 번호, 선택 묶음 재생 미리보기와 원본 프레임별 `durationMs`를 함께 제공한다.
+- 현재 펫 프레임 선택기의 그룹 썸네일·선택 strip·선택 순서 재생은 투명 여백을 제외한 실제 표시 content를 가운데 정렬한다. 이는 선택 가독성을 위한 표시 전용 crop이며 추가되는 원본 프레임의 투명 캔버스·배치·픽셀을 바꾸지 않는다. 투명 배경은 흰색이 강한 격자 대신 시스템 control 배경 위의 낮은 대비 격자를 사용한다.
+- 현재 펫에서 고른 프레임은 원본 애니메이션의 atlas 참조를 재사용하지 않고 메모리 이미지로 복사해 새 애니메이션 전용 atlas에 저장한다. 따라서 원본 애니메이션을 나중에 수정하거나 삭제해도 새 애니메이션의 프레임과 재생 시간은 바뀌지 않는다.
 - 편집 미리보기는 투명 격자와 캔버스 경계를 포함한 `선택 프레임` 고정 보기와 `전체 재생` 보기를 제공한다. 전체 재생은 일시정지·재개할 수 있고 비반복 애니메이션이 끝나면 마지막 프레임에서 멈춘다.
+- 애니메이션의 공통 프레임 편집 단계는 PNG·스프라이트·현재 펫 프레임과 기존 저장 프레임에 같은 좌우·상하 뒤집기, 프레임 복사와 방향 초기화를 제공한다. 뒤집기는 투명 content에 먼저 적용한 뒤 기존 공통 캔버스 배치를 유지하며, 프레임 복사는 이미지·간격·배치·뒤집기 상태를 가진 독립 초안을 바로 다음 순서에 만든다.
+- 선택 프레임 직접 배치 미리보기는 원본 content가 아니라 현재 flip이 반영된 content를 사용해 버튼을 누르는 즉시 방향이 바뀌어야 한다. 조작 UI는 배율·가로/세로 위치, 이미지 방향과 프레임 작업을 구분하고 같은 종류의 버튼은 같은 높이와 너비 규칙을 사용한다. 가로·세로 위치의 증감 버튼은 두 축을 나란히 배치한다.
+- `프레임 추가` 메뉴는 프레임 미리보기 조작부가 아니라 `프레임 순서와 간격` 목록 제목 오른쪽에 배치한다. 아직 프레임이 없는 새 펫·애니메이션 초안에서는 빈 상태 바로 위에 같은 메뉴를 표시한다.
 - 프레임 배치는 원본 PNG를 수정하지 않고 atlas를 재구성할 때 적용한다. 별도 편집 메타데이터는 공유 패키지에 저장하지 않으며 저장 이후의 atlas 픽셀이 최종 결과의 단일 원본이다.
 - 가져온 `.monglepet` 패키지는 읽기 전용으로 유지하고 Phase 6에서 편집용 사본 만들기를 제공한다.
 
@@ -233,6 +239,12 @@ GIF, APNG 또는 PNG 시퀀스는 다음 기본 manifest를 생성해 내부 패
 
 - 패키지 `id`는 업데이트와 중복 판별에 사용하는 불변 식별자다.
 - `displayName`, `version`, `author`, `description`과 `defaultMotion`은 사용자 펫에서 수정할 수 있다.
+- 편집 가능한 펫의 선택 애니메이션은 전체 복제할 수 있다. 이름은 `<원본> 복사본`, `<원본> 복사본 2` 순서의 대소문자 비구분 고유 이름으로 만들고 원본 바로 뒤에 넣어 선택한 뒤 수정 화면을 연다.
+- 펫 보관함의 애니메이션 선택 목록은 모션 이름뿐 아니라 배경을 포함한 행 전체가 하나의 선택 버튼이다. 행의 좌우 빈 공간을 눌러도 해당 애니메이션 미리보기와 관리 작업 대상을 바꾼다.
+- 애니메이션 복제는 반복 여부, 프레임 순서, 프레임별 `durationMs`와 crop·flip·배치가 반영된 최종 atlas 픽셀을 보존한다. 최초 복제는 원본 atlas를 함께 참조하고 복사본을 수정할 때 새 전용 atlas로 분리한다. 복사본을 삭제할 때 다른 모션이 참조하는 원본 atlas는 제거하지 않는다.
+- 복제 UI는 `애니메이션 복제…` 하나로 시작해 원본을 표시한 복제본 편집 화면을 연다. 행동 생성·연결 여부는 추가·수정과 같은 `행동 연결`에서 저장 시에만 적용하며, 화면을 열기 전에 행동을 만들지 않는다. 취소·창 닫기는 복사본을 제거하고 원본 패키지와 행동을 유지한다.
+- 복제 자체가 실패하면 즉시 alert로 알리고, 이름·프레임·행동 연결 검증 또는 저장 오류는 스크롤 위치와 무관하게 하단 작업 버튼 위에서 표시한다.
+- 복사본은 `defaultMotion` 지정이나 행동·자동 규칙·이동·쓰다듬기 참조를 승계하지 않는다. 이는 기존 동작을 바꾸지 않는 새 애니메이션 자산 생성이며 schema 또는 `.monglepet` 형식을 올리지 않는다.
 - 기본 애니메이션을 삭제하려면 먼저 다른 애니메이션을 기본값으로 지정해야 한다.
 - 마지막 남은 애니메이션은 삭제할 수 없다.
 - 삭제된 애니메이션을 참조하던 로컬 행동 단계는 해당 펫 프로필에서 `현재 펫의 기본 애니메이션` 참조로 복구한다.
@@ -245,12 +257,11 @@ GIF, APNG 또는 PNG 시퀀스는 다음 기본 manifest를 생성해 내부 패
 ### 로컬 공유 내보내기
 
 - 내보내기 파일은 ZIP 컨테이너의 `.monglepet` 확장자를 사용한다.
-- 기본 내보내기는 `pet.json`, 미리보기와 참조된 이미지 자산만 포함한다.
-- 사용자가 `펫 설정도 함께 공유`를 선택하면 별도 `recommended-profile.json`을 포함할 수 있다.
-- `공유 내용 확인` 화면은 펫 정보와 권장 설정 요약을 보여준다. 권장 설정은 기본적으로 제외하며 사용자가 명시적으로 포함을 선택한다. 요약은 행동 루틴의 단계, 자동 규칙의 조건·우선순위, 이동 수치와 방향별 애니메이션 연결까지 가져오기 화면과 같은 공통 모델로 표시한다.
+- 앱의 `패키지 파일로 저장`은 `pet.json`, 미리보기·참조 이미지와 `recommended-profile.json`을 항상 포함한다. 펫을 공유하면서 동작 또는 표시 옵션이 조용히 빠지는 자산 전용 내보내기는 사용자 UI에 제공하지 않는다.
+- `공유 내용 확인` 화면은 펫 정보와 공유 가능한 설정 전체의 요약을 보여준다. 요약은 행동 루틴의 단계, 자동 규칙의 조건·우선순위, 세 이동 방식의 독립 수치·시간 방식·방향별 행동, 쓰다듬기, 말풍선과 펫 표시를 가져오기 화면과 같은 공통 모델로 표시한다.
 - 앱 bundle identifier가 들어 있는 앱별 자동 규칙은 권장 설정과도 분리해 한 번 더 선택한다. 포함을 선택하면 기록될 앱 식별자 목록을 같은 화면에 표시한다.
 - `monglepet-editor.json`, 설치 UUID와 화면 좌표를 포함한 로컬 앱 설정은 포함하지 않는다.
-- 이동 범위, 디스플레이 식별자, 펫 크기, 클릭 통과, 기본·겹침 투명도, 픽셀 아트 표시와 로그인 실행은 기기별 표시·실행 설정이므로 포함하지 않는다.
+- 펫 크기 비율, 클릭 통과, 기본·겹침 투명도와 픽셀 아트 표시는 펫별 휴대 설정으로 포함한다. 화면 좌표·디스플레이 식별자, 모든 펫에 공통인 이동 범위, 깨움 상태와 로그인 실행은 기기·인스턴스 설정이므로 포함하지 않는다.
 - Phase 9B부터 현재 앱이 다시 인코딩하는 `pet.json`에는 선택적 앱 호환 정보를 자동으로 기록한다.
 - 내보내기 직전에 패키지를 다시 로드·검증하고 허용되지 않은 파일을 거부한다.
 - 설치 폴더 전체를 직접 압축하지 않고 manifest를 현재 schema로 다시 인코딩한 뒤 `pet.json`, `previewPath`와 `atlases[].path`가 참조하는 파일만 임시 패키지에 복사한다. 임시 패키지와 완성된 ZIP의 가져오기 왕복 검증이 모두 성공해야 목적지에 원자적으로 기록한다.
@@ -262,121 +273,74 @@ GIF, APNG 또는 PNG 시퀀스는 다음 기본 manifest를 생성해 내부 패
 
 ### 공유 권장 프로필
 
-`recommended-profile.json`은 펫 패키지와 독립적으로 버전을 갖는 선택 데이터다. 받는 사용자의 설정을 강제하지 않으며 적용을 명시적으로 선택한 경우에만 설치 UUID에 연결된 편집 가능한 로컬 행동 프로필로 복사한다.
+`recommended-profile.json`은 펫 패키지와 독립적으로 버전을 갖는 휴대 설정 데이터다. 새 내보내기에는 항상 들어가지만 받는 사용자의 설정을 강제하지 않으며, 적용을 명시적으로 선택한 경우에만 설치 UUID에 연결된 편집 가능한 로컬 프로필과 표시 설정으로 복사한다.
 
-새 내보내기가 사용하는 schema-v7 예시:
+새 내보내기가 사용하는 schema-v10은 schema-v9 행동 중심 필드를 유지하면서 세 이동 방식의 값을 중첩 구조로 완전히 분리하고 휴대 가능한 `display`를 추가한다. 아래 JSON은 중첩 위치만 보여주는 설명용 축약이며 `behavior`·`speech`·이동 행동의 전체 하위 필드는 실제 인코더 출력과 fixture를 따른다.
 
 ```json
 {
-  "schemaVersion": 7,
+  "schemaVersion": 10,
   "behavior": {
-    "mode": "manual",
+    "mode": "random",
     "manualSequenceID": "default",
-    "sequences": [
-      {
-        "id": "default",
-        "steps": [
-          { "motionID": "idle", "repeatCount": 1 }
-        ],
-        "repeats": true
-      }
-    ]
+    "randomSequenceIDs": ["default"],
+    "sequences": []
   },
   "movement": {
     "mode": "freeRoaming",
-    "speed": 120,
-    "cursorDistance": 80,
-    "stopRadius": 24,
-    "freeRoamingDwellMilliseconds": 8000,
-    "prefersFrontmostWindow": true,
-    "cursorAvoidingIdleBehavior": "stationary",
-    "cursorAvoidingDetectionDistance": 160,
-    "cursorAvoidingSpeed": 320,
-    "cursorFollowingAnimation": {
-      "fallbackMotionID": "run",
-      "usesDirectionalMotions": true,
-      "usesDiagonalMotions": false,
-      "directionMotionIDs": {
-        "left": "run-left",
-        "right": "run-right",
-        "up": "run-up",
-        "down": "run-down",
-        "upLeft": null,
-        "upRight": null,
-        "downLeft": null,
-        "downRight": null
-      }
+    "cursorFollowing": {
+      "speed": 120,
+      "cursorDistance": 80,
+      "stopRadius": 20,
+      "behavior": {}
     },
-    "freeRoamingAnimation": {
-      "fallbackMotionID": "walk",
-      "usesDirectionalMotions": false,
-      "usesDiagonalMotions": false,
-      "directionMotionIDs": {
-        "left": null,
-        "right": null,
-        "up": null,
-        "down": null,
-        "upLeft": null,
-        "upRight": null,
-        "downLeft": null,
-        "downRight": null
-      }
+    "freeRoaming": {
+      "speed": 160,
+      "stopRadius": 24,
+      "dwellMilliseconds": 8000,
+      "randomizesDwell": true,
+      "dwellMinimumMilliseconds": 2000,
+      "prefersFrontmostWindow": true,
+      "behavior": {}
     },
-    "cursorAvoidingAnimation": {
-      "fallbackMotionID": "run",
-      "usesDirectionalMotions": true,
-      "usesDiagonalMotions": false,
-      "directionMotionIDs": {
-        "left": "run-left",
-        "right": "run-right",
-        "up": "run-up",
-        "down": "run-down",
-        "upLeft": null,
-        "upRight": null,
-        "downLeft": null,
-        "downRight": null
+    "cursorAvoiding": {
+      "idleBehavior": "freeRoaming",
+      "detectionDistance": 160,
+      "speed": 320,
+      "stopRadius": 18,
+      "behavior": {},
+      "idleFreeRoaming": {
+        "speed": 90,
+        "stopRadius": 12,
+        "dwellMilliseconds": 12000,
+        "randomizesDwell": false,
+        "dwellMinimumMilliseconds": 4000,
+        "prefersFrontmostWindow": false,
+        "behavior": {}
       }
     }
   },
-  "pettingMotionID": "petting",
   "automaticRules": [],
-  "speech": {
-    "isEnabled": true,
-    "periodicIsEnabled": true,
-    "periodicIntervalMilliseconds": 60000,
-    "periodicOrder": "sequential",
-    "behaviorChangePolicy": "dismiss",
-    "phrases": [
-      {
-        "id": "10000000-0000-0000-0000-000000000001",
-        "text": "잠깐 쉬어 갈까요?",
-        "displayDurationMilliseconds": 3000,
-        "trigger": { "type": "periodic", "sequenceID": null },
-        "displayMode": "untilNextPhrase"
-      }
-    ],
-    "theme": {
-      "colorStyle": "cream",
-      "customBackgroundColor": { "red": 1, "green": 1, "blue": 1 },
-      "customTextColor": { "red": 0, "green": 0, "blue": 0 },
-      "backgroundOpacity": 0.96,
-      "fontSize": 14,
-      "contentPadding": 12,
-      "cornerRadius": 14,
-      "showsTail": true,
-      "tailAlignment": "center"
-    },
-    "placement": {
-      "preferredPosition": "above",
-      "horizontalOffset": 24,
-      "gap": 12
-    }
+  "automaticRulePriorityOrder": ["movement", "idle", "application"],
+  "pettingBehaviorID": "default",
+  "speech": {},
+  "display": {
+    "scalePercent": 100,
+    "clickThrough": false,
+    "opacity": 1,
+    "pointerOverlapFadeEnabled": false,
+    "pointerOverlapOpacity": 0.2,
+    "pixelArtRendering": false
   }
 }
 ```
 
-- 행동 모드는 `automatic` 또는 `manual`, 이동 모드는 `fixed`, `cursorFollowing`, `freeRoaming`, `cursorAvoiding`만 허용한다.
-- schema-v7은 말풍선의 `automatic` / `above` / `below` 선호 위치, -160~160pt 좌우 오프셋과 0~64pt 간격을 기록한다. 화면 절대 좌표는 공유하지 않으며 schema-v6은 자동·0pt·8pt 기본값으로 읽는다.
+- 행동 모드는 `automatic`, `manual`, `random`, 이동 모드는 `fixed`, `cursorFollowing`, `freeRoaming`, `cursorAvoiding`만 허용한다.
+- schema-v10의 `cursorFollowing`, `freeRoaming`, `cursorAvoiding`과 `cursorAvoiding.idleFreeRoaming`은 서로 값을 공유하지 않는다. schema-v9 이하의 공용 값은 읽을 때 관련 모드 각각에 복제해 최초 동작을 보존한다.
+- schema-v10 `display`는 192pt=100%의 10~200% 크기, 클릭 통과, 기본 불투명도, 포인터 겹침 투명화 사용·불투명도와 픽셀 표시를 기록한다.
+- schema-v9는 사용자 기능이 행동 ID를 참조하도록 한다. 행동 ID는 안정적으로 유지하고 `displayName`만 바꿀 수 있다. 랜덤·이동·쓰다듬기 행동도 반드시 `behavior.sequences`에 존재해야 한다.
+- schema-v9 이하는 `display`가 없으므로 가져오기 적용 시 받는 사용자의 현재 표시 설정을 유지한다. 현재 앱에서 다시 내보내면 v10 표시 기본값을 명시한다.
+- schema-v7은 말풍선의 `automatic` / `above` / `below` 선호 위치, -160~160pt 좌우 오프셋과 0~64pt 간격을 기록한다. v1~v7의 이동·쓰다듬기 애니메이션 직접 참조는 schema-v12 설정과 같은 한 단계 행동 승격 규칙으로 읽는다.
 - schema-v6는 주기 대사 독립 사용 여부, `random` / `sequential` 순서, 행동 전환의 `dismiss` / `keep` 정책과 대사별 `timed` / `untilNextPhrase` 표시 방식을 기록한다.
 - schema-v5는 schema-v4 말풍선 설정에 색상 preset·사용자 지정 색상, 불투명도, 글자 크기, 여백, 모서리와 꼬리 설정을 추가한다. 사용자 지정 색상과 수치 범위는 로컬 설정과 같은 검증을 적용한다.
 - schema-v4는 펫별 말풍선 사용 여부, 주기, 대사별 표시 시간과 `periodic` 또는 실제 행동 루틴을 참조하는 `sequence` 조건을 기록한다.
@@ -389,26 +353,28 @@ GIF, APNG 또는 PNG 시퀀스는 다음 기본 manifest를 생성해 내부 패
 - 수동 모드에는 존재하는 행동 루틴 ID를 `manualSequenceID`로 지정해야 한다.
 - 행동 루틴과 단계, 자동 규칙의 개수·반복 횟수·유휴 시간, 이동 값과 말풍선 대사·시간은 앱 설정과 같은 상한을 적용한다.
 - 행동 단계는 패키지에 존재하는 모션 ID 또는 예약된 `현재 펫의 기본 애니메이션` 참조만 사용할 수 있다.
-- 세 이동 애니메이션과 쓰다듬기 애니메이션은 런타임에서 직접 재생하므로 패키지에 실제로 존재하는 모션 ID만 사용할 수 있다. 도망가기 모드에서는 공유된 쓰다듬기 값을 보존하되 실행하지 않는다.
+- 세 이동 행동과 쓰다듬기 행동은 존재하는 행동 ID를 참조한다. 각 행동 단계의 애니메이션만 패키지에 실제로 존재해야 하며 도망가기 모드에서는 공유된 쓰다듬기 값을 보존하되 실행하지 않는다.
 - 자동 규칙은 고유한 규칙 ID와 존재하는 행동 루틴 참조를 가져야 한다. 앱 bundle identifier 규칙은 내보내는 사용자가 별도로 포함을 선택하고 목록을 검토한 경우에만 기록한다.
 - 파일 크기는 압축 해제 상태에서 최대 1 MiB로 제한한다.
-- 설치 UUID, 로컬 펫 키, 화면·창 좌표, 이동 범위, 디스플레이 식별자, 펫 크기, 클릭 통과, 투명도, 픽셀 표시, 로그인 실행, 깨움 상태와 이동 이력 필드는 정의하지 않는다.
+- 설치 UUID, 로컬 펫 키, 화면·창 좌표, 모든 펫 공통 이동 범위, 디스플레이 식별자, 로그인 실행, 깨움 상태와 이동 이력 필드는 정의하지 않는다.
 - 지원하지 않는 미래 schema 또는 내용이 손상된 권장 프로필은 펫 자산 패키지 전체를 무효화하지 않는다. 보안 검증을 통과한 펫만 설치하고 권장 설정을 적용하지 않았음을 알린다.
 - 실행 파일, 스크립트, 안전하지 않은 경로, 크기 제한 초과처럼 패키지 보안 경계를 위반한 파일은 권장 프로필의 선택 여부와 관계없이 전체 패키지를 거부한다.
 
 ### 권장 프로필 가져오기
 
 - 패키지 선택 직후 설치하지 않고 `가져오기 내용 확인` 화면에서 이름, 버전, 제작자와 애니메이션 수를 먼저 표시한다.
-- 유효한 `recommended-profile.json`이 있으면 행동 모드와 선택 루틴, 행동 루틴의 단계, 자동 규칙의 조건·우선순위, 이동 방식·속도·거리·정지 반경·대기 시간, 도망가기 평상시 행동·감지 거리·속도, 모드별 공통·방향 애니메이션, 쓰다듬기 애니메이션, 말풍선 사용 여부·행동/주기 대사 수·주기 순서·행동 전환 정책·테마·상대 위치와 앱별 규칙의 bundle identifier를 공통 요약으로 표시한다.
-- 같은 화면에 위치·범위·크기·투명도·클릭 통과·픽셀 표시·로그인 실행은 포함되지 않는 기기 설정임을 안내한다.
-- 새 설치는 사용자가 `펫만 설치` 또는 `권장 설정 적용 후 설치`를 명시적으로 선택한다. 펫만 설치하면 해당 설치 UUID의 표준 기본 프로필을 사용한다.
-- 권장 설정을 적용하면 새 설치 UUID에 맞춘 편집 가능한 로컬 `BehaviorProfile` 사본을 만들고 즉시 `settings.json`에 저장한다. 패키지의 권장 설정 파일은 원본 preset으로 유지되며 이후 로컬 편집과 자동 동기화하지 않는다.
+- 유효한 `recommended-profile.json`이 있으면 선택 방식과 직접·랜덤 선택 행동, 행동 단계, 자동 규칙의 조건·종류 순서, 세 이동 방식의 독립 속도·거리·정지 반경·시간 방식, 도망가기 평상시 설정, 모드별 공통·방향 행동, 쓰다듬기, 말풍선 전체와 크기·클릭 통과·투명도·픽셀 표시를 공통 요약으로 표시한다.
+- 공통 요약의 행동 루틴, 자동 규칙 대상, 이동과 쓰다듬기 참조는 내부 안정 ID가 아니라 같은 프로필의 `displayName`으로 표시한다. 참조가 손상된 경우 원시 값을 노출하지 않고 `찾을 수 없는 행동`으로 표시한다. 앱 규칙의 bundle identifier는 공유 동의에 필요한 확인 정보이므로 앱 규칙을 포함한 경우에만 명시한다.
+- 공통 요약은 자동 규칙 종류 우선순위를 실제 목록 순서로 표시하고 따라가기·일반 자유 이동·도망가기·도망가기 평상시 자유 이동의 수치·시간 방식·행동을 각각 구분한다.
+- 같은 화면에 화면 위치·디스플레이·모든 펫 공통 이동 범위·깨움·로그인 실행은 포함되지 않는 기기·인스턴스 설정임을 안내한다. v9 이하에는 표시 설정이 없어서 현재 표시값을 유지한다는 것도 구분해 표시한다.
+- 새 설치는 사용자가 `펫만 설치 · 포함 설정 적용 안 함` 또는 `포함된 설정 모두 적용 후 설치`를 명시적으로 선택한다. 펫만 설치하면 해당 설치 UUID의 표준 기본 프로필을 사용한다.
+- 권장 설정을 적용하면 새 설치 UUID에 맞춘 편집 가능한 로컬 `BehaviorProfile`과 휴대 표시 설정을 한 번의 settings 갱신으로 저장한다. 패키지의 권장 설정 파일은 원본 preset으로 유지되며 이후 로컬 편집과 자동 동기화하지 않는다.
 - 권장 설정이 없거나 미래 schema·손상된 내용이면 적용 버튼을 제공하지 않고 사유를 표시하되 `펫만 설치`는 허용한다.
 - 1 MiB를 초과한 권장 설정은 선택 데이터 오류가 아니라 패키지 보안 제한 위반으로 전체 가져오기를 거부한다.
 - 사용자가 내용을 확인한 뒤 설치 전에 패키지 메타데이터, 애니메이션 또는 권장 설정이 바뀌면 설치하지 않고 다시 확인하도록 한다.
 - 같은 패키지 ID를 `새 설치로 추가`할 때는 앞서 선택한 권장 설정 적용 여부를 유지한다. 기존 설치 교체는 기본적으로 기존 로컬 프로필을 보존한다.
 - 기존 설치 교체 화면은 `현재 설정 유지`를 기본 선택으로 표시한다. 유효한 권장 설정이 있고 설정 쓰기가 가능한 경우에만 `권장 설정으로 전체 교체`를 제공한다.
-- 전체 교체는 선택한 설치 UUID의 행동 모드, 수동 선택, 루틴, 자동 규칙, 이동, 쓰다듬기와 말풍선 설정을 한 번에 바꾼다. 다른 펫 프로필, 화면 위치·크기, 클릭 통과와 깨움 상태는 변경하지 않으며 부분 병합은 제공하지 않는다.
+- 전체 교체는 선택한 설치 UUID의 행동 모드, 직접·랜덤 선택, 루틴, 자동 규칙, 세 이동 모드 전체, 쓰다듬기, 말풍선과 v10 표시 설정을 한 번에 바꾼다. 다른 펫 프로필, 화면 위치·디스플레이·모든 펫 공통 이동 범위·깨움 상태는 유지하며 부분 병합은 제공하지 않는다.
 
 ## 8. 공개 웹 URL 가져오기
 

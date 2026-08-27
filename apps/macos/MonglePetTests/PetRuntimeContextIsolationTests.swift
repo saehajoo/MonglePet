@@ -475,7 +475,7 @@ final class PetRuntimeContextIsolationTests: XCTestCase {
             ],
             automaticRules: [],
             movement: movementSettings(mode: movementMode),
-            pettingMotionID: BuiltInPet.defaultMotionID,
+            pettingMotionID: sequenceID,
             speech: speech
         )
     }
@@ -526,7 +526,7 @@ final class PetRuntimeContextIsolationTests: XCTestCase {
                 )
             ],
             movement: .default,
-            pettingMotionID: BuiltInPet.defaultMotionID,
+            pettingMotionID: sequenceID,
             speech: .default
         )
     }

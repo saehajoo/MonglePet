@@ -337,7 +337,7 @@ nonisolated enum AppSettingsV11Mapper {
         }
 
         return StoredAppSettingsV11(
-            schemaVersion: AppSettingsLimits.schemaVersion,
+            schemaVersion: 11,
             selectedPetInstanceID: settings.selectedPetInstanceID.uuidString,
             activePetInstances: storedInstances,
             behaviorProfiles: storedProfiles

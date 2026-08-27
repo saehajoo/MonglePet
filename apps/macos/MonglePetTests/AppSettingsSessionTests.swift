@@ -144,13 +144,36 @@ final class AppSettingsSessionTests: XCTestCase {
                 cursorFollowingMotionID: nil,
                 freeRoamingMotionID: "idle"
             ),
-            pettingMotionID: "idle"
+            pettingMotionID: "idle",
+            display: PortablePetDisplaySettings(
+                scalePercent: 150,
+                clickThrough: true,
+                opacity: 0.65,
+                pointerOverlapFadeEnabled: true,
+                pointerOverlapOpacity: 0.15,
+                pixelArtRendering: true
+            )
         )
         let session = AppSettingsSession(
             store: AppSettingsStore(settingsURL: settingsURL)
         )
         _ = session.load()
         session.setSelectedPetInstallationID(installationID)
+        let deviceBoundary = MovementBoundarySettings(
+            mode: .selectedDisplay,
+            screenIdentifier: "display-A",
+            normalizedRect: nil
+        )
+        session.setOverlayGeometry(
+            OverlaySettings(
+                screenIdentifier: "display-A",
+                originX: 321,
+                originY: 123,
+                width: 192,
+                clickThrough: false,
+                movementBoundary: deviceBoundary
+            )
+        )
 
         XCTAssertTrue(
             session.applyRecommendedProfile(profile, to: installationID)
@@ -160,6 +183,13 @@ final class AppSettingsSessionTests: XCTestCase {
             profile.behaviorProfile(for: .installed(installationID))
         )
         XCTAssertNil(session.saveErrorMessage)
+        XCTAssertEqual(session.settings.overlay.width, 288)
+        XCTAssertTrue(session.settings.overlay.clickThrough)
+        XCTAssertEqual(session.settings.overlay.opacity, 0.65)
+        XCTAssertEqual(session.settings.overlay.screenIdentifier, "display-A")
+        XCTAssertEqual(session.settings.overlay.originX, 321)
+        XCTAssertEqual(session.settings.overlay.originY, 123)
+        XCTAssertEqual(session.settings.overlay.movementBoundary, deviceBoundary)
 
         let reloaded = AppSettingsSession(
             store: AppSettingsStore(settingsURL: settingsURL)
@@ -169,6 +199,48 @@ final class AppSettingsSessionTests: XCTestCase {
             reloaded.settings.activeBehaviorProfile,
             profile.behaviorProfile(for: .installed(installationID))
         )
+        XCTAssertEqual(reloaded.settings.overlay, session.settings.overlay)
+    }
+
+    @MainActor
+    func testLegacyRecommendedProfileDoesNotReplaceAbsentDisplaySettings() {
+        let installationID = UUID(
+            uuidString: "11111111-1111-1111-1111-111111111119"
+        )!
+        let profile = RecommendedPetProfile(
+            mode: .automatic,
+            manualSequenceID: nil,
+            sequences: [],
+            automaticRules: [],
+            movement: .default,
+            pettingMotionID: nil,
+            includesDisplaySettings: false
+        )
+        let session = AppSettingsSession(
+            store: AppSettingsStore(settingsURL: settingsURL)
+        )
+        _ = session.load()
+        session.setSelectedPetInstallationID(installationID)
+        session.setOverlayGeometry(
+            OverlaySettings(
+                screenIdentifier: "legacy-display",
+                originX: 41,
+                originY: 73,
+                width: 268,
+                clickThrough: true,
+                opacity: 0.72,
+                pointerOverlapFadeEnabled: true,
+                pointerOverlapOpacity: 0.12,
+                pixelArtRendering: true,
+                movementBoundary: .default
+            )
+        )
+        let originalOverlay = session.settings.overlay
+
+        XCTAssertTrue(
+            session.applyRecommendedProfile(profile, to: installationID)
+        )
+        XCTAssertEqual(session.settings.overlay, originalOverlay)
     }
 
     @MainActor
@@ -244,12 +316,13 @@ final class AppSettingsSessionTests: XCTestCase {
         session.ensureSystemDefaultBehavior()
 
         XCTAssertTrue(session.addBehaviorSequence(named: "built-in-custom"))
-        session.setManualSequenceID("built-in-custom")
+        let builtInCustomID = session.settings.sequences.last!.id
+        session.setManualSequenceID(builtInCustomID)
         session.setBehaviorMode(.manual)
         XCTAssertTrue(
             session.addApplicationRule(
                 bundleIdentifier: "com.example.BuiltIn",
-                sequenceID: "built-in-custom"
+                sequenceID: builtInCustomID
             )
         )
 
@@ -261,9 +334,10 @@ final class AppSettingsSessionTests: XCTestCase {
         XCTAssertEqual(session.settings.behaviorMode, .automatic)
         XCTAssertTrue(session.settings.automaticRules.isEmpty)
         XCTAssertTrue(session.addBehaviorSequence(named: "installed-custom"))
+        let installedCustomID = session.settings.sequences.last!.id
         XCTAssertTrue(
             session.updateBehaviorStep(
-                sequenceID: "installed-custom",
+                sequenceID: installedCustomID,
                 index: 0,
                 motionID: "coding",
                 repeatCount: 5
@@ -271,17 +345,17 @@ final class AppSettingsSessionTests: XCTestCase {
         )
         XCTAssertTrue(
             session.addIdleRule(
-                minutes: 5,
-                sequenceID: "installed-custom"
+                seconds: 300,
+                sequenceID: installedCustomID
             )
         )
 
         session.setSelectedPetInstallationID(nil)
         XCTAssertEqual(session.settings.behaviorMode, .manual)
-        XCTAssertEqual(session.settings.manualSequenceID, "built-in-custom")
-        XCTAssertTrue(session.settings.sequences.contains { $0.id == "built-in-custom" })
-        XCTAssertFalse(session.settings.sequences.contains { $0.id == "installed-custom" })
-        XCTAssertEqual(session.settings.automaticRules.count, 3)
+        XCTAssertEqual(session.settings.manualSequenceID, builtInCustomID)
+        XCTAssertTrue(session.settings.sequences.contains { $0.id == builtInCustomID })
+        XCTAssertFalse(session.settings.sequences.contains { $0.id == installedCustomID })
+        XCTAssertEqual(session.settings.automaticRules.count, 2)
         XCTAssertEqual(
             session.settings.automaticRules.last?.condition,
             .application(bundleIdentifier: "com.example.BuiltIn")
@@ -295,9 +369,9 @@ final class AppSettingsSessionTests: XCTestCase {
         reloaded.setSelectedPetInstallationID(installedID)
 
         XCTAssertEqual(reloaded.settings.behaviorMode, .automatic)
-        XCTAssertFalse(reloaded.settings.sequences.contains { $0.id == "built-in-custom" })
+        XCTAssertFalse(reloaded.settings.sequences.contains { $0.id == builtInCustomID })
         let installedStep = try XCTUnwrap(
-            reloaded.settings.sequences.first { $0.id == "installed-custom" }?.steps.first
+            reloaded.settings.sequences.first { $0.id == installedCustomID }?.steps.first
         )
         XCTAssertEqual(installedStep.motionID, "coding")
         XCTAssertEqual(installedStep.repeatCount, 5)
@@ -375,6 +449,7 @@ final class AppSettingsSessionTests: XCTestCase {
 
         session.setSelectedPetInstallationID(firstInstallationID)
         XCTAssertTrue(session.addBehaviorSequence(named: "first-custom"))
+        let firstCustomID = session.settings.sequences.last!.id
 
         session.setSelectedPetInstallationID(secondInstallationID)
         XCTAssertEqual(
@@ -382,12 +457,12 @@ final class AppSettingsSessionTests: XCTestCase {
             [BuiltInBehaviorPresets.defaultSequenceID]
         )
         XCTAssertFalse(
-            session.settings.sequences.contains { $0.id == "first-custom" }
+            session.settings.sequences.contains { $0.id == firstCustomID }
         )
 
         session.setSelectedPetInstallationID(firstInstallationID)
         XCTAssertTrue(
-            session.settings.sequences.contains { $0.id == "first-custom" }
+            session.settings.sequences.contains { $0.id == firstCustomID }
         )
         XCTAssertEqual(session.settings.behaviorProfiles.count, 3)
     }
@@ -464,6 +539,28 @@ final class AppSettingsSessionTests: XCTestCase {
         XCTAssertEqual(
             AppSettingsStore(settingsURL: settingsURL).load().settings.overlay.width,
             320
+        )
+    }
+
+    @MainActor
+    func testOverlayWidthAllowsTenPercentAndClampsSmallerValues() {
+        let session = AppSettingsSession(
+            store: AppSettingsStore(settingsURL: settingsURL)
+        )
+        _ = session.load()
+
+        session.setOverlayWidth(1)
+
+        XCTAssertEqual(
+            session.settings.overlay.width,
+            AppSettingsLimits.defaultOverlayWidth * 0.1,
+            accuracy: 0.000_1
+        )
+        XCTAssertEqual(
+            AppSettingsStore(settingsURL: settingsURL).load()
+                .settings.overlay.width,
+            AppSettingsLimits.minimumOverlayWidth,
+            accuracy: 0.000_1
         )
     }
 
@@ -803,7 +900,15 @@ final class AppSettingsSessionTests: XCTestCase {
         XCTAssertEqual(instances.map(\.petKey), [.builtIn, .builtIn])
         XCTAssertEqual(Set(instances.map(\.behaviorProfileID)).count, 2)
         XCTAssertEqual(instances.map(\.presentation), [.awake, .tuckedAway])
-        XCTAssertEqual(instances.map(\.overlay), [firstOverlay, secondOverlay])
+        XCTAssertEqual(
+            instances.map(\.overlay),
+            [
+                BuiltInBehaviorPresets.mongleDisplay.applying(
+                    to: firstOverlay
+                ),
+                secondOverlay
+            ]
+        )
         XCTAssertNil(
             session.settings.behaviorProfile(
                 for: .installed(installationID)
@@ -842,12 +947,13 @@ final class AppSettingsSessionTests: XCTestCase {
         )
 
         XCTAssertTrue(session.addBehaviorSequence(named: "coding"))
-        session.setManualSequenceID("coding")
+        let codingID = session.settings.sequences.last!.id
+        session.setManualSequenceID(codingID)
         let reloaded = AppSettingsStore(settingsURL: settingsURL).load()
-        XCTAssertEqual(reloaded.settings.manualSequenceID, "coding")
+        XCTAssertEqual(reloaded.settings.manualSequenceID, codingID)
         XCTAssertEqual(
             reloaded.settings.sequences.map(\.id),
-            BuiltInBehaviorPresets.mongleSequences.map(\.id) + ["coding"]
+            BuiltInBehaviorPresets.mongleSequences.map(\.id) + [codingID]
         )
         XCTAssertEqual(
             reloaded.settings.automaticRules,
@@ -864,11 +970,16 @@ final class AppSettingsSessionTests: XCTestCase {
         session.ensureSystemDefaultBehavior()
 
         XCTAssertTrue(session.addBehaviorSequence(named: "coding"))
+        let codingID = session.settings.sequences.last!.id
         XCTAssertNil(session.behaviorEditErrorMessage)
-        XCTAssertTrue(session.addBehaviorStep(to: "coding"))
+        XCTAssertTrue(session.addBehaviorStep(to: codingID, motionID: "wave"))
+        XCTAssertEqual(
+            session.settings.sequences.last?.steps.last?.motionID,
+            "wave"
+        )
         XCTAssertTrue(
             session.updateBehaviorStep(
-                sequenceID: "coding",
+                sequenceID: codingID,
                 index: 1,
                 motionID: "focus",
                 repeatCount: 12
@@ -878,7 +989,7 @@ final class AppSettingsSessionTests: XCTestCase {
         XCTAssertNotNil(session.behaviorEditErrorMessage)
 
         let reloaded = AppSettingsStore(settingsURL: settingsURL).load().settings
-        let coding = reloaded.sequences.first { $0.id == "coding" }
+        let coding = reloaded.sequences.first { $0.id == codingID }
         XCTAssertEqual(coding?.steps.count, 2)
         XCTAssertEqual(coding?.steps[1].motionID, "focus")
         XCTAssertEqual(coding?.steps[1].repeatCount, 12)
@@ -913,9 +1024,10 @@ final class AppSettingsSessionTests: XCTestCase {
         _ = session.load()
         session.ensureSystemDefaultBehavior()
         XCTAssertTrue(session.addBehaviorSequence(named: "custom"))
+        let customID = session.settings.sequences.last!.id
         XCTAssertTrue(
             session.updateBehaviorStep(
-                sequenceID: "custom",
+                sequenceID: customID,
                 index: 0,
                 motionID: "wave",
                 repeatCount: 4
@@ -930,11 +1042,11 @@ final class AppSettingsSessionTests: XCTestCase {
                 freeRoamingDwellMilliseconds:
                     AppSettingsLimits.defaultFreeRoamingDwellMilliseconds,
                 prefersFrontmostWindow: true,
-                cursorFollowingMotionID: "wave",
-                freeRoamingMotionID: "wave"
+                cursorFollowingMotionID: customID,
+                freeRoamingMotionID: customID
             )
         )
-        session.setPettingMotionID("wave")
+        session.setPettingMotionID(customID)
         var changes: [AppSettings] = []
         session.onChange = { changes.append($0) }
 
@@ -946,30 +1058,30 @@ final class AppSettingsSessionTests: XCTestCase {
         )
 
         let currentStep = try XCTUnwrap(
-            session.settings.sequences.first { $0.id == "custom" }?.steps.first
+            session.settings.sequences.first { $0.id == customID }?.steps.first
         )
         XCTAssertEqual(currentStep.motionID, "hello")
-        XCTAssertEqual(session.settings.movementSettings.cursorFollowingMotionID, "hello")
-        XCTAssertEqual(session.settings.movementSettings.freeRoamingMotionID, "hello")
-        XCTAssertEqual(session.settings.pettingMotionID, "hello")
+        XCTAssertEqual(session.settings.movementSettings.cursorFollowingMotionID, customID)
+        XCTAssertEqual(session.settings.movementSettings.freeRoamingMotionID, customID)
+        XCTAssertEqual(session.settings.pettingMotionID, customID)
 
         XCTAssertTrue(session.removeMotionReferences("hello"))
         let removedStep = try XCTUnwrap(
-            session.settings.sequences.first { $0.id == "custom" }?.steps.first
+            session.settings.sequences.first { $0.id == customID }?.steps.first
         )
         XCTAssertEqual(removedStep.motionID, PetMotionReference.currentPetDefault)
-        XCTAssertNil(session.settings.movementSettings.cursorFollowingMotionID)
-        XCTAssertNil(session.settings.movementSettings.freeRoamingMotionID)
-        XCTAssertNil(session.settings.pettingMotionID)
+        XCTAssertEqual(session.settings.movementSettings.cursorFollowingMotionID, customID)
+        XCTAssertEqual(session.settings.movementSettings.freeRoamingMotionID, customID)
+        XCTAssertEqual(session.settings.pettingMotionID, customID)
         XCTAssertEqual(changes.last, session.settings)
         let reloaded = AppSettingsStore(settingsURL: settingsURL).load().settings
         XCTAssertEqual(
-            reloaded.sequences.first { $0.id == "custom" }?.steps.first?.motionID,
+            reloaded.sequences.first { $0.id == customID }?.steps.first?.motionID,
             PetMotionReference.currentPetDefault
         )
-        XCTAssertNil(reloaded.movementSettings.cursorFollowingMotionID)
-        XCTAssertNil(reloaded.movementSettings.freeRoamingMotionID)
-        XCTAssertNil(reloaded.pettingMotionID)
+        XCTAssertEqual(reloaded.movementSettings.cursorFollowingMotionID, customID)
+        XCTAssertEqual(reloaded.movementSettings.freeRoamingMotionID, customID)
+        XCTAssertEqual(reloaded.pettingMotionID, customID)
     }
 
     @MainActor
@@ -1070,8 +1182,323 @@ final class AppSettingsSessionTests: XCTestCase {
             normalized.movementSettings,
             BuiltInBehaviorPresets.mongleMovement
         )
-        XCTAssertEqual(normalized.pettingMotionID, "해피")
+        XCTAssertEqual(
+            normalized.pettingMotionID,
+            "__monglepet_motion_behavior__7ZW07ZS8"
+        )
         XCTAssertEqual(normalized.speechSettings, .default)
+        XCTAssertEqual(
+            PortablePetDisplaySettings(overlay: normalized.overlay),
+            BuiltInBehaviorPresets.mongleDisplay
+        )
+        XCTAssertEqual(
+            normalized.sequences.map(\.displayName),
+            [
+                "기본",
+                "수면 중",
+                "일하는 중",
+                "왼쪽 보글보글",
+                "오른쪽",
+                "위",
+                "정면",
+                "행복",
+                "왼쪽",
+                "아래",
+                "찾는 중",
+                "오른쪽 보글보글"
+            ]
+        )
+        XCTAssertEqual(
+            normalized.sequences.map { $0.steps[0].motionID },
+            [
+                PetMotionReference.currentPetDefault,
+                "자는 중",
+                "일하는 중",
+                "왼쪽 보글보글",
+                "오른쪽",
+                "위",
+                "정면",
+                "행복",
+                "왼쪽",
+                "아래",
+                "찾는 중",
+                "오른쪽 보글보글"
+            ]
+        )
+        XCTAssertEqual(
+            normalized.automaticRulePriorityOrder,
+            [.idle, .application, .movement]
+        )
+        XCTAssertEqual(normalized.automaticRules.count, 1)
+        XCTAssertEqual(
+            normalized.automaticRules.first?.condition,
+            .idleAtLeast(milliseconds: 60_000)
+        )
+        XCTAssertEqual(normalized.movementSettings.mode, .cursorAvoiding)
+        XCTAssertEqual(normalized.movementSettings.cursorDistance, 256)
+        XCTAssertEqual(
+            normalized.movementSettings.cursorAvoidingIdleBehavior,
+            .freeRoaming
+        )
+        XCTAssertTrue(
+            normalized.movementSettings.randomizesFreeRoamingDwell
+        )
+        XCTAssertEqual(
+            normalized.movementSettings.freeRoamingDwellMinimumMilliseconds,
+            2_000
+        )
+        XCTAssertEqual(
+            normalized.movementSettings.freeRoamingDwellMilliseconds,
+            6_000
+        )
+    }
+
+    func testUntouchedVersionOnePointZeroPointTwoProfileMigratesWithDisplay() {
+        let original = AppSettings(
+            selectedPetInstallationID: nil,
+            lastUserPresentation: .awake,
+            overlay: .default,
+            behaviorProfiles: [
+                BuiltInBehaviorPresets.publishedMongleProfileV102
+            ]
+        )
+
+        let normalized = BuiltInBehaviorPresets.normalizedDefaults(in: original)
+
+        XCTAssertEqual(
+            normalized.activeBehaviorProfile,
+            BuiltInBehaviorPresets.defaultProfile(for: .builtIn)
+        )
+        XCTAssertEqual(
+            PortablePetDisplaySettings(overlay: normalized.overlay),
+            BuiltInBehaviorPresets.mongleDisplay
+        )
+    }
+
+    func testVersionOnePointZeroPointTwoMigrationPreservesCustomDisplay() {
+        let customOverlay = OverlaySettings(
+            screenIdentifier: "screen-1",
+            originX: 80,
+            originY: 120,
+            width: 240,
+            clickThrough: false,
+            opacity: 0.8,
+            pointerOverlapFadeEnabled: false,
+            pointerOverlapOpacity: 0.3,
+            pixelArtRendering: true,
+            movementBoundary: .default
+        )
+        let original = AppSettings(
+            selectedPetInstallationID: nil,
+            lastUserPresentation: .awake,
+            overlay: customOverlay,
+            behaviorProfiles: [
+                BuiltInBehaviorPresets.publishedMongleProfileV102
+            ]
+        )
+
+        let normalized = BuiltInBehaviorPresets.normalizedDefaults(in: original)
+
+        XCTAssertEqual(
+            normalized.activeBehaviorProfile,
+            BuiltInBehaviorPresets.defaultProfile(for: .builtIn)
+        )
+        XCTAssertEqual(normalized.overlay, customOverlay)
+    }
+
+    func testModifiedVersionOnePointZeroPointTwoProfileIsNotOverwritten() {
+        let published = BuiltInBehaviorPresets.publishedMongleProfileV102
+        let modified = BehaviorProfile(
+            petKey: published.petKey,
+            mode: .manual,
+            manualSequenceID: published.manualSequenceID,
+            randomSequenceIDs: published.randomSequenceIDs,
+            sequences: published.sequences,
+            automaticRules: published.automaticRules,
+            automaticRulePriorityOrder:
+                published.automaticRulePriorityOrder,
+            movement: published.movement,
+            pettingMotionID: published.pettingMotionID,
+            speech: published.speech
+        )
+        let original = AppSettings(
+            selectedPetInstallationID: nil,
+            lastUserPresentation: .awake,
+            overlay: .default,
+            behaviorProfiles: [modified]
+        )
+
+        let normalized = BuiltInBehaviorPresets.normalizedDefaults(in: original)
+
+        XCTAssertEqual(normalized.activeBehaviorProfile, modified)
+        XCTAssertEqual(normalized.overlay, .default)
+    }
+
+    func testUnmodifiedPublishedMongleProfileMigratesToCurrentDefaults() {
+        let previousSequences = [
+            BehaviorSequence(
+                id: BuiltInBehaviorPresets.defaultSequenceID,
+                displayName: "기본",
+                steps: [
+                    BehaviorStep(
+                        motionID: PetMotionReference.currentPetDefault,
+                        repeatCount: 1
+                    ),
+                    BehaviorStep(motionID: "물뿜기", repeatCount: 1),
+                    BehaviorStep(motionID: "정면", repeatCount: 1)
+                ],
+                repeats: true
+            ),
+            BehaviorSequence(
+                id: "수면 중",
+                steps: [BehaviorStep(motionID: "자는중", repeatCount: 1)],
+                repeats: true
+            ),
+            BehaviorSequence(
+                id: "일해라",
+                steps: [BehaviorStep(motionID: "일하는 중", repeatCount: 1)],
+                repeats: true
+            ),
+            BehaviorSequence(
+                id: "보글보글",
+                steps: [BehaviorStep(motionID: "보글보글", repeatCount: 1)],
+                repeats: true
+            ),
+            BehaviorSequence(
+                id: "오른쪽",
+                steps: [BehaviorStep(motionID: "오른쪽", repeatCount: 1)],
+                repeats: true
+            ),
+            BehaviorSequence(
+                id: "위로",
+                steps: [BehaviorStep(motionID: "위로", repeatCount: 1)],
+                repeats: true
+            ),
+            BehaviorSequence(
+                id: "정면",
+                steps: [BehaviorStep(motionID: "정면", repeatCount: 1)],
+                repeats: true
+            ),
+            BehaviorSequence(
+                id: "해피",
+                steps: [BehaviorStep(motionID: "해피", repeatCount: 1)],
+                repeats: true
+            )
+        ]
+        let previousRules = [
+            AutomaticRule(
+                id: UUID(
+                    uuidString: "5C8B76B6-3C4F-4D22-86CA-8EFF77CE35F1"
+                )!,
+                isEnabled: true,
+                priority: 0,
+                condition: .application(bundleIdentifier: "com.openai.codex"),
+                sequenceID: "일해라"
+            ),
+            AutomaticRule(
+                id: UUID(
+                    uuidString: "308C8E4B-EDEA-4C71-B354-CC67532AF99C"
+                )!,
+                isEnabled: true,
+                priority: 1,
+                condition: .idleAtLeast(milliseconds: 60_000),
+                sequenceID: "수면 중"
+            )
+        ]
+        let previousMovement = PetMovementSettings(
+            mode: .cursorAvoiding,
+            speed: 160,
+            cursorDistance: 96,
+            stopRadius: 16,
+            freeRoamingDwellMilliseconds: 6_000,
+            prefersFrontmostWindow: true,
+            cursorFollowingAnimation: .default,
+            freeRoamingAnimation: .default,
+            cursorAvoidingIdleBehavior: .stationary,
+            cursorAvoidingDetectionDistance: 160,
+            cursorAvoidingSpeed: 320,
+            cursorAvoidingAnimation: MovementAnimationSettings(
+                fallbackMotionID: "보글보글",
+                usesDirectionalMotions: true,
+                usesDiagonalMotions: false,
+                directionMotionIDs: DirectionalMotionIDs(
+                    left: "보글보글",
+                    right: "오른쪽",
+                    up: "위로",
+                    down: "정면"
+                )
+            )
+        )
+        let previous = AppSettings(
+            selectedPetInstallationID: nil,
+            lastUserPresentation: .awake,
+            behaviorMode: .automatic,
+            overlay: .default,
+            movement: previousMovement,
+            pettingMotionID: "해피",
+            manualSequenceID: BuiltInBehaviorPresets.defaultSequenceID,
+            sequences: previousSequences,
+            automaticRules: previousRules,
+            automaticRulePriorityOrder: [.movement, .idle, .application]
+        )
+
+        let normalized = BuiltInBehaviorPresets.normalizedDefaults(in: previous)
+
+        XCTAssertEqual(
+            normalized.activeBehaviorProfile,
+            BuiltInBehaviorPresets.defaultProfile(for: .builtIn)
+        )
+        XCTAssertEqual(
+            normalized.overlay,
+            BuiltInBehaviorPresets.mongleDisplay.applying(
+                to: previous.overlay
+            )
+        )
+    }
+
+    func testModifiedBuiltInProfileKeepsBehaviorIDsWhileRenamingRemovedMotions() {
+        let settings = AppSettings(
+            selectedPetInstallationID: nil,
+            lastUserPresentation: .awake,
+            behaviorMode: .manual,
+            overlay: .default,
+            manualSequenceID: "custom-sleep",
+            sequences: [
+                BehaviorSequence(
+                    id: "custom-sleep",
+                    displayName: "자는중",
+                    steps: [
+                        BehaviorStep(motionID: "자는중", repeatCount: 2)
+                    ],
+                    repeats: false
+                ),
+                BehaviorSequence(
+                    id: "custom-happy",
+                    displayName: "내 행복",
+                    steps: [
+                        BehaviorStep(motionID: "해피", repeatCount: 3)
+                    ],
+                    repeats: true
+                )
+            ],
+            automaticRules: []
+        )
+
+        let normalized = BuiltInBehaviorPresets.normalizedDefaults(in: settings)
+
+        XCTAssertEqual(normalized.behaviorMode, .manual)
+        XCTAssertEqual(normalized.manualSequenceID, "custom-sleep")
+        XCTAssertEqual(
+            normalized.sequences.map(\.id),
+            [BuiltInBehaviorPresets.defaultSequenceID, "custom-sleep", "custom-happy"]
+        )
+        XCTAssertEqual(normalized.sequences.map(\.displayName), ["기본", "자는 중", "내 행복"])
+        XCTAssertEqual(
+            normalized.sequences.map { $0.steps[0].motionID },
+            [PetMotionReference.currentPetDefault, "자는 중", "행복"]
+        )
+        XCTAssertEqual(normalized.sequences.map { $0.steps[0].repeatCount }, [1, 2, 3])
+        XCTAssertEqual(normalized.sequences.map(\.repeats), [true, false, true])
     }
 
     func testModifiedPreviousBuiltInProfileIsPreserved() {
@@ -1170,7 +1597,7 @@ final class AppSettingsSessionTests: XCTestCase {
 
     @MainActor
     func testNewerSchemaPreservesFileWhileAllowingRuntimePresentationChange() throws {
-        let originalData = Data(#"{"schemaVersion":12,"future":true}"#.utf8)
+        let originalData = Data(#"{"schemaVersion":15,"future":true}"#.utf8)
         try originalData.write(to: settingsURL)
         let session = AppSettingsSession(
             store: AppSettingsStore(settingsURL: settingsURL)
@@ -1179,7 +1606,7 @@ final class AppSettingsSessionTests: XCTestCase {
         let result = session.load()
         session.setUserPresentation(.tuckedAway)
 
-        XCTAssertEqual(result.source, .newerSchema(12))
+        XCTAssertEqual(result.source, .newerSchema(15))
         XCTAssertFalse(session.isWritingEnabled)
         XCTAssertNotNil(session.loadNotice)
         XCTAssertEqual(session.settings.lastUserPresentation, .tuckedAway)

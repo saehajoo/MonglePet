@@ -520,16 +520,79 @@ nonisolated final class AppSettingsStore {
             }
         }
 
+        if envelope.schemaVersion == 11 {
+            guard let storedSettings = try? decoder.decode(
+                StoredAppSettingsV11.self,
+                from: data
+            ) else {
+                return recoverCorruptFile()
+            }
+            do {
+                return try loadMigratingV11(
+                    storedSettings,
+                    precedingIssues: []
+                )
+            } catch {
+                isWritingEnabled = false
+                return AppSettingsLoadResult(
+                    settings: .default,
+                    issues: [.invalidField("settingsMigration")],
+                    source: .recovered,
+                    isWritingEnabled: false
+                )
+            }
+        }
+
+        if envelope.schemaVersion == 12 {
+            guard let storedSettings = try? decoder.decode(
+                StoredAppSettingsV12.self,
+                from: data
+            ) else {
+                return recoverCorruptFile()
+            }
+            do {
+                return try loadMigratingV12(storedSettings)
+            } catch {
+                isWritingEnabled = false
+                return AppSettingsLoadResult(
+                    settings: .default,
+                    issues: [.invalidField("settingsMigration")],
+                    source: .recovered,
+                    isWritingEnabled: false
+                )
+            }
+        }
+
+        if envelope.schemaVersion == 13 {
+            guard let storedSettings = try? decoder.decode(
+                StoredAppSettingsV13.self,
+                from: data
+            ) else {
+                return recoverCorruptFile()
+            }
+            do {
+                return try loadMigratingV13(storedSettings)
+            } catch {
+                isWritingEnabled = false
+                return AppSettingsLoadResult(
+                    settings: .default,
+                    issues: [.invalidField("settingsMigration")],
+                    source: .recovered,
+                    isWritingEnabled: false
+                )
+            }
+        }
+
         guard envelope.schemaVersion == AppSettingsLimits.schemaVersion,
               let storedSettings = try? decoder.decode(
-                  StoredAppSettingsV11.self,
+                  StoredAppSettingsV14.self,
                   from: data
               )
         else {
             return recoverCorruptFile()
         }
 
-        let mapped = AppSettingsV11Mapper.domainSettings(from: storedSettings)
+        let mapped = AppSettingsV14Mapper.domainSettings(from: storedSettings)
         isWritingEnabled = true
         return AppSettingsLoadResult(
             settings: mapped.settings,
@@ -544,9 +607,9 @@ nonisolated final class AppSettingsStore {
             throw AppSettingsStoreError.writingDisabledForNewerSchema
         }
 
-        let storedSettings: StoredAppSettingsV11
+        let storedSettings: StoredAppSettingsV14
         do {
-            storedSettings = try AppSettingsV11Mapper.storedSettings(
+            storedSettings = try AppSettingsV14Mapper.storedSettings(
                 from: settings
             )
         } catch let error as AppSettingsMappingError {
@@ -566,14 +629,49 @@ nonisolated final class AppSettingsStore {
         let migrated = try AppSettingsV10ToV11Migrator.migrate(
             storedSettings
         )
-        let mapped = AppSettingsV11Mapper.domainSettings(
-            from: migrated.settings
+        return try loadMigratingV11(
+            migrated.settings,
+            precedingIssues: precedingIssues + migrated.issues
         )
-        let normalized = try AppSettingsV11Mapper.storedSettings(
+    }
+
+    private func loadMigratingV11(
+        _ storedSettings: StoredAppSettingsV11,
+        precedingIssues: [SettingsRecoveryIssue]
+    ) throws -> AppSettingsLoadResult {
+        let migrated = try AppSettingsV11ToV12Migrator.migrate(
+            storedSettings
+        )
+        return try loadMigratingV12(
+            migrated.settings,
+            precedingIssues: precedingIssues + migrated.issues
+        )
+    }
+
+    private func loadMigratingV12(
+        _ storedSettings: StoredAppSettingsV12,
+        precedingIssues: [SettingsRecoveryIssue] = []
+    ) throws -> AppSettingsLoadResult {
+        let migrated = try AppSettingsV12ToV13Migrator.migrate(storedSettings)
+        return try loadMigratingV13(
+            migrated,
+            precedingIssues: precedingIssues
+        )
+    }
+
+    private func loadMigratingV13(
+        _ storedSettings: StoredAppSettingsV13,
+        precedingIssues: [SettingsRecoveryIssue] = []
+    ) throws -> AppSettingsLoadResult {
+        let migrated = try AppSettingsV13ToV14Migrator.migrate(
+            storedSettings
+        )
+        let mapped = AppSettingsV14Mapper.domainSettings(from: migrated)
+        let normalized = try AppSettingsV14Mapper.storedSettings(
             from: mapped.settings
         )
         try write(normalized)
-        let issues = precedingIssues + migrated.issues + mapped.issues
+        let issues = precedingIssues + mapped.issues
         isWritingEnabled = true
         return AppSettingsLoadResult(
             settings: mapped.settings,

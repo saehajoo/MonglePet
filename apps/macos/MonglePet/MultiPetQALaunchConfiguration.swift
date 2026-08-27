@@ -83,8 +83,11 @@ nonisolated struct MultiPetQALaunchConfiguration: Equatable, Sendable {
                     petKey: profile.petKey,
                     mode: profile.mode,
                     manualSequenceID: profile.manualSequenceID,
+                    randomSequenceIDs: profile.randomSequenceIDs,
                     sequences: profile.sequences,
                     automaticRules: profile.automaticRules,
+                    automaticRulePriorityOrder:
+                        profile.automaticRulePriorityOrder,
                     movement: movementSettings(
                         from: profile.movement,
                         mode: movementMode
@@ -119,7 +122,11 @@ nonisolated struct MultiPetQALaunchConfiguration: Equatable, Sendable {
             cursorAvoidingDetectionDistance:
                 movement.cursorAvoidingDetectionDistance,
             cursorAvoidingSpeed: movement.cursorAvoidingSpeed,
-            cursorAvoidingAnimation: movement.cursorAvoidingAnimation
+            cursorAvoidingAnimation: movement.cursorAvoidingAnimation,
+            randomizesFreeRoamingDwell:
+                movement.randomizesFreeRoamingDwell,
+            freeRoamingDwellMinimumMilliseconds:
+                movement.freeRoamingDwellMinimumMilliseconds
         )
     }
 

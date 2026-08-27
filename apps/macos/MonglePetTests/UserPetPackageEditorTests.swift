@@ -143,6 +143,273 @@ final class UserPetPackageEditorTests: XCTestCase {
         }
     }
 
+    func testDuplicatesAnimationThenDetachesAtlasOnEditWithoutChangingSource() throws {
+        let environment = try makeEnvironment()
+        let installationID = UUID(
+            uuidString: "22222222-2222-2222-2222-222222222222"
+        )!
+        let store = PetLibraryStore(
+            libraryRootURL: environment.libraryURL,
+            installationIDGenerator: { installationID }
+        )
+        let editor = UserPetPackageEditor(store: store)
+        let firstFrameURL = environment.rootURL.appendingPathComponent("first.png")
+        let secondFrameURL = environment.rootURL.appendingPathComponent("second.png")
+        try writePNG(to: firstFrameURL, width: 4, height: 3)
+        try writePNG(to: secondFrameURL, width: 2, height: 5)
+        let created = try editor.createPet(
+            UserPetCreationRequest(
+                displayName: "복제 테스트 펫",
+                animationName: "기본",
+                frameDurationMilliseconds: 140,
+                loops: false,
+                sourceURLs: [firstFrameURL, secondFrameURL]
+            )
+        )
+        let sourceMotion = try XCTUnwrap(
+            created.package.definition.motion(id: "기본")
+        )
+        let sourceAtlasURL = try XCTUnwrap(created.package.atlases.first?.fileURL)
+
+        let duplicated = try editor.duplicateAnimation(
+            id: "기본",
+            as: "기본 복사본",
+            in: created
+        )
+
+        XCTAssertEqual(duplicated.installationID, installationID)
+        XCTAssertEqual(
+            duplicated.package.definition.motions.map(\.id),
+            ["기본", "기본 복사본"]
+        )
+        XCTAssertEqual(duplicated.package.definition.defaultMotionID, "기본")
+        XCTAssertEqual(duplicated.package.atlases.count, 1)
+        let duplicateMotion = try XCTUnwrap(
+            duplicated.package.definition.motion(id: "기본 복사본")
+        )
+        XCTAssertEqual(duplicateMotion.loops, sourceMotion.loops)
+        XCTAssertEqual(duplicateMotion.frames, sourceMotion.frames)
+
+        let edited = try editor.updateAnimation(
+            UserPetAnimationDetailsRequest(
+                animationID: "기본 복사본",
+                animationName: "기본 복사본",
+                loops: true,
+                frames: [
+                    UserPetAnimationFrameRequest(
+                        source: .existing(index: 1),
+                        durationMilliseconds: 275
+                    )
+                ]
+            ),
+            for: duplicated
+        )
+
+        XCTAssertEqual(edited.package.atlases.count, 2)
+        XCTAssertEqual(
+            edited.package.definition.motion(id: "기본"),
+            sourceMotion
+        )
+        let editedDuplicate = try XCTUnwrap(
+            edited.package.definition.motion(id: "기본 복사본")
+        )
+        XCTAssertTrue(editedDuplicate.loops)
+        XCTAssertEqual(editedDuplicate.frames.count, 1)
+        XCTAssertEqual(editedDuplicate.frames[0].duration, .milliseconds(275))
+        XCTAssertNotEqual(
+            editedDuplicate.frames[0].atlasID,
+            sourceMotion.frames[0].atlasID
+        )
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sourceAtlasURL.path))
+
+        let removed = try editor.removeAnimation(
+            id: "기본 복사본",
+            from: edited
+        )
+
+        XCTAssertEqual(removed.package.definition.motions.map(\.id), ["기본"])
+        XCTAssertEqual(removed.package.definition.defaultMotionID, "기본")
+        XCTAssertEqual(removed.package.atlases.count, 1)
+        XCTAssertEqual(
+            removed.package.definition.motion(id: "기본"),
+            sourceMotion
+        )
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sourceAtlasURL.path))
+    }
+
+    @MainActor
+    func testExistingFrameLibraryCreatesIndependentAnimationInClickOrder() throws {
+        let environment = try makeEnvironment()
+        let store = PetLibraryStore(libraryRootURL: environment.libraryURL)
+        let editor = UserPetPackageEditor(store: store)
+        let redURL = environment.rootURL.appendingPathComponent("red.png")
+        let greenURL = environment.rootURL.appendingPathComponent("green.png")
+        try writePNG(
+            to: redURL,
+            width: 4,
+            height: 4,
+            red: 0.9,
+            green: 0.1,
+            blue: 0.1
+        )
+        try writePNG(
+            to: greenURL,
+            width: 4,
+            height: 4,
+            red: 0.1,
+            green: 0.9,
+            blue: 0.1
+        )
+        let created = try editor.createPet(
+            UserPetCreationRequest(
+                displayName: "프레임 보관함 펫",
+                animationName: "기본",
+                frameDurationMilliseconds: 120,
+                loops: true,
+                sourceURLs: [redURL]
+            )
+        )
+        let withFocus = try editor.addAnimation(
+            UserPetAnimationRequest(
+                animationName: "집중",
+                frameDurationMilliseconds: 260,
+                loops: false,
+                sourceURLs: [greenURL]
+            ),
+            to: created
+        )
+        let item = PetLibraryItem(
+            selection: .installed(withFocus.installationID),
+            metadata: withFocus.package.metadata,
+            previewURL: withFocus.package.previewURL,
+            definition: withFocus.package.definition,
+            installedPackage: withFocus,
+            isEditable: true
+        )
+
+        let groups = try ExistingPetFrameLibrary.load(from: item)
+
+        XCTAssertEqual(groups.map(\.id), ["기본", "집중"])
+        XCTAssertEqual(groups.map { $0.frames.count }, [1, 1])
+        XCTAssertEqual(groups[0].frames[0].durationMilliseconds, 120)
+        XCTAssertEqual(groups[1].frames[0].durationMilliseconds, 260)
+
+        let selected = [groups[1].frames[0], groups[0].frames[0]]
+        let combined = try editor.addAnimation(
+            UserPetAnimationRequest(
+                animationName: "조합",
+                loops: true,
+                frames: selected.map { frame in
+                    UserPetSourceFrameRequest(
+                        image: UserPetSourceImage(
+                            displayName: "\(frame.motionID)-\(frame.frameIndex)",
+                            image: frame.image
+                        ),
+                        durationMilliseconds: frame.durationMilliseconds
+                    )
+                }
+            ),
+            to: withFocus
+        )
+        let combinedMotion = try XCTUnwrap(
+            combined.package.definition.motion(id: "조합")
+        )
+        XCTAssertEqual(
+            combinedMotion.frames.map(\.duration),
+            [.milliseconds(260), .milliseconds(120)]
+        )
+        let combinedAtlas = try XCTUnwrap(
+            combined.package.atlases.first {
+                $0.id == combinedMotion.frames[0].atlasID
+            }
+        )
+        let combinedImage = try loadImage(at: combinedAtlas.fileURL)
+        let first = try crop(combinedImage, to: combinedMotion.frames[0].sourceRect)
+        let second = try crop(combinedImage, to: combinedMotion.frames[1].sourceRect)
+        XCTAssertGreaterThan(try centerPixel(of: first).green, 150)
+        XCTAssertGreaterThan(try centerPixel(of: second).red, 150)
+
+        let removedSource = try editor.removeAnimation(id: "집중", from: combined)
+        XCTAssertNotNil(removedSource.package.definition.motion(id: "조합"))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: combinedAtlas.fileURL.path))
+    }
+
+    func testBakesHorizontalAndVerticalFrameFlipsIntoAtlasPixels() throws {
+        let environment = try makeEnvironment()
+        let store = PetLibraryStore(libraryRootURL: environment.libraryURL)
+        let editor = UserPetPackageEditor(store: store)
+        let sourceImage = try makeQuadrantImage()
+        let placement = FrameCanvasPlacement(
+            canvasWidth: sourceImage.width,
+            canvasHeight: sourceImage.height,
+            scale: 1,
+            x: 0,
+            y: 0
+        )
+        let created = try editor.createPet(
+            UserPetCreationRequest(
+                displayName: "반전 펫",
+                animationName: "기본",
+                loops: true,
+                frames: [
+                    UserPetSourceFrameRequest(
+                        image: UserPetSourceImage(
+                            displayName: "quadrants",
+                            image: sourceImage
+                        ),
+                        durationMilliseconds: 180,
+                        placement: placement,
+                        flipsHorizontally: true
+                    )
+                ]
+            )
+        )
+        let horizontallyFlipped = try motionImage(
+            id: "기본",
+            in: created
+        )
+        let expectedHorizontal = try XCTUnwrap(
+            ImageCropProcessor().transformed(
+                sourceImage,
+                flipsHorizontally: true,
+                flipsVertically: false
+            )
+        )
+        XCTAssertEqual(
+            try rgbaData(of: horizontallyFlipped),
+            try rgbaData(of: expectedHorizontal)
+        )
+
+        let updated = try editor.updateAnimation(
+            UserPetAnimationDetailsRequest(
+                animationID: "기본",
+                animationName: "기본",
+                loops: true,
+                frames: [
+                    UserPetAnimationFrameRequest(
+                        source: .existing(index: 0),
+                        durationMilliseconds: 180,
+                        placement: placement,
+                        flipsVertically: true
+                    )
+                ]
+            ),
+            for: created
+        )
+        let bothFlipped = try motionImage(id: "기본", in: updated)
+        let expectedBoth = try XCTUnwrap(
+            ImageCropProcessor().transformed(
+                expectedHorizontal,
+                flipsHorizontally: false,
+                flipsVertically: true
+            )
+        )
+        XCTAssertEqual(
+            try rgbaData(of: bothFlipped),
+            try rgbaData(of: expectedBoth)
+        )
+    }
+
     func testAtomicallyUpdatesEditablePetDetailsAndDefaultAnimation() throws {
         let environment = try makeEnvironment()
         let installationID = UUID(
@@ -654,7 +921,7 @@ final class UserPetPackageEditorTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: originalManifestURL), originalManifest)
     }
 
-    func testRejectsEditableCopyCreationFromAlreadyEditablePet() throws {
+    func testCreatesIndependentEditableCopyFromAlreadyEditablePet() throws {
         let environment = try makeEnvironment()
         let store = PetLibraryStore(libraryRootURL: environment.libraryURL)
         let editor = UserPetPackageEditor(store: store)
@@ -670,12 +937,16 @@ final class UserPetPackageEditorTests: XCTestCase {
             )
         )
 
-        XCTAssertThrowsError(
-            try editor.createEditableCopy(of: created, displayName: "사본")
-        ) { error in
-            XCTAssertEqual(error as? UserPetEditingError, .petIsAlreadyEditable)
-        }
-        XCTAssertEqual(store.installedPackages().count, 1)
+        let copy = try editor.createEditableCopy(
+            of: created,
+            displayName: "사본"
+        )
+
+        XCTAssertNotEqual(copy.installationID, created.installationID)
+        XCTAssertNotEqual(copy.package.definition.id, created.package.definition.id)
+        XCTAssertEqual(copy.package.metadata.displayName, "사본")
+        XCTAssertTrue(editor.isEditable(copy))
+        XCTAssertEqual(store.installedPackages().count, 2)
     }
 
     private func makeEnvironment() throws -> UserPetEditorFixture {
@@ -742,6 +1013,101 @@ final class UserPetPackageEditorTests: XCTestCase {
         context.interpolationQuality = .none
         context.draw(image, in: CGRect(x: 0, y: 0, width: 1, height: 1))
         return (bytes[0], bytes[1])
+    }
+
+    private func loadImage(at fileURL: URL) throws -> CGImage {
+        let source = try XCTUnwrap(
+            CGImageSourceCreateWithURL(fileURL as CFURL, nil)
+        )
+        return try XCTUnwrap(CGImageSourceCreateImageAtIndex(source, 0, nil))
+    }
+
+    private func crop(_ image: CGImage, to rect: PixelRect) throws -> CGImage {
+        try XCTUnwrap(
+            image.cropping(
+                to: CGRect(
+                    x: rect.x,
+                    y: rect.y,
+                    width: rect.width,
+                    height: rect.height
+                )
+            )
+        )
+    }
+
+    private func motionImage(
+        id motionID: String,
+        in installed: InstalledPetPackage
+    ) throws -> CGImage {
+        let motion = try XCTUnwrap(
+            installed.package.definition.motion(id: motionID)
+        )
+        let frame = try XCTUnwrap(motion.frames.first)
+        let atlas = try XCTUnwrap(
+            installed.package.atlases.first { $0.id == frame.atlasID }
+        )
+        return try crop(try loadImage(at: atlas.fileURL), to: frame.sourceRect)
+    }
+
+    private func makeQuadrantImage() throws -> CGImage {
+        let size = 8
+        let context = try XCTUnwrap(
+            CGContext(
+                data: nil,
+                width: size,
+                height: size,
+                bitsPerComponent: 8,
+                bytesPerRow: 0,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            )
+        )
+        let colors = [
+            CGColor(red: 1, green: 0, blue: 0, alpha: 1),
+            CGColor(red: 0, green: 1, blue: 0, alpha: 1),
+            CGColor(red: 0, green: 0, blue: 1, alpha: 1),
+            CGColor(red: 1, green: 1, blue: 0, alpha: 1)
+        ]
+        let rects = [
+            CGRect(x: 0, y: 4, width: 4, height: 4),
+            CGRect(x: 4, y: 4, width: 4, height: 4),
+            CGRect(x: 0, y: 0, width: 4, height: 4),
+            CGRect(x: 4, y: 0, width: 4, height: 4)
+        ]
+        for (color, rect) in zip(colors, rects) {
+            context.setFillColor(color)
+            context.fill(rect)
+        }
+        return try XCTUnwrap(context.makeImage())
+    }
+
+    private func rgbaData(of image: CGImage) throws -> Data {
+        var bytes = [UInt8](
+            repeating: 0,
+            count: image.width * image.height * 4
+        )
+        let rendered = bytes.withUnsafeMutableBytes { storage in
+            guard let context = CGContext(
+                data: storage.baseAddress,
+                width: image.width,
+                height: image.height,
+                bitsPerComponent: 8,
+                bytesPerRow: image.width * 4,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+                    | CGBitmapInfo.byteOrder32Big.rawValue
+            ) else {
+                return false
+            }
+            context.interpolationQuality = .none
+            context.draw(
+                image,
+                in: CGRect(x: 0, y: 0, width: image.width, height: image.height)
+            )
+            return true
+        }
+        XCTAssertTrue(rendered)
+        return Data(bytes)
     }
 }
 

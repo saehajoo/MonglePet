@@ -16,13 +16,13 @@ final class PetLibrarySessionTests: XCTestCase {
 
         XCTAssertEqual(session.selectedItem.metadata.id, BuiltInPet.id)
         XCTAssertEqual(session.selectedItem.metadata.displayName, "몽글이")
-        XCTAssertEqual(session.selectedItem.metadata.version, "1.0.1")
+        XCTAssertEqual(session.selectedItem.metadata.version, "1.0.3")
         XCTAssertEqual(session.selectedItem.metadata.author, "운영자")
         XCTAssertEqual(
             session.selectedItem.metadata.description,
             "MonglePet에서 기본으로 제공되는 몽글펫입니다."
         )
-        XCTAssertEqual(session.selectedItem.definition.motions.count, 10)
+        XCTAssertEqual(session.selectedItem.definition.motions.count, 13)
         XCTAssertEqual(
             session.selectedItem.definition.defaultMotionID,
             "기본"
@@ -532,24 +532,30 @@ final class PetLibrarySessionTests: XCTestCase {
         XCTAssertNil(session.errorMessage)
     }
 
-    func testCreatingEditableCopyFromEditablePetIsRejected() {
+    func testCreatingEditableCopyFromEditablePetKeepsOriginal() {
         let installed = makeInstalled(id: firstID, name: "사용자 펫")
+        let copy = makeInstalled(id: secondID, name: "사본")
+        var packages = [installed]
         let session = PetLibrarySession(
             builtInDefinition: builtInDefinition,
-            installedPackagesProvider: { [installed] },
+            installedPackagesProvider: { packages },
             installationRemover: { _ in },
-            editablePackageProvider: { _ in true }
+            editablePackageProvider: { _ in true },
+            editableCopyCreator: { received, displayName in
+                XCTAssertEqual(received, installed)
+                XCTAssertEqual(displayName, "사본")
+                packages.append(copy)
+                return copy
+            }
         )
         _ = session.reload(preferredInstallationID: firstID)
 
-        XCTAssertFalse(
+        XCTAssertTrue(
             session.createEditableCopyOfSelectedPet(displayName: "사본")
         )
-        XCTAssertEqual(
-            session.errorMessage,
-            UserPetEditingError.petIsAlreadyEditable.localizedDescription
-        )
-        XCTAssertEqual(session.selection, .installed(firstID))
+        XCTAssertNil(session.errorMessage)
+        XCTAssertEqual(session.selection, .installed(secondID))
+        XCTAssertEqual(packages.map(\.installationID), [firstID, secondID])
     }
 
     func testUpdatingSelectedPetDetailsReloadsSameInstallationAndNotifiesRuntime() {
@@ -676,13 +682,65 @@ final class PetLibrarySessionTests: XCTestCase {
         )
     }
 
+    func testDuplicatingAnimationUsesNextCopyNameWithoutPublishingReferenceChange() {
+        let original = makeInstalled(
+            id: firstID,
+            name: "사용자 펫",
+            motionIDs: ["idle", "wave", "wave 복사본", "wave 복사본 2"]
+        )
+        let duplicated = makeInstalled(
+            id: firstID,
+            name: "사용자 펫",
+            motionIDs: [
+                "idle",
+                "wave",
+                "wave 복사본",
+                "wave 복사본 2",
+                "wave 복사본 3"
+            ]
+        )
+        var packages = [original]
+        let session = PetLibrarySession(
+            builtInDefinition: builtInDefinition,
+            installedPackagesProvider: { packages },
+            installationRemover: { _ in },
+            editablePackageProvider: { _ in true },
+            animationDuplicator: {
+                sourceID,
+                duplicateID,
+                installedPackage in
+                XCTAssertEqual(sourceID, "wave 복사본 2")
+                XCTAssertEqual(duplicateID, "wave 복사본 3")
+                XCTAssertEqual(installedPackage, original)
+                packages = [duplicated]
+                return duplicated
+            }
+        )
+        _ = session.reload(preferredInstallationID: firstID)
+        var referenceChanges: [PetAnimationReferenceChange] = []
+        session.onAnimationReferenceChange = { referenceChanges.append($0) }
+
+        let duplicateID = session.duplicateSelectedPetAnimation(
+            id: "wave 복사본 2"
+        )
+
+        XCTAssertEqual(duplicateID, "wave 복사본 3")
+        XCTAssertEqual(
+            session.selectedItem.definition.motions.map(\.id),
+            ["idle", "wave", "wave 복사본", "wave 복사본 2", "wave 복사본 3"]
+        )
+        XCTAssertEqual(session.selection, .installed(firstID))
+        XCTAssertTrue(referenceChanges.isEmpty)
+        XCTAssertNil(session.errorMessage)
+    }
+
     func testBuiltInPetCannotStartSharingReview() {
         var reviewCallCount = 0
         let session = PetLibrarySession(
             builtInDefinition: builtInDefinition,
             installedPackagesProvider: { [] },
             installationRemover: { _ in },
-            packageShareReviewer: { _, _ in
+            packageShareReviewer: { _, _, _ in
                 reviewCallCount += 1
                 throw PetLibraryError.fileOperationFailed
             }
@@ -704,7 +762,7 @@ final class PetLibrarySessionTests: XCTestCase {
             builtInDefinition: builtInDefinition,
             installedPackagesProvider: { [installed] },
             installationRemover: { _ in },
-            packageShareReviewer: { receivedPackage, receivedProfile in
+            packageShareReviewer: { receivedPackage, receivedProfile, _ in
                 reviewedPackages.append(receivedPackage)
                 XCTAssertEqual(receivedProfile, behaviorProfile)
                 return expectedReview
@@ -729,7 +787,6 @@ final class PetLibrarySessionTests: XCTestCase {
         )
         let destinationURL = URL(fileURLWithPath: "/tmp/shared.monglepet")
         let options = PetPackageShareOptions(
-            includesRecommendedProfile: true,
             includesApplicationRules: true
         )
         var receivedConfirmation = false

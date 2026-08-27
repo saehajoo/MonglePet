@@ -741,6 +741,11 @@ final class PetPackageInstallerTests: XCTestCase {
                         )
                     ],
                     repeats: true
+                ),
+                BehaviorSequence(
+                    id: "idle",
+                    steps: [BehaviorStep(motionID: "idle", repeatCount: 1)],
+                    repeats: true
                 )
             ],
             automaticRules: [],

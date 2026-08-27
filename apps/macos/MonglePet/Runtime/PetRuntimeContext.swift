@@ -64,6 +64,7 @@ final class PetRuntimeContext: PetRuntimeContextType {
     private let petWindowController: PetWindowController
     private let playbackCoordinator: PetPlaybackCoordinator
     private let behaviorRuntime: PetBehaviorRuntime
+    private let movementBehaviorRuntime: PetMovementBehaviorRuntime
     private let speechRuntime: PetSpeechRuntime
     private let movementController: PetMovementController
     private let movementLifecycle: PetMovementLifecycle
@@ -125,6 +126,13 @@ final class PetRuntimeContext: PetRuntimeContextType {
             }
         }
 
+        let movementBehaviorRuntime = PetMovementBehaviorRuntime(
+            petDefinition: petWindowController.petDefinition
+        ) { [weak playbackCoordinator] playback in
+            playbackCoordinator?.setMovementPlayback(playback)
+        }
+        self.movementBehaviorRuntime = movementBehaviorRuntime
+
         let movementController = PetMovementController(
             originProvider: { [weak petWindowController] in
                 petWindowController?.movementOrigin
@@ -153,7 +161,7 @@ final class PetRuntimeContext: PetRuntimeContextType {
 
         movementController.setActivityChangeHandler { [weak self] activity in
             self?.latestMovementActivity = activity
-            self?.playbackCoordinator.setMovementActivity(activity)
+            self?.movementBehaviorRuntime.setActivity(activity)
         }
         petWindowController.onOverlayGeometryDidChange = { [weak self] in
             self?.persistCurrentOverlayGeometry()
@@ -208,6 +216,10 @@ final class PetRuntimeContext: PetRuntimeContextType {
         speechRuntime.prepareForPetChange()
         playbackCoordinator.replacePetDefinition(item.definition)
         behaviorRuntime.replacePetDefinition(item.definition)
+        movementBehaviorRuntime.replacePetDefinition(item.definition)
+        if let currentSettings {
+            movementBehaviorRuntime.updateSequences(currentSettings.sequences)
+        }
         movementLifecycle.invalidateEnvironment()
     }
 
@@ -219,13 +231,14 @@ final class PetRuntimeContext: PetRuntimeContextType {
             return
         }
         currentSettings = settings
+        movementBehaviorRuntime.updateSequences(settings.sequences)
         petWindowController.applyOverlaySettings(
             settings.overlay,
             restorePosition: reason.shouldRestorePosition
         )
         speechRuntime.update(settings: settings.speechSettings)
-        let pettingMotionExists = settings.pettingMotionID.flatMap {
-            petWindowController.petDefinition.motion(id: $0)
+        let pettingMotionExists = settings.pettingBehaviorID.flatMap {
+            behaviorID in settings.sequences.first { $0.id == behaviorID }
         } != nil
         petWindowController.setPettingEnabled(
             pettingMotionExists
@@ -256,6 +269,10 @@ final class PetRuntimeContext: PetRuntimeContextType {
                 settings: settings,
                 snapshot: effectiveSnapshot(latestActivitySnapshot)
             )
+            updateMovementPriority(for: settings)
+        } else {
+            playbackCoordinator.setMovementTakesPriority(true)
+            movementLifecycle.setAutomaticRuleBlockingMovement(false)
         }
     }
 
@@ -269,6 +286,7 @@ final class PetRuntimeContext: PetRuntimeContextType {
                 settings: currentSettings,
                 snapshot: effectiveSnapshot(snapshot)
             )
+            updateMovementPriority(for: currentSettings)
         }
     }
 
@@ -283,6 +301,7 @@ final class PetRuntimeContext: PetRuntimeContextType {
                 settings: currentSettings,
                 snapshot: effectiveSnapshot(latestActivitySnapshot)
             )
+            updateMovementPriority(for: currentSettings)
         }
     }
 
@@ -301,12 +320,14 @@ final class PetRuntimeContext: PetRuntimeContextType {
             !isUserPaused,
             let currentSettings,
             currentSettings.movementSettings.mode != .cursorAvoiding,
-            let motionID = currentSettings.pettingMotionID,
-            petWindowController.petDefinition.motion(id: motionID) != nil
+            let behaviorID = currentSettings.pettingBehaviorID,
+            let sequence = currentSettings.sequences.first(where: {
+                $0.id == behaviorID
+            })
         else {
             return false
         }
-        return behaviorRuntime.triggerInteraction(motionID: motionID)
+        return behaviorRuntime.triggerInteraction(sequence: sequence)
     }
 
     func orderFront() {
@@ -321,6 +342,7 @@ final class PetRuntimeContext: PetRuntimeContextType {
 
     func stop() {
         behaviorRuntime.stop()
+        movementBehaviorRuntime.stop()
         speechRuntime.stop()
         movementLifecycle.setAwake(false)
         movementLifecycle.setSystemSuspended(true)
@@ -348,6 +370,9 @@ final class PetRuntimeContext: PetRuntimeContextType {
         petWindowController.setSystemSuspended(isSuspended)
         speechRuntime.setSystemSuspended(isSuspended)
         movementLifecycle.setSystemSuspended(isSuspended)
+        if isSuspended {
+            movementBehaviorRuntime.stop()
+        }
     }
 
     private func effectiveSnapshot(
@@ -359,6 +384,21 @@ final class PetRuntimeContext: PetRuntimeContextType {
             frontmostApplicationID: snapshot.frontmostApplicationID,
             isScreenLocked: snapshot.isScreenLocked || isUserPaused,
             isSystemSleeping: snapshot.isSystemSleeping
+        )
+    }
+
+    private func updateMovementPriority(for settings: AppSettings) {
+        let resolution = MovementPlaybackPriorityResolver().resolve(
+            mode: settings.behaviorMode,
+            decision: behaviorRuntime.latestDecision,
+            rules: settings.automaticRules,
+            order: settings.automaticRulePriorityOrder
+        )
+        playbackCoordinator.setMovementTakesPriority(
+            resolution.movementTakesPriority
+        )
+        movementLifecycle.setAutomaticRuleBlockingMovement(
+            resolution.blocksMovement
         )
     }
 }

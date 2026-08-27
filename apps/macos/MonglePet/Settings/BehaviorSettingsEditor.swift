@@ -19,19 +19,19 @@ extension BehaviorSettingsEditError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidSequenceName:
-            "행동 루틴 이름을 입력해 주세요."
+            "행동 이름을 입력해 주세요."
         case .duplicateSequenceName:
-            "같은 이름의 행동 루틴이 이미 있습니다."
+            "같은 이름의 행동이 이미 있습니다."
         case .sequenceLimitReached:
-            "행동 루틴은 최대 100개까지 만들 수 있습니다."
+            "행동은 최대 100개까지 만들 수 있습니다."
         case .sequenceNotFound:
-            "행동 루틴을 찾을 수 없습니다."
+            "행동을 찾을 수 없습니다."
         case .protectedSequence:
-            "기본 행동 루틴은 삭제할 수 없습니다."
+            "기본 행동은 삭제할 수 없습니다."
         case .stepLimitReached:
             "행동 단계는 목록마다 최대 100개까지 추가할 수 있습니다."
         case .cannotRemoveLastStep:
-            "행동 루틴에는 애니메이션 단계가 하나 이상 필요합니다."
+            "행동에는 애니메이션 단계가 하나 이상 필요합니다."
         case .invalidStep:
             "펫 애니메이션 또는 반복 횟수가 올바르지 않습니다."
         case .invalidStepIndex:
@@ -53,30 +53,66 @@ nonisolated enum BehaviorSettingsEditor {
 
     static func addingSequence(
         named name: String,
+        initialMotionID: String = PetMotionReference.currentPetDefault,
+        repeats: Bool = true,
         to settings: AppSettings
     ) throws -> AppSettings {
         guard settings.sequences.count < AppSettingsLimits.maximumSequences else {
             throw BehaviorSettingsEditError.sequenceLimitReached
         }
-        guard let sequenceID = normalizedIdentifier(name) else {
+        guard let displayName = normalizedIdentifier(name) else {
             throw BehaviorSettingsEditError.invalidSequenceName
         }
         guard !settings.sequences.contains(where: {
-            $0.id.compare(sequenceID, options: .caseInsensitive) == .orderedSame
+            $0.displayName.compare(displayName, options: .caseInsensitive) == .orderedSame
         }) else {
             throw BehaviorSettingsEditError.duplicateSequenceName
         }
+        guard normalizedIdentifier(initialMotionID) == initialMotionID else {
+            throw BehaviorSettingsEditError.invalidStep
+        }
 
+        let sequenceID = UUID().uuidString.lowercased()
         let sequence = BehaviorSequence(
             id: sequenceID,
-            steps: [defaultStep],
-            repeats: true
+            displayName: displayName,
+            steps: [BehaviorStep(motionID: initialMotionID, repeatCount: 1)],
+            repeats: repeats
         )
         return replacing(
             settings,
             sequences: settings.sequences + [sequence],
             manualSequenceID: settings.manualSequenceID ?? sequenceID,
             automaticRules: settings.automaticRules
+        )
+    }
+
+    static func renamingSequence(
+        id sequenceID: String,
+        to name: String,
+        in settings: AppSettings
+    ) throws -> AppSettings {
+        let sequence = try requiredSequence(id: sequenceID, in: settings)
+        guard let displayName = normalizedIdentifier(name) else {
+            throw BehaviorSettingsEditError.invalidSequenceName
+        }
+        guard !settings.sequences.contains(where: {
+            $0.id != sequenceID
+                && $0.displayName.compare(
+                    displayName,
+                    options: .caseInsensitive
+                ) == .orderedSame
+        }) else {
+            throw BehaviorSettingsEditError.duplicateSequenceName
+        }
+        return try replacingSequence(
+            BehaviorSequence(
+                id: sequence.id,
+                displayName: displayName,
+                steps: sequence.steps,
+                repeats: sequence.repeats
+            ),
+            in: settings
         )
     }
 
@@ -89,6 +125,15 @@ nonisolated enum BehaviorSettingsEditor {
         }
         guard isValid(sequence) else {
             throw BehaviorSettingsEditError.invalidStep
+        }
+        guard !settings.sequences.contains(where: {
+            $0.id != sequence.id
+                && $0.displayName.compare(
+                    sequence.displayName,
+                    options: .caseInsensitive
+                ) == .orderedSame
+        }) else {
+            throw BehaviorSettingsEditError.duplicateSequenceName
         }
 
         var sequences = settings.sequences
@@ -123,6 +168,41 @@ nonisolated enum BehaviorSettingsEditor {
         let automaticRules = settings.automaticRules.filter {
             $0.sequenceID != sequenceID
         }
+        let movement = PetMovementSettings(
+            mode: settings.movementSettings.mode,
+            speed: settings.movementSettings.speed,
+            cursorDistance: settings.movementSettings.cursorDistance,
+            stopRadius: settings.movementSettings.stopRadius,
+            freeRoamingDwellMilliseconds:
+                settings.movementSettings.freeRoamingDwellMilliseconds,
+            prefersFrontmostWindow:
+                settings.movementSettings.prefersFrontmostWindow,
+            cursorFollowingAnimation: replacingMotionReferences(
+                in: settings.movementSettings.cursorFollowingAnimation,
+                oldMotionID: sequenceID,
+                replacementMotionID: nil
+            ),
+            freeRoamingAnimation: replacingMotionReferences(
+                in: settings.movementSettings.freeRoamingAnimation,
+                oldMotionID: sequenceID,
+                replacementMotionID: nil
+            ),
+            cursorAvoidingIdleBehavior:
+                settings.movementSettings.cursorAvoidingIdleBehavior,
+            cursorAvoidingDetectionDistance:
+                settings.movementSettings.cursorAvoidingDetectionDistance,
+            cursorAvoidingSpeed:
+                settings.movementSettings.cursorAvoidingSpeed,
+            cursorAvoidingAnimation: replacingMotionReferences(
+                in: settings.movementSettings.cursorAvoidingAnimation,
+                oldMotionID: sequenceID,
+                replacementMotionID: nil
+            ),
+            randomizesFreeRoamingDwell:
+                settings.movementSettings.randomizesFreeRoamingDwell,
+            freeRoamingDwellMinimumMilliseconds:
+                settings.movementSettings.freeRoamingDwellMinimumMilliseconds
+        )
         let speech = PetSpeechSettings(
             isEnabled: settings.speechSettings.isEnabled,
             periodicIsEnabled:
@@ -146,22 +226,33 @@ nonisolated enum BehaviorSettingsEditor {
             sequences: sequences,
             manualSequenceID: manualSequenceID,
             automaticRules: automaticRules,
+            movement: movement,
+            pettingMotionUpdate: settings.pettingBehaviorID == sequenceID
+                ? .replacing(nil)
+                : .preserving,
             speech: speech
         )
     }
 
     static func addingStep(
         to sequenceID: String,
+        motionID: String = PetMotionReference.currentPetDefault,
         in settings: AppSettings
     ) throws -> AppSettings {
         let sequence = try requiredSequence(id: sequenceID, in: settings)
         guard sequence.steps.count < AppSettingsLimits.maximumStepsPerSequence else {
             throw BehaviorSettingsEditError.stepLimitReached
         }
+        guard normalizedIdentifier(motionID) == motionID else {
+            throw BehaviorSettingsEditError.invalidStep
+        }
         return try replacingSequence(
             BehaviorSequence(
                 id: sequence.id,
-                steps: sequence.steps + [defaultStep],
+                displayName: sequence.displayName,
+                steps: sequence.steps + [
+                    BehaviorStep(motionID: motionID, repeatCount: 1)
+                ],
                 repeats: sequence.repeats
             ),
             in: settings
@@ -185,7 +276,12 @@ nonisolated enum BehaviorSettingsEditor {
         var steps = sequence.steps
         steps[index] = step
         return try replacingSequence(
-            BehaviorSequence(id: sequence.id, steps: steps, repeats: sequence.repeats),
+            BehaviorSequence(
+                id: sequence.id,
+                displayName: sequence.displayName,
+                steps: steps,
+                repeats: sequence.repeats
+            ),
             in: settings
         )
     }
@@ -206,7 +302,12 @@ nonisolated enum BehaviorSettingsEditor {
         var steps = sequence.steps
         steps.remove(at: index)
         return try replacingSequence(
-            BehaviorSequence(id: sequence.id, steps: steps, repeats: sequence.repeats),
+            BehaviorSequence(
+                id: sequence.id,
+                displayName: sequence.displayName,
+                steps: steps,
+                repeats: sequence.repeats
+            ),
             in: settings
         )
     }
@@ -232,7 +333,12 @@ nonisolated enum BehaviorSettingsEditor {
         let step = steps.remove(at: sourceIndex)
         steps.insert(step, at: destinationIndex)
         return try replacingSequence(
-            BehaviorSequence(id: sequence.id, steps: steps, repeats: sequence.repeats),
+            BehaviorSequence(
+                id: sequence.id,
+                displayName: sequence.displayName,
+                steps: steps,
+                repeats: sequence.repeats
+            ),
             in: settings
         )
     }
@@ -246,6 +352,7 @@ nonisolated enum BehaviorSettingsEditor {
         return try replacingSequence(
             BehaviorSequence(
                 id: sequence.id,
+                displayName: sequence.displayName,
                 steps: sequence.steps,
                 repeats: repeats
             ),
@@ -259,6 +366,20 @@ nonisolated enum BehaviorSettingsEditor {
         id: UUID = UUID(),
         to settings: AppSettings
     ) throws -> AppSettings {
+        let normalizedBundleIdentifier = normalizedIdentifier(bundleIdentifier)
+        guard
+            let normalizedBundleIdentifier,
+            !settings.automaticRules.contains(where: {
+                guard case let .application(existing) = $0.condition else {
+                    return false
+                }
+                return existing.caseInsensitiveCompare(
+                    normalizedBundleIdentifier
+                ) == .orderedSame
+            })
+        else {
+            throw BehaviorSettingsEditError.invalidRule
+        }
         let condition = RuleCondition.application(bundleIdentifier: bundleIdentifier)
         return try addingRule(
             id: id,
@@ -269,19 +390,70 @@ nonisolated enum BehaviorSettingsEditor {
     }
 
     static func addingIdleRule(
-        minutes: Int,
+        seconds: Int,
         sequenceID: String,
         id: UUID = UUID(),
         to settings: AppSettings
     ) throws -> AppSettings {
-        guard (1...1_440).contains(minutes) else {
+        try settingIdleRule(
+            seconds: seconds,
+            sequenceID: sequenceID,
+            isEnabled: true,
+            id: id,
+            in: settings
+        )
+    }
+
+    static func settingIdleRule(
+        seconds: Int,
+        sequenceID: String,
+        isEnabled: Bool,
+        id: UUID = UUID(),
+        in settings: AppSettings
+    ) throws -> AppSettings {
+        guard (1...86_400).contains(seconds) else {
             throw BehaviorSettingsEditError.invalidRule
+        }
+        if let existing = settings.automaticRules.first(where: {
+            if case .idleAtLeast = $0.condition { return true }
+            return false
+        }) {
+            return try replacingRule(
+                AutomaticRule(
+                    id: existing.id,
+                    isEnabled: isEnabled,
+                    priority: existing.priority,
+                    condition: .idleAtLeast(
+                        milliseconds: Int64(seconds) * 1_000
+                    ),
+                    sequenceID: sequenceID
+                ),
+                in: settings
+            )
         }
         return try addingRule(
             id: id,
-            condition: .idleAtLeast(milliseconds: Int64(minutes) * 60_000),
+            condition: .idleAtLeast(milliseconds: Int64(seconds) * 1_000),
             sequenceID: sequenceID,
+            isEnabled: isEnabled,
             to: settings
+        )
+    }
+
+    static func settingAutomaticRulePriorityOrder(
+        _ order: [AutomaticRuleCategory],
+        in settings: AppSettings
+    ) throws -> AppSettings {
+        guard Set(order) == Set(AutomaticRuleCategory.allCases),
+              order.count == AutomaticRuleCategory.allCases.count else {
+            throw BehaviorSettingsEditError.invalidRule
+        }
+        return replacing(
+            settings,
+            sequences: settings.sequences,
+            manualSequenceID: settings.manualSequenceID,
+            automaticRules: settings.automaticRules,
+            automaticRulePriorityOrder: order
         )
     }
 
@@ -293,6 +465,11 @@ nonisolated enum BehaviorSettingsEditor {
             throw BehaviorSettingsEditError.ruleNotFound
         }
         guard isValid(rule, sequenceIDs: Set(settings.sequences.map(\.id))) else {
+            throw BehaviorSettingsEditError.invalidRule
+        }
+        guard !settings.automaticRules.contains(where: {
+            $0.id != rule.id && conflicts($0.condition, with: rule.condition)
+        }) else {
             throw BehaviorSettingsEditError.invalidRule
         }
 
@@ -338,9 +515,24 @@ nonisolated enum BehaviorSettingsEditor {
             != movementReplacementMotionID {
             throw BehaviorSettingsEditError.invalidStep
         }
+        let synchronizedSequenceID = settings.sequences.first(where: { sequence in
+            sequence.displayName == oldMotionID
+                && sequence.steps.count == 1
+                && sequence.steps.first?.motionID == oldMotionID
+                && !settings.sequences.contains(where: {
+                    $0.id != sequence.id
+                        && $0.displayName.compare(
+                            newMotionID,
+                            options: .caseInsensitive
+                        ) == .orderedSame
+                })
+        })?.id
         let sequences = settings.sequences.map { sequence in
             BehaviorSequence(
                 id: sequence.id,
+                displayName: sequence.id == synchronizedSequenceID
+                    ? newMotionID
+                    : sequence.displayName,
                 steps: sequence.steps.map { step in
                     guard step.motionID == oldMotionID else {
                         return step
@@ -356,49 +548,79 @@ nonisolated enum BehaviorSettingsEditor {
         guard sequences.allSatisfy(isValid) else {
             throw BehaviorSettingsEditError.invalidStep
         }
-        let movement = PetMovementSettings(
-            mode: settings.movementSettings.mode,
-            speed: settings.movementSettings.speed,
-            cursorDistance: settings.movementSettings.cursorDistance,
-            stopRadius: settings.movementSettings.stopRadius,
-            freeRoamingDwellMilliseconds:
-                settings.movementSettings.freeRoamingDwellMilliseconds,
-            prefersFrontmostWindow: settings.movementSettings.prefersFrontmostWindow,
-            cursorFollowingAnimation: replacingMotionReferences(
-                in: settings.movementSettings.cursorFollowingAnimation,
-                oldMotionID: oldMotionID,
-                replacementMotionID: movementReplacementMotionID
-            ),
-            freeRoamingAnimation: replacingMotionReferences(
-                in: settings.movementSettings.freeRoamingAnimation,
-                oldMotionID: oldMotionID,
-                replacementMotionID: movementReplacementMotionID
-            ),
-            cursorAvoidingIdleBehavior:
-                settings.movementSettings.cursorAvoidingIdleBehavior,
-            cursorAvoidingDetectionDistance:
-                settings.movementSettings.cursorAvoidingDetectionDistance,
-            cursorAvoidingSpeed:
-                settings.movementSettings.cursorAvoidingSpeed,
-            cursorAvoidingAnimation: replacingMotionReferences(
-                in: settings.movementSettings.cursorAvoidingAnimation,
-                oldMotionID: oldMotionID,
-                replacementMotionID: movementReplacementMotionID
-            )
-        )
-        let pettingMotionID = replacingMotionID(
-            settings.pettingMotionID,
-            oldMotionID: oldMotionID,
-            replacementMotionID: movementReplacementMotionID
-        )
         return replacing(
             settings,
             sequences: sequences,
             manualSequenceID: settings.manualSequenceID,
-            automaticRules: settings.automaticRules,
-            movement: movement,
-            pettingMotionUpdate: .replacing(pettingMotionID)
+            automaticRules: settings.automaticRules
         )
+    }
+
+    static func synchronizingGeneratedSingleStepBehaviorNames(
+        in settings: AppSettings
+    ) throws -> AppSettings {
+        let candidates = Set(
+            settings.sequences.compactMap { sequence in
+                isGeneratedDuplicateBehavior(sequence) ? sequence.id : nil
+            }
+        )
+        var reservedNames = Set(
+            settings.sequences.compactMap { sequence in
+                candidates.contains(sequence.id)
+                    ? nil
+                    : sequence.displayName.lowercased()
+            }
+        )
+        let sequences = settings.sequences.map { sequence in
+            guard candidates.contains(sequence.id),
+                  let motionID = sequence.steps.first?.motionID,
+                  !reservedNames.contains(motionID.lowercased()) else {
+                reservedNames.insert(sequence.displayName.lowercased())
+                return sequence
+            }
+            reservedNames.insert(motionID.lowercased())
+            return BehaviorSequence(
+                id: sequence.id,
+                displayName: motionID,
+                steps: sequence.steps,
+                repeats: sequence.repeats
+            )
+        }
+        guard sequences.allSatisfy(isValid) else {
+            throw BehaviorSettingsEditError.invalidStep
+        }
+        return replacing(
+            settings,
+            sequences: sequences,
+            manualSequenceID: settings.manualSequenceID,
+            automaticRules: settings.automaticRules
+        )
+    }
+
+    private static func isGeneratedDuplicateBehavior(
+        _ sequence: BehaviorSequence
+    ) -> Bool {
+        guard sequence.steps.count == 1,
+              let motionID = sequence.steps.first?.motionID,
+              motionID != PetMotionReference.currentPetDefault,
+              sequence.displayName != motionID,
+              let markerRange = sequence.displayName.range(
+                  of: " 복사본",
+                  options: .backwards
+              ),
+              !sequence.displayName[..<markerRange.lowerBound].isEmpty else {
+            return false
+        }
+        let suffix = sequence.displayName[markerRange.upperBound...]
+        guard !suffix.isEmpty else {
+            return true
+        }
+        guard suffix.first == " ",
+              let copyNumber = Int(suffix.dropFirst()),
+              copyNumber >= 2 else {
+            return false
+        }
+        return suffix == " \(copyNumber)"
     }
 
     private static let defaultStep = BehaviorStep(
@@ -410,6 +632,7 @@ nonisolated enum BehaviorSettingsEditor {
         id: UUID,
         condition: RuleCondition,
         sequenceID: String,
+        isEnabled: Bool = true,
         to settings: AppSettings
     ) throws -> AppSettings {
         guard settings.automaticRules.count < AppSettingsLimits.maximumAutomaticRules else {
@@ -424,7 +647,7 @@ nonisolated enum BehaviorSettingsEditor {
             : maximumPriority + 1
         let rule = AutomaticRule(
             id: id,
-            isEnabled: true,
+            isEnabled: isEnabled,
             priority: nextPriority,
             condition: condition,
             sequenceID: sequenceID
@@ -452,6 +675,8 @@ nonisolated enum BehaviorSettingsEditor {
 
     private static func isValid(_ sequence: BehaviorSequence) -> Bool {
         normalizedIdentifier(sequence.id) == sequence.id
+            && normalizedIdentifier(sequence.displayName)
+                == sequence.displayName
             && !sequence.steps.isEmpty
             && sequence.steps.count <= AppSettingsLimits.maximumStepsPerSequence
             && sequence.steps.allSatisfy(isValid)
@@ -483,10 +708,28 @@ nonisolated enum BehaviorSettingsEditor {
             return normalized == bundleIdentifier
                 && !bundleIdentifier.contains(where: { $0.isWhitespace })
         case let .idleAtLeast(milliseconds):
-            return (60_000...AppSettingsLimits.maximumDurationMilliseconds)
+            return (1_000...AppSettingsLimits.maximumDurationMilliseconds)
                 .contains(milliseconds)
         case let .unsupported(type):
             return !rule.isEnabled && normalizedIdentifier(type) == type
+        }
+    }
+
+    private static func conflicts(
+        _ lhs: RuleCondition,
+        with rhs: RuleCondition
+    ) -> Bool {
+        switch (lhs, rhs) {
+        case (.idleAtLeast, .idleAtLeast):
+            true
+        case let (
+            .application(lhsIdentifier),
+            .application(rhsIdentifier)
+        ):
+            lhsIdentifier.caseInsensitiveCompare(rhsIdentifier)
+                == .orderedSame
+        default:
+            false
         }
     }
 
@@ -533,6 +776,7 @@ nonisolated enum BehaviorSettingsEditor {
         sequences: [BehaviorSequence],
         manualSequenceID: String?,
         automaticRules: [AutomaticRule],
+        automaticRulePriorityOrder: [AutomaticRuleCategory]? = nil,
         movement: PetMovementSettings? = nil,
         pettingMotionUpdate: PettingMotionUpdate = .preserving,
         speech: PetSpeechSettings? = nil
@@ -548,8 +792,14 @@ nonisolated enum BehaviorSettingsEditor {
                 petKey: settings.selectedPetKey,
                 mode: settings.behaviorMode,
                 manualSequenceID: manualSequenceID,
+                randomSequenceIDs: settings.randomSequenceIDs.filter {
+                    sequenceID in
+                    sequences.contains(where: { $0.id == sequenceID })
+                },
                 sequences: sequences,
                 automaticRules: automaticRules,
+                automaticRulePriorityOrder: automaticRulePriorityOrder
+                    ?? settings.automaticRulePriorityOrder,
                 movement: movement ?? settings.movementSettings,
                 pettingMotionID: pettingMotionID,
                 speech: speech ?? settings.speechSettings

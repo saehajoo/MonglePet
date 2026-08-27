@@ -1,4 +1,9 @@
 {
+  "automaticRulePriorityOrder" : [
+    "idle",
+    "application",
+    "movement"
+  ],
   "automaticRules" : [
     {
       "condition" : {
@@ -14,36 +19,34 @@
   "behavior" : {
     "manualSequenceID" : "__monglepet_default_behavior__",
     "mode" : "automatic",
+    "randomSequenceIDs" : [
+
+    ],
     "sequences" : [
       {
+        "displayName" : "기본",
         "id" : "__monglepet_default_behavior__",
         "repeats" : true,
         "steps" : [
           {
             "motionID" : "__monglepet_current_pet_default__",
             "repeatCount" : 1
-          },
-          {
-            "motionID" : "물뿜기",
-            "repeatCount" : 1
-          },
-          {
-            "motionID" : "정면",
-            "repeatCount" : 1
           }
         ]
       },
       {
+        "displayName" : "수면 중",
         "id" : "수면 중",
         "repeats" : true,
         "steps" : [
           {
-            "motionID" : "자는중",
+            "motionID" : "자는 중",
             "repeatCount" : 1
           }
         ]
       },
       {
+        "displayName" : "일하는 중",
         "id" : "일해라",
         "repeats" : true,
         "steps" : [
@@ -52,47 +55,188 @@
             "repeatCount" : 1
           }
         ]
+      },
+      {
+        "displayName" : "왼쪽 보글보글",
+        "id" : "__monglepet_motion_behavior__67O06riA67O06riA",
+        "repeats" : true,
+        "steps" : [
+          {
+            "motionID" : "왼쪽 보글보글",
+            "repeatCount" : 1
+          }
+        ]
+      },
+      {
+        "displayName" : "오른쪽",
+        "id" : "__monglepet_motion_behavior__7Jik66W47Kq9",
+        "repeats" : true,
+        "steps" : [
+          {
+            "motionID" : "오른쪽",
+            "repeatCount" : 1
+          }
+        ]
+      },
+      {
+        "displayName" : "위",
+        "id" : "__monglepet_motion_behavior__7JyE66Gc",
+        "repeats" : true,
+        "steps" : [
+          {
+            "motionID" : "위",
+            "repeatCount" : 1
+          }
+        ]
+      },
+      {
+        "displayName" : "정면",
+        "id" : "__monglepet_motion_behavior__7KCV66m0",
+        "repeats" : true,
+        "steps" : [
+          {
+            "motionID" : "정면",
+            "repeatCount" : 1
+          }
+        ]
+      },
+      {
+        "displayName" : "행복",
+        "id" : "__monglepet_motion_behavior__7ZW07ZS8",
+        "repeats" : true,
+        "steps" : [
+          {
+            "motionID" : "행복",
+            "repeatCount" : 1
+          }
+        ]
+      },
+      {
+        "displayName" : "왼쪽",
+        "id" : "d5c7877d-8417-473a-bfac-8e41c1930ef9",
+        "repeats" : true,
+        "steps" : [
+          {
+            "motionID" : "왼쪽",
+            "repeatCount" : 1
+          }
+        ]
+      },
+      {
+        "displayName" : "아래",
+        "id" : "5632f8cd-246c-468f-ab32-0b61b9f84ad4",
+        "repeats" : true,
+        "steps" : [
+          {
+            "motionID" : "아래",
+            "repeatCount" : 1
+          }
+        ]
+      },
+      {
+        "displayName" : "찾는 중",
+        "id" : "14dc998c-074d-44fa-8007-14a976c506dd",
+        "repeats" : true,
+        "steps" : [
+          {
+            "motionID" : "찾는 중",
+            "repeatCount" : 1
+          }
+        ]
+      },
+      {
+        "displayName" : "오른쪽 보글보글",
+        "id" : "ec9bd3be-95f5-4a30-981e-d96fa6dbbea1",
+        "repeats" : true,
+        "steps" : [
+          {
+            "motionID" : "오른쪽 보글보글",
+            "repeatCount" : 1
+          }
+        ]
       }
     ]
   },
-  "movement" : {
-    "cursorAvoidingAnimation" : {
-      "directionMotionIDs" : {
-        "down" : "정면",
-        "left" : "보글보글",
-        "right" : "오른쪽",
-        "up" : "위로"
-      },
-      "fallbackMotionID" : "보글보글",
-      "usesDiagonalMotions" : false,
-      "usesDirectionalMotions" : true
-    },
-    "cursorAvoidingDetectionDistance" : 160,
-    "cursorAvoidingIdleBehavior" : "stationary",
-    "cursorAvoidingSpeed" : 320,
-    "cursorDistance" : 96,
-    "cursorFollowingAnimation" : {
-      "directionMotionIDs" : {
-
-      },
-      "usesDiagonalMotions" : false,
-      "usesDirectionalMotions" : false
-    },
-    "freeRoamingAnimation" : {
-      "directionMotionIDs" : {
-
-      },
-      "usesDiagonalMotions" : false,
-      "usesDirectionalMotions" : false
-    },
-    "freeRoamingDwellMilliseconds" : 6000,
-    "mode" : "cursorAvoiding",
-    "prefersFrontmostWindow" : true,
-    "speed" : 160,
-    "stopRadius" : 16
+  "display" : {
+    "clickThrough" : true,
+    "opacity" : 1,
+    "pixelArtRendering" : false,
+    "pointerOverlapFadeEnabled" : true,
+    "pointerOverlapOpacity" : 0.45,
+    "scalePercent" : 50
   },
-  "pettingMotionID" : "해피",
-  "schemaVersion" : 7,
+  "movement" : {
+    "cursorAvoiding" : {
+      "behavior" : {
+        "directionBehaviorIDs" : {
+          "down" : "5632f8cd-246c-468f-ab32-0b61b9f84ad4",
+          "left" : "__monglepet_motion_behavior__67O06riA67O06riA",
+          "right" : "ec9bd3be-95f5-4a30-981e-d96fa6dbbea1",
+          "up" : "__monglepet_motion_behavior__7JyE66Gc"
+        },
+        "usesDiagonalBehaviors" : false,
+        "usesDirectionalBehaviors" : true
+      },
+      "detectionDistance" : 160,
+      "idleBehavior" : "freeRoaming",
+      "idleFreeRoaming" : {
+        "behavior" : {
+          "directionBehaviorIDs" : {
+            "down" : "5632f8cd-246c-468f-ab32-0b61b9f84ad4",
+            "left" : "__monglepet_motion_behavior__67O06riA67O06riA",
+            "right" : "ec9bd3be-95f5-4a30-981e-d96fa6dbbea1",
+            "up" : "__monglepet_motion_behavior__7JyE66Gc"
+          },
+          "usesDiagonalBehaviors" : false,
+          "usesDirectionalBehaviors" : true
+        },
+        "dwellMilliseconds" : 6000,
+        "dwellMinimumMilliseconds" : 2000,
+        "prefersFrontmostWindow" : false,
+        "randomizesDwell" : true,
+        "speed" : 160,
+        "stopRadius" : 16
+      },
+      "speed" : 320,
+      "stopRadius" : 16
+    },
+    "cursorFollowing" : {
+      "behavior" : {
+        "directionBehaviorIDs" : {
+          "down" : "5632f8cd-246c-468f-ab32-0b61b9f84ad4",
+          "left" : "__monglepet_motion_behavior__67O06riA67O06riA",
+          "right" : "ec9bd3be-95f5-4a30-981e-d96fa6dbbea1",
+          "up" : "__monglepet_motion_behavior__7JyE66Gc"
+        },
+        "usesDiagonalBehaviors" : false,
+        "usesDirectionalBehaviors" : true
+      },
+      "cursorDistance" : 256,
+      "speed" : 160,
+      "stopRadius" : 16
+    },
+    "freeRoaming" : {
+      "behavior" : {
+        "directionBehaviorIDs" : {
+          "down" : "5632f8cd-246c-468f-ab32-0b61b9f84ad4",
+          "left" : "__monglepet_motion_behavior__67O06riA67O06riA",
+          "right" : "ec9bd3be-95f5-4a30-981e-d96fa6dbbea1",
+          "up" : "__monglepet_motion_behavior__7JyE66Gc"
+        },
+        "usesDiagonalBehaviors" : false,
+        "usesDirectionalBehaviors" : true
+      },
+      "dwellMilliseconds" : 6000,
+      "dwellMinimumMilliseconds" : 2000,
+      "prefersFrontmostWindow" : false,
+      "randomizesDwell" : true,
+      "speed" : 160,
+      "stopRadius" : 16
+    },
+    "mode" : "cursorAvoiding"
+  },
+  "pettingBehaviorID" : "__monglepet_motion_behavior__7ZW07ZS8",
+  "schemaVersion" : 10,
   "speech" : {
     "behaviorChangePolicy" : "dismiss",
     "isEnabled" : false,

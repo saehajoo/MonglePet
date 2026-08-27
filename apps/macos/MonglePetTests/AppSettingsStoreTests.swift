@@ -45,7 +45,7 @@ final class AppSettingsStoreTests: XCTestCase {
             JSONSerialization.jsonObject(with: Data(contentsOf: settingsURL))
                 as? [String: Any]
         )
-        XCTAssertEqual(json["schemaVersion"] as? Int, 11)
+        XCTAssertEqual(json["schemaVersion"] as? Int, 14)
         XCTAssertNil(json["behaviorMode"])
         let instances = try XCTUnwrap(
             json["activePetInstances"] as? [[String: Any]]
@@ -69,43 +69,52 @@ final class AppSettingsStoreTests: XCTestCase {
         XCTAssertEqual(profiles.first?["mode"] as? String, "manual")
         let movement = try XCTUnwrap(profiles.first?["movement"] as? [String: Any])
         XCTAssertEqual(movement["mode"] as? String, "cursorFollowing")
-        XCTAssertEqual(movement["speed"] as? Double, 240)
-        XCTAssertEqual(movement["cursorDistance"] as? Double, 120)
-        XCTAssertEqual(movement["stopRadius"] as? Double, 20)
-        XCTAssertEqual(movement["freeRoamingDwellMilliseconds"] as? Int, 9_000)
-        XCTAssertEqual(movement["prefersFrontmostWindow"] as? Bool, false)
+        let following = try XCTUnwrap(
+            movement["cursorFollowing"] as? [String: Any]
+        )
+        let roaming = try XCTUnwrap(
+            movement["freeRoaming"] as? [String: Any]
+        )
+        let avoiding = try XCTUnwrap(
+            movement["cursorAvoiding"] as? [String: Any]
+        )
+        XCTAssertEqual(following["speed"] as? Double, 240)
+        XCTAssertEqual(following["cursorDistance"] as? Double, 120)
+        XCTAssertEqual(following["stopRadius"] as? Double, 20)
+        XCTAssertEqual(roaming["dwellMilliseconds"] as? Int, 9_000)
+        XCTAssertEqual(roaming["prefersFrontmostWindow"] as? Bool, false)
         XCTAssertEqual(
-            movement["cursorAvoidingIdleBehavior"] as? String,
+            avoiding["idleBehavior"] as? String,
             "stationary"
         )
         XCTAssertEqual(
-            movement["cursorAvoidingDetectionDistance"] as? Double,
+            avoiding["detectionDistance"] as? Double,
             160
         )
-        XCTAssertEqual(movement["cursorAvoidingSpeed"] as? Double, 320)
+        XCTAssertEqual(avoiding["speed"] as? Double, 320)
         let cursorAnimation = try XCTUnwrap(
-            movement["cursorFollowingAnimation"] as? [String: Any]
+            following["behavior"] as? [String: Any]
         )
         let freeAnimation = try XCTUnwrap(
-            movement["freeRoamingAnimation"] as? [String: Any]
+            roaming["behavior"] as? [String: Any]
         )
         let avoidingAnimation = try XCTUnwrap(
-            movement["cursorAvoidingAnimation"] as? [String: Any]
+            avoiding["behavior"] as? [String: Any]
         )
         XCTAssertEqual(
-            cursorAnimation["fallbackMotionID"] as? String,
+            cursorAnimation["fallbackBehaviorID"] as? String,
             "run"
         )
         XCTAssertEqual(
-            cursorAnimation["usesDirectionalMotions"] as? Bool,
+            cursorAnimation["usesDirectionalBehaviors"] as? Bool,
             false
         )
         XCTAssertEqual(
-            freeAnimation["fallbackMotionID"] as? String,
+            freeAnimation["fallbackBehaviorID"] as? String,
             "walk"
         )
-        XCTAssertNil(avoidingAnimation["fallbackMotionID"])
-        XCTAssertEqual(profiles.first?["pettingMotionID"] as? String, "petting")
+        XCTAssertNil(avoidingAnimation["fallbackBehaviorID"])
+        XCTAssertEqual(profiles.first?["pettingBehaviorID"] as? String, "petting")
         let speech = try XCTUnwrap(
             profiles.first?["speech"] as? [String: Any]
         )
@@ -290,14 +299,14 @@ final class AppSettingsStoreTests: XCTestCase {
     }
 
     func testNewerSchemaIsPreservedAndDisablesWriting() throws {
-        let originalData = Data(#"{"schemaVersion":12,"futureValue":true}"#.utf8)
+        let originalData = Data(#"{"schemaVersion":15,"futureValue":true}"#.utf8)
         try originalData.write(to: settingsURL)
         let store = AppSettingsStore(settingsURL: settingsURL)
 
         let loaded = store.load()
 
-        XCTAssertEqual(loaded.source, .newerSchema(12))
-        XCTAssertEqual(loaded.issues, [.newerSchemaVersion(12)])
+        XCTAssertEqual(loaded.source, .newerSchema(15))
+        XCTAssertEqual(loaded.issues, [.newerSchemaVersion(15)])
         XCTAssertFalse(loaded.isWritingEnabled)
         XCTAssertEqual(try Data(contentsOf: settingsURL), originalData)
         XCTAssertThrowsError(try store.save(.default)) { error in
@@ -392,10 +401,10 @@ final class AppSettingsStoreTests: XCTestCase {
             StoredSchemaEnvelope.self,
             from: migratedData
         )
-        XCTAssertEqual(envelope.schemaVersion, 11)
+        XCTAssertEqual(envelope.schemaVersion, 14)
         XCTAssertNoThrow(
             try JSONDecoder().decode(
-                StoredAppSettingsV11.self,
+                StoredAppSettingsV14.self,
                 from: migratedData
             )
         )
@@ -441,13 +450,13 @@ final class AppSettingsStoreTests: XCTestCase {
         XCTAssertEqual(loaded.source, .file)
         XCTAssertEqual(loaded.settings.movementSettings, .default)
         let migrated = try JSONDecoder().decode(
-            StoredAppSettingsV11.self,
+            StoredAppSettingsV14.self,
             from: Data(contentsOf: settingsURL)
         )
-        XCTAssertEqual(migrated.schemaVersion, 11)
+        XCTAssertEqual(migrated.schemaVersion, 14)
         XCTAssertEqual(migrated.behaviorProfiles.first?.movement.mode, "fixed")
         XCTAssertEqual(
-            migrated.behaviorProfiles.first?.movement.cursorAvoidingIdleBehavior,
+            migrated.behaviorProfiles.first?.movement.cursorAvoiding.idleBehavior,
             "stationary"
         )
         XCTAssertEqual(
@@ -471,10 +480,10 @@ final class AppSettingsStoreTests: XCTestCase {
         XCTAssertEqual(loaded.source, .file)
         assertLegacySettings(loaded.settings, equals: originalSettings)
         let migrated = try JSONDecoder().decode(
-            StoredAppSettingsV11.self,
+            StoredAppSettingsV14.self,
             from: Data(contentsOf: settingsURL)
         )
-        XCTAssertEqual(migrated.schemaVersion, 11)
+        XCTAssertEqual(migrated.schemaVersion, 14)
         let overlay = try XCTUnwrap(
             migrated.activePetInstances.first?.overlay
         )
@@ -499,18 +508,23 @@ final class AppSettingsStoreTests: XCTestCase {
         XCTAssertEqual(loaded.source, .file)
         assertLegacySettings(loaded.settings, equals: originalSettings)
         let migrated = try JSONDecoder().decode(
-            StoredAppSettingsV11.self,
+            StoredAppSettingsV14.self,
             from: Data(contentsOf: settingsURL)
         )
-        XCTAssertEqual(migrated.schemaVersion, 11)
-        XCTAssertEqual(
+        XCTAssertEqual(migrated.schemaVersion, 14)
+        let runBehaviorID = try XCTUnwrap(
             migrated.behaviorProfiles.first?.movement
-                .cursorFollowingAnimation.fallbackMotionID,
+                .cursorFollowing.behavior.fallbackBehaviorID
+        )
+        XCTAssertEqual(
+            migrated.behaviorProfiles.first?.sequences.first(where: {
+                $0.id == runBehaviorID
+            })?.steps.first?.motionID,
             "run"
         )
         XCTAssertFalse(
             migrated.behaviorProfiles.first?.movement
-                .cursorFollowingAnimation.usesDirectionalMotions
+                .cursorFollowing.behavior.usesDirectionalBehaviors
                 ?? true
         )
     }
@@ -562,6 +576,21 @@ final class AppSettingsStoreTests: XCTestCase {
                 )
             ],
             repeats: true
+        )
+        let runSequence = BehaviorSequence(
+            id: "run",
+            steps: [BehaviorStep(motionID: "run", repeatCount: 1)],
+            repeats: true
+        )
+        let walkSequence = BehaviorSequence(
+            id: "walk",
+            steps: [BehaviorStep(motionID: "walk", repeatCount: 1)],
+            repeats: true
+        )
+        let pettingSequence = BehaviorSequence(
+            id: "petting",
+            steps: [BehaviorStep(motionID: "petting", repeatCount: 1)],
+            repeats: false
         )
 
         return AppSettings(
@@ -628,7 +657,13 @@ final class AppSettingsStoreTests: XCTestCase {
                 )
             ),
             manualSequenceID: focusSequence.id,
-            sequences: [idleSequence, focusSequence],
+            sequences: [
+                idleSequence,
+                focusSequence,
+                runSequence,
+                walkSequence,
+                pettingSequence
+            ],
             automaticRules: [
                 AutomaticRule(
                     id: applicationRuleID,
@@ -644,7 +679,8 @@ final class AppSettingsStoreTests: XCTestCase {
                     condition: .idleAtLeast(milliseconds: 120_000),
                     sequenceID: idleSequence.id
                 )
-            ]
+            ],
+            automaticRulePriorityOrder: [.movement, .application, .idle]
         )
     }
 

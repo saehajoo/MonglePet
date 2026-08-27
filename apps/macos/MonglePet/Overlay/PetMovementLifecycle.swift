@@ -8,6 +8,7 @@ final class PetMovementLifecycle {
     private var isSystemSuspended = true
     private var isUserDragging = false
     private var shouldReduceMotion = false
+    private var isAutomaticRuleBlockingMovement = false
 
     init(controller: any PetMovementControlling) {
         self.controller = controller
@@ -18,6 +19,7 @@ final class PetMovementLifecycle {
             && !isSystemSuspended
             && !isUserDragging
             && !shouldReduceMotion
+            && !isAutomaticRuleBlockingMovement
     }
 
     func setSettings(_ settings: PetMovementSettings) {
@@ -42,6 +44,14 @@ final class PetMovementLifecycle {
 
     func setReduceMotion(_ shouldReduceMotion: Bool) {
         self.shouldReduceMotion = shouldReduceMotion
+        apply()
+    }
+
+    func setAutomaticRuleBlockingMovement(_ isBlocking: Bool) {
+        guard isAutomaticRuleBlockingMovement != isBlocking else {
+            return
+        }
+        isAutomaticRuleBlockingMovement = isBlocking
         apply()
     }
 

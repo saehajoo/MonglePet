@@ -134,7 +134,7 @@ final class PetPackageExporterTests: XCTestCase {
             "originY",
             "screenIdentifier",
             "lastUserPresentation",
-            "clickThrough"
+            "movementBoundary"
         ] {
             XCTAssertFalse(json.contains(forbiddenKey))
         }
@@ -195,6 +195,10 @@ final class PetPackageExporterTests: XCTestCase {
 
         XCTAssertEqual(review.recommendedProfile?.automaticRules.count, 1)
         XCTAssertEqual(
+            review.recommendedProfile?.randomSequenceIDs,
+            behaviorProfile.randomSequenceIDs
+        )
+        XCTAssertEqual(
             review.recommendedProfileWithApplicationRules?.automaticRules.count,
             2
         )
@@ -213,7 +217,6 @@ final class PetPackageExporterTests: XCTestCase {
             installedPackage,
             reviewed: review,
             options: PetPackageShareOptions(
-                includesRecommendedProfile: true,
                 includesApplicationRules: false
             ),
             isConfirmed: true,
@@ -240,7 +243,6 @@ final class PetPackageExporterTests: XCTestCase {
             installedPackage,
             reviewed: review,
             options: PetPackageShareOptions(
-                includesRecommendedProfile: true,
                 includesApplicationRules: true
             ),
             isConfirmed: true,
@@ -259,7 +261,7 @@ final class PetPackageExporterTests: XCTestCase {
         )
     }
 
-    func testInvalidLocalSettingsStillAllowPetOnlyExport() throws {
+    func testInvalidLocalSettingsPreventIncompleteSharedExport() throws {
         let installedPackage = try makeInstalledPackage(legacyLicense: "CC-BY-4.0")
         let service = PetPackageSharingService(exporter: makeExporter())
         let invalidProfile = BehaviorProfile(
@@ -287,30 +289,11 @@ final class PetPackageExporterTests: XCTestCase {
         XCTAssertNil(review.recommendedProfile)
         XCTAssertNotNil(review.recommendedProfileIssue)
 
-        let petOnlyURL = temporaryDirectoryURL.appendingPathComponent(
-            "Pet Only Fallback.monglepet"
-        )
-        try service.export(
-            installedPackage,
-            reviewed: review,
-            options: .petOnly,
-            isConfirmed: true,
-            to: petOnlyURL
-        )
-        XCTAssertFalse(
-            FileManager.default.fileExists(
-                atPath: try extract(petOnlyURL)
-                    .appendingPathComponent("recommended-profile.json")
-                    .path
-            )
-        )
-
         XCTAssertThrowsError(
             try service.export(
                 installedPackage,
                 reviewed: review,
                 options: PetPackageShareOptions(
-                    includesRecommendedProfile: true,
                     includesApplicationRules: false
                 ),
                 isConfirmed: true,
@@ -329,7 +312,12 @@ final class PetPackageExporterTests: XCTestCase {
     func testConfirmedSharedArchiveInstallsIntoFreshLibraryAsReadOnlyPackage() throws {
         let sourceInstallation = try makeInstalledPackage(legacyLicense: "CC-BY-4.0")
         let sharingService = PetPackageSharingService(exporter: makeExporter())
-        let review = try sharingService.review(sourceInstallation)
+        let review = try sharingService.review(
+            sourceInstallation,
+            behaviorProfile: makeBehaviorProfile(
+                installationID: sourceInstallation.installationID
+            )
+        )
         let sharedArchiveURL = temporaryDirectoryURL.appendingPathComponent(
             review.suggestedFileName,
             isDirectory: false
@@ -372,7 +360,12 @@ final class PetPackageExporterTests: XCTestCase {
         )
         XCTAssertEqual(
             try regularFilePaths(in: importedInstallation.rootURL),
-            ["assets/spritesheet.png", "pet.json", "preview.png"]
+            [
+                "assets/spritesheet.png",
+                "pet.json",
+                "preview.png",
+                "recommended-profile.json"
+            ]
         )
         XCTAssertEqual(
             try Data(contentsOf: importedInstallation.package.previewURL),
@@ -417,7 +410,6 @@ final class PetPackageExporterTests: XCTestCase {
             sourceInstallation,
             reviewed: sharingReview,
             options: PetPackageShareOptions(
-                includesRecommendedProfile: true,
                 includesApplicationRules: true
             ),
             isConfirmed: true,
@@ -590,7 +582,12 @@ final class PetPackageExporterTests: XCTestCase {
         let service = PetPackageSharingService(
             exporter: makeExporter()
         )
-        let review = try service.review(installedPackage)
+        let review = try service.review(
+            installedPackage,
+            behaviorProfile: makeBehaviorProfile(
+                installationID: installedPackage.installationID
+            )
+        )
         let destinationURL = temporaryDirectoryURL.appendingPathComponent(
             review.suggestedFileName
         )
@@ -625,7 +622,12 @@ final class PetPackageExporterTests: XCTestCase {
     func testSharingIgnoresLegacyLicenseAfterRightsConfirmation() throws {
         let installedPackage = try makeInstalledPackage(legacyLicense: "Private Use")
         let service = PetPackageSharingService(exporter: makeExporter())
-        let review = try service.review(installedPackage)
+        let review = try service.review(
+            installedPackage,
+            behaviorProfile: makeBehaviorProfile(
+                installationID: installedPackage.installationID
+            )
+        )
         let destinationURL = temporaryDirectoryURL.appendingPathComponent(
             "Blocked.monglepet"
         )
@@ -812,7 +814,17 @@ final class PetPackageExporterTests: XCTestCase {
             petKey: .installed(installationID),
             mode: .automatic,
             manualSequenceID: "default",
-            sequences: [sequence],
+            randomSequenceIDs: ["default", "idle"],
+            sequences: [
+                sequence,
+                BehaviorSequence(
+                    id: "idle",
+                    steps: [
+                        BehaviorStep(motionID: "idle", repeatCount: 1)
+                    ],
+                    repeats: true
+                )
+            ],
             automaticRules: [
                 AutomaticRule(
                     id: UUID(

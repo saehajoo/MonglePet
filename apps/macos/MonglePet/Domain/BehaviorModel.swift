@@ -9,6 +9,7 @@ nonisolated enum PetPresentation: String, Equatable, Sendable {
 nonisolated enum BehaviorMode: String, Equatable, Sendable {
     case automatic
     case manual
+    case random
 }
 
 nonisolated struct BehaviorStep: Equatable, Sendable {
@@ -51,8 +52,39 @@ nonisolated struct LegacyBehaviorStepTiming: Equatable, Sendable {
 
 nonisolated struct BehaviorSequence: Equatable, Identifiable, Sendable {
     let id: String
+    let displayName: String
     let steps: [BehaviorStep]
     let repeats: Bool
+
+    init(
+        id: String,
+        displayName: String? = nil,
+        steps: [BehaviorStep],
+        repeats: Bool
+    ) {
+        self.id = id
+        self.displayName = displayName
+            ?? (id == "__monglepet_default_behavior__" ? "기본" : id)
+        self.steps = steps
+        self.repeats = repeats
+    }
+}
+
+nonisolated enum AutomaticRuleCategory:
+    String,
+    CaseIterable,
+    Equatable,
+    Sendable
+{
+    case movement
+    case idle
+    case application
+
+    static let defaultPriorityOrder: [AutomaticRuleCategory] = [
+        .movement,
+        .idle,
+        .application
+    ]
 }
 
 nonisolated enum RuleCondition: Equatable, Sendable {
@@ -67,6 +99,17 @@ nonisolated struct AutomaticRule: Equatable, Identifiable, Sendable {
     let priority: Int
     let condition: RuleCondition
     let sequenceID: String
+
+    var category: AutomaticRuleCategory? {
+        switch condition {
+        case .application:
+            .application
+        case .idleAtLeast:
+            .idle
+        case .unsupported:
+            nil
+        }
+    }
 }
 
 nonisolated struct ActivitySnapshot: Equatable, Sendable {
@@ -81,21 +124,28 @@ nonisolated struct BehaviorConfiguration: Equatable, Sendable {
     let mode: BehaviorMode
     let defaultSequenceID: String
     let manualSequenceID: String?
+    let randomSequenceIDs: [String]
     let sequences: [BehaviorSequence]
     let automaticRules: [AutomaticRule]
+    let automaticRulePriorityOrder: [AutomaticRuleCategory]
 
     init(
         mode: BehaviorMode,
         defaultSequenceID: String,
         manualSequenceID: String? = nil,
+        randomSequenceIDs: [String] = [],
         sequences: [BehaviorSequence],
-        automaticRules: [AutomaticRule] = []
+        automaticRules: [AutomaticRule] = [],
+        automaticRulePriorityOrder: [AutomaticRuleCategory] =
+            AutomaticRuleCategory.defaultPriorityOrder
     ) {
         self.mode = mode
         self.defaultSequenceID = defaultSequenceID
         self.manualSequenceID = manualSequenceID
+        self.randomSequenceIDs = randomSequenceIDs
         self.sequences = sequences
         self.automaticRules = automaticRules
+        self.automaticRulePriorityOrder = automaticRulePriorityOrder
     }
 
     func sequence(id: String) -> BehaviorSequence? {
@@ -110,19 +160,23 @@ nonisolated struct BehaviorConfiguration: Equatable, Sendable {
 nonisolated struct BehaviorRuntimeState: Equatable, Sendable {
     let presentation: PetPresentation
     let interactionSequenceID: String?
+    let randomSequenceID: String?
 
     init(
         presentation: PetPresentation,
-        interactionSequenceID: String? = nil
+        interactionSequenceID: String? = nil,
+        randomSequenceID: String? = nil
     ) {
         self.presentation = presentation
         self.interactionSequenceID = interactionSequenceID
+        self.randomSequenceID = randomSequenceID
     }
 }
 
 nonisolated enum BehaviorSource: Equatable, Sendable {
     case interaction
     case manual
+    case random
     case automaticRule(UUID)
     case defaultBehavior
 }

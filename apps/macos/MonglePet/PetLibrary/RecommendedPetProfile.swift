@@ -1,30 +1,117 @@
 import Foundation
 
+nonisolated struct PortablePetDisplaySettings: Equatable, Sendable {
+    let scalePercent: Double
+    let clickThrough: Bool
+    let opacity: Double
+    let pointerOverlapFadeEnabled: Bool
+    let pointerOverlapOpacity: Double
+    let pixelArtRendering: Bool
+
+    init(
+        scalePercent: Double,
+        clickThrough: Bool,
+        opacity: Double,
+        pointerOverlapFadeEnabled: Bool,
+        pointerOverlapOpacity: Double,
+        pixelArtRendering: Bool
+    ) {
+        self.scalePercent = scalePercent
+        self.clickThrough = clickThrough
+        self.opacity = opacity
+        self.pointerOverlapFadeEnabled = pointerOverlapFadeEnabled
+        self.pointerOverlapOpacity = pointerOverlapOpacity
+        self.pixelArtRendering = pixelArtRendering
+    }
+
+    init(overlay: OverlaySettings) {
+        self.init(
+            scalePercent: overlay.width
+                / AppSettingsLimits.defaultOverlayWidth * 100,
+            clickThrough: overlay.clickThrough,
+            opacity: overlay.opacity,
+            pointerOverlapFadeEnabled: overlay.pointerOverlapFadeEnabled,
+            pointerOverlapOpacity: overlay.pointerOverlapOpacity,
+            pixelArtRendering: overlay.pixelArtRendering
+        )
+    }
+
+    static let `default` = PortablePetDisplaySettings(overlay: .default)
+
+    var isValid: Bool {
+        scalePercent.isFinite
+            && (AppSettingsLimits.minimumOverlayScalePercent
+                ... AppSettingsLimits.maximumOverlayScalePercent)
+                .contains(scalePercent)
+            && opacity.isFinite
+            && (AppSettingsLimits.minimumOverlayOpacity
+                ... AppSettingsLimits.maximumOverlayOpacity)
+                .contains(opacity)
+            && pointerOverlapOpacity.isFinite
+            && (AppSettingsLimits.minimumPointerOverlapOpacity
+                ... AppSettingsLimits.maximumPointerOverlapOpacity)
+                .contains(pointerOverlapOpacity)
+    }
+
+    func applying(to overlay: OverlaySettings) -> OverlaySettings {
+        OverlaySettings(
+            screenIdentifier: overlay.screenIdentifier,
+            originX: overlay.originX,
+            originY: overlay.originY,
+            width: AppSettingsLimits.defaultOverlayWidth
+                * scalePercent / 100,
+            clickThrough: clickThrough,
+            opacity: opacity,
+            pointerOverlapFadeEnabled: pointerOverlapFadeEnabled,
+            pointerOverlapOpacity: pointerOverlapOpacity,
+            pixelArtRendering: pixelArtRendering,
+            movementBoundary: overlay.movementBoundary
+        )
+    }
+}
+
 nonisolated struct RecommendedPetProfile: Equatable, Sendable {
     let mode: BehaviorMode
     let manualSequenceID: String?
+    let randomSequenceIDs: [String]
     let sequences: [BehaviorSequence]
     let automaticRules: [AutomaticRule]
+    let automaticRulePriorityOrder: [AutomaticRuleCategory]
     let movement: PetMovementSettings
     let pettingMotionID: String?
     let speech: PetSpeechSettings
+    let display: PortablePetDisplaySettings
+    /// `false` only for schema-v1...v9 files, which did not contain portable
+    /// display settings. Keeping the decoded defaults for summaries and
+    /// re-export is useful, but applying them would overwrite unrelated local
+    /// display choices that the legacy package never expressed.
+    let includesDisplaySettings: Bool
 
     init(
         mode: BehaviorMode,
         manualSequenceID: String?,
+        randomSequenceIDs: [String] = [],
         sequences: [BehaviorSequence],
         automaticRules: [AutomaticRule],
+        automaticRulePriorityOrder: [AutomaticRuleCategory] =
+            AutomaticRuleCategory.defaultPriorityOrder,
         movement: PetMovementSettings,
         pettingMotionID: String?,
-        speech: PetSpeechSettings = .default
+        speech: PetSpeechSettings = .default,
+        display: PortablePetDisplaySettings = .default,
+        includesDisplaySettings: Bool = true
     ) {
         self.mode = mode
         self.manualSequenceID = manualSequenceID
+        self.randomSequenceIDs = randomSequenceIDs
         self.sequences = sequences
         self.automaticRules = automaticRules
+        self.automaticRulePriorityOrder = automaticRulePriorityOrder
         self.movement = movement
         self.pettingMotionID = pettingMotionID
         self.speech = speech
+        self.display = display
+        self.includesDisplaySettings = includesDisplaySettings
     }
 
     func behaviorProfile(for petKey: PetBehaviorKey) -> BehaviorProfile {
@@ -32,8 +119,10 @@ nonisolated struct RecommendedPetProfile: Equatable, Sendable {
             petKey: petKey,
             mode: mode,
             manualSequenceID: manualSequenceID,
+            randomSequenceIDs: randomSequenceIDs,
             sequences: sequences,
             automaticRules: automaticRules,
+            automaticRulePriorityOrder: automaticRulePriorityOrder,
             movement: movement,
             pettingMotionID: pettingMotionID,
             speech: speech
@@ -64,25 +153,51 @@ extension RecommendedPetProfileError: LocalizedError {
 }
 
 nonisolated enum RecommendedPetProfileCodec {
-    static let schemaVersion = 7
+    static let schemaVersion = 10
     static let maximumFileSize = 1 * 1_024 * 1_024
 
     static func encode(
         _ profile: RecommendedPetProfile,
         for definition: PetDefinition
     ) throws -> Data {
+        let profile = normalizingCurrentProfile(profile)
         try validate(profile, for: definition)
-        let stored = StoredRecommendedPetProfileV7(
+        let stored = StoredRecommendedPetProfileV10(
             schemaVersion: schemaVersion,
-            behavior: StoredRecommendedBehaviorV1(
+            behavior: StoredRecommendedBehaviorV9(
                 mode: storedMode(profile.mode),
                 manualSequenceID: profile.manualSequenceID,
-                sequences: profile.sequences.map(storedSequence)
+                randomSequenceIDs: profile.randomSequenceIDs,
+                sequences: profile.sequences.map { sequence in
+                    StoredBehaviorSequenceV12(
+                        id: sequence.id,
+                        displayName: sequence.displayName,
+                        steps: sequence.steps.map {
+                            StoredBehaviorStepV2(
+                                motionID: $0.motionID,
+                                repeatCount: $0.repeatCount
+                            )
+                        },
+                        repeats: sequence.repeats
+                    )
+                }
             ),
-            movement: storedMovement(profile.movement),
-            pettingMotionID: profile.pettingMotionID,
+            movement: storedMovementV10(profile.movement),
+            pettingBehaviorID: profile.pettingMotionID,
             automaticRules: profile.automaticRules.map(storedRule),
-            speech: storedSpeechV7(profile.speech)
+            automaticRulePriorityOrder:
+                profile.automaticRulePriorityOrder.map(\.rawValue),
+            speech: storedSpeechV7(profile.speech),
+            display: StoredPortablePetDisplayV10(
+                scalePercent: profile.display.scalePercent,
+                clickThrough: profile.display.clickThrough,
+                opacity: profile.display.opacity,
+                pointerOverlapFadeEnabled:
+                    profile.display.pointerOverlapFadeEnabled,
+                pointerOverlapOpacity:
+                    profile.display.pointerOverlapOpacity,
+                pixelArtRendering: profile.display.pixelArtRendering
+            )
         )
 
         let data: Data
@@ -101,6 +216,29 @@ nonisolated enum RecommendedPetProfileCodec {
             throw RecommendedPetProfileError.fileTooLarge
         }
         return data
+    }
+
+    private static func normalizingCurrentProfile(
+        _ profile: RecommendedPetProfile
+    ) -> RecommendedPetProfile {
+        let sequenceIDs = Set(profile.sequences.map(\.id))
+        let animations = [
+            profile.movement.cursorFollowing.animation,
+            profile.movement.freeRoaming.animation,
+            profile.movement.cursorAvoiding.animation,
+            profile.movement.cursorAvoiding.idleFreeRoaming.animation
+        ]
+        let contextIDs = animations.map(\.fallbackMotionID) + [
+            profile.pettingMotionID
+        ] + MovementDirection.allCases.flatMap { direction in
+            animations.map { $0.directionMotionIDs[direction] }
+        }
+        let needsPromotion = contextIDs.compactMap { $0 }.contains {
+            !sequenceIDs.contains($0)
+        }
+        return needsPromotion
+            ? promotingContextMotionReferences(in: profile)
+            : profile
     }
 
     static func decode(
@@ -201,11 +339,50 @@ nonisolated enum RecommendedPetProfileCodec {
             } catch {
                 throw RecommendedPetProfileError.unreadable
             }
-        case schemaVersion:
+        case 7:
             do {
                 profile = try domainProfile(
                     from: decoder.decode(
                         StoredRecommendedPetProfileV7.self,
+                        from: data
+                    )
+                )
+            } catch let error as RecommendedPetProfileError {
+                throw error
+            } catch {
+                throw RecommendedPetProfileError.unreadable
+            }
+        case 8:
+            do {
+                profile = try domainProfile(
+                    from: decoder.decode(
+                        StoredRecommendedPetProfileV8.self,
+                        from: data
+                    )
+                )
+            } catch let error as RecommendedPetProfileError {
+                throw error
+            } catch {
+                throw RecommendedPetProfileError.unreadable
+            }
+        case 9:
+            do {
+                profile = try domainProfile(
+                    from: decoder.decode(
+                        StoredRecommendedPetProfileV9.self,
+                        from: data
+                    )
+                )
+            } catch let error as RecommendedPetProfileError {
+                throw error
+            } catch {
+                throw RecommendedPetProfileError.unreadable
+            }
+        case schemaVersion:
+            do {
+                profile = try domainProfile(
+                    from: decoder.decode(
+                        StoredRecommendedPetProfileV10.self,
                         from: data
                     )
                 )
@@ -219,8 +396,36 @@ nonisolated enum RecommendedPetProfileCodec {
                 envelope.schemaVersion
             )
         }
-        try validate(profile, for: definition)
-        return profile
+        var normalizedProfile = envelope.schemaVersion < schemaVersion
+            ? promotingContextMotionReferences(in: profile)
+            : profile
+        if envelope.schemaVersion < schemaVersion {
+            normalizedProfile = replacingDisplayApplication(
+                in: normalizedProfile,
+                includesDisplaySettings: false
+            )
+        }
+        try validate(normalizedProfile, for: definition)
+        return normalizedProfile
+    }
+
+    private static func replacingDisplayApplication(
+        in profile: RecommendedPetProfile,
+        includesDisplaySettings: Bool
+    ) -> RecommendedPetProfile {
+        RecommendedPetProfile(
+            mode: profile.mode,
+            manualSequenceID: profile.manualSequenceID,
+            randomSequenceIDs: profile.randomSequenceIDs,
+            sequences: profile.sequences,
+            automaticRules: profile.automaticRules,
+            automaticRulePriorityOrder: profile.automaticRulePriorityOrder,
+            movement: profile.movement,
+            pettingMotionID: profile.pettingMotionID,
+            speech: profile.speech,
+            display: profile.display,
+            includesDisplaySettings: includesDisplaySettings
+        )
     }
 
     private static func domainProfile(
@@ -680,6 +885,440 @@ nonisolated enum RecommendedPetProfileCodec {
         )
     }
 
+    private static func domainProfile(
+        from stored: StoredRecommendedPetProfileV8
+    ) throws -> RecommendedPetProfile {
+        let movement = stored.movement
+        let legacy = StoredRecommendedPetProfileV7(
+            schemaVersion: 7,
+            behavior: StoredRecommendedBehaviorV1(
+                mode: stored.behavior.mode,
+                manualSequenceID: stored.behavior.manualSequenceID,
+                sequences: stored.behavior.sequences.map { sequence in
+                    StoredRecommendedBehaviorSequenceV1(
+                        id: sequence.id,
+                        steps: sequence.steps.map {
+                            StoredRecommendedBehaviorStepV1(
+                                motionID: $0.motionID,
+                                repeatCount: $0.repeatCount
+                            )
+                        },
+                        repeats: sequence.repeats
+                    )
+                }
+            ),
+            movement: StoredRecommendedMovementV3(
+                mode: movement.mode,
+                speed: movement.speed,
+                cursorDistance: movement.cursorDistance,
+                stopRadius: movement.stopRadius,
+                freeRoamingDwellMilliseconds:
+                    movement.freeRoamingDwellMilliseconds,
+                prefersFrontmostWindow: movement.prefersFrontmostWindow,
+                cursorFollowingAnimation: legacyAnimation(
+                    movement.cursorFollowingBehavior
+                ),
+                freeRoamingAnimation: legacyAnimation(
+                    movement.freeRoamingBehavior
+                ),
+                cursorAvoidingIdleBehavior:
+                    movement.cursorAvoidingIdleBehavior,
+                cursorAvoidingDetectionDistance:
+                    movement.cursorAvoidingDetectionDistance,
+                cursorAvoidingSpeed: movement.cursorAvoidingSpeed,
+                cursorAvoidingAnimation: legacyAnimation(
+                    movement.cursorAvoidingBehavior
+                )
+            ),
+            pettingMotionID: stored.pettingBehaviorID,
+            automaticRules: stored.automaticRules,
+            speech: stored.speech
+        )
+        let base = try domainProfile(from: legacy)
+        var displayNames: [String: String] = [:]
+        for sequence in stored.behavior.sequences
+            where displayNames[sequence.id] == nil {
+            displayNames[sequence.id] = sequence.displayName
+        }
+        let priorityOrder = try decodedPriorityOrder(
+            stored.automaticRulePriorityOrder
+        )
+        return RecommendedPetProfile(
+            mode: base.mode,
+            manualSequenceID: base.manualSequenceID,
+            sequences: base.sequences.map { sequence in
+                BehaviorSequence(
+                    id: sequence.id,
+                    displayName: displayNames[sequence.id],
+                    steps: sequence.steps,
+                    repeats: sequence.repeats
+                )
+            },
+            automaticRules: base.automaticRules,
+            automaticRulePriorityOrder: priorityOrder,
+            movement: base.movement,
+            pettingMotionID: base.pettingMotionID,
+            speech: base.speech
+        )
+    }
+
+    private static func domainProfile(
+        from stored: StoredRecommendedPetProfileV9
+    ) throws -> RecommendedPetProfile {
+        let mode: BehaviorMode = switch stored.behavior.mode {
+        case "automatic": .automatic
+        case "manual": .manual
+        case "random": .random
+        default:
+            throw RecommendedPetProfileError.invalidField("behavior.mode")
+        }
+        let movement = stored.movement
+        let legacy = StoredRecommendedPetProfileV8(
+            schemaVersion: 8,
+            behavior: StoredRecommendedBehaviorV8(
+                mode: mode == .random ? "automatic" : stored.behavior.mode,
+                manualSequenceID: stored.behavior.manualSequenceID,
+                sequences: stored.behavior.sequences
+            ),
+            movement: StoredPetMovementSettingsV12(
+                mode: movement.mode,
+                speed: movement.speed,
+                cursorDistance: movement.cursorDistance,
+                stopRadius: movement.stopRadius,
+                freeRoamingDwellMilliseconds:
+                    movement.freeRoamingDwellMilliseconds,
+                prefersFrontmostWindow: movement.prefersFrontmostWindow,
+                cursorFollowingBehavior:
+                    movement.cursorFollowingBehavior,
+                freeRoamingBehavior: movement.freeRoamingBehavior,
+                cursorAvoidingIdleBehavior:
+                    movement.cursorAvoidingIdleBehavior,
+                cursorAvoidingDetectionDistance:
+                    movement.cursorAvoidingDetectionDistance,
+                cursorAvoidingSpeed: movement.cursorAvoidingSpeed,
+                cursorAvoidingBehavior: movement.cursorAvoidingBehavior
+            ),
+            pettingBehaviorID: stored.pettingBehaviorID,
+            automaticRules: stored.automaticRules,
+            automaticRulePriorityOrder:
+                stored.automaticRulePriorityOrder,
+            speech: stored.speech
+        )
+        let base = try domainProfile(from: legacy)
+        return RecommendedPetProfile(
+            mode: mode,
+            manualSequenceID: base.manualSequenceID,
+            randomSequenceIDs: stored.behavior.randomSequenceIDs,
+            sequences: base.sequences,
+            automaticRules: base.automaticRules,
+            automaticRulePriorityOrder:
+                base.automaticRulePriorityOrder,
+            movement: PetMovementSettings(
+                mode: base.movement.mode,
+                speed: base.movement.speed,
+                cursorDistance: base.movement.cursorDistance,
+                stopRadius: base.movement.stopRadius,
+                freeRoamingDwellMilliseconds:
+                    movement.freeRoamingDwellMilliseconds,
+                prefersFrontmostWindow:
+                    base.movement.prefersFrontmostWindow,
+                cursorFollowingAnimation:
+                    base.movement.cursorFollowingAnimation,
+                freeRoamingAnimation:
+                    base.movement.freeRoamingAnimation,
+                cursorAvoidingIdleBehavior:
+                    base.movement.cursorAvoidingIdleBehavior,
+                cursorAvoidingDetectionDistance:
+                    base.movement.cursorAvoidingDetectionDistance,
+                cursorAvoidingSpeed: base.movement.cursorAvoidingSpeed,
+                cursorAvoidingAnimation:
+                    base.movement.cursorAvoidingAnimation,
+                randomizesFreeRoamingDwell:
+                    movement.randomizesFreeRoamingDwell,
+                freeRoamingDwellMinimumMilliseconds:
+                    movement.freeRoamingDwellMinimumMilliseconds
+            ),
+            pettingMotionID: base.pettingMotionID,
+            speech: base.speech
+        )
+    }
+
+    private static func domainProfile(
+        from stored: StoredRecommendedPetProfileV10
+    ) throws -> RecommendedPetProfile {
+        let movement = stored.movement
+        let roaming = movement.freeRoaming
+        let following = movement.cursorFollowing
+        let avoiding = movement.cursorAvoiding
+        let legacy = StoredRecommendedPetProfileV9(
+            schemaVersion: 9,
+            behavior: stored.behavior,
+            movement: StoredPetMovementSettingsV13(
+                mode: movement.mode,
+                speed: roaming.speed,
+                cursorDistance: following.cursorDistance,
+                stopRadius: roaming.stopRadius,
+                freeRoamingDwellMilliseconds: roaming.dwellMilliseconds,
+                randomizesFreeRoamingDwell: roaming.randomizesDwell,
+                freeRoamingDwellMinimumMilliseconds:
+                    roaming.dwellMinimumMilliseconds,
+                prefersFrontmostWindow: roaming.prefersFrontmostWindow,
+                cursorFollowingBehavior: following.behavior,
+                freeRoamingBehavior: roaming.behavior,
+                cursorAvoidingIdleBehavior: avoiding.idleBehavior,
+                cursorAvoidingDetectionDistance:
+                    avoiding.detectionDistance,
+                cursorAvoidingSpeed: avoiding.speed,
+                cursorAvoidingBehavior: avoiding.behavior
+            ),
+            pettingBehaviorID: stored.pettingBehaviorID,
+            automaticRules: stored.automaticRules,
+            automaticRulePriorityOrder:
+                stored.automaticRulePriorityOrder,
+            speech: stored.speech
+        )
+        let base = try domainProfile(from: legacy)
+        let independentMovement = PetMovementSettings(
+            mode: base.movement.mode,
+            cursorFollowing: CursorFollowingMovementSettings(
+                speed: following.speed,
+                cursorDistance: following.cursorDistance,
+                stopRadius: following.stopRadius,
+                animation: domainAnimation(
+                    from: legacyAnimation(following.behavior)
+                )
+            ),
+            freeRoaming: domainRoamingV10(roaming),
+            cursorAvoiding: CursorAvoidingMovementSettings(
+                idleBehavior: avoiding.idleBehavior == "freeRoaming"
+                    ? .freeRoaming
+                    : .stationary,
+                detectionDistance: avoiding.detectionDistance,
+                speed: avoiding.speed,
+                stopRadius: avoiding.stopRadius,
+                animation: domainAnimation(
+                    from: legacyAnimation(avoiding.behavior)
+                ),
+                idleFreeRoaming: domainRoamingV10(
+                    avoiding.idleFreeRoaming
+                )
+            )
+        )
+        let display = PortablePetDisplaySettings(
+            scalePercent: stored.display.scalePercent,
+            clickThrough: stored.display.clickThrough,
+            opacity: stored.display.opacity,
+            pointerOverlapFadeEnabled:
+                stored.display.pointerOverlapFadeEnabled,
+            pointerOverlapOpacity: stored.display.pointerOverlapOpacity,
+            pixelArtRendering: stored.display.pixelArtRendering
+        )
+        return RecommendedPetProfile(
+            mode: base.mode,
+            manualSequenceID: base.manualSequenceID,
+            randomSequenceIDs: base.randomSequenceIDs,
+            sequences: base.sequences,
+            automaticRules: base.automaticRules,
+            automaticRulePriorityOrder:
+                base.automaticRulePriorityOrder,
+            movement: independentMovement,
+            pettingMotionID: base.pettingMotionID,
+            speech: base.speech,
+            display: display
+        )
+    }
+
+    private static func domainRoamingV10(
+        _ stored: StoredFreeRoamingMovementSettingsV14
+    ) -> FreeRoamingMovementSettings {
+        FreeRoamingMovementSettings(
+            speed: stored.speed,
+            stopRadius: stored.stopRadius,
+            dwellMilliseconds: stored.dwellMilliseconds,
+            randomizesDwell: stored.randomizesDwell,
+            dwellMinimumMilliseconds: stored.dwellMinimumMilliseconds,
+            prefersFrontmostWindow: stored.prefersFrontmostWindow,
+            animation: domainAnimation(
+                from: legacyAnimation(stored.behavior)
+            )
+        )
+    }
+
+    private static func legacyAnimation(
+        _ behavior: StoredMovementBehaviorSettingsV12
+    ) -> StoredRecommendedMovementAnimationV2 {
+        let directions = behavior.directionBehaviorIDs
+        return StoredRecommendedMovementAnimationV2(
+            fallbackMotionID: behavior.fallbackBehaviorID,
+            usesDirectionalMotions: behavior.usesDirectionalBehaviors,
+            usesDiagonalMotions: behavior.usesDiagonalBehaviors,
+            directionMotionIDs: StoredRecommendedDirectionalMotionIDsV2(
+                left: directions.left,
+                right: directions.right,
+                up: directions.up,
+                down: directions.down,
+                upLeft: directions.upLeft,
+                upRight: directions.upRight,
+                downLeft: directions.downLeft,
+                downRight: directions.downRight
+            )
+        )
+    }
+
+    private static func promotingContextMotionReferences(
+        in profile: RecommendedPetProfile
+    ) -> RecommendedPetProfile {
+        var sequences = profile.sequences
+        var promotedIDs: [String: String] = [:]
+        func behaviorID(for motionID: String?) -> String? {
+            guard let motionID else { return nil }
+            if let existing = promotedIDs[motionID] { return existing }
+            if let existing = sequences.first(where: {
+                $0.id == motionID
+                    && $0.steps.count == 1
+                    && $0.steps[0].motionID == motionID
+                    && $0.steps[0].repeatCount == 1
+            }) {
+                promotedIDs[motionID] = existing.id
+                return existing.id
+            }
+            if let existing = sequences.first(where: {
+                $0.steps.count == 1
+                    && $0.steps[0].motionID == motionID
+                    && $0.steps[0].repeatCount == 1
+            }) {
+                promotedIDs[motionID] = existing.id
+                return existing.id
+            }
+            let encoded = Data(motionID.utf8).base64EncodedString()
+                .replacingOccurrences(of: "+", with: "-")
+                .replacingOccurrences(of: "/", with: "_")
+                .replacingOccurrences(of: "=", with: "")
+            var id = "__monglepet_motion_behavior__\(encoded)"
+            var suffix = 2
+            while sequences.contains(where: { $0.id == id }) {
+                id = "__monglepet_motion_behavior__\(encoded)-\(suffix)"
+                suffix += 1
+            }
+            sequences.append(
+                BehaviorSequence(
+                    id: id,
+                    displayName: motionID,
+                    steps: [BehaviorStep(motionID: motionID, repeatCount: 1)],
+                    repeats: true
+                )
+            )
+            promotedIDs[motionID] = id
+            return id
+        }
+        func promote(
+            _ animation: MovementAnimationSettings
+        ) -> MovementAnimationSettings {
+            var directions = DirectionalMotionIDs()
+            for direction in MovementDirection.allCases {
+                directions = directions.replacing(
+                    direction,
+                    with: behaviorID(
+                        for: animation.directionMotionIDs[direction]
+                    )
+                )
+            }
+            return MovementAnimationSettings(
+                fallbackMotionID: behaviorID(for: animation.fallbackMotionID),
+                usesDirectionalMotions: animation.usesDirectionalMotions,
+                usesDiagonalMotions: animation.usesDiagonalMotions,
+                directionMotionIDs: directions
+            )
+        }
+        func promoteRoaming(
+            _ roaming: FreeRoamingMovementSettings
+        ) -> FreeRoamingMovementSettings {
+            FreeRoamingMovementSettings(
+                speed: roaming.speed,
+                stopRadius: roaming.stopRadius,
+                dwellMilliseconds: roaming.dwellMilliseconds,
+                randomizesDwell: roaming.randomizesDwell,
+                dwellMinimumMilliseconds: roaming.dwellMinimumMilliseconds,
+                prefersFrontmostWindow: roaming.prefersFrontmostWindow,
+                animation: promote(roaming.animation)
+            )
+        }
+        let movement = PetMovementSettings(
+            mode: profile.movement.mode,
+            cursorFollowing: CursorFollowingMovementSettings(
+                speed: profile.movement.cursorFollowing.speed,
+                cursorDistance:
+                    profile.movement.cursorFollowing.cursorDistance,
+                stopRadius: profile.movement.cursorFollowing.stopRadius,
+                animation: promote(
+                    profile.movement.cursorFollowing.animation
+                )
+            ),
+            freeRoaming: promoteRoaming(profile.movement.freeRoaming),
+            cursorAvoiding: CursorAvoidingMovementSettings(
+                idleBehavior: profile.movement.cursorAvoiding.idleBehavior,
+                detectionDistance:
+                    profile.movement.cursorAvoiding.detectionDistance,
+                speed: profile.movement.cursorAvoiding.speed,
+                stopRadius: profile.movement.cursorAvoiding.stopRadius,
+                animation: promote(profile.movement.cursorAvoiding.animation),
+                idleFreeRoaming: promoteRoaming(
+                    profile.movement.cursorAvoiding.idleFreeRoaming
+                )
+            )
+        )
+        let pettingBehaviorID = behaviorID(for: profile.pettingMotionID)
+        return RecommendedPetProfile(
+            mode: profile.mode,
+            manualSequenceID: profile.manualSequenceID,
+            randomSequenceIDs: profile.randomSequenceIDs,
+            sequences: sequences,
+            automaticRules: profile.automaticRules,
+            automaticRulePriorityOrder: profile.automaticRulePriorityOrder,
+            movement: movement,
+            pettingMotionID: pettingBehaviorID,
+            speech: profile.speech,
+            display: profile.display,
+            includesDisplaySettings: profile.includesDisplaySettings
+        )
+    }
+
+    private static func priorityOrder(
+        for rules: [AutomaticRule]
+    ) -> [AutomaticRuleCategory] {
+        let idle = rules.filter { $0.category == .idle }.map(\.priority).max()
+            ?? Int.min
+        let application = rules.filter { $0.category == .application }
+            .map(\.priority).max() ?? Int.min
+        return idle >= application
+            ? [.movement, .idle, .application]
+            : [.movement, .application, .idle]
+    }
+
+    private static func decodedPriorityOrder(
+        _ values: [String]
+    ) throws -> [AutomaticRuleCategory] {
+        let parsed = values.compactMap(AutomaticRuleCategory.init(rawValue:))
+        guard parsed.count == values.count,
+              Set(parsed).count == parsed.count else {
+            throw RecommendedPetProfileError.invalidField(
+                "automaticRulePriorityOrder"
+            )
+        }
+
+        let parsedSet = Set(parsed)
+        let legacySet: Set<AutomaticRuleCategory> = [.idle, .application]
+        if parsedSet == legacySet {
+            return [.movement] + parsed
+        }
+        guard parsedSet == Set(AutomaticRuleCategory.allCases) else {
+            throw RecommendedPetProfileError.invalidField(
+                "automaticRulePriorityOrder"
+            )
+        }
+        return parsed
+    }
+
     private static func domainTheme(
         from stored: StoredRecommendedSpeechThemeV5
     ) throws -> PetSpeechBubbleTheme {
@@ -767,6 +1406,7 @@ nonisolated enum RecommendedPetProfileCodec {
             let sequencePath = "behavior.sequences.\(sequenceIndex)"
             guard
                 isNormalizedIdentifier(sequence.id),
+                isNormalizedIdentifier(sequence.displayName),
                 sequenceIDs.insert(sequence.id).inserted,
                 !sequence.steps.isEmpty,
                 sequence.steps.count <= AppSettingsLimits.maximumStepsPerSequence
@@ -802,8 +1442,30 @@ nonisolated enum RecommendedPetProfileCodec {
             )
         }
 
+        var randomIDs = Set<String>()
+        for (index, sequenceID) in profile.randomSequenceIDs.enumerated() {
+            guard isNormalizedIdentifier(sequenceID),
+                  sequenceIDs.contains(sequenceID),
+                  randomIDs.insert(sequenceID).inserted else {
+                throw RecommendedPetProfileError.invalidField(
+                    "behavior.randomSequenceIDs.\(index)"
+                )
+            }
+        }
+
         guard profile.automaticRules.count <= AppSettingsLimits.maximumAutomaticRules else {
             throw RecommendedPetProfileError.invalidField("automaticRules")
+        }
+        guard
+            profile.automaticRulePriorityOrder.count
+                == AutomaticRuleCategory.allCases.count,
+            Set(profile.automaticRulePriorityOrder)
+                == Set(AutomaticRuleCategory.allCases),
+            profile.automaticRules.filter({ $0.category == .idle }).count <= 1
+        else {
+            throw RecommendedPetProfileError.invalidField(
+                "automaticRulePriorityOrder"
+            )
         }
         var ruleIDs: Set<UUID> = []
         for (ruleIndex, rule) in profile.automaticRules.enumerated() {
@@ -841,38 +1503,36 @@ nonisolated enum RecommendedPetProfileCodec {
         guard profile.movement.isValid else {
             throw RecommendedPetProfileError.invalidField("movement")
         }
-        try validateOptionalMotion(
-            profile.movement.cursorFollowingMotionID,
-            field: "movement.cursorFollowingMotionID",
-            definition: definition
-        )
-        try validateOptionalMotion(
-            profile.movement.freeRoamingMotionID,
-            field: "movement.freeRoamingMotionID",
-            definition: definition
+        try validateAnimation(
+            profile.movement.cursorFollowing.animation,
+            field: "movement.cursorFollowing.behavior",
+            sequenceIDs: sequenceIDs
         )
         try validateAnimation(
-            profile.movement.cursorFollowingAnimation,
-            field: "movement.cursorFollowingAnimation",
-            definition: definition
+            profile.movement.freeRoaming.animation,
+            field: "movement.freeRoaming.behavior",
+            sequenceIDs: sequenceIDs
         )
         try validateAnimation(
-            profile.movement.freeRoamingAnimation,
-            field: "movement.freeRoamingAnimation",
-            definition: definition
+            profile.movement.cursorAvoiding.animation,
+            field: "movement.cursorAvoiding.behavior",
+            sequenceIDs: sequenceIDs
         )
         try validateAnimation(
-            profile.movement.cursorAvoidingAnimation,
-            field: "movement.cursorAvoidingAnimation",
-            definition: definition
+            profile.movement.cursorAvoiding.idleFreeRoaming.animation,
+            field: "movement.cursorAvoiding.idleFreeRoaming.behavior",
+            sequenceIDs: sequenceIDs
         )
-        try validateOptionalMotion(
+        try validateOptionalBehavior(
             profile.pettingMotionID,
-            field: "pettingMotionID",
-            definition: definition
+            field: "pettingBehaviorID",
+            sequenceIDs: sequenceIDs
         )
         guard profile.speech.isValid else {
             throw RecommendedPetProfileError.invalidField("speech")
+        }
+        guard profile.display.isValid else {
+            throw RecommendedPetProfileError.invalidField("display")
         }
         for (index, phrase) in profile.speech.phrases.enumerated() {
             if case let .sequence(sequenceID) = phrase.trigger,
@@ -887,22 +1547,34 @@ nonisolated enum RecommendedPetProfileCodec {
     private static func validateAnimation(
         _ animation: MovementAnimationSettings,
         field: String,
-        definition: PetDefinition
+        sequenceIDs: Set<String>
     ) throws {
         guard animation.isValid else {
             throw RecommendedPetProfileError.invalidField(field)
         }
-        try validateOptionalMotion(
+        try validateOptionalBehavior(
             animation.fallbackMotionID,
             field: "\(field).fallbackMotionID",
-            definition: definition
+            sequenceIDs: sequenceIDs
         )
         for direction in MovementDirection.allCases {
-            try validateOptionalMotion(
+            try validateOptionalBehavior(
                 animation.directionMotionIDs[direction],
                 field: "\(field).directionMotionIDs.\(direction.rawValue)",
-                definition: definition
+                sequenceIDs: sequenceIDs
             )
+        }
+    }
+
+    private static func validateOptionalBehavior(
+        _ behaviorID: String?,
+        field: String,
+        sequenceIDs: Set<String>
+    ) throws {
+        guard let behaviorID else { return }
+        guard isNormalizedIdentifier(behaviorID),
+              sequenceIDs.contains(behaviorID) else {
+            throw RecommendedPetProfileError.invalidField(field)
         }
     }
 
@@ -944,6 +1616,7 @@ nonisolated enum RecommendedPetProfileCodec {
         switch mode {
         case .automatic: "automatic"
         case .manual: "manual"
+        case .random: "random"
         }
     }
 
@@ -979,6 +1652,135 @@ nonisolated enum RecommendedPetProfileCodec {
             cursorAvoidingSpeed: movement.cursorAvoidingSpeed,
             cursorAvoidingAnimation: storedAnimation(
                 movement.cursorAvoidingAnimation
+            )
+        )
+    }
+
+    private static func storedMovementV8(
+        _ movement: PetMovementSettings
+    ) -> StoredPetMovementSettingsV12 {
+        let legacy = storedMovement(movement)
+        return StoredPetMovementSettingsV12(
+            mode: legacy.mode,
+            speed: legacy.speed,
+            cursorDistance: legacy.cursorDistance,
+            stopRadius: legacy.stopRadius,
+            freeRoamingDwellMilliseconds:
+                legacy.freeRoamingDwellMilliseconds,
+            prefersFrontmostWindow: legacy.prefersFrontmostWindow,
+            cursorFollowingBehavior: storedBehaviorV8(
+                legacy.cursorFollowingAnimation
+            ),
+            freeRoamingBehavior: storedBehaviorV8(
+                legacy.freeRoamingAnimation
+            ),
+            cursorAvoidingIdleBehavior:
+                legacy.cursorAvoidingIdleBehavior,
+            cursorAvoidingDetectionDistance:
+                legacy.cursorAvoidingDetectionDistance,
+            cursorAvoidingSpeed: legacy.cursorAvoidingSpeed,
+            cursorAvoidingBehavior: storedBehaviorV8(
+                legacy.cursorAvoidingAnimation
+            )
+        )
+    }
+
+    private static func storedMovementV9(
+        _ movement: PetMovementSettings
+    ) -> StoredPetMovementSettingsV13 {
+        let legacy = storedMovementV8(movement)
+        return StoredPetMovementSettingsV13(
+            mode: legacy.mode,
+            speed: legacy.speed,
+            cursorDistance: legacy.cursorDistance,
+            stopRadius: legacy.stopRadius,
+            freeRoamingDwellMilliseconds:
+                legacy.freeRoamingDwellMilliseconds,
+            randomizesFreeRoamingDwell:
+                movement.randomizesFreeRoamingDwell,
+            freeRoamingDwellMinimumMilliseconds:
+                movement.freeRoamingDwellMinimumMilliseconds,
+            prefersFrontmostWindow: legacy.prefersFrontmostWindow,
+            cursorFollowingBehavior: legacy.cursorFollowingBehavior,
+            freeRoamingBehavior: legacy.freeRoamingBehavior,
+            cursorAvoidingIdleBehavior: legacy.cursorAvoidingIdleBehavior,
+            cursorAvoidingDetectionDistance:
+                legacy.cursorAvoidingDetectionDistance,
+            cursorAvoidingSpeed: legacy.cursorAvoidingSpeed,
+            cursorAvoidingBehavior: legacy.cursorAvoidingBehavior
+        )
+    }
+
+    private static func storedMovementV10(
+        _ movement: PetMovementSettings
+    ) -> StoredPetMovementSettingsV14 {
+        let mode: String = switch movement.mode {
+        case .fixed: "fixed"
+        case .cursorFollowing: "cursorFollowing"
+        case .freeRoaming: "freeRoaming"
+        case .cursorAvoiding: "cursorAvoiding"
+        }
+        return StoredPetMovementSettingsV14(
+            mode: mode,
+            cursorFollowing: StoredCursorFollowingMovementSettingsV14(
+                speed: movement.cursorFollowing.speed,
+                cursorDistance: movement.cursorFollowing.cursorDistance,
+                stopRadius: movement.cursorFollowing.stopRadius,
+                behavior: storedBehaviorV8(
+                    storedAnimation(movement.cursorFollowing.animation)
+                )
+            ),
+            freeRoaming: storedRoamingV10(movement.freeRoaming),
+            cursorAvoiding: StoredCursorAvoidingMovementSettingsV14(
+                idleBehavior:
+                    movement.cursorAvoiding.idleBehavior == .freeRoaming
+                    ? "freeRoaming"
+                    : "stationary",
+                detectionDistance:
+                    movement.cursorAvoiding.detectionDistance,
+                speed: movement.cursorAvoiding.speed,
+                stopRadius: movement.cursorAvoiding.stopRadius,
+                behavior: storedBehaviorV8(
+                    storedAnimation(movement.cursorAvoiding.animation)
+                ),
+                idleFreeRoaming: storedRoamingV10(
+                    movement.cursorAvoiding.idleFreeRoaming
+                )
+            )
+        )
+    }
+
+    private static func storedRoamingV10(
+        _ roaming: FreeRoamingMovementSettings
+    ) -> StoredFreeRoamingMovementSettingsV14 {
+        StoredFreeRoamingMovementSettingsV14(
+            speed: roaming.speed,
+            stopRadius: roaming.stopRadius,
+            dwellMilliseconds: roaming.dwellMilliseconds,
+            randomizesDwell: roaming.randomizesDwell,
+            dwellMinimumMilliseconds: roaming.dwellMinimumMilliseconds,
+            prefersFrontmostWindow: roaming.prefersFrontmostWindow,
+            behavior: storedBehaviorV8(storedAnimation(roaming.animation))
+        )
+    }
+
+    private static func storedBehaviorV8(
+        _ animation: StoredRecommendedMovementAnimationV2
+    ) -> StoredMovementBehaviorSettingsV12 {
+        let directions = animation.directionMotionIDs
+        return StoredMovementBehaviorSettingsV12(
+            fallbackBehaviorID: animation.fallbackMotionID,
+            usesDirectionalBehaviors: animation.usesDirectionalMotions,
+            usesDiagonalBehaviors: animation.usesDiagonalMotions,
+            directionBehaviorIDs: StoredDirectionalBehaviorIDsV12(
+                left: directions.left,
+                right: directions.right,
+                up: directions.up,
+                down: directions.down,
+                upLeft: directions.upLeft,
+                upRight: directions.upRight,
+                downLeft: directions.downLeft,
+                downRight: directions.downRight
             )
         )
     }
@@ -1203,6 +2005,59 @@ private nonisolated struct StoredRecommendedPetProfileV7: Codable {
     let pettingMotionID: String?
     let automaticRules: [StoredRecommendedAutomaticRuleV1]
     let speech: StoredRecommendedSpeechV7
+}
+
+private nonisolated struct StoredRecommendedPetProfileV8: Codable {
+    let schemaVersion: Int
+    let behavior: StoredRecommendedBehaviorV8
+    let movement: StoredPetMovementSettingsV12
+    let pettingBehaviorID: String?
+    let automaticRules: [StoredRecommendedAutomaticRuleV1]
+    let automaticRulePriorityOrder: [String]
+    let speech: StoredRecommendedSpeechV7
+}
+
+private nonisolated struct StoredRecommendedBehaviorV8: Codable {
+    let mode: String
+    let manualSequenceID: String?
+    let sequences: [StoredBehaviorSequenceV12]
+}
+
+private nonisolated struct StoredRecommendedPetProfileV9: Codable {
+    let schemaVersion: Int
+    let behavior: StoredRecommendedBehaviorV9
+    let movement: StoredPetMovementSettingsV13
+    let pettingBehaviorID: String?
+    let automaticRules: [StoredRecommendedAutomaticRuleV1]
+    let automaticRulePriorityOrder: [String]
+    let speech: StoredRecommendedSpeechV7
+}
+
+private nonisolated struct StoredRecommendedPetProfileV10: Codable {
+    let schemaVersion: Int
+    let behavior: StoredRecommendedBehaviorV9
+    let movement: StoredPetMovementSettingsV14
+    let pettingBehaviorID: String?
+    let automaticRules: [StoredRecommendedAutomaticRuleV1]
+    let automaticRulePriorityOrder: [String]
+    let speech: StoredRecommendedSpeechV7
+    let display: StoredPortablePetDisplayV10
+}
+
+private nonisolated struct StoredPortablePetDisplayV10: Codable {
+    let scalePercent: Double
+    let clickThrough: Bool
+    let opacity: Double
+    let pointerOverlapFadeEnabled: Bool
+    let pointerOverlapOpacity: Double
+    let pixelArtRendering: Bool
+}
+
+private nonisolated struct StoredRecommendedBehaviorV9: Codable {
+    let mode: String
+    let manualSequenceID: String?
+    let randomSequenceIDs: [String]
+    let sequences: [StoredBehaviorSequenceV12]
 }
 
 private nonisolated struct StoredRecommendedSpeechV4: Codable {

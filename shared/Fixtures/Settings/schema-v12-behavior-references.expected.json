@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 12,
+  "selectedPetInstanceID": "10000000-0000-0000-0000-000000000001",
+  "activePetInstances": [{
+    "instanceID": "10000000-0000-0000-0000-000000000001",
+    "petKey": { "type": "builtIn" },
+    "nickname": null,
+    "presentation": "awake",
+    "overlay": {
+      "screenIdentifier": null, "originX": 0, "originY": 0,
+      "width": 160, "clickThrough": false, "opacity": 1,
+      "pointerOverlapFadeEnabled": false, "pointerOverlapOpacity": 0.25,
+      "pixelArtRendering": null,
+      "movementBoundary": { "mode": "allDisplays", "screenIdentifier": null, "normalizedRect": null }
+    },
+    "behaviorProfileID": "20000000-0000-0000-0000-000000000001",
+    "displayOrder": 0
+  }],
+  "behaviorProfiles": [{
+    "profileID": "20000000-0000-0000-0000-000000000001",
+    "petKey": { "type": "builtIn" },
+    "mode": "automatic",
+    "manualSequenceID": "__monglepet_default_behavior__",
+    "sequences": [
+      { "id": "__monglepet_default_behavior__", "displayName": "기본", "steps": [{ "motionID": "idle", "repeatCount": 1 }], "repeats": true },
+      { "id": "__monglepet_motion_behavior__d2Fsaw", "displayName": "walk", "steps": [{ "motionID": "walk", "repeatCount": 1 }], "repeats": true }
+    ],
+    "automaticRules": [
+      { "id": "30000000-0000-0000-0000-000000000001", "isEnabled": true, "priority": 20, "condition": { "type": "idleAtLeast", "milliseconds": 60000 }, "sequenceID": "__monglepet_default_behavior__" },
+      { "id": "30000000-0000-0000-0000-000000000002", "isEnabled": true, "priority": 10, "condition": { "type": "application", "bundleIdentifier": "com.example.app" }, "sequenceID": "__monglepet_default_behavior__" }
+    ],
+    "automaticRulePriorityOrder": ["movement", "idle", "application"],
+    "movement": {
+      "mode": "cursorFollowing", "speed": 120, "cursorDistance": 64,
+      "stopRadius": 12, "freeRoamingDwellMilliseconds": 3000,
+      "prefersFrontmostWindow": true,
+      "cursorFollowingBehavior": { "fallbackBehaviorID": "__monglepet_motion_behavior__d2Fsaw", "usesDirectionalBehaviors": false, "usesDiagonalBehaviors": false, "directionBehaviorIDs": { "left": null, "right": null, "up": null, "down": null, "upLeft": null, "upRight": null, "downLeft": null, "downRight": null } },
+      "freeRoamingBehavior": { "fallbackBehaviorID": null, "usesDirectionalBehaviors": false, "usesDiagonalBehaviors": false, "directionBehaviorIDs": { "left": null, "right": null, "up": null, "down": null, "upLeft": null, "upRight": null, "downLeft": null, "downRight": null } },
+      "cursorAvoidingIdleBehavior": "stationary",
+      "cursorAvoidingDetectionDistance": 160, "cursorAvoidingSpeed": 320,
+      "cursorAvoidingBehavior": { "fallbackBehaviorID": null, "usesDirectionalBehaviors": false, "usesDiagonalBehaviors": false, "directionBehaviorIDs": { "left": null, "right": null, "up": null, "down": null, "upLeft": null, "upRight": null, "downLeft": null, "downRight": null } }
+    },
+    "pettingBehaviorID": "__monglepet_motion_behavior__d2Fsaw",
+    "speech": {
+      "isEnabled": false, "periodicIsEnabled": false,
+      "periodicIntervalMilliseconds": 30000, "periodicOrder": "random",
+      "behaviorChangePolicy": "dismiss", "phrases": [],
+      "theme": { "colorStyle": "system", "customBackgroundColor": { "red": 1, "green": 1, "blue": 1 }, "customTextColor": { "red": 0, "green": 0, "blue": 0 }, "backgroundOpacity": 0.94, "fontSize": 13, "contentPadding": 10, "cornerRadius": 12, "showsTail": true, "tailAlignment": "center" },
+      "placement": { "preferredPosition": "automatic", "horizontalOffset": 0, "gap": 8 }
+    }
+  }]
+}

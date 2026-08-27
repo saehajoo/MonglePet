@@ -55,8 +55,12 @@ final class MonglePetUITests: XCTestCase {
         XCTAssertTrue(
             app.buttons["monglepet.settings.createUserPet"].exists
         )
-        XCTAssertFalse(
+        XCTAssertTrue(
             app.buttons["monglepet.settings.createEditablePetCopy"].exists
+        )
+        XCTAssertEqual(
+            app.buttons["monglepet.settings.createEditablePetCopy"].label,
+            "펫 사본 새로 만들기"
         )
 
         selectSettingsDestination(
@@ -142,6 +146,19 @@ final class MonglePetUITests: XCTestCase {
             app.descendants(matching: .any)["monglepet.settings.overlayWidth"]
                 .exists
         )
+        let tenPercentButton =
+            app.descendants(matching: .any)[
+                "monglepet.settings.quickScale.10"
+            ]
+        XCTAssertTrue(tenPercentButton.exists)
+        tenPercentButton.click()
+        XCTAssertTrue(
+            app.descendants(matching: .any)[
+                "monglepet.settings.smallPetWarning"
+            ]
+            .waitForExistence(timeout: 2)
+        )
+
         XCTAssertTrue(
             app.descendants(matching: .any)["monglepet.settings.clickThrough"]
                 .exists
@@ -171,15 +188,28 @@ final class MonglePetUITests: XCTestCase {
         )
         XCTAssertTrue(
             app.descendants(matching: .any)[
-                "monglepet.settings.newIdleRule.idleMinutes.increment"
+                "monglepet.settings.newIdleRule.idleSeconds.increment"
             ]
             .exists
         )
         XCTAssertTrue(
             app.descendants(matching: .any)[
-                "monglepet.settings.newIdleRule.idleMinutes.decrement"
+                "monglepet.settings.newIdleRule.idleSeconds.decrement"
             ]
             .exists
+        )
+        XCTAssertTrue(app.staticTexts["초"].exists)
+        XCTAssertTrue(
+            app.descendants(matching: .any)[
+                "monglepet.settings.idleRuleEnabled"
+            ]
+            .exists
+        )
+        XCTAssertTrue(
+            app.buttons["monglepet.settings.changeIdleRule"].exists
+        )
+        XCTAssertTrue(
+            app.buttons["monglepet.settings.priority.movement.down"].exists
         )
         XCTAssertTrue(
             app.buttons["monglepet.settings.addApplicationRule"].exists

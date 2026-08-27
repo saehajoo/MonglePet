@@ -1,14 +1,16 @@
 import Foundation
 
 nonisolated enum AppSettingsLimits {
-    static let schemaVersion = 11
+    static let schemaVersion = 14
     static let maximumFileSize = 5 * 1_024 * 1_024
     /// Corrupt-file defense only; this is not a product-facing pet limit.
     static let maximumStoredPetInstances = 10_000
     static let maximumPetNicknameLength = 80
     static let defaultOverlayWidth = 192.0
-    static let minimumOverlayWidth = 96.0
+    static let minimumOverlayWidth = 19.2
     static let maximumOverlayWidth = 384.0
+    static let minimumOverlayScalePercent = 10.0
+    static let maximumOverlayScalePercent = 200.0
     static let minimumPlaybackSpeed = 0.25
     static let maximumPlaybackSpeed = 4.0
     static let maximumSequences = 100
@@ -60,6 +62,7 @@ nonisolated enum AppSettingsLimits {
     static let minimumMovementStopRadius = 0.0
     static let maximumMovementStopRadius = 128.0
     static let defaultFreeRoamingDwellMilliseconds: Int64 = 6_000
+    static let defaultFreeRoamingDwellMinimumMilliseconds: Int64 = 3_000
     static let minimumFreeRoamingDwellMilliseconds: Int64 = 500
     static let maximumFreeRoamingDwellMilliseconds: Int64 = 300_000
     static let defaultOverlayOpacity = 1.0
@@ -535,20 +538,99 @@ nonisolated struct PetSpeechSettings: Equatable, Sendable {
     }
 }
 
-nonisolated struct PetMovementSettings: Equatable, Sendable {
-    let mode: PetMovementMode
+nonisolated struct CursorFollowingMovementSettings: Equatable, Sendable {
     let speed: Double
     let cursorDistance: Double
     let stopRadius: Double
-    let freeRoamingDwellMilliseconds: Int64
-    let prefersFrontmostWindow: Bool
-    let cursorFollowingAnimation: MovementAnimationSettings
-    let freeRoamingAnimation: MovementAnimationSettings
-    let cursorAvoidingIdleBehavior: CursorAvoidingIdleBehavior
-    let cursorAvoidingDetectionDistance: Double
-    let cursorAvoidingSpeed: Double
-    let cursorAvoidingAnimation: MovementAnimationSettings
+    let animation: MovementAnimationSettings
 
+    var isValid: Bool {
+        speed.isFinite
+            && (AppSettingsLimits.minimumMovementSpeed
+                ... AppSettingsLimits.maximumMovementSpeed).contains(speed)
+            && cursorDistance.isFinite
+            && (AppSettingsLimits.minimumCursorDistance
+                ... AppSettingsLimits.maximumCursorDistance)
+                .contains(cursorDistance)
+            && stopRadius.isFinite
+            && (AppSettingsLimits.minimumMovementStopRadius
+                ... AppSettingsLimits.maximumMovementStopRadius)
+                .contains(stopRadius)
+            && animation.isValid
+    }
+}
+
+nonisolated struct FreeRoamingMovementSettings: Equatable, Sendable {
+    let speed: Double
+    let stopRadius: Double
+    let dwellMilliseconds: Int64
+    let randomizesDwell: Bool
+    let dwellMinimumMilliseconds: Int64
+    let prefersFrontmostWindow: Bool
+    let animation: MovementAnimationSettings
+
+    var isValid: Bool {
+        speed.isFinite
+            && (AppSettingsLimits.minimumMovementSpeed
+                ... AppSettingsLimits.maximumMovementSpeed).contains(speed)
+            && stopRadius.isFinite
+            && (AppSettingsLimits.minimumMovementStopRadius
+                ... AppSettingsLimits.maximumMovementStopRadius)
+                .contains(stopRadius)
+            && (AppSettingsLimits.minimumFreeRoamingDwellMilliseconds
+                ... AppSettingsLimits.maximumFreeRoamingDwellMilliseconds)
+                .contains(dwellMilliseconds)
+            && (AppSettingsLimits.minimumFreeRoamingDwellMilliseconds
+                ... dwellMilliseconds).contains(dwellMinimumMilliseconds)
+            && animation.isValid
+    }
+}
+
+nonisolated struct CursorAvoidingMovementSettings: Equatable, Sendable {
+    let idleBehavior: CursorAvoidingIdleBehavior
+    let detectionDistance: Double
+    let speed: Double
+    let stopRadius: Double
+    let animation: MovementAnimationSettings
+    let idleFreeRoaming: FreeRoamingMovementSettings
+
+    var isValid: Bool {
+        detectionDistance.isFinite
+            && (AppSettingsLimits.minimumCursorAvoidingDetectionDistance
+                ... AppSettingsLimits.maximumCursorAvoidingDetectionDistance)
+                .contains(detectionDistance)
+            && speed.isFinite
+            && (AppSettingsLimits.minimumMovementSpeed
+                ... AppSettingsLimits.maximumMovementSpeed).contains(speed)
+            && stopRadius.isFinite
+            && (AppSettingsLimits.minimumMovementStopRadius
+                ... AppSettingsLimits.maximumMovementStopRadius)
+                .contains(stopRadius)
+            && animation.isValid
+            && idleFreeRoaming.isValid
+    }
+}
+
+nonisolated struct PetMovementSettings: Equatable, Sendable {
+    let mode: PetMovementMode
+    let cursorFollowing: CursorFollowingMovementSettings
+    let freeRoaming: FreeRoamingMovementSettings
+    let cursorAvoiding: CursorAvoidingMovementSettings
+
+    init(
+        mode: PetMovementMode,
+        cursorFollowing: CursorFollowingMovementSettings,
+        freeRoaming: FreeRoamingMovementSettings,
+        cursorAvoiding: CursorAvoidingMovementSettings
+    ) {
+        self.mode = mode
+        self.cursorFollowing = cursorFollowing
+        self.freeRoaming = freeRoaming
+        self.cursorAvoiding = cursorAvoiding
+    }
+
+    /// Legacy/shared-value initializer. Schema migrations intentionally use
+    /// this initializer to seed every independent mode with the old values.
     init(
         mode: PetMovementMode,
         speed: Double,
@@ -565,23 +647,50 @@ nonisolated struct PetMovementSettings: Equatable, Sendable {
             AppSettingsLimits.defaultCursorAvoidingDetectionDistance,
         cursorAvoidingSpeed: Double =
             AppSettingsLimits.defaultCursorAvoidingSpeed,
-        cursorAvoidingAnimation: MovementAnimationSettings = .single(nil)
+        cursorAvoidingAnimation: MovementAnimationSettings = .single(nil),
+        randomizesFreeRoamingDwell: Bool = false,
+        freeRoamingDwellMinimumMilliseconds: Int64? = nil
     ) {
-        self.mode = mode
-        self.speed = speed
-        self.cursorDistance = cursorDistance
-        self.stopRadius = stopRadius
-        self.freeRoamingDwellMilliseconds = freeRoamingDwellMilliseconds
-        self.prefersFrontmostWindow = prefersFrontmostWindow
-        self.cursorFollowingAnimation = cursorFollowingAnimation
+        let minimumDwell =
+            freeRoamingDwellMinimumMilliseconds
+            ?? min(
+                freeRoamingDwellMilliseconds,
+                max(
+                    AppSettingsLimits.minimumFreeRoamingDwellMilliseconds,
+                    freeRoamingDwellMilliseconds / 2
+                )
+            )
+        let followingAnimation = cursorFollowingAnimation
             ?? .single(cursorFollowingMotionID)
-        self.freeRoamingAnimation = freeRoamingAnimation
+        let roamingAnimation = freeRoamingAnimation
             ?? .single(freeRoamingMotionID)
-        self.cursorAvoidingIdleBehavior = cursorAvoidingIdleBehavior
-        self.cursorAvoidingDetectionDistance =
-            cursorAvoidingDetectionDistance
-        self.cursorAvoidingSpeed = cursorAvoidingSpeed
-        self.cursorAvoidingAnimation = cursorAvoidingAnimation
+        let roaming = FreeRoamingMovementSettings(
+            speed: speed,
+            stopRadius: stopRadius,
+            dwellMilliseconds: freeRoamingDwellMilliseconds,
+            randomizesDwell: randomizesFreeRoamingDwell,
+            dwellMinimumMilliseconds: minimumDwell,
+            prefersFrontmostWindow: prefersFrontmostWindow,
+            animation: roamingAnimation
+        )
+        self.init(
+            mode: mode,
+            cursorFollowing: CursorFollowingMovementSettings(
+                speed: speed,
+                cursorDistance: cursorDistance,
+                stopRadius: stopRadius,
+                animation: followingAnimation
+            ),
+            freeRoaming: roaming,
+            cursorAvoiding: CursorAvoidingMovementSettings(
+                idleBehavior: cursorAvoidingIdleBehavior,
+                detectionDistance: cursorAvoidingDetectionDistance,
+                speed: cursorAvoidingSpeed,
+                stopRadius: stopRadius,
+                animation: cursorAvoidingAnimation,
+                idleFreeRoaming: roaming
+            )
+        )
     }
 
     static let `default` = PetMovementSettings(
@@ -596,29 +705,61 @@ nonisolated struct PetMovementSettings: Equatable, Sendable {
     )
 
     var isValid: Bool {
-        speed.isFinite
-            && (AppSettingsLimits.minimumMovementSpeed...AppSettingsLimits.maximumMovementSpeed)
-                .contains(speed)
-            && cursorDistance.isFinite
-            && (AppSettingsLimits.minimumCursorDistance...AppSettingsLimits.maximumCursorDistance)
-                .contains(cursorDistance)
-            && stopRadius.isFinite
-            && (AppSettingsLimits.minimumMovementStopRadius...AppSettingsLimits.maximumMovementStopRadius)
-                .contains(stopRadius)
-            && (AppSettingsLimits.minimumFreeRoamingDwellMilliseconds
-                ... AppSettingsLimits.maximumFreeRoamingDwellMilliseconds)
-                .contains(freeRoamingDwellMilliseconds)
-            && cursorFollowingAnimation.isValid
-            && freeRoamingAnimation.isValid
-            && cursorAvoidingDetectionDistance.isFinite
-            && (AppSettingsLimits.minimumCursorAvoidingDetectionDistance
-                ... AppSettingsLimits.maximumCursorAvoidingDetectionDistance)
-                .contains(cursorAvoidingDetectionDistance)
-            && cursorAvoidingSpeed.isFinite
-            && (AppSettingsLimits.minimumMovementSpeed
-                ... AppSettingsLimits.maximumMovementSpeed)
-                .contains(cursorAvoidingSpeed)
-            && cursorAvoidingAnimation.isValid
+        cursorFollowing.isValid
+            && freeRoaming.isValid
+            && cursorAvoiding.isValid
+    }
+
+    // Active-mode compatibility views used by the movement runtime and UI.
+    var speed: Double {
+        switch mode {
+        case .fixed: freeRoaming.speed
+        case .cursorFollowing: cursorFollowing.speed
+        case .freeRoaming: freeRoaming.speed
+        case .cursorAvoiding: cursorAvoiding.idleFreeRoaming.speed
+        }
+    }
+
+    var cursorDistance: Double { cursorFollowing.cursorDistance }
+
+    var stopRadius: Double {
+        switch mode {
+        case .fixed: freeRoaming.stopRadius
+        case .cursorFollowing: cursorFollowing.stopRadius
+        case .freeRoaming: freeRoaming.stopRadius
+        case .cursorAvoiding: cursorAvoiding.stopRadius
+        }
+    }
+
+    private var activeRoaming: FreeRoamingMovementSettings {
+        mode == .cursorAvoiding ? cursorAvoiding.idleFreeRoaming : freeRoaming
+    }
+
+    var freeRoamingDwellMilliseconds: Int64 {
+        activeRoaming.dwellMilliseconds
+    }
+    var randomizesFreeRoamingDwell: Bool { activeRoaming.randomizesDwell }
+    var freeRoamingDwellMinimumMilliseconds: Int64 {
+        activeRoaming.dwellMinimumMilliseconds
+    }
+    var prefersFrontmostWindow: Bool {
+        activeRoaming.prefersFrontmostWindow
+    }
+    var cursorFollowingAnimation: MovementAnimationSettings {
+        cursorFollowing.animation
+    }
+    var freeRoamingAnimation: MovementAnimationSettings {
+        activeRoaming.animation
+    }
+    var cursorAvoidingIdleBehavior: CursorAvoidingIdleBehavior {
+        cursorAvoiding.idleBehavior
+    }
+    var cursorAvoidingDetectionDistance: Double {
+        cursorAvoiding.detectionDistance
+    }
+    var cursorAvoidingSpeed: Double { cursorAvoiding.speed }
+    var cursorAvoidingAnimation: MovementAnimationSettings {
+        cursorAvoiding.animation
     }
 
     var cursorFollowingMotionID: String? {
@@ -636,11 +777,11 @@ nonisolated struct PetMovementSettings: Equatable, Sendable {
         case .fixed:
             nil
         case .cursorFollowing:
-            cursorFollowingAnimation
+            cursorFollowing.animation
         case .freeRoaming:
-            freeRoamingAnimation
+            freeRoaming.animation
         case .cursorAvoiding:
-            cursorAvoidingAnimation
+            cursorAvoiding.animation
         }
     }
 }
@@ -667,8 +808,10 @@ nonisolated struct BehaviorProfile: Equatable, Identifiable, Sendable {
     let petKey: PetBehaviorKey
     let mode: BehaviorMode
     let manualSequenceID: String?
+    let randomSequenceIDs: [String]
     let sequences: [BehaviorSequence]
     let automaticRules: [AutomaticRule]
+    let automaticRulePriorityOrder: [AutomaticRuleCategory]
     let movement: PetMovementSettings
     let pettingMotionID: String?
     let speech: PetSpeechSettings
@@ -677,8 +820,11 @@ nonisolated struct BehaviorProfile: Equatable, Identifiable, Sendable {
         petKey: PetBehaviorKey,
         mode: BehaviorMode,
         manualSequenceID: String?,
+        randomSequenceIDs: [String] = [],
         sequences: [BehaviorSequence],
         automaticRules: [AutomaticRule],
+        automaticRulePriorityOrder: [AutomaticRuleCategory] =
+            AutomaticRuleCategory.defaultPriorityOrder,
         movement: PetMovementSettings = .default,
         pettingMotionID: String? = nil,
         speech: PetSpeechSettings = .default
@@ -686,8 +832,10 @@ nonisolated struct BehaviorProfile: Equatable, Identifiable, Sendable {
         self.petKey = petKey
         self.mode = mode
         self.manualSequenceID = manualSequenceID
+        self.randomSequenceIDs = randomSequenceIDs
         self.sequences = sequences
         self.automaticRules = automaticRules
+        self.automaticRulePriorityOrder = automaticRulePriorityOrder
         self.movement = movement
         self.pettingMotionID = pettingMotionID
         self.speech = speech
@@ -846,8 +994,11 @@ nonisolated struct AppSettings: Equatable, Sendable {
         pettingMotionID: String? = nil,
         speech: PetSpeechSettings = .default,
         manualSequenceID: String?,
+        randomSequenceIDs: [String] = [],
         sequences: [BehaviorSequence],
-        automaticRules: [AutomaticRule]
+        automaticRules: [AutomaticRule],
+        automaticRulePriorityOrder: [AutomaticRuleCategory] =
+            AutomaticRuleCategory.defaultPriorityOrder
     ) {
         self.init(
             selectedPetInstallationID: selectedPetInstallationID,
@@ -860,8 +1011,11 @@ nonisolated struct AppSettings: Equatable, Sendable {
                     ),
                     mode: behaviorMode,
                     manualSequenceID: manualSequenceID,
+                    randomSequenceIDs: randomSequenceIDs,
                     sequences: sequences,
                     automaticRules: automaticRules,
+                    automaticRulePriorityOrder:
+                        automaticRulePriorityOrder,
                     movement: movement,
                     pettingMotionID: pettingMotionID,
                     speech: speech
@@ -892,6 +1046,10 @@ nonisolated struct AppSettings: Equatable, Sendable {
         activeBehaviorProfile?.manualSequenceID
     }
 
+    var randomSequenceIDs: [String] {
+        activeBehaviorProfile?.randomSequenceIDs ?? []
+    }
+
     var sequences: [BehaviorSequence] {
         activeBehaviorProfile?.sequences ?? []
     }
@@ -900,12 +1058,21 @@ nonisolated struct AppSettings: Equatable, Sendable {
         activeBehaviorProfile?.automaticRules ?? []
     }
 
+    var automaticRulePriorityOrder: [AutomaticRuleCategory] {
+        activeBehaviorProfile?.automaticRulePriorityOrder
+            ?? AutomaticRuleCategory.defaultPriorityOrder
+    }
+
     var movementSettings: PetMovementSettings {
         activeBehaviorProfile?.movement ?? .default
     }
 
     var pettingMotionID: String? {
         activeBehaviorProfile?.pettingMotionID
+    }
+
+    var pettingBehaviorID: String? {
+        pettingMotionID
     }
 
     var speechSettings: PetSpeechSettings {

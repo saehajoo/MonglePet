@@ -117,8 +117,15 @@ final class PetLibrarySession: ObservableObject {
         InstalledPetPackage,
         String
     ) throws -> InstalledPetPackage
+    private let builtInEditableCopyCreator: (String) throws
+        -> InstalledPetPackage
     private let animationAdder: (
         UserPetAnimationRequest,
+        InstalledPetPackage
+    ) throws -> InstalledPetPackage
+    private let animationDuplicator: (
+        String,
+        String,
         InstalledPetPackage
     ) throws -> InstalledPetPackage
     private let detailsUpdater: (
@@ -135,7 +142,8 @@ final class PetLibrarySession: ObservableObject {
     ) throws -> InstalledPetPackage
     private let packageShareReviewer: (
         InstalledPetPackage,
-        BehaviorProfile?
+        BehaviorProfile?,
+        OverlaySettings?
     ) throws -> PetPackageShareReview
     private let packageShareExporter: (
         InstalledPetPackage,
@@ -162,7 +170,23 @@ final class PetLibrarySession: ObservableObject {
             editablePackageProvider: editor.isEditable,
             userPetCreator: editor.createPet,
             editableCopyCreator: editor.createEditableCopy,
+            builtInEditableCopyCreator: { displayName in
+                try editor.createEditableCopy(
+                    of: builtInDefinition,
+                    metadata: PetPackageMetadata(
+                        id: BuiltInPet.id,
+                        displayName: BuiltInPet.displayName,
+                        version: BuiltInPet.version,
+                        author: BuiltInPet.author,
+                        description: BuiltInPet.description
+                    ),
+                    atlasImages:
+                        try PetPresentationResourceLoader.loadBuiltInAtlases(),
+                    displayName: displayName
+                )
+            },
             animationAdder: editor.addAnimation,
+            animationDuplicator: editor.duplicateAnimation,
             detailsUpdater: editor.updateDetails,
             animationUpdater: editor.updateAnimation,
             animationRemover: editor.removeAnimation,
@@ -203,10 +227,21 @@ final class PetLibrarySession: ObservableObject {
         ) throws -> InstalledPetPackage = { _, _ in
             throw PetLibraryError.fileOperationFailed
         },
+        builtInEditableCopyCreator: @escaping (String) throws
+            -> InstalledPetPackage = { _ in
+                throw PetLibraryError.fileOperationFailed
+            },
         animationAdder: @escaping (
             UserPetAnimationRequest,
             InstalledPetPackage
         ) throws -> InstalledPetPackage = { _, _ in
+            throw PetLibraryError.fileOperationFailed
+        },
+        animationDuplicator: @escaping (
+            String,
+            String,
+            InstalledPetPackage
+        ) throws -> InstalledPetPackage = { _, _, _ in
             throw PetLibraryError.fileOperationFailed
         },
         detailsUpdater: @escaping (
@@ -229,8 +264,9 @@ final class PetLibrarySession: ObservableObject {
         },
         packageShareReviewer: @escaping (
             InstalledPetPackage,
-            BehaviorProfile?
-        ) throws -> PetPackageShareReview = { _, _ in
+            BehaviorProfile?,
+            OverlaySettings?
+        ) throws -> PetPackageShareReview = { _, _, _ in
             throw PetLibraryError.fileOperationFailed
         },
         packageShareExporter: @escaping (
@@ -265,7 +301,9 @@ final class PetLibrarySession: ObservableObject {
         self.editablePackageProvider = editablePackageProvider
         self.userPetCreator = userPetCreator
         self.editableCopyCreator = editableCopyCreator
+        self.builtInEditableCopyCreator = builtInEditableCopyCreator
         self.animationAdder = animationAdder
+        self.animationDuplicator = animationDuplicator
         self.detailsUpdater = detailsUpdater
         self.animationUpdater = animationUpdater
         self.animationRemover = animationRemover
@@ -500,7 +538,8 @@ final class PetLibrarySession: ObservableObject {
     }
 
     func reviewSelectedPetForSharing(
-        behaviorProfile: BehaviorProfile? = nil
+        behaviorProfile: BehaviorProfile? = nil,
+        overlay: OverlaySettings? = nil
     ) -> PetPackageShareReview? {
         guard let installedPackage = selectedItem.installedPackage else {
             return nil
@@ -512,7 +551,8 @@ final class PetLibrarySession: ObservableObject {
         do {
             let review = try packageShareReviewer(
                 installedPackage,
-                behaviorProfile
+                behaviorProfile,
+                overlay
             )
             errorMessage = nil
             return review
@@ -525,7 +565,7 @@ final class PetLibrarySession: ObservableObject {
     @discardableResult
     func exportSelectedPet(
         reviewed review: PetPackageShareReview,
-        options: PetPackageShareOptions = .petOnly,
+        options: PetPackageShareOptions = .standard,
         isConfirmed: Bool,
         to destinationURL: URL
     ) -> Bool {
@@ -581,11 +621,12 @@ final class PetLibrarySession: ObservableObject {
 
     @discardableResult
     func createEditableCopyOfSelectedPet(displayName: String) -> Bool {
-        guard let installedPackage = selectedItem.installedPackage else {
-            return false
+        if selectedItem.isBuiltIn {
+            return performUserPetChange {
+                try builtInEditableCopyCreator(displayName)
+            }
         }
-        guard !selectedItem.isEditable else {
-            errorMessage = UserPetEditingError.petIsAlreadyEditable.localizedDescription
+        guard let installedPackage = selectedItem.installedPackage else {
             return false
         }
         return performUserPetChange {
@@ -603,6 +644,33 @@ final class PetLibrarySession: ObservableObject {
         return performUserPetChange {
             try animationAdder(request, installedPackage)
         }
+    }
+
+    @discardableResult
+    func duplicateSelectedPetAnimation(id animationID: String) -> String? {
+        guard let installedPackage = selectedItem.installedPackage,
+              selectedItem.isEditable else {
+            errorMessage = UserPetEditingError.importedPackageIsReadOnly
+                .localizedDescription
+            return nil
+        }
+        guard selectedItem.definition.motion(id: animationID) != nil else {
+            errorMessage = UserPetEditingError.animationNotFound(animationID)
+                .localizedDescription
+            return nil
+        }
+        let duplicateID = Self.duplicateAnimationID(
+            for: animationID,
+            existingIDs: selectedItem.definition.motions.map(\.id)
+        )
+        let succeeded = performUserPetChange {
+            try animationDuplicator(
+                animationID,
+                duplicateID,
+                installedPackage
+            )
+        }
+        return succeeded ? duplicateID : nil
     }
 
     @discardableResult
@@ -697,5 +765,37 @@ final class PetLibrarySession: ObservableObject {
         }
         return (lhs.selection.installationID?.uuidString ?? "")
             < (rhs.selection.installationID?.uuidString ?? "")
+    }
+
+    private static func duplicateAnimationID(
+        for sourceID: String,
+        existingIDs: [String]
+    ) -> String {
+        let marker = " 복사본"
+        let baseName: String
+        if let markerRange = sourceID.range(of: marker, options: .backwards) {
+            let tail = sourceID[markerRange.upperBound...]
+            let isCopySuffix = tail.isEmpty
+                || (tail.first == " " && Int(tail.dropFirst()) != nil)
+            baseName = isCopySuffix
+                ? String(sourceID[..<markerRange.lowerBound]) + marker
+                : sourceID + marker
+        } else {
+            baseName = sourceID + marker
+        }
+
+        func contains(_ candidate: String) -> Bool {
+            existingIDs.contains {
+                $0.localizedCaseInsensitiveCompare(candidate) == .orderedSame
+            }
+        }
+        guard contains(baseName) else {
+            return baseName
+        }
+        var suffix = 2
+        while contains("\(baseName) \(suffix)") {
+            suffix += 1
+        }
+        return "\(baseName) \(suffix)"
     }
 }

@@ -62,21 +62,14 @@ nonisolated enum PetPackageSharingPolicy {
 }
 
 nonisolated struct PetPackageShareOptions: Equatable, Sendable {
-    let includesRecommendedProfile: Bool
     let includesApplicationRules: Bool
 
-    static let petOnly = PetPackageShareOptions(
-        includesRecommendedProfile: false,
+    static let standard = PetPackageShareOptions(
         includesApplicationRules: false
     )
 
-    init(
-        includesRecommendedProfile: Bool,
-        includesApplicationRules: Bool
-    ) {
-        self.includesRecommendedProfile = includesRecommendedProfile
-        self.includesApplicationRules =
-            includesRecommendedProfile && includesApplicationRules
+    init(includesApplicationRules: Bool) {
+        self.includesApplicationRules = includesApplicationRules
     }
 }
 
@@ -116,11 +109,13 @@ nonisolated struct PetPackageSharingService {
 
     func review(
         _ installedPackage: InstalledPetPackage,
-        behaviorProfile: BehaviorProfile? = nil
+        behaviorProfile: BehaviorProfile? = nil,
+        overlay: OverlaySettings? = nil
     ) throws -> PetPackageShareReview {
         let currentPackage = try loadCurrentPackage(installedPackage)
         let profiles = reviewedProfiles(
             behaviorProfile,
+            overlay: overlay,
             installationID: installedPackage.installationID,
             definition: currentPackage.definition
         )
@@ -155,7 +150,7 @@ nonisolated struct PetPackageSharingService {
     func export(
         _ installedPackage: InstalledPetPackage,
         reviewed review: PetPackageShareReview,
-        options: PetPackageShareOptions = .petOnly,
+        options: PetPackageShareOptions = .standard,
         isConfirmed: Bool,
         to destinationURL: URL
     ) throws -> URL {
@@ -173,13 +168,11 @@ nonisolated struct PetPackageSharingService {
                 throw PetPackageSharingError.applicationRulesUnavailable
             }
             recommendedProfile = profile
-        } else if options.includesRecommendedProfile {
+        } else {
             guard let profile = review.recommendedProfile else {
                 throw PetPackageSharingError.recommendedProfileUnavailable
             }
             recommendedProfile = profile
-        } else {
-            recommendedProfile = nil
         }
 
         return try exporter.export(
@@ -195,6 +188,7 @@ nonisolated struct PetPackageSharingService {
 
     private func reviewedProfiles(
         _ behaviorProfile: BehaviorProfile?,
+        overlay: OverlaySettings?,
         installationID: UUID,
         definition: PetDefinition
     ) -> (
@@ -212,6 +206,7 @@ nonisolated struct PetPackageSharingService {
 
         let recommended = recommendedProfile(
             from: behaviorProfile,
+            overlay: overlay,
             automaticRules: behaviorProfile.automaticRules.filter {
                 guard case .application = $0.condition else {
                     return true
@@ -219,9 +214,14 @@ nonisolated struct PetPackageSharingService {
                 return false
             }
         )
+        let canonicalRecommended: RecommendedPetProfile
         do {
-            _ = try RecommendedPetProfileCodec.encode(
+            let data = try RecommendedPetProfileCodec.encode(
                 recommended,
+                for: definition
+            )
+            canonicalRecommended = try RecommendedPetProfileCodec.decode(
+                data,
                 for: definition
             )
         } catch {
@@ -235,17 +235,28 @@ nonisolated struct PetPackageSharingService {
 
         let withApplicationRules = recommendedProfile(
             from: behaviorProfile,
+            overlay: overlay,
             automaticRules: behaviorProfile.automaticRules
         )
         do {
-            _ = try RecommendedPetProfileCodec.encode(
+            let data = try RecommendedPetProfileCodec.encode(
                 withApplicationRules,
                 for: definition
             )
-            return (recommended, withApplicationRules, nil, nil)
+            let canonicalWithApplicationRules =
+                try RecommendedPetProfileCodec.decode(
+                    data,
+                    for: definition
+                )
+            return (
+                canonicalRecommended,
+                canonicalWithApplicationRules,
+                nil,
+                nil
+            )
         } catch {
             return (
-                recommended,
+                canonicalRecommended,
                 nil,
                 nil,
                 error.localizedDescription
@@ -255,16 +266,22 @@ nonisolated struct PetPackageSharingService {
 
     private func recommendedProfile(
         from profile: BehaviorProfile,
+        overlay: OverlaySettings?,
         automaticRules: [AutomaticRule]
     ) -> RecommendedPetProfile {
         RecommendedPetProfile(
             mode: profile.mode,
             manualSequenceID: profile.manualSequenceID,
+            randomSequenceIDs: profile.randomSequenceIDs,
             sequences: profile.sequences,
             automaticRules: automaticRules,
+            automaticRulePriorityOrder:
+                profile.automaticRulePriorityOrder,
             movement: profile.movement,
             pettingMotionID: profile.pettingMotionID,
-            speech: profile.speech
+            speech: profile.speech,
+            display: overlay.map { PortablePetDisplaySettings(overlay: $0) }
+                ?? .default
         )
     }
 

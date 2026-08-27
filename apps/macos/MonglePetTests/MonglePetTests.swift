@@ -82,8 +82,9 @@ final class MonglePetTests: XCTestCase {
                 "첫 번째 펫",
                 "두 번째 펫",
                 "",
-                "안전 모드로 전환…",
                 "설정…",
+                "",
+                "문제 해결",
                 "",
                 "MonglePet 종료"
             ]
@@ -101,6 +102,11 @@ final class MonglePetTests: XCTestCase {
                 "현재 화면으로 가져오기"
             ]
         )
+        let troubleshootingMenu = try XCTUnwrap(menu.items[10].submenu)
+        XCTAssertEqual(
+            troubleshootingMenu.items.map(\.title),
+            ["안전 모드로 전환…"]
+        )
 
         menu.performActionForItem(at: 1)
         menu.performActionForItem(at: 2)
@@ -109,9 +115,9 @@ final class MonglePetTests: XCTestCase {
         firstPetMenu.performActionForItem(at: 1)
         firstPetMenu.performActionForItem(at: 2)
         firstPetMenu.performActionForItem(at: 3)
+        troubleshootingMenu.performActionForItem(at: 0)
         menu.performActionForItem(at: 8)
-        menu.performActionForItem(at: 9)
-        menu.performActionForItem(at: 11)
+        menu.performActionForItem(at: 12)
 
         XCTAssertEqual(allPetsAwake, false)
         XCTAssertEqual(allPetsPaused, true)
@@ -310,12 +316,16 @@ final class MonglePetTests: XCTestCase {
         )
 
         let atlas = try XCTUnwrap(atlases.first)
-        XCTAssertEqual(atlases.count, 10)
+        XCTAssertEqual(atlases.count, 13)
         XCTAssertEqual(atlas.id, BuiltInPet.atlasID)
-        XCTAssertEqual(atlas.pixelSize, PixelSize(width: 1_050, height: 150))
+        XCTAssertEqual(atlas.pixelSize, PixelSize(width: 900, height: 150))
         XCTAssertEqual(
             atlases.map(\.id),
             BuiltInPet.atlasDescriptors.map(\.id)
+        )
+        XCTAssertEqual(
+            atlases.map(\.pixelSize),
+            BuiltInPet.atlasDescriptors.map(\.pixelSize)
         )
     }
 

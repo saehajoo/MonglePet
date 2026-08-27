@@ -392,6 +392,32 @@ final class PetMovementControllerTests: XCTestCase {
         XCTAssertEqual(fixture.scheduler.scheduledDelay, .milliseconds(33))
     }
 
+    func testRandomFreeRoamingDwellSamplesOnceAfterArrival() {
+        let fixture = Fixture()
+        fixture.origin = point(32, 32)
+        fixture.randomSamples = [sample(0, 0, 0)]
+        fixture.randomDwellUnits = [0.25]
+        fixture.controller.update(
+            settings: fixture.settings(
+                mode: .freeRoaming,
+                speed: 1_000,
+                stopRadius: 1,
+                dwellMilliseconds: 6_000,
+                randomizesDwell: true,
+                minimumDwellMilliseconds: 2_000,
+                prefersFrontmostWindow: false
+            ),
+            isMovementAllowed: true
+        )
+
+        fixture.clock.advance(by: .milliseconds(33))
+        fixture.scheduler.fire()
+
+        XCTAssertEqual(fixture.controller.state, .freeRoamingDwelling)
+        XCTAssertEqual(fixture.scheduler.scheduledDelay, .milliseconds(3_000))
+        XCTAssertTrue(fixture.randomDwellUnits.isEmpty)
+    }
+
     func testCursorAvoidingEscapesPointerWithDirectionalAnimation() {
         let fixture = Fixture()
         fixture.origin = point(300, 300)
@@ -619,6 +645,7 @@ private final class Fixture {
     var screens = [screen("main", 0, 0, 1_000, 800)]
     var pointer = point(500, 150)
     var randomSamples = [sample(0, 0.5, 0.5)]
+    var randomDwellUnits = [0.5]
     var pointerReadCount = 0
     var movementBoundary = MovementBoundarySettings.default
     var originTransform: ((PetMovementPoint) -> PetMovementPoint)?
@@ -654,6 +681,12 @@ private final class Fixture {
             }
             return self.randomSamples.removeFirst()
         },
+        randomDwellUnitProvider: { [weak self] in
+            guard let self, !self.randomDwellUnits.isEmpty else {
+                return 0.5
+            }
+            return self.randomDwellUnits.removeFirst()
+        },
         onActivityChange: { [weak self] in self?.activities.append($0) }
     )
 
@@ -663,6 +696,8 @@ private final class Fixture {
         cursorDistance: Double = 96,
         stopRadius: Double = 16,
         dwellMilliseconds: Int64 = 6_000,
+        randomizesDwell: Bool = false,
+        minimumDwellMilliseconds: Int64? = nil,
         prefersFrontmostWindow: Bool = true,
         cursorMotionID: String? = nil,
         freeMotionID: String? = nil,
@@ -689,7 +724,10 @@ private final class Fixture {
             cursorAvoidingIdleBehavior: avoidingIdleBehavior,
             cursorAvoidingDetectionDistance: avoidingDistance,
             cursorAvoidingSpeed: avoidingSpeed,
-            cursorAvoidingAnimation: avoidingAnimation
+            cursorAvoidingAnimation: avoidingAnimation,
+            randomizesFreeRoamingDwell: randomizesDwell,
+            freeRoamingDwellMinimumMilliseconds:
+                minimumDwellMilliseconds
         )
     }
 }

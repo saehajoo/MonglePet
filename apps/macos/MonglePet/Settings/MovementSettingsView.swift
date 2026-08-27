@@ -2,6 +2,22 @@ import AppKit
 import Foundation
 import SwiftUI
 
+nonisolated enum BehaviorSelectionLabel {
+    static func text(for sequence: BehaviorSequence) -> String {
+        guard let firstStep = sequence.steps.first else {
+            return "애니메이션 없음"
+        }
+        let animationName = firstStep.motionID
+            == PetMotionReference.currentPetDefault
+            ? "기본 애니메이션"
+            : firstStep.motionID
+        guard sequence.steps.count > 1 else {
+            return animationName
+        }
+        return "\(animationName) 외 \(sequence.steps.count - 1)개"
+    }
+}
+
 struct MovementSettingsView: View {
     @ObservedObject var settingsSession: AppSettingsSession
     let petDefinition: PetDefinition
@@ -10,15 +26,9 @@ struct MovementSettingsView: View {
 
     var body: some View {
         Form {
-            Section {
-                LabeledContent("설정 대상 펫", value: petDisplayName)
-                    .accessibilityIdentifier(
-                        "monglepet.settings.movementPetName"
-                    )
-            }
-
             PetDisplaySettingsSections(
-                settingsSession: settingsSession
+                settingsSession: settingsSession,
+                petDisplayName: petDisplayName
             )
 
             Section("이동 방식") {
@@ -49,7 +59,7 @@ struct MovementSettingsView: View {
             }
 
             if movement.mode != .fixed {
-                Section("이동 감각") {
+                Section("기본 이동 설정") {
                     if movement.mode != .cursorAvoiding
                         || movement.cursorAvoidingIdleBehavior == .freeRoaming {
                         movementSlider(
@@ -73,8 +83,12 @@ struct MovementSettingsView: View {
                             ... AppSettingsLimits.maximumMovementStopRadius,
                         step: 4,
                         valueText: "\(Int(movement.stopRadius.rounded())) pt",
-                        accessibilityIdentifier: "monglepet.settings.movementStopRadius"
+                        accessibilityIdentifier:
+                            "monglepet.settings.movementStopRadius"
                     )
+                    Text("목표에 가까워졌을 때 움직임을 멈추는 범위입니다. 흔들림이 보일 때만 조절해 주세요.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
 
                 movementBoundarySection
@@ -115,13 +129,10 @@ struct MovementSettingsView: View {
                 }
             case .freeRoaming:
                 Section("자유 이동") {
-                    movementSlider(
-                        title: "머무는 시간",
-                        value: freeRoamingDwellSecondsBinding,
-                        range: freeRoamingDwellSecondsRange,
-                        step: 0.5,
-                        valueText: dwellTimeText,
-                        accessibilityIdentifier: "monglepet.settings.freeRoamingDwell"
+                    dwellEditor(
+                        title: "목표 도착 후 머무는 시간",
+                        accessibilityPrefix:
+                            "monglepet.settings.freeRoamingDwell"
                     )
 
                     Toggle(
@@ -185,13 +196,9 @@ struct MovementSettingsView: View {
                     )
 
                     if movement.cursorAvoidingIdleBehavior == .freeRoaming {
-                        movementSlider(
+                        dwellEditor(
                             title: "평상시 머무는 시간",
-                            value: freeRoamingDwellSecondsBinding,
-                            range: freeRoamingDwellSecondsRange,
-                            step: 0.5,
-                            valueText: dwellTimeText,
-                            accessibilityIdentifier:
+                            accessibilityPrefix:
                                 "monglepet.settings.cursorAvoidingDwell"
                         )
                         Toggle(
@@ -200,7 +207,7 @@ struct MovementSettingsView: View {
                         )
                         movementAnimationEditor(
                             for: .freeRoaming,
-                            title: "평상시 자유 이동 애니메이션",
+                            title: "평상시 자유 이동 행동",
                             accessibilityPrefix:
                                 "monglepet.settings.cursorAvoidingRoaming"
                         )
@@ -208,7 +215,7 @@ struct MovementSettingsView: View {
 
                     movementAnimationEditor(
                         for: .cursorAvoiding,
-                        title: "도망가기 애니메이션",
+                        title: "도망가기 행동",
                         accessibilityPrefix:
                             "monglepet.settings.cursorAvoiding"
                     )
@@ -226,14 +233,14 @@ struct MovementSettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {
-                    motionPicker(
-                        title: "쓰다듬기 애니메이션",
+                    behaviorPicker(
+                        title: "쓰다듬기 행동",
                         selection: pettingMotionBinding,
                         noneLabel: "반응 없음",
                         accessibilityIdentifier:
                             "monglepet.settings.pettingMotion"
                     )
-                    Text("펫의 보이는 부분에 마우스를 잠시 올리면 선택한 애니메이션을 한 번 재생한 뒤 기존 행동으로 돌아갑니다. 클릭 통과 중에도 사용할 수 있습니다.")
+                    Text("펫의 보이는 부분에 마우스를 잠시 올리면 선택한 행동을 한 번 끝까지 재생한 뒤 기존 행동으로 돌아갑니다. 클릭 통과 중에도 사용할 수 있습니다.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -268,7 +275,7 @@ struct MovementSettingsView: View {
 
     @ViewBuilder
     private var movementBoundarySection: some View {
-        Section("이동 범위") {
+        Section {
             Picker("이동 범위", selection: movementBoundaryModeBinding) {
                 Text("모든 화면").tag(MovementBoundaryMode.allDisplays)
                 Text("선택 모니터").tag(MovementBoundaryMode.selectedDisplay)
@@ -337,6 +344,16 @@ struct MovementSettingsView: View {
             Text(boundaryDescription)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+        } header: {
+            HStack(spacing: 8) {
+                Text("이동 범위")
+                Text("모든 펫 공통")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 2)
+                    .background(.quaternary, in: Capsule())
+            }
         }
     }
 
@@ -465,10 +482,31 @@ struct MovementSettingsView: View {
                 apply(
                     .freeRoamingDwellMilliseconds(
                         Int64(($0 * 1_000).rounded())
-                    ),
-                    persist: false
+                    )
                 )
             }
+        )
+    }
+
+    private var freeRoamingDwellMinimumSecondsBinding: Binding<Double> {
+        Binding(
+            get: {
+                Double(movement.freeRoamingDwellMinimumMilliseconds) / 1_000
+            },
+            set: {
+                apply(
+                    .freeRoamingDwellMinimumMilliseconds(
+                        Int64(($0 * 1_000).rounded())
+                    )
+                )
+            }
+        )
+    }
+
+    private var randomizesFreeRoamingDwellBinding: Binding<Bool> {
+        Binding(
+            get: { movement.randomizesFreeRoamingDwell },
+            set: { apply(.randomizesFreeRoamingDwell($0)) }
         )
     }
 
@@ -537,8 +575,144 @@ struct MovementSettingsView: View {
         return screenIdentifier
     }
 
-    private var dwellTimeText: String {
-        let seconds = Double(movement.freeRoamingDwellMilliseconds) / 1_000
+    @ViewBuilder
+    private func dwellEditor(
+        title: String,
+        accessibilityPrefix: String
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+
+            HStack(spacing: 12) {
+                Text("시간 방식")
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 12)
+                Picker(
+                    "머무는 시간 방식",
+                    selection: dwellTimingModeBinding
+                ) {
+                    Text("고정").tag(DwellTimingMode.fixed)
+                    Text("랜덤").tag(DwellTimingMode.random)
+                }
+                .labelsHidden()
+                .pickerStyle(.segmented)
+                .frame(width: 150)
+                .accessibilityIdentifier("\(accessibilityPrefix).mode")
+            }
+
+            if movement.randomizesFreeRoamingDwell {
+                dwellInputRow(
+                    title: "최소 시간",
+                    value: freeRoamingDwellMinimumSecondsBinding,
+                    range: freeRoamingDwellSecondsRange.lowerBound
+                        ... freeRoamingDwellSecondsBinding.wrappedValue,
+                    accessibilityIdentifier: "\(accessibilityPrefix).minimum"
+                )
+                dwellInputRow(
+                    title: "최대 시간",
+                    value: freeRoamingDwellSecondsBinding,
+                    range: freeRoamingDwellMinimumSecondsBinding.wrappedValue
+                        ... freeRoamingDwellSecondsRange.upperBound,
+                    accessibilityIdentifier: "\(accessibilityPrefix).maximum"
+                )
+                Text("목표 위치에 도착할 때마다 최소~최대 범위에서 한 번만 시간을 뽑습니다.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                dwellInputRow(
+                    title: "머무는 시간",
+                    value: freeRoamingDwellSecondsBinding,
+                    range: freeRoamingDwellSecondsRange,
+                    accessibilityIdentifier: accessibilityPrefix
+                )
+                Text("목표 위치에 도착한 뒤 \(dwellText(freeRoamingDwellSecondsBinding.wrappedValue)) 동안 머뭅니다.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func dwellInputRow(
+        title: String,
+        value: Binding<Double>,
+        range: ClosedRange<Double>,
+        accessibilityIdentifier: String
+    ) -> some View {
+        HStack(spacing: 8) {
+            Text(title)
+                .frame(width: 82, alignment: .leading)
+                .lineLimit(1)
+            Spacer(minLength: 8)
+
+            Button {
+                value.wrappedValue = max(
+                    value.wrappedValue - 0.5,
+                    range.lowerBound
+                )
+            } label: {
+                Image(systemName: "minus")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .frame(width: 30, height: 28)
+            .disabled(value.wrappedValue <= range.lowerBound)
+            .accessibilityLabel("\(title) 줄이기")
+            .accessibilityIdentifier(
+                "\(accessibilityIdentifier).decrement"
+            )
+
+            TextField(
+                "시간",
+                value: value,
+                format: .number.precision(.fractionLength(0...1))
+            )
+            .frame(width: 92)
+            .multilineTextAlignment(.trailing)
+            .textFieldStyle(.roundedBorder)
+            .monospacedDigit()
+            .accessibilityIdentifier(
+                "\(accessibilityIdentifier).value"
+            )
+
+            Text("초")
+                .foregroundStyle(.secondary)
+                .frame(width: 16, alignment: .leading)
+
+            Button {
+                value.wrappedValue = min(
+                    value.wrappedValue + 0.5,
+                    range.upperBound
+                )
+            } label: {
+                Image(systemName: "plus")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .frame(width: 30, height: 28)
+            .disabled(value.wrappedValue >= range.upperBound)
+            .accessibilityLabel("\(title) 늘리기")
+            .accessibilityIdentifier(
+                "\(accessibilityIdentifier).increment"
+            )
+        }
+        .accessibilityIdentifier(accessibilityIdentifier)
+    }
+
+    private var dwellTimingModeBinding: Binding<DwellTimingMode> {
+        Binding(
+            get: {
+                movement.randomizesFreeRoamingDwell ? .random : .fixed
+            },
+            set: { mode in
+                randomizesFreeRoamingDwellBinding.wrappedValue =
+                    mode == .random
+            }
+        )
+    }
+
+    private func dwellText(_ seconds: Double) -> String {
         if seconds.rounded() == seconds {
             return "\(Int(seconds))초"
         }
@@ -669,7 +843,7 @@ struct MovementSettingsView: View {
         }
     }
 
-    private func motionPicker(
+    private func behaviorPicker(
         title: String,
         selection: Binding<String>,
         noneLabel: String,
@@ -677,9 +851,9 @@ struct MovementSettingsView: View {
     ) -> some View {
         Picker(title, selection: selection) {
             Text(noneLabel).tag("")
-            ForEach(motionIDs(for: selection.wrappedValue), id: \.self) {
-                motionID in
-                Text(motionLabel(for: motionID)).tag(motionID)
+            ForEach(behaviorIDs(for: selection.wrappedValue), id: \.self) {
+                behaviorID in
+                Text(behaviorLabel(for: behaviorID)).tag(behaviorID)
             }
         }
         .accessibilityIdentifier(accessibilityIdentifier)
@@ -687,7 +861,7 @@ struct MovementSettingsView: View {
 
     private func movementAnimationEditor(
         for mode: PetMovementMode,
-        title: String = "이동 애니메이션",
+        title: String = "이동 행동",
         accessibilityPrefix: String
     ) -> some View {
         let animation = movementAnimation(for: mode)
@@ -702,22 +876,51 @@ struct MovementSettingsView: View {
             .pickerStyle(.segmented)
             .accessibilityIdentifier("\(accessibilityPrefix)AnimationStyle")
 
-            motionPicker(
+            behaviorPicker(
                 title: animation.usesDirectionalMotions
-                    ? "기본 이동 애니메이션"
-                    : "이동 중 애니메이션",
+                    ? "기본 이동 행동"
+                    : "이동 중 행동",
                 selection: fallbackMotionBinding(for: mode),
                 noneLabel: "기존 행동 유지",
                 accessibilityIdentifier: "\(accessibilityPrefix)FallbackMotion"
             )
 
             if animation.usesDirectionalMotions {
-                VStack(alignment: .leading, spacing: 8) {
+                Divider()
+
+                Text("방향별 행동")
+                    .font(.subheadline.weight(.semibold))
+
+                ForEach(
+                    MovementDirection.cardinalCases,
+                    id: \.self
+                ) { direction in
+                    behaviorPicker(
+                        title: directionLabel(direction),
+                        selection: directionMotionBinding(
+                            direction,
+                            for: mode
+                        ),
+                        noneLabel: "자동 선택",
+                        accessibilityIdentifier:
+                            "\(accessibilityPrefix)Direction\(direction.rawValue)"
+                    )
+                }
+
+                Toggle(
+                    "대각선도 따로 설정",
+                    isOn: diagonalAnimationBinding(for: mode)
+                )
+                .accessibilityIdentifier(
+                    "\(accessibilityPrefix)UsesDiagonals"
+                )
+
+                if animation.usesDiagonalMotions {
                     ForEach(
-                        MovementDirection.cardinalCases,
+                        MovementDirection.diagonalCases,
                         id: \.self
                     ) { direction in
-                        motionPicker(
+                        behaviorPicker(
                             title: directionLabel(direction),
                             selection: directionMotionBinding(
                                 direction,
@@ -728,36 +931,10 @@ struct MovementSettingsView: View {
                                 "\(accessibilityPrefix)Direction\(direction.rawValue)"
                         )
                     }
-
-                    Toggle(
-                        "대각선도 따로 설정",
-                        isOn: diagonalAnimationBinding(for: mode)
-                    )
-                    .accessibilityIdentifier(
-                        "\(accessibilityPrefix)UsesDiagonals"
-                    )
-
-                    if animation.usesDiagonalMotions {
-                        ForEach(
-                            MovementDirection.diagonalCases,
-                            id: \.self
-                        ) { direction in
-                            motionPicker(
-                                title: directionLabel(direction),
-                                selection: directionMotionBinding(
-                                    direction,
-                                    for: mode
-                                ),
-                                noneLabel: "자동 선택",
-                                accessibilityIdentifier:
-                                    "\(accessibilityPrefix)Direction\(direction.rawValue)"
-                            )
-                        }
-                    }
                 }
 
                 Text(
-                    "자동 선택 방향은 실제 이동과 같은 쪽을 향하는 사용 중 애니메이션 가운데 가장 가까운 것을 사용합니다. 적합한 방향이 없으면 기본 이동 애니메이션이나 기존 행동으로 돌아갑니다."
+                    "자동 선택 방향은 실제 이동과 같은 쪽에 지정된 행동을 사용합니다. 지정된 방향이 없으면 기본 이동 행동이나 기존 행동으로 돌아갑니다."
                 )
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -904,19 +1081,22 @@ struct MovementSettingsView: View {
         }
     }
 
-    private func motionIDs(for selectedMotionID: String) -> [String] {
-        var motionIDs = petDefinition.motions.map(\.id)
-        if !selectedMotionID.isEmpty,
-           !motionIDs.contains(selectedMotionID) {
-            motionIDs.append(selectedMotionID)
+    private func behaviorIDs(for selectedBehaviorID: String) -> [String] {
+        var behaviorIDs = settingsSession.settings.sequences.map(\.id)
+        if !selectedBehaviorID.isEmpty,
+           !behaviorIDs.contains(selectedBehaviorID) {
+            behaviorIDs.append(selectedBehaviorID)
         }
-        return motionIDs
+        return behaviorIDs
     }
 
-    private func motionLabel(for motionID: String) -> String {
-        petDefinition.motion(id: motionID) == nil
-            ? "\(motionID) (찾을 수 없음)"
-            : motionID
+    private func behaviorLabel(for behaviorID: String) -> String {
+        guard let sequence = settingsSession.settings.sequences.first(where: {
+            $0.id == behaviorID
+        }) else {
+            return "\(behaviorID) (찾을 수 없음)"
+        }
+        return BehaviorSelectionLabel.text(for: sequence)
     }
 
     private func persistSliderWhenEditingEnds(_ isEditing: Bool) {
@@ -1002,65 +1182,163 @@ struct MovementSettingsView: View {
     ) {
         let current = movement
         var mode = current.mode
-        var speed = current.speed
-        var cursorDistance = current.cursorDistance
-        var stopRadius = current.stopRadius
-        var freeRoamingDwellMilliseconds =
-            current.freeRoamingDwellMilliseconds
-        var prefersFrontmostWindow = current.prefersFrontmostWindow
-        var cursorFollowingAnimation = current.cursorFollowingAnimation
-        var freeRoamingAnimation = current.freeRoamingAnimation
-        var cursorAvoidingIdleBehavior =
-            current.cursorAvoidingIdleBehavior
-        var cursorAvoidingDetectionDistance =
-            current.cursorAvoidingDetectionDistance
-        var cursorAvoidingSpeed = current.cursorAvoidingSpeed
-        var cursorAvoidingAnimation = current.cursorAvoidingAnimation
+        var following = current.cursorFollowing
+        var roaming = current.freeRoaming
+        var avoiding = current.cursorAvoiding
+
+        func replacingRoaming(
+            _ source: FreeRoamingMovementSettings,
+            speed: Double? = nil,
+            stopRadius: Double? = nil,
+            dwell: Int64? = nil,
+            randomizesDwell: Bool? = nil,
+            minimumDwell: Int64? = nil,
+            prefersFrontmostWindow: Bool? = nil,
+            animation: MovementAnimationSettings? = nil
+        ) -> FreeRoamingMovementSettings {
+            let maximum = dwell ?? source.dwellMilliseconds
+            return FreeRoamingMovementSettings(
+                speed: speed ?? source.speed,
+                stopRadius: stopRadius ?? source.stopRadius,
+                dwellMilliseconds: maximum,
+                randomizesDwell: randomizesDwell ?? source.randomizesDwell,
+                dwellMinimumMilliseconds: min(
+                    minimumDwell ?? source.dwellMinimumMilliseconds,
+                    maximum
+                ),
+                prefersFrontmostWindow: prefersFrontmostWindow
+                    ?? source.prefersFrontmostWindow,
+                animation: animation ?? source.animation
+            )
+        }
+
+        func replacingAvoiding(
+            idleBehavior: CursorAvoidingIdleBehavior? = nil,
+            detectionDistance: Double? = nil,
+            speed: Double? = nil,
+            stopRadius: Double? = nil,
+            animation: MovementAnimationSettings? = nil,
+            idleFreeRoaming: FreeRoamingMovementSettings? = nil
+        ) -> CursorAvoidingMovementSettings {
+            CursorAvoidingMovementSettings(
+                idleBehavior: idleBehavior ?? avoiding.idleBehavior,
+                detectionDistance: detectionDistance
+                    ?? avoiding.detectionDistance,
+                speed: speed ?? avoiding.speed,
+                stopRadius: stopRadius ?? avoiding.stopRadius,
+                animation: animation ?? avoiding.animation,
+                idleFreeRoaming: idleFreeRoaming
+                    ?? avoiding.idleFreeRoaming
+            )
+        }
+
+        func updateActiveRoaming(
+            _ transform: (FreeRoamingMovementSettings)
+                -> FreeRoamingMovementSettings
+        ) {
+            if current.mode == .cursorAvoiding {
+                avoiding = replacingAvoiding(
+                    idleFreeRoaming: transform(avoiding.idleFreeRoaming)
+                )
+            } else {
+                roaming = transform(roaming)
+            }
+        }
 
         switch edit {
         case let .mode(value):
             mode = value
         case let .speed(value):
-            speed = value
+            switch current.mode {
+            case .cursorFollowing:
+                following = CursorFollowingMovementSettings(
+                    speed: value,
+                    cursorDistance: following.cursorDistance,
+                    stopRadius: following.stopRadius,
+                    animation: following.animation
+                )
+            case .freeRoaming, .fixed:
+                roaming = replacingRoaming(roaming, speed: value)
+            case .cursorAvoiding:
+                updateActiveRoaming { replacingRoaming($0, speed: value) }
+            }
         case let .cursorDistance(value):
-            cursorDistance = value
+            following = CursorFollowingMovementSettings(
+                speed: following.speed,
+                cursorDistance: value,
+                stopRadius: following.stopRadius,
+                animation: following.animation
+            )
         case let .stopRadius(value):
-            stopRadius = value
+            switch current.mode {
+            case .cursorFollowing:
+                following = CursorFollowingMovementSettings(
+                    speed: following.speed,
+                    cursorDistance: following.cursorDistance,
+                    stopRadius: value,
+                    animation: following.animation
+                )
+            case .freeRoaming, .fixed:
+                roaming = replacingRoaming(roaming, stopRadius: value)
+            case .cursorAvoiding:
+                avoiding = replacingAvoiding(stopRadius: value)
+            }
         case let .freeRoamingDwellMilliseconds(value):
-            freeRoamingDwellMilliseconds = value
+            let maximum = min(
+                max(
+                    value,
+                    AppSettingsLimits.minimumFreeRoamingDwellMilliseconds
+                ),
+                AppSettingsLimits.maximumFreeRoamingDwellMilliseconds
+            )
+            updateActiveRoaming { replacingRoaming($0, dwell: maximum) }
+        case let .randomizesFreeRoamingDwell(value):
+            updateActiveRoaming {
+                replacingRoaming($0, randomizesDwell: value)
+            }
+        case let .freeRoamingDwellMinimumMilliseconds(value):
+            updateActiveRoaming {
+                replacingRoaming(
+                    $0,
+                    minimumDwell: min(
+                        max(
+                            value,
+                            AppSettingsLimits
+                                .minimumFreeRoamingDwellMilliseconds
+                        ),
+                        $0.dwellMilliseconds
+                    )
+                )
+            }
         case let .prefersFrontmostWindow(value):
-            prefersFrontmostWindow = value
+            updateActiveRoaming {
+                replacingRoaming($0, prefersFrontmostWindow: value)
+            }
         case let .cursorFollowingAnimation(value):
-            cursorFollowingAnimation = value
+            following = CursorFollowingMovementSettings(
+                speed: following.speed,
+                cursorDistance: following.cursorDistance,
+                stopRadius: following.stopRadius,
+                animation: value
+            )
         case let .freeRoamingAnimation(value):
-            freeRoamingAnimation = value
+            updateActiveRoaming { replacingRoaming($0, animation: value) }
         case let .cursorAvoidingIdleBehavior(value):
-            cursorAvoidingIdleBehavior = value
+            avoiding = replacingAvoiding(idleBehavior: value)
         case let .cursorAvoidingDetectionDistance(value):
-            cursorAvoidingDetectionDistance = value
+            avoiding = replacingAvoiding(detectionDistance: value)
         case let .cursorAvoidingSpeed(value):
-            cursorAvoidingSpeed = value
+            avoiding = replacingAvoiding(speed: value)
         case let .cursorAvoidingAnimation(value):
-            cursorAvoidingAnimation = value
+            avoiding = replacingAvoiding(animation: value)
         }
 
         settingsSession.setMovementSettings(
             PetMovementSettings(
                 mode: mode,
-                speed: speed,
-                cursorDistance: cursorDistance,
-                stopRadius: stopRadius,
-                freeRoamingDwellMilliseconds:
-                    freeRoamingDwellMilliseconds,
-                prefersFrontmostWindow: prefersFrontmostWindow,
-                cursorFollowingAnimation: cursorFollowingAnimation,
-                freeRoamingAnimation: freeRoamingAnimation,
-                cursorAvoidingIdleBehavior:
-                    cursorAvoidingIdleBehavior,
-                cursorAvoidingDetectionDistance:
-                    cursorAvoidingDetectionDistance,
-                cursorAvoidingSpeed: cursorAvoidingSpeed,
-                cursorAvoidingAnimation: cursorAvoidingAnimation
+                cursorFollowing: following,
+                freeRoaming: roaming,
+                cursorAvoiding: avoiding
             ),
             persist: persist
         )
@@ -1073,6 +1351,8 @@ private enum MovementEdit {
     case cursorDistance(Double)
     case stopRadius(Double)
     case freeRoamingDwellMilliseconds(Int64)
+    case randomizesFreeRoamingDwell(Bool)
+    case freeRoamingDwellMinimumMilliseconds(Int64)
     case prefersFrontmostWindow(Bool)
     case cursorFollowingAnimation(MovementAnimationSettings)
     case freeRoamingAnimation(MovementAnimationSettings)
@@ -1087,4 +1367,9 @@ private enum CustomAreaField {
     case y
     case width
     case height
+}
+
+private enum DwellTimingMode: Hashable {
+    case fixed
+    case random
 }

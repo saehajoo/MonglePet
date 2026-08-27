@@ -163,14 +163,6 @@ final class MenuBarController: NSObject {
 
         menu.addItem(.separator())
 
-        let safeModeItem = NSMenuItem(
-            title: "안전 모드로 전환…",
-            action: #selector(enterSafeMode),
-            keyEquivalent: ""
-        )
-        safeModeItem.target = self
-        menu.addItem(safeModeItem)
-
         let settingsItem = NSMenuItem(
             title: "설정…",
             action: #selector(openSettings),
@@ -179,6 +171,28 @@ final class MenuBarController: NSObject {
         settingsItem.target = self
         settingsItem.setAccessibilityIdentifier("monglepet.menu.settings")
         menu.addItem(settingsItem)
+
+        menu.addItem(.separator())
+
+        let troubleshootingItem = NSMenuItem(
+            title: "문제 해결",
+            action: nil,
+            keyEquivalent: ""
+        )
+        let troubleshootingMenu = NSMenu(title: "문제 해결")
+        let safeModeItem = NSMenuItem(
+            title: "안전 모드로 전환…",
+            action: #selector(enterSafeMode),
+            keyEquivalent: ""
+        )
+        safeModeItem.target = self
+        safeModeItem.setAccessibilityIdentifier("monglepet.menu.safeMode")
+        troubleshootingMenu.addItem(safeModeItem)
+        troubleshootingItem.submenu = troubleshootingMenu
+        troubleshootingItem.setAccessibilityIdentifier(
+            "monglepet.menu.troubleshooting"
+        )
+        menu.addItem(troubleshootingItem)
 
         menu.addItem(.separator())
 

@@ -22,8 +22,11 @@ final class RecommendedPetProfileTests: XCTestCase {
                 petKey: .builtIn,
                 mode: profile.mode,
                 manualSequenceID: profile.manualSequenceID,
+                randomSequenceIDs: profile.randomSequenceIDs,
                 sequences: profile.sequences,
                 automaticRules: profile.automaticRules,
+                automaticRulePriorityOrder:
+                    profile.automaticRulePriorityOrder,
                 movement: profile.movement,
                 pettingMotionID: profile.pettingMotionID,
                 speech: profile.speech
@@ -33,7 +36,7 @@ final class RecommendedPetProfileTests: XCTestCase {
         let object = try XCTUnwrap(
             JSONSerialization.jsonObject(with: data) as? [String: Any]
         )
-        XCTAssertEqual(object["schemaVersion"] as? Int, 7)
+        XCTAssertEqual(object["schemaVersion"] as? Int, 10)
         XCTAssertNotNil(object["behavior"])
         XCTAssertNotNil(object["movement"])
         XCTAssertNotNil(object["automaticRules"])
@@ -53,7 +56,7 @@ final class RecommendedPetProfileTests: XCTestCase {
         XCTAssertNil(object["overlay"])
         XCTAssertNil(object["screenIdentifier"])
         XCTAssertNil(object["lastUserPresentation"])
-        XCTAssertNil(object["clickThrough"])
+        XCTAssertNotNil(object["display"])
         let json = try XCTUnwrap(String(data: data, encoding: .utf8))
         for forbiddenKey in [
             "installationID",
@@ -62,10 +65,8 @@ final class RecommendedPetProfileTests: XCTestCase {
             "originY",
             "screenIdentifier",
             "lastUserPresentation",
-            "clickThrough",
-            "opacity",
             "movementBoundary",
-            "pixelArtRendering"
+            "screenIdentifier"
         ] {
             XCTAssertFalse(json.contains(forbiddenKey))
         }
@@ -100,6 +101,133 @@ final class RecommendedPetProfileTests: XCTestCase {
         XCTAssertEqual(
             try RecommendedPetProfileCodec.decode(data, for: petDefinition),
             profile
+        )
+    }
+
+    func testSchemaV9RoundTripsRandomBehaviorAndDwellRange() throws {
+        let profile = RecommendedPetProfile(
+            mode: .random,
+            manualSequenceID: "idle",
+            randomSequenceIDs: ["idle", "run"],
+            sequences: [
+                BehaviorSequence(
+                    id: "idle",
+                    steps: [BehaviorStep(motionID: "idle", repeatCount: 2)],
+                    repeats: true
+                ),
+                BehaviorSequence(
+                    id: "run",
+                    steps: [BehaviorStep(motionID: "run", repeatCount: 1)],
+                    repeats: true
+                )
+            ],
+            automaticRules: [],
+            movement: PetMovementSettings(
+                mode: .freeRoaming,
+                speed: 120,
+                cursorDistance: 80,
+                stopRadius: 24,
+                freeRoamingDwellMilliseconds: 6_000,
+                prefersFrontmostWindow: true,
+                randomizesFreeRoamingDwell: true,
+                freeRoamingDwellMinimumMilliseconds: 2_000
+            ),
+            pettingMotionID: nil
+        )
+
+        let data = try RecommendedPetProfileCodec.encode(
+            profile,
+            for: petDefinition
+        )
+        let decoded = try RecommendedPetProfileCodec.decode(
+            data,
+            for: petDefinition
+        )
+
+        XCTAssertEqual(decoded, profile)
+        XCTAssertEqual(decoded.randomSequenceIDs, ["idle", "run"])
+        XCTAssertTrue(decoded.movement.randomizesFreeRoamingDwell)
+        XCTAssertEqual(
+            decoded.movement.freeRoamingDwellMinimumMilliseconds,
+            2_000
+        )
+    }
+
+    func testSchemaV10RoundTripsIndependentMovementAndDisplayOptions() throws {
+        let movement = PetMovementSettings(
+            mode: .cursorAvoiding,
+            cursorFollowing: CursorFollowingMovementSettings(
+                speed: 110,
+                cursorDistance: 70,
+                stopRadius: 10,
+                animation: .single("run")
+            ),
+            freeRoaming: FreeRoamingMovementSettings(
+                speed: 180,
+                stopRadius: 20,
+                dwellMilliseconds: 7_000,
+                randomizesDwell: true,
+                dwellMinimumMilliseconds: 1_000,
+                prefersFrontmostWindow: true,
+                animation: .single("idle")
+            ),
+            cursorAvoiding: CursorAvoidingMovementSettings(
+                idleBehavior: .freeRoaming,
+                detectionDistance: 260,
+                speed: 520,
+                stopRadius: 30,
+                animation: .single("run"),
+                idleFreeRoaming: FreeRoamingMovementSettings(
+                    speed: 90,
+                    stopRadius: 14,
+                    dwellMilliseconds: 15_000,
+                    randomizesDwell: false,
+                    dwellMinimumMilliseconds: 4_000,
+                    prefersFrontmostWindow: false,
+                    animation: .single("rest")
+                )
+            )
+        )
+        let profile = makeProfile(movement: movement)
+
+        let data = try RecommendedPetProfileCodec.encode(
+            profile,
+            for: petDefinition
+        )
+        let decoded = try RecommendedPetProfileCodec.decode(
+            data,
+            for: petDefinition
+        )
+
+        XCTAssertEqual(decoded, profile)
+        XCTAssertNotEqual(
+            decoded.movement.freeRoaming,
+            decoded.movement.cursorAvoiding.idleFreeRoaming
+        )
+        XCTAssertEqual(decoded.display.scalePercent, 135)
+        XCTAssertTrue(decoded.display.clickThrough)
+        XCTAssertTrue(decoded.display.pixelArtRendering)
+    }
+
+    func testCodecKeepsMovementFirstForEarlySchemaV8PriorityLists() throws {
+        let encoded = try RecommendedPetProfileCodec.encode(
+            makeProfile(),
+            for: petDefinition
+        )
+        var object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: encoded) as? [String: Any]
+        )
+        object["automaticRulePriorityOrder"] = ["application", "idle"]
+        let legacyV8 = try JSONSerialization.data(withJSONObject: object)
+
+        let decoded = try RecommendedPetProfileCodec.decode(
+            legacyV8,
+            for: petDefinition
+        )
+
+        XCTAssertEqual(
+            decoded.automaticRulePriorityOrder,
+            [.movement, .application, .idle]
         )
     }
 
@@ -216,7 +344,7 @@ final class RecommendedPetProfileTests: XCTestCase {
         ) { error in
             XCTAssertEqual(
                 error as? RecommendedPetProfileError,
-                .invalidField("pettingMotionID")
+                .invalidField("behavior.sequences.5.steps.0")
             )
         }
 
@@ -233,17 +361,12 @@ final class RecommendedPetProfileTests: XCTestCase {
                 freeRoamingMotionID: nil
             )
         )
-        XCTAssertThrowsError(
+        XCTAssertNoThrow(
             try RecommendedPetProfileCodec.encode(
                 reservedMovementReference,
                 for: petDefinition
             )
-        ) { error in
-            XCTAssertEqual(
-                error as? RecommendedPetProfileError,
-                .invalidField("movement.cursorFollowingMotionID")
-            )
-        }
+        )
     }
 
     func testCodecRejectsRuleWithUnknownSequence() {
@@ -314,7 +437,7 @@ final class RecommendedPetProfileTests: XCTestCase {
         var object = try XCTUnwrap(
             JSONSerialization.jsonObject(with: data) as? [String: Any]
         )
-        object["schemaVersion"] = 8
+        object["schemaVersion"] = 11
         let futureData = try JSONSerialization.data(withJSONObject: object)
 
         XCTAssertThrowsError(
@@ -325,7 +448,7 @@ final class RecommendedPetProfileTests: XCTestCase {
         ) { error in
             XCTAssertEqual(
                 error as? RecommendedPetProfileError,
-                .unsupportedSchemaVersion(8)
+                .unsupportedSchemaVersion(11)
             )
         }
         XCTAssertThrowsError(
@@ -362,11 +485,7 @@ final class RecommendedPetProfileTests: XCTestCase {
             makeProfile(),
             for: petDefinition
         )
-        var object = try XCTUnwrap(
-            JSONSerialization.jsonObject(with: encodedV2)
-                as? [String: Any]
-        )
-        object["schemaVersion"] = 1
+        var object = try legacyObject(from: encodedV2, schemaVersion: 1)
         var movement = try XCTUnwrap(
             object["movement"] as? [String: Any]
         )
@@ -392,6 +511,7 @@ final class RecommendedPetProfileTests: XCTestCase {
             decoded.movement.freeRoamingAnimation
                 .usesDirectionalMotions
         )
+        XCTAssertFalse(decoded.includesDisplaySettings)
     }
 
     func testCodecDecodesSchemaV2WithSafeAvoidingDefaults() throws {
@@ -399,11 +519,7 @@ final class RecommendedPetProfileTests: XCTestCase {
             makeProfile(),
             for: petDefinition
         )
-        var object = try XCTUnwrap(
-            JSONSerialization.jsonObject(with: encodedV3)
-                as? [String: Any]
-        )
-        object["schemaVersion"] = 2
+        var object = try legacyObject(from: encodedV3, schemaVersion: 2)
         var movement = try XCTUnwrap(
             object["movement"] as? [String: Any]
         )
@@ -442,11 +558,7 @@ final class RecommendedPetProfileTests: XCTestCase {
             makeProfile(),
             for: petDefinition
         )
-        var object = try XCTUnwrap(
-            JSONSerialization.jsonObject(with: encodedV5)
-                as? [String: Any]
-        )
-        object["schemaVersion"] = 4
+        let object = try legacyObject(from: encodedV5, schemaVersion: 4)
         let v4Data = try JSONSerialization.data(withJSONObject: object)
 
         let decoded = try RecommendedPetProfileCodec.decode(
@@ -462,11 +574,7 @@ final class RecommendedPetProfileTests: XCTestCase {
             makeProfile(),
             for: petDefinition
         )
-        var object = try XCTUnwrap(
-            JSONSerialization.jsonObject(with: encodedV6)
-                as? [String: Any]
-        )
-        object["schemaVersion"] = 5
+        var object = try legacyObject(from: encodedV6, schemaVersion: 5)
         var speech = try XCTUnwrap(
             object["speech"] as? [String: Any]
         )
@@ -508,14 +616,39 @@ final class RecommendedPetProfileTests: XCTestCase {
             summary.manualSequenceID,
             profile.manualSequenceID
         )
+        XCTAssertEqual(
+            summary.randomSequenceIDs,
+            profile.randomSequenceIDs
+        )
         XCTAssertEqual(summary.sequences, profile.sequences)
         XCTAssertEqual(summary.automaticRules, profile.automaticRules)
+        XCTAssertEqual(
+            summary.automaticRulePriorityOrder,
+            profile.automaticRulePriorityOrder
+        )
         XCTAssertEqual(summary.movement, profile.movement)
+        XCTAssertEqual(
+            summary.includesDisplaySettings,
+            profile.includesDisplaySettings
+        )
         XCTAssertEqual(
             summary.pettingMotionID,
             profile.pettingMotionID
         )
         XCTAssertEqual(summary.speech, profile.speech)
+        XCTAssertEqual(summary.display, profile.display)
+        XCTAssertEqual(
+            summary.behaviorDisplayName(for: profile.sequences[0].id),
+            profile.sequences[0].displayName
+        )
+        XCTAssertEqual(
+            summary.behaviorDisplayName(for: "missing-behavior"),
+            "찾을 수 없는 행동"
+        )
+        XCTAssertEqual(
+            summary.automaticRulePriorityDescription,
+            "표시 및 이동 → 입력 없음 → 앱 사용"
+        )
     }
 
     private var petDefinition: PetDefinition {
@@ -535,7 +668,15 @@ final class RecommendedPetProfileTests: XCTestCase {
         automaticRules: [AutomaticRule]? = nil,
         movement: PetMovementSettings? = nil,
         pettingMotionID: String? = "petting",
-        speech: PetSpeechSettings? = nil
+        speech: PetSpeechSettings? = nil,
+        display: PortablePetDisplaySettings = PortablePetDisplaySettings(
+            scalePercent: 135,
+            clickThrough: true,
+            opacity: 0.72,
+            pointerOverlapFadeEnabled: true,
+            pointerOverlapOpacity: 0.18,
+            pixelArtRendering: true
+        )
     ) -> RecommendedPetProfile {
         RecommendedPetProfile(
             mode: .manual,
@@ -555,6 +696,23 @@ final class RecommendedPetProfileTests: XCTestCase {
                         BehaviorStep(motionID: "idle", repeatCount: 1)
                     ],
                     repeats: false
+                ),
+                BehaviorSequence(
+                    id: "idle",
+                    steps: [BehaviorStep(motionID: "idle", repeatCount: 1)],
+                    repeats: true
+                ),
+                BehaviorSequence(
+                    id: "run",
+                    steps: [BehaviorStep(motionID: "run", repeatCount: 1)],
+                    repeats: true
+                ),
+                BehaviorSequence(
+                    id: "petting",
+                    steps: [
+                        BehaviorStep(motionID: "petting", repeatCount: 1)
+                    ],
+                    repeats: true
                 )
             ],
             automaticRules: automaticRules ?? [
@@ -662,8 +820,80 @@ final class RecommendedPetProfileTests: XCTestCase {
                     horizontalOffset: -36,
                     gap: 20
                 )
-            )
+            ),
+            display: display
         )
+    }
+
+    private func legacyObject(
+        from data: Data,
+        schemaVersion: Int
+    ) throws -> [String: Any] {
+        var object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: data) as? [String: Any]
+        )
+        object["schemaVersion"] = schemaVersion
+        object.removeValue(forKey: "automaticRulePriorityOrder")
+        object["pettingMotionID"] = object.removeValue(
+            forKey: "pettingBehaviorID"
+        )
+
+        var behavior = try XCTUnwrap(object["behavior"] as? [String: Any])
+        var sequences = try XCTUnwrap(
+            behavior["sequences"] as? [[String: Any]]
+        )
+        for index in sequences.indices {
+            sequences[index].removeValue(forKey: "displayName")
+        }
+        behavior["sequences"] = sequences
+        object["behavior"] = behavior
+
+        var movement = try XCTUnwrap(object["movement"] as? [String: Any])
+        if let following = movement["cursorFollowing"] as? [String: Any],
+           let roaming = movement["freeRoaming"] as? [String: Any],
+           let avoiding = movement["cursorAvoiding"] as? [String: Any] {
+            movement = [
+                "mode": movement["mode"] as Any,
+                "speed": roaming["speed"] as Any,
+                "cursorDistance": following["cursorDistance"] as Any,
+                "stopRadius": roaming["stopRadius"] as Any,
+                "freeRoamingDwellMilliseconds":
+                    roaming["dwellMilliseconds"] as Any,
+                "prefersFrontmostWindow":
+                    roaming["prefersFrontmostWindow"] as Any,
+                "cursorFollowingBehavior": following["behavior"] as Any,
+                "freeRoamingBehavior": roaming["behavior"] as Any,
+                "cursorAvoidingIdleBehavior":
+                    avoiding["idleBehavior"] as Any,
+                "cursorAvoidingDetectionDistance":
+                    avoiding["detectionDistance"] as Any,
+                "cursorAvoidingSpeed": avoiding["speed"] as Any,
+                "cursorAvoidingBehavior": avoiding["behavior"] as Any
+            ]
+        }
+        for (behaviorKey, animationKey) in [
+            ("cursorFollowingBehavior", "cursorFollowingAnimation"),
+            ("freeRoamingBehavior", "freeRoamingAnimation"),
+            ("cursorAvoidingBehavior", "cursorAvoidingAnimation")
+        ] {
+            guard var value = movement.removeValue(forKey: behaviorKey)
+                as? [String: Any] else { continue }
+            value["fallbackMotionID"] = value.removeValue(
+                forKey: "fallbackBehaviorID"
+            )
+            value["usesDirectionalMotions"] = value.removeValue(
+                forKey: "usesDirectionalBehaviors"
+            )
+            value["usesDiagonalMotions"] = value.removeValue(
+                forKey: "usesDiagonalBehaviors"
+            )
+            value["directionMotionIDs"] = value.removeValue(
+                forKey: "directionBehaviorIDs"
+            )
+            movement[animationKey] = value
+        }
+        object["movement"] = movement
+        return object
     }
 
     private func makeMotion(id: String) -> PetMotion {

@@ -100,29 +100,32 @@ final class MotionRuntimeTests: XCTestCase {
         XCTAssertEqual(definition.displayName, "몽글이")
         XCTAssertEqual(definition.id, BuiltInPet.id)
         XCTAssertEqual(defaultMotion.id, "기본")
-        XCTAssertEqual(defaultMotion.frames.count, 7)
+        XCTAssertEqual(defaultMotion.frames.count, 6)
         XCTAssertEqual(
             definition.motions.map(\.id),
             [
                 "기본",
-                "위로",
+                "왼쪽",
+                "오른쪽",
+                "위",
                 "일하는 중",
                 "정면",
-                "자는중",
-                "물뿜기",
+                "아래",
+                "자는 중",
+                "물 뿜기",
                 "찾는 중",
-                "해피",
-                "오른쪽",
-                "보글보글"
+                "행복",
+                "왼쪽 보글보글",
+                "오른쪽 보글보글"
             ]
         )
         XCTAssertEqual(
             definition.motions.map { $0.frames.count },
-            [7, 4, 7, 6, 2, 2, 2, 2, 1, 3]
+            [6, 6, 6, 4, 7, 6, 4, 2, 2, 2, 2, 3, 3]
         )
         XCTAssertEqual(
             definition.motions.flatMap(\.frames).count,
-            36
+            53
         )
         XCTAssertTrue(
             definition.motions
@@ -134,7 +137,7 @@ final class MotionRuntimeTests: XCTestCase {
                 }
         )
         XCTAssertEqual(
-            definition.motion(id: "자는중")?.frames.map(\.duration),
+            definition.motion(id: "자는 중")?.frames.map(\.duration),
             [.milliseconds(450), .milliseconds(3_000)]
         )
     }
@@ -160,11 +163,25 @@ final class MotionRuntimeTests: XCTestCase {
             package.definition.motions.map(\.id),
             BuiltInPet.mongleDefinition().motions.map(\.id)
         )
-        XCTAssertEqual(package.definition.motions.flatMap(\.frames).count, 36)
+        XCTAssertEqual(package.definition.motions.flatMap(\.frames).count, 53)
         XCTAssertEqual(
             package.compatibility?.minimumMonglePetVersion,
-            SemanticVersion(major: 1, minor: 3, patch: 0)
+            SemanticVersion(major: 1, minor: 3, patch: 2)
         )
+        let profileData = try Data(
+            contentsOf: packageURL.appendingPathComponent(
+                "recommended-profile.json",
+                isDirectory: false
+            )
+        )
+        let profile = try RecommendedPetProfileCodec.decode(
+            profileData,
+            for: package.definition
+        )
+        let expected = BuiltInBehaviorPresets.defaultProfile(for: .builtIn)
+
+        XCTAssertEqual(profile.behaviorProfile(for: .builtIn), expected)
+        XCTAssertEqual(profile.display, BuiltInBehaviorPresets.mongleDisplay)
     }
 
     @MainActor
