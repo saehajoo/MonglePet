@@ -2,7 +2,7 @@
 
 ## 상태
 
-- 상태: in_progress
+- 상태: completed
 - 생성일: 2026-08-27
 - 마지막 갱신: 2026-08-27
 
@@ -51,8 +51,8 @@
 
 - [x] 2단계: 앱 버전과 버전 테스트를 `1.4.0 (8)`로 올린다.
 - [x] 3단계: 전체 단위 테스트와 코드 서명 없는 Debug 빌드를 통과한다.
-- [ ] 4단계: 깨끗한 원격 커밋에서 Universal Preview ZIP·체크섬·manifest를 생성하고 압축 해제본을 검증한다.
-- [ ] 5단계: GitHub Pre-release를 게시하고 원격 자산과 태그 대상을 다시 검증한다.
+- [x] 4단계: 깨끗한 원격 커밋에서 Universal Preview ZIP·체크섬·manifest를 생성하고 압축 해제본을 검증한다.
+- [x] 5단계: GitHub Pre-release를 게시하고 원격 자산과 태그 대상을 다시 검증한다.
 
 ### Windows
 
@@ -60,7 +60,7 @@
 
 ### 플랫폼 동등성
 
-- [ ] 7단계: macOS 배포 결과와 검증 수치를 플랫폼 현황·다운로드 인계 문서에 기록한다.
+- [x] 7단계: macOS 배포 결과와 검증 수치를 플랫폼 현황·다운로드 인계 문서에 기록한다.
 
 ## 검증 방법
 
@@ -74,10 +74,13 @@
 - 2026-08-27: 원격 `main`과 로컬 기준이 일치하고 GitHub CLI 인증이 유효하며 `macos-v1.4.0-preview.1` 릴리스가 없음을 확인했다.
 - 2026-08-27: 기능 확장 범위에 맞춰 앱 버전 `1.4.0 (8)`, 태그 `macos-v1.4.0-preview.1`, 릴리스 이름 `MonglePet macOS 1.4.0 Preview 1`로 확정했다.
 - 2026-08-27: 버전 반영 뒤 전체 `MonglePetTests` 503개 중 502개 성공·선택형 WebP fixture 1개 건너뜀·실패 0개와 코드 서명 없는 Debug 빌드를 확인했다.
+- 2026-08-27: 깨끗하게 푸시된 소스 커밋 `78ac0dfb52f0cb4e0d436649603c29dea91e652d`에서 8,833,960 bytes Universal ZIP을 생성했다. SHA-256은 `ebb3a12f0b829671399d44e1fd71ab16486e590f46ac1ec57f0c904aecf55820`이며 별도 경로의 압축 해제본에서 `1.4.0 (8)`, Bundle ID `kr.mapleroom.MonglePet`, arm64·x86_64를 확인했다.
+- 2026-08-27: [`macos-v1.4.0-preview.1`](https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.4.0-preview.1) GitHub Pre-release에 ZIP·SHA-256·manifest를 게시했다. 원격 세 자산을 다시 내려받아 바이트 단위 일치, ZIP digest와 태그 대상을 검증했다.
 
 ## 완료 결과
 
-- 진행 중
+- macOS `1.4.0 (8)` 미서명·미공증 Universal Preview 게시와 원격 자산 검증을 완료했다.
+- Windows 구현은 기존 인계 문서에 따라 별도 환경에서 후속 진행한다.
 
 ## 남은 위험 / 후속 작업
 

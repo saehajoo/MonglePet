@@ -8,7 +8,6 @@
 
 | 상태 | 작업명 | 파일 | 마지막 갱신 |
 | --- | --- | --- | --- |
-| in_progress | macOS 1.4.0 행동 중심 설정·최종 몽글이 Preview 릴리스 | `tasks/2026-08-27-macos-1-4-behavior-release.md` | 2026-08-27 |
 | in_progress | 행동 중심 실행 모델과 자동 동작 UI 재구성 | `tasks/2026-08-26-behavior-centric-runtime.md` | 2026-08-26 |
 | in_progress | Windows macOS 1.3.1 호환성·이미지 편집기·내장 몽글이 동등성 | `tasks/2026-08-24-windows-macos-1-3-parity.md` | 2026-08-24 |
 | in_progress | 웹 펫 URL 가져오기 | `tasks/2026-08-23-web-pet-url-import.md` | 2026-08-24 |
@@ -32,6 +31,7 @@
 
 | 상태 | 작업명 | 파일 | 완료일 |
 | --- | --- | --- | --- |
+| completed | macOS 1.4.0 행동 중심 설정·최종 몽글이 Preview 릴리스 | `tasks/2026-08-27-macos-1-4-behavior-release.md` | 2026-08-27 |
 | completed | macOS 1.3.2 이동 런타임 성능 보정 Preview 릴리스 | `tasks/2026-08-25-macos-1-3-2-performance-release.md` | 2026-08-25 |
 | completed | macOS 1.3.1 이미지 편집 UI 보정 Preview 릴리스 | `tasks/2026-08-24-macos-1-3-1-image-editor-polish-release.md` | 2026-08-24 |
 | completed | 이미지 편집 결과 미리보기와 스크롤 다듬기 | `tasks/2026-08-24-image-editor-preview-polish.md` | 2026-08-24 |
