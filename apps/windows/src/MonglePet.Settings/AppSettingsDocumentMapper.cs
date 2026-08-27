@@ -315,6 +315,7 @@ internal static class AppSettingsDocumentMapper
                 {
                     ["automatic"] = BehaviorMode.Automatic,
                     ["manual"] = BehaviorMode.Manual,
+                    ["random"] = BehaviorMode.Random,
                 },
                 BehaviorMode.Automatic,
                 $"{field}.mode",
@@ -335,6 +336,11 @@ internal static class AppSettingsDocumentMapper
                 Invalid($"{field}.manualSequenceID", issues);
                 manual = null;
             }
+            IReadOnlyList<string> randomSequenceIds = ReadSequenceReferences(
+                value["randomSequenceIDs"],
+                sequenceIds,
+                $"{field}.randomSequenceIDs",
+                issues);
             profiles.Add(new BehaviorProfile(
                 profileId,
                 key,
@@ -342,14 +348,17 @@ internal static class AppSettingsDocumentMapper
                 manual,
                 sequences,
                 ReadRules(value["automaticRules"], sequenceIds, $"{field}.automaticRules", issues),
-                ReadMovement(value["movement"], $"{field}.movement", issues),
-                ReadOptionalIdentifier(
+                ReadMovement(value["movement"], sequenceIds, $"{field}.movement", issues),
+                null,
+                ReadSpeech(value["speech"], sequenceIds, $"{field}.speech", issues),
+                randomSequenceIds,
+                ReadRulePriorityOrder(value["automaticRulePriorityOrder"], $"{field}.automaticRulePriorityOrder", issues),
+                ReadOptionalReference(
                     value,
-                    "pettingMotionID",
-                    $"{field}.pettingMotionID",
-                    issues,
-                    requireUnmodified: true),
-                ReadSpeech(value["speech"], sequenceIds, $"{field}.speech", issues)));
+                    "pettingBehaviorID",
+                    sequenceIds,
+                    $"{field}.pettingBehaviorID",
+                    issues)));
         }
         return profiles;
     }
@@ -580,12 +589,123 @@ internal static class AppSettingsDocumentMapper
                 issues.Add(new SettingsRecoveryIssue(SettingsRecoveryKind.DroppedSequence, id));
                 continue;
             }
+            string displayName = id == "__monglepet_default_behavior__" ? "기본" : id;
+            if (TryString(value["displayName"], out string storedDisplayName) &&
+                !string.IsNullOrWhiteSpace(storedDisplayName))
+            {
+                displayName = storedDisplayName.Trim();
+                if (!string.Equals(displayName, storedDisplayName, StringComparison.Ordinal))
+                {
+                    Invalid($"{field}.{id}.displayName", issues);
+                }
+            }
+            else if (value["displayName"] is not null)
+            {
+                Invalid($"{field}.{id}.displayName", issues);
+            }
             sequences.Add(new BehaviorSequence(
                 id,
                 steps,
-                ReadBool(value, "repeats", false, $"{field}.{id}.repeats", issues)));
+                ReadBool(value, "repeats", false, $"{field}.{id}.repeats", issues))
+            {
+                DisplayName = displayName,
+            });
         }
         return sequences;
+    }
+
+    private static IReadOnlyList<string> ReadSequenceReferences(
+        JsonNode? node,
+        ISet<string> sequenceIds,
+        string field,
+        List<SettingsRecoveryIssue> issues)
+    {
+        if (node is null)
+        {
+            return [];
+        }
+        if (node is not JsonArray values)
+        {
+            Invalid(field, issues);
+            return [];
+        }
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var result = new List<string>();
+        foreach (JsonNode? value in values)
+        {
+            if (TryNormalizedIdentifier(value, out string id) && sequenceIds.Contains(id) && seen.Add(id))
+            {
+                result.Add(id);
+            }
+            else
+            {
+                Invalid(field, issues);
+            }
+        }
+        return result;
+    }
+
+    private static string? ReadOptionalReference(
+        JsonObject value,
+        string property,
+        ISet<string> sequenceIds,
+        string field,
+        List<SettingsRecoveryIssue> issues)
+    {
+        string? id = ReadOptionalIdentifier(value, property, field, issues, requireUnmodified: true);
+        if (id is null || sequenceIds.Contains(id))
+        {
+            return id;
+        }
+        Invalid(field, issues);
+        return null;
+    }
+
+    private static IReadOnlyList<AutomaticRuleKind> ReadRulePriorityOrder(
+        JsonNode? node,
+        string field,
+        List<SettingsRecoveryIssue> issues)
+    {
+        if (node is null)
+        {
+            return [AutomaticRuleKind.Movement, AutomaticRuleKind.Idle, AutomaticRuleKind.Application];
+        }
+        var result = new List<AutomaticRuleKind>();
+        if (node is JsonArray values)
+        {
+            foreach (JsonNode? value in values)
+            {
+                AutomaticRuleKind? kind = value?.GetValue<string?>() switch
+                {
+                    "movement" => AutomaticRuleKind.Movement,
+                    "idle" => AutomaticRuleKind.Idle,
+                    "application" => AutomaticRuleKind.Application,
+                    _ => null,
+                };
+                if (kind is { } resolved && !result.Contains(resolved))
+                {
+                    result.Add(resolved);
+                }
+                else
+                {
+                    Invalid(field, issues);
+                }
+            }
+        }
+        else if (node is not null)
+        {
+            Invalid(field, issues);
+        }
+        foreach (AutomaticRuleKind kind in new[]
+                 { AutomaticRuleKind.Movement, AutomaticRuleKind.Idle, AutomaticRuleKind.Application })
+        {
+            if (!result.Contains(kind))
+            {
+                result.Add(kind);
+                Invalid(field, issues);
+            }
+        }
+        return result;
     }
 
     private static IReadOnlyList<AutomaticRule> ReadRules(
@@ -608,6 +728,8 @@ internal static class AppSettingsDocumentMapper
             Truncated(field, issues);
         }
         var seenIds = new HashSet<Guid>();
+        bool hasIdleRule = false;
+        var applicationIds = new HashSet<string>(StringComparer.Ordinal);
         var rules = new List<AutomaticRule>();
         foreach (JsonNode? nodeValue in values.Take(AppSettingsLimits.MaximumAutomaticRules))
         {
@@ -667,6 +789,24 @@ internal static class AppSettingsDocumentMapper
                 condition = new RuleCondition.Unsupported(unsupportedType);
                 enabled = false;
             }
+            bool duplicateCondition = condition switch
+            {
+                RuleCondition.IdleAtLeast when hasIdleRule => true,
+                RuleCondition.Application application when
+                    !applicationIds.Add(application.ApplicationId) => true,
+                _ => false,
+            };
+            if (duplicateCondition)
+            {
+                issues.Add(new SettingsRecoveryIssue(
+                    SettingsRecoveryKind.DroppedRule,
+                    id.ToString("D")));
+                continue;
+            }
+            if (condition is RuleCondition.IdleAtLeast)
+            {
+                hasIdleRule = true;
+            }
             enabled &= sequenceIds.Contains(sequenceId);
             if (storedEnabled && !enabled)
             {
@@ -684,6 +824,7 @@ internal static class AppSettingsDocumentMapper
 
     private static PetMovementSettings ReadMovement(
         JsonNode? node,
+        ISet<string> sequenceIds,
         string field,
         List<SettingsRecoveryIssue> issues)
     {
@@ -696,8 +837,7 @@ internal static class AppSettingsDocumentMapper
             Invalid(field, issues);
             return PetMovementSettings.Default;
         }
-        return new PetMovementSettings(
-            ReadEnum(
+        PetMovementMode mode = ReadEnum(
                 value,
                 "mode",
                 new Dictionary<string, PetMovementMode>(StringComparer.Ordinal)
@@ -709,28 +849,124 @@ internal static class AppSettingsDocumentMapper
                 },
                 PetMovementMode.Fixed,
                 $"{field}.mode",
-                issues),
-            ReadRanged(value, "speed", 20, 1_000, 160, $"{field}.speed", issues),
-            ReadRanged(value, "cursorDistance", 0, 512, 96, $"{field}.cursorDistance", issues),
-            ReadRanged(value, "stopRadius", 0, 128, 16, $"{field}.stopRadius", issues),
-            ReadRangedLong(value, "freeRoamingDwellMilliseconds", 500, 300_000, 6_000, $"{field}.freeRoamingDwellMilliseconds", issues),
-            ReadBool(value, "prefersFrontmostWindow", true, $"{field}.prefersFrontmostWindow", issues),
-            ReadAnimation(value["cursorFollowingAnimation"], $"{field}.cursorFollowingAnimation", issues),
-            ReadAnimation(value["freeRoamingAnimation"], $"{field}.freeRoamingAnimation", issues),
+                issues);
+        JsonObject followingValue = value["cursorFollowing"] as JsonObject ?? new JsonObject();
+        JsonObject roamingValue = value["freeRoaming"] as JsonObject ?? new JsonObject();
+        JsonObject avoidingValue = value["cursorAvoiding"] as JsonObject ?? new JsonObject();
+        CursorFollowingMovementSettings following = new(
+            ReadRanged(followingValue, "speed", 20, 1_000, 160, $"{field}.cursorFollowing.speed", issues),
+            ReadRanged(followingValue, "cursorDistance", 0, 512, 96, $"{field}.cursorFollowing.cursorDistance", issues),
+            ReadRanged(followingValue, "stopRadius", 0, 128, 16, $"{field}.cursorFollowing.stopRadius", issues),
+            ReadBehavior(followingValue["behavior"], sequenceIds, $"{field}.cursorFollowing.behavior", issues));
+        FreeRoamingMovementSettings roaming = ReadFreeRoaming(
+            roamingValue,
+            sequenceIds,
+            $"{field}.freeRoaming",
+            issues);
+        CursorAvoidingIdleBehavior idleBehavior = ReadEnum(
+            avoidingValue,
+            "idleBehavior",
+            new Dictionary<string, CursorAvoidingIdleBehavior>(StringComparer.Ordinal)
+            {
+                ["stationary"] = CursorAvoidingIdleBehavior.Stationary,
+                ["freeRoaming"] = CursorAvoidingIdleBehavior.FreeRoaming,
+            },
+            CursorAvoidingIdleBehavior.Stationary,
+            $"{field}.cursorAvoiding.idleBehavior",
+            issues);
+        CursorAvoidingMovementSettings avoiding = new(
+            idleBehavior,
+            ReadRanged(avoidingValue, "detectionDistance", 32, 1_024, 160, $"{field}.cursorAvoiding.detectionDistance", issues),
+            ReadRanged(avoidingValue, "speed", 20, 1_000, 320, $"{field}.cursorAvoiding.speed", issues),
+            ReadRanged(avoidingValue, "stopRadius", 0, 128, 16, $"{field}.cursorAvoiding.stopRadius", issues),
+            ReadBehavior(avoidingValue["behavior"], sequenceIds, $"{field}.cursorAvoiding.behavior", issues),
+            ReadFreeRoaming(avoidingValue["idleFreeRoaming"] as JsonObject ?? new JsonObject(), sequenceIds, $"{field}.cursorAvoiding.idleFreeRoaming", issues));
+        return new PetMovementSettings(
+            mode,
+            roaming.Speed,
+            following.CursorDistance,
+            roaming.StopRadius,
+            roaming.DwellMilliseconds,
+            roaming.PrefersFrontmostWindow,
+            MovementAnimationSettings.Default,
+            MovementAnimationSettings.Default,
             ReadEnum(
-                value,
-                "cursorAvoidingIdleBehavior",
+                avoidingValue,
+                "idleBehavior",
                 new Dictionary<string, CursorAvoidingIdleBehavior>(StringComparer.Ordinal)
                 {
                     ["stationary"] = CursorAvoidingIdleBehavior.Stationary,
                     ["freeRoaming"] = CursorAvoidingIdleBehavior.FreeRoaming,
                 },
                 CursorAvoidingIdleBehavior.Stationary,
-                $"{field}.cursorAvoidingIdleBehavior",
+                $"{field}.cursorAvoiding.idleBehavior",
                 issues),
-            ReadRanged(value, "cursorAvoidingDetectionDistance", 32, 1_024, 160, $"{field}.cursorAvoidingDetectionDistance", issues),
-            ReadRanged(value, "cursorAvoidingSpeed", 20, 1_000, 320, $"{field}.cursorAvoidingSpeed", issues),
-            ReadAnimation(value["cursorAvoidingAnimation"], $"{field}.cursorAvoidingAnimation", issues));
+            avoiding.DetectionDistance,
+            avoiding.Speed,
+            MovementAnimationSettings.Default,
+            following,
+            roaming,
+            avoiding);
+    }
+
+    private static FreeRoamingMovementSettings ReadFreeRoaming(
+        JsonObject value,
+        ISet<string> sequenceIds,
+        string field,
+        List<SettingsRecoveryIssue> issues)
+    {
+        long maximum = ReadRangedLong(value, "dwellMilliseconds", 500, 300_000, 6_000, $"{field}.dwellMilliseconds", issues);
+        long minimum = ReadRangedLong(value, "dwellMinimumMilliseconds", 500, maximum, Math.Max(500, maximum / 2), $"{field}.dwellMinimumMilliseconds", issues);
+        return new FreeRoamingMovementSettings(
+            ReadRanged(value, "speed", 20, 1_000, 160, $"{field}.speed", issues),
+            ReadRanged(value, "stopRadius", 0, 128, 16, $"{field}.stopRadius", issues),
+            maximum,
+            ReadBool(value, "randomizesDwell", false, $"{field}.randomizesDwell", issues),
+            minimum,
+            ReadBool(value, "prefersFrontmostWindow", true, $"{field}.prefersFrontmostWindow", issues),
+            ReadBehavior(value["behavior"], sequenceIds, $"{field}.behavior", issues));
+    }
+
+    private static MovementBehaviorSettings ReadBehavior(
+        JsonNode? node,
+        ISet<string> sequenceIds,
+        string field,
+        List<SettingsRecoveryIssue> issues)
+    {
+        if (node is not JsonObject value)
+        {
+            if (node is not null) Invalid(field, issues);
+            return MovementBehaviorSettings.Default;
+        }
+        bool directional = ReadBool(value, "usesDirectionalBehaviors", false, $"{field}.usesDirectionalBehaviors", issues);
+        bool diagonal = ReadBool(value, "usesDiagonalBehaviors", false, $"{field}.usesDiagonalBehaviors", issues);
+        if (diagonal && !directional)
+        {
+            diagonal = false;
+            Invalid($"{field}.usesDiagonalBehaviors", issues);
+        }
+        JsonObject directions = value["directionBehaviorIDs"] as JsonObject ?? new JsonObject();
+        string? Reference(JsonObject parent, string name, string referenceField)
+        {
+            string? id = ReadOptionalIdentifier(parent, name, referenceField, issues, true);
+            if (id is not null && !sequenceIds.Contains(id))
+            {
+                Invalid(referenceField, issues);
+                return null;
+            }
+            return id;
+        }
+        string? Direction(string name) => Reference(
+            directions,
+            name,
+            $"{field}.directionBehaviorIDs.{name}");
+        return new MovementBehaviorSettings(
+            Reference(value, "fallbackBehaviorID", $"{field}.fallbackBehaviorID"),
+            directional,
+            diagonal,
+            new DirectionalBehaviorIds(
+                Direction("left"), Direction("right"), Direction("up"), Direction("down"),
+                Direction("upLeft"), Direction("upRight"), Direction("downLeft"), Direction("downRight")));
     }
 
     private static MovementAnimationSettings ReadAnimation(
@@ -1075,14 +1311,23 @@ internal static class AppSettingsDocumentMapper
         JsonObject result = template?.DeepClone().AsObject() ?? new JsonObject();
         result["profileID"] = value.ProfileId.ToString("D");
         result["petKey"] = WritePetKey(value.PetKey, template?["petKey"] as JsonObject);
-        result["mode"] = value.Mode == BehaviorMode.Automatic ? "automatic" : "manual";
+        result["mode"] = value.Mode switch
+        {
+            BehaviorMode.Automatic => "automatic",
+            BehaviorMode.Manual => "manual",
+            _ => "random",
+        };
         result["manualSequenceID"] = value.ManualSequenceId;
+        result["randomSequenceIDs"] = new JsonArray(value.RandomSequences
+            .Select(id => (JsonNode?)JsonValue.Create(id))
+            .ToArray());
         var sequences = new JsonArray();
         foreach (BehaviorSequence sequence in value.Sequences)
         {
             JsonObject sequenceResult = FindObjectByStringId(template?["sequences"], sequence.Id)
                 ?.DeepClone().AsObject() ?? new JsonObject();
             sequenceResult["id"] = sequence.Id;
+            sequenceResult["displayName"] = sequence.DisplayName;
             var steps = new JsonArray();
             for (int index = 0; index < sequence.Steps.Count; index++)
             {
@@ -1118,8 +1363,16 @@ internal static class AppSettingsDocumentMapper
             rules.Add(ruleResult);
         }
         result["automaticRules"] = rules;
+        result["automaticRulePriorityOrder"] = new JsonArray(value.RulePriorityOrder
+            .Select(kind => JsonValue.Create(kind switch
+            {
+                AutomaticRuleKind.Movement => "movement",
+                AutomaticRuleKind.Idle => "idle",
+                _ => "application",
+            })).ToArray());
         result["movement"] = WriteMovement(value.Movement, template?["movement"] as JsonObject);
-        result["pettingMotionID"] = value.PettingMotionId;
+        result["pettingBehaviorID"] = value.EffectivePettingBehaviorId;
+        result.Remove("pettingMotionID");
         result["speech"] = WriteSpeech(value.Speech, template?["speech"] as JsonObject);
         return result;
     }
@@ -1134,19 +1387,69 @@ internal static class AppSettingsDocumentMapper
             PetMovementMode.FreeRoaming => "freeRoaming",
             _ => "cursorAvoiding",
         };
+        result["cursorFollowing"] = WriteCursorFollowing(value.CursorFollowing, template?["cursorFollowing"] as JsonObject);
+        result["freeRoaming"] = WriteFreeRoaming(value.FreeRoaming, template?["freeRoaming"] as JsonObject);
+        result["cursorAvoiding"] = WriteCursorAvoiding(value.CursorAvoiding, template?["cursorAvoiding"] as JsonObject);
+        foreach (string legacy in new[] { "speed", "cursorDistance", "stopRadius", "freeRoamingDwellMilliseconds", "randomizesFreeRoamingDwell", "freeRoamingDwellMinimumMilliseconds", "prefersFrontmostWindow", "cursorFollowingAnimation", "cursorFollowingBehavior", "freeRoamingAnimation", "freeRoamingBehavior", "cursorAvoidingIdleBehavior", "cursorAvoidingDetectionDistance", "cursorAvoidingSpeed", "cursorAvoidingAnimation", "cursorAvoidingBehavior" })
+        {
+            result.Remove(legacy);
+        }
+        return result;
+    }
+
+    private static JsonObject WriteCursorFollowing(CursorFollowingMovementSettings value, JsonObject? template)
+    {
+        JsonObject result = template?.DeepClone().AsObject() ?? new JsonObject();
         result["speed"] = value.Speed;
         result["cursorDistance"] = value.CursorDistance;
         result["stopRadius"] = value.StopRadius;
-        result["freeRoamingDwellMilliseconds"] = value.FreeRoamingDwellMilliseconds;
+        result["behavior"] = WriteBehavior(value.Behavior, template?["behavior"] as JsonObject);
+        return result;
+    }
+
+    private static JsonObject WriteFreeRoaming(FreeRoamingMovementSettings value, JsonObject? template)
+    {
+        JsonObject result = template?.DeepClone().AsObject() ?? new JsonObject();
+        result["speed"] = value.Speed;
+        result["stopRadius"] = value.StopRadius;
+        result["dwellMilliseconds"] = value.DwellMilliseconds;
+        result["randomizesDwell"] = value.RandomizesDwell;
+        result["dwellMinimumMilliseconds"] = value.DwellMinimumMilliseconds;
         result["prefersFrontmostWindow"] = value.PrefersFrontmostWindow;
-        result["cursorFollowingAnimation"] = WriteAnimation(value.CursorFollowingAnimation, template?["cursorFollowingAnimation"] as JsonObject);
-        result["freeRoamingAnimation"] = WriteAnimation(value.FreeRoamingAnimation, template?["freeRoamingAnimation"] as JsonObject);
-        result["cursorAvoidingIdleBehavior"] = value.CursorAvoidingIdleBehavior == CursorAvoidingIdleBehavior.Stationary
-            ? "stationary"
-            : "freeRoaming";
-        result["cursorAvoidingDetectionDistance"] = value.CursorAvoidingDetectionDistance;
-        result["cursorAvoidingSpeed"] = value.CursorAvoidingSpeed;
-        result["cursorAvoidingAnimation"] = WriteAnimation(value.CursorAvoidingAnimation, template?["cursorAvoidingAnimation"] as JsonObject);
+        result["behavior"] = WriteBehavior(value.Behavior, template?["behavior"] as JsonObject);
+        return result;
+    }
+
+    private static JsonObject WriteCursorAvoiding(CursorAvoidingMovementSettings value, JsonObject? template)
+    {
+        JsonObject result = template?.DeepClone().AsObject() ?? new JsonObject();
+        result["idleBehavior"] = value.IdleBehavior == CursorAvoidingIdleBehavior.Stationary ? "stationary" : "freeRoaming";
+        result["detectionDistance"] = value.DetectionDistance;
+        result["speed"] = value.Speed;
+        result["stopRadius"] = value.StopRadius;
+        result["behavior"] = WriteBehavior(value.Behavior, template?["behavior"] as JsonObject);
+        result["idleFreeRoaming"] = WriteFreeRoaming(value.IdleFreeRoaming, template?["idleFreeRoaming"] as JsonObject);
+        return result;
+    }
+
+    private static JsonObject WriteBehavior(MovementBehaviorSettings value, JsonObject? template)
+    {
+        JsonObject result = template?.DeepClone().AsObject() ?? new JsonObject();
+        result["fallbackBehaviorID"] = value.FallbackBehaviorId;
+        result["usesDirectionalBehaviors"] = value.UsesDirectionalBehaviors;
+        result["usesDiagonalBehaviors"] = value.UsesDiagonalBehaviors;
+        JsonObject directions = template?["directionBehaviorIDs"] is JsonObject stored
+            ? stored.DeepClone().AsObject()
+            : new JsonObject();
+        directions["left"] = value.DirectionBehaviorIds.Left;
+        directions["right"] = value.DirectionBehaviorIds.Right;
+        directions["up"] = value.DirectionBehaviorIds.Up;
+        directions["down"] = value.DirectionBehaviorIds.Down;
+        directions["upLeft"] = value.DirectionBehaviorIds.UpLeft;
+        directions["upRight"] = value.DirectionBehaviorIds.UpRight;
+        directions["downLeft"] = value.DirectionBehaviorIds.DownLeft;
+        directions["downRight"] = value.DirectionBehaviorIds.DownRight;
+        result["directionBehaviorIDs"] = directions;
         return result;
     }
 
@@ -1349,7 +1652,9 @@ internal static class AppSettingsDocumentMapper
     {
         if (!ValidOptionalIdentifier(value.ScreenIdentifier) ||
             !double.IsFinite(value.OriginX) || !double.IsFinite(value.OriginY) ||
-            !InRange(value.Width, 96, 384) || !InRange(value.Opacity, 0.1, 1) ||
+            !InRange(value.Width, AppSettingsLimits.MinimumOverlayWidth,
+                AppSettingsLimits.MaximumOverlayWidth) ||
+            !InRange(value.Opacity, 0.1, 1) ||
             !InRange(value.PointerOverlapOpacity, 0.05, 1) ||
             !ValidBoundary(value.MovementBoundary))
         {
@@ -1367,7 +1672,8 @@ internal static class AppSettingsDocumentMapper
         var sequenceIds = new HashSet<string>(StringComparer.Ordinal);
         foreach (BehaviorSequence sequence in value.Sequences)
         {
-            if (!ValidIdentifier(sequence.Id) || !sequenceIds.Add(sequence.Id) ||
+            if (!ValidIdentifier(sequence.Id) || !ValidIdentifier(sequence.DisplayName) ||
+                !sequenceIds.Add(sequence.Id) ||
                 sequence.Steps.Count is < 1 or > 100 ||
                 sequence.Steps.Any(step =>
                     !ValidIdentifier(step.MotionId) ||
@@ -1380,17 +1686,32 @@ internal static class AppSettingsDocumentMapper
         {
             throw InvalidSettings($"{field}.manualSequenceID");
         }
+        if (value.RandomSequences.Count != value.RandomSequences.Distinct(StringComparer.Ordinal).Count() ||
+            value.RandomSequences.Any(id => !sequenceIds.Contains(id)) ||
+            value.RulePriorityOrder.Count != 3 ||
+            value.RulePriorityOrder.Distinct().Count() != 3 ||
+            value.RulePriorityOrder.Any(kind => !Enum.IsDefined(kind)))
+        {
+            throw InvalidSettings($"{field}.behaviorSelection");
+        }
         var ruleIds = new HashSet<Guid>();
+        bool hasIdleRule = false;
+        var applicationIds = new HashSet<string>(StringComparer.Ordinal);
         foreach (AutomaticRule rule in value.AutomaticRules)
         {
             if (!ruleIds.Add(rule.Id) || !ValidIdentifier(rule.SequenceId) ||
                 (rule.IsEnabled && !sequenceIds.Contains(rule.SequenceId)) ||
-                !ValidCondition(rule.Condition, rule.IsEnabled))
+                !ValidCondition(rule.Condition, rule.IsEnabled) ||
+                (rule.Condition is RuleCondition.IdleAtLeast && hasIdleRule) ||
+                (rule.Condition is RuleCondition.Application application &&
+                    !applicationIds.Add(application.ApplicationId)))
             {
                 throw InvalidSettings($"{field}.automaticRules");
             }
+            hasIdleRule |= rule.Condition is RuleCondition.IdleAtLeast;
         }
-        if (!ValidMovement(value.Movement) || !ValidOptionalIdentifier(value.PettingMotionId))
+        if (!ValidMovement(value.Movement) ||
+            (value.EffectivePettingBehaviorId is { } petting && !sequenceIds.Contains(petting)))
         {
             throw InvalidSettings($"{field}.movement");
         }
@@ -1435,15 +1756,30 @@ internal static class AppSettingsDocumentMapper
     }
 
     private static bool ValidMovement(PetMovementSettings value) =>
-        Enum.IsDefined(value.Mode) && Enum.IsDefined(value.CursorAvoidingIdleBehavior) &&
-        InRange(value.Speed, 20, 1_000) && InRange(value.CursorDistance, 0, 512) &&
-        InRange(value.StopRadius, 0, 128) &&
-        value.FreeRoamingDwellMilliseconds is >= 500 and <= 300_000 &&
-        InRange(value.CursorAvoidingDetectionDistance, 32, 1_024) &&
-        InRange(value.CursorAvoidingSpeed, 20, 1_000) &&
-        ValidAnimation(value.CursorFollowingAnimation) &&
-        ValidAnimation(value.FreeRoamingAnimation) &&
-        ValidAnimation(value.CursorAvoidingAnimation);
+        Enum.IsDefined(value.Mode) &&
+        InRange(value.CursorFollowing.Speed, 20, 1_000) &&
+        InRange(value.CursorFollowing.CursorDistance, 0, 512) &&
+        InRange(value.CursorFollowing.StopRadius, 0, 128) &&
+        ValidBehavior(value.CursorFollowing.Behavior) &&
+        ValidFreeRoaming(value.FreeRoaming) &&
+        Enum.IsDefined(value.CursorAvoiding.IdleBehavior) &&
+        InRange(value.CursorAvoiding.DetectionDistance, 32, 1_024) &&
+        InRange(value.CursorAvoiding.Speed, 20, 1_000) &&
+        InRange(value.CursorAvoiding.StopRadius, 0, 128) &&
+        ValidBehavior(value.CursorAvoiding.Behavior) &&
+        ValidFreeRoaming(value.CursorAvoiding.IdleFreeRoaming);
+
+    private static bool ValidFreeRoaming(FreeRoamingMovementSettings value) =>
+        InRange(value.Speed, 20, 1_000) && InRange(value.StopRadius, 0, 128) &&
+        value.DwellMilliseconds is >= 500 and <= 300_000 &&
+        value.DwellMinimumMilliseconds is >= 500 &&
+        value.DwellMinimumMilliseconds <= value.DwellMilliseconds &&
+        ValidBehavior(value.Behavior);
+
+    private static bool ValidBehavior(MovementBehaviorSettings value) =>
+        (!value.UsesDiagonalBehaviors || value.UsesDirectionalBehaviors) &&
+        ValidOptionalIdentifier(value.FallbackBehaviorId) &&
+        value.DirectionBehaviorIds.All.All(ValidOptionalIdentifier);
 
     private static bool ValidAnimation(MovementAnimationSettings value) =>
         (!value.UsesDiagonalMotions || value.UsesDirectionalMotions) &&
@@ -1820,19 +2156,68 @@ internal static class AppSettingsDocumentMapper
     private static bool TryInt(JsonNode? node, out int value)
     {
         value = default;
-        return node is JsonValue json && json.TryGetValue(out value);
+        if (node is not JsonValue json)
+        {
+            return false;
+        }
+        if (json.TryGetValue(out value))
+        {
+            return true;
+        }
+        if (json.TryGetValue(out long longValue) && longValue is >= int.MinValue and <= int.MaxValue)
+        {
+            value = (int)longValue;
+            return true;
+        }
+        return false;
     }
 
     private static bool TryLong(JsonNode? node, out long value)
     {
         value = default;
-        return node is JsonValue json && json.TryGetValue(out value);
+        if (node is not JsonValue json)
+        {
+            return false;
+        }
+        if (json.TryGetValue(out value))
+        {
+            return true;
+        }
+        if (json.TryGetValue(out int intValue))
+        {
+            value = intValue;
+            return true;
+        }
+        return false;
     }
 
     private static bool TryDouble(JsonNode? node, out double value)
     {
         value = default;
-        return node is JsonValue json && json.TryGetValue(out value);
+        if (node is not JsonValue json)
+        {
+            return false;
+        }
+        if (json.TryGetValue(out value))
+        {
+            return true;
+        }
+        if (json.TryGetValue(out long longValue))
+        {
+            value = longValue;
+            return true;
+        }
+        if (json.TryGetValue(out int intValue))
+        {
+            value = intValue;
+            return true;
+        }
+        if (json.TryGetValue(out decimal decimalValue))
+        {
+            value = (double)decimalValue;
+            return true;
+        }
+        return false;
     }
 
     private static bool ValidIdentifier(string? value) =>

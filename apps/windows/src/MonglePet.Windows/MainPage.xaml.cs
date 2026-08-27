@@ -15,12 +15,10 @@ using MonglePet.Packages;
 using MonglePet.PetLibrary;
 using MonglePet.Settings;
 using MonglePet.Shell;
-using MonglePet.Windows.Overlay;
 using MonglePet.Windows.Runtime;
 using Windows.Storage;
 using Windows.Storage.Pickers;
 using Windows.UI;
-using Windows.Graphics.Imaging;
 
 namespace MonglePet.Windows;
 
@@ -36,6 +34,7 @@ public sealed partial class MainPage : Page
     private readonly ObservableCollection<MonitorOptionItem> _movementScreens = [];
     private readonly ObservableCollection<BehaviorStepEditorItem> _behaviorSteps = [];
     private readonly ObservableCollection<AutomaticRuleEditorItem> _automaticRules = [];
+    private readonly ObservableCollection<RulePriorityKindItem> _rulePriorityKinds = [];
     private readonly ObservableCollection<SpeechPhraseEditorItem> _behaviorSpeechPhrases = [];
     private readonly ObservableCollection<SpeechPhraseEditorItem> _periodicSpeechPhrases = [];
     private readonly WindowsLoginLaunchService _loginLaunchService = new();
@@ -54,21 +53,24 @@ public sealed partial class MainPage : Page
     private bool _isRefreshingPetChoice;
     private bool _isEditingSpeechPhrase;
     private bool _isRefreshingLoginLaunch;
+    private bool _isPersistingMovementControls;
+    private bool _isPersistingBehaviorControls;
     private bool _selectedPetDetailsAreStale;
     private string _currentSettingsSection = "activePets";
     private string? _selectedRoutineId;
     private Guid? _selectedRuleId;
     private Guid? _selectedSpeechPhraseId;
     private WindowsApplicationChoice? _selectedApplicationChoice;
-    private PetOverlayWindow? _subscribedOverlay;
     private DispatcherQueueTimer? _displaySaveTimer;
+    private DispatcherQueueTimer? _movementSaveTimer;
     private DispatcherQueueTimer? _speechSaveTimer;
     private DispatcherQueueTimer? _petAnimationPreviewTimer;
     private long _petPreviewGeneration;
+    private long _petAnimationPreviewGeneration;
     private int _petAnimationPreviewFrameIndex;
-    private bool _isLoadingPetAnimationPreviewFrame;
     private LoadedPetPackage? _petAnimationPreviewPackage;
     private PetPackageMotion? _petAnimationPreviewMotion;
+    private readonly WindowsDecodedImageCache _petAnimationPreviewImageCache = new();
 
     public MainPage()
     {
@@ -85,12 +87,15 @@ public sealed partial class MainPage : Page
         CurrentPetComboBox.ItemsSource = _petChoices;
         PetAnimationsList.ItemsSource = _petAnimations;
         ManualSequenceComboBox.ItemsSource = _behaviorSequences;
+        RandomSequencesList.ItemsSource = _behaviorSequences;
         RoutineEditorComboBox.ItemsSource = _behaviorSequences;
         RuleTargetSequenceComboBox.ItemsSource = _behaviorSequences;
+        IdleRuleTargetSequenceComboBox.ItemsSource = _behaviorSequences;
         PettingMotionComboBox.ItemsSource = _movementMotionOptions;
         MovementScreenComboBox.ItemsSource = _movementScreens;
         BehaviorStepsList.ItemsSource = _behaviorSteps;
         AutomaticRulesList.ItemsSource = _automaticRules;
+        RulePriorityOrderList.ItemsSource = _rulePriorityKinds;
         BehaviorSpeechPhrasesList.ItemsSource = _behaviorSpeechPhrases;
         PeriodicSpeechPhrasesList.ItemsSource = _periodicSpeechPhrases;
         SpeechSequenceComboBox.ItemsSource = _behaviorSequences;
@@ -98,13 +103,12 @@ public sealed partial class MainPage : Page
         {
             _isLoaded = true;
             _displaySaveTimer ??= CreateDisplaySaveTimer();
+            _movementSaveTimer ??= CreateMovementSaveTimer();
             _speechSaveTimer ??= CreateSpeechSaveTimer();
             _petAnimationPreviewTimer ??= CreatePetAnimationPreviewTimer();
             if (Application.Current is App app)
             {
                 app.InitializationCompleted += App_InitializationCompleted;
-                app.BehaviorStateChanged += App_BehaviorStateChanged;
-                app.MovementStateChanged += App_MovementStateChanged;
                 app.SettingsStateChanged += App_SettingsStateChanged;
                 app.SelectedPetInstanceChanged += App_SelectedPetInstanceChanged;
             }
@@ -129,29 +133,22 @@ public sealed partial class MainPage : Page
         }
 
         _isPreparedForShutdown = true;
+        FlushMovementSave();
         _isLoaded = false;
         _remotePetImportCancellation.Cancel();
         _remotePetImportCancellation.Dispose();
         _remotePetImportService.Dispose();
         _displaySaveTimer?.Stop();
+        _movementSaveTimer?.Stop();
         _speechSaveTimer?.Stop();
         _petAnimationPreviewTimer?.Stop();
         if (Application.Current is App app)
         {
             app.InitializationCompleted -= App_InitializationCompleted;
-            app.BehaviorStateChanged -= App_BehaviorStateChanged;
-            app.MovementStateChanged -= App_MovementStateChanged;
             app.SettingsStateChanged -= App_SettingsStateChanged;
             app.SelectedPetInstanceChanged -= App_SelectedPetInstanceChanged;
         }
-        if (_subscribedOverlay is not null)
-        {
-            _subscribedOverlay.StateChanged -= Overlay_StateChanged;
-            _subscribedOverlay = null;
-        }
     }
-
-    private PetOverlayWindow? Overlay => (Application.Current as App)?.Overlay;
 
     internal void OpenRemotePetImport(string? canonicalUrl, string? errorMessage)
     {
@@ -193,6 +190,10 @@ public sealed partial class MainPage : Page
     {
         string section = (args.SelectedItemContainer as NavigationViewItem)?.Tag?.ToString()
             ?? "activePets";
+        if (_currentSettingsSection == "movement" && section != "movement")
+        {
+            FlushMovementSave();
+        }
         ShowSettingsSection(section);
         if (section == "general" && _isLoaded)
         {
@@ -216,18 +217,23 @@ public sealed partial class MainPage : Page
         bool isRoutines = section == "routines";
         bool isSpeech = section == "speech";
         bool isAutomaticRules = section == "automaticRules";
+        bool isTroubleshooting = section == "troubleshooting";
 
         ActivePetsCard.Visibility = isActivePets ? Visibility.Visible : Visibility.Collapsed;
-        SafeStartInfoBar.Visibility = isActivePets ? Visibility.Visible : Visibility.Collapsed;
-        ResourceWarningInfoBar.Visibility = isActivePets ? Visibility.Visible : Visibility.Collapsed;
-        OverlayInfoBar.Visibility = isPet ? Visibility.Visible : Visibility.Collapsed;
+        SafeStartInfoBar.Visibility = isTroubleshooting
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        TroubleshootingCard.Visibility = isTroubleshooting
+            ? Visibility.Visible
+            : Visibility.Collapsed;
         PetLibraryCard.Visibility = isPet ? Visibility.Visible : Visibility.Collapsed;
-        GeneralSettingsCard.Visibility = isMovement || isRoutines
+        GeneralSettingsCard.Visibility = isMovement
             ? Visibility.Visible
             : Visibility.Collapsed;
         PetPresentationPanel.Visibility = isMovement ? Visibility.Visible : Visibility.Collapsed;
-        BehaviorOverviewPanel.Visibility = isRoutines ? Visibility.Visible : Visibility.Collapsed;
-        PetBehaviorDivider.Visibility = Visibility.Collapsed;
+        BehaviorOverviewPanel.Visibility = isAutomaticRules
+            ? Visibility.Visible
+            : Visibility.Collapsed;
 
         OverlaySettingsCard.Visibility = isGeneral || isMovement
             ? Visibility.Visible
@@ -244,7 +250,10 @@ public sealed partial class MainPage : Page
             ? Visibility.Visible
             : Visibility.Collapsed;
         RoutineEditorCard.Visibility = isRoutines ? Visibility.Visible : Visibility.Collapsed;
-        AutomaticRulesCard.Visibility = isAutomaticRules ? Visibility.Visible : Visibility.Collapsed;
+        AutomaticRulesCard.Visibility = isAutomaticRules &&
+            (Application.Current as App)?.ActiveBehaviorProfile.Mode == BehaviorMode.Automatic
+                ? Visibility.Visible
+                : Visibility.Collapsed;
 
         (SettingsSectionTitle.Text, SettingsSectionDescription.Text) = section switch
         {
@@ -256,16 +265,19 @@ public sealed partial class MainPage : Page
                 "선택한 펫의 표시 상태와 화면 모양, 이동 방식과 쓰다듬기를 설정합니다."),
             "routines" => (
                 "행동 루틴",
-                "자동·수동 행동 모드를 고르고 애니메이션 단계를 조합해 루틴을 편집합니다."),
+                "애니메이션 단계를 조합해 행동을 만들고 이름과 반복 방식을 편집합니다."),
             "speech" => (
                 "말풍선",
                 "행동 대사와 주기 대사, 말풍선 모양 및 표시 위치를 설정합니다."),
             "automaticRules" => (
                 "자동 규칙",
-                "사용 중인 앱과 입력 없음 시간에 따라 실행할 행동 루틴을 정합니다."),
+                "자동 규칙·직접 선택·랜덤 선택 모드를 고르고 조건별로 실행할 행동을 정합니다."),
             "pet" => (
                 "펫 보관함",
                 "펫 패키지를 가져오거나 내보내고 원본 정보와 애니메이션을 관리합니다."),
+            "troubleshooting" => (
+                "문제 해결",
+                "복원 중 문제가 생긴 펫을 안전 모드에서 분리하고 다시 시작합니다."),
             _ => (
                 "활성 펫",
                 "데스크톱에 함께 표시할 펫을 추가하고 선택, 순서와 실행 상태를 관리합니다."),
@@ -344,16 +356,15 @@ public sealed partial class MainPage : Page
 
     private void VisibilityButton_Click(object sender, RoutedEventArgs e)
     {
-        if (Application.Current is not App app || Overlay is not { } overlay)
+        if (Application.Current is not App app)
         {
-            RefreshOverlayState();
             return;
         }
 
         try
         {
             app.SetUserPresentation(
-                overlay.IsVisible
+                app.CurrentSettings.SelectedPetInstance?.Presentation == PetPresentation.Awake
                     ? PetPresentation.TuckedAway
                     : PetPresentation.Awake);
             DisplaySettingsInfoBar.IsOpen = false;
@@ -408,7 +419,34 @@ public sealed partial class MainPage : Page
         {
             app.PreviewOverlaySettings(SettingsFromDisplayControls(app.CurrentSettings.Overlay));
             ScheduleDisplaySettingsSave();
-            RefreshOverlayStatusText();
+        }
+    }
+
+    private void OverlaySizePresetButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: not null } button &&
+            double.TryParse(button.Tag.ToString(), out double percentage))
+        {
+            OverlayWidthSlider.Value = Math.Clamp(
+                AppSettingsLimits.DefaultOverlayWidth * percentage / 100,
+                AppSettingsLimits.MinimumOverlayWidth,
+                AppSettingsLimits.MaximumOverlayWidth);
+        }
+    }
+
+    private void BringPetToCurrentScreenButton_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            (Application.Current as App)?.BringPetToCurrentScreen();
+            RefreshOverlayState();
+        }
+        catch (Exception exception)
+        {
+            DisplaySettingsInfoBar.Severity = InfoBarSeverity.Error;
+            DisplaySettingsInfoBar.Title = "펫을 가져오지 못했습니다";
+            DisplaySettingsInfoBar.Message = exception.Message;
+            DisplaySettingsInfoBar.IsOpen = true;
         }
     }
 
@@ -437,6 +475,18 @@ public sealed partial class MainPage : Page
         PersistBehaviorSelectionFromControls();
     }
 
+    private void RandomSequencesList_SelectionChanged(
+        object sender,
+        SelectionChangedEventArgs e)
+    {
+        if (!_isLoaded || _isRefreshingBehaviorControls ||
+            BehaviorModeComboBox.SelectedIndex != 2)
+        {
+            return;
+        }
+        PersistBehaviorSelectionFromControls();
+    }
+
     private void MovementControls_Changed(object sender, object e)
     {
         if (!_isLoaded || _isRefreshingMovementControls)
@@ -445,7 +495,7 @@ public sealed partial class MainPage : Page
         }
         bool canEdit = Application.Current is App app && app.SettingsStore.IsWritingEnabled;
         RefreshMovementControlVisibility(canEdit);
-        PersistMovementSettingsFromControls();
+        ScheduleMovementSave();
     }
 
     private void MovementAnimationEditor_SettingsChanged(object? sender, EventArgs e)
@@ -454,7 +504,7 @@ public sealed partial class MainPage : Page
         {
             return;
         }
-        PersistMovementSettingsFromControls();
+        ScheduleMovementSave();
     }
 
     private void MovementModeRadioButton_Checked(object sender, RoutedEventArgs e)
@@ -615,8 +665,8 @@ public sealed partial class MainPage : Page
         PetPackageImportReview review,
         bool usesRemoteErrorSurface)
     {
-        bool? appliesRecommendedProfile = await ShowImportReview(review);
-        if (appliesRecommendedProfile is null)
+        PetRecommendedProfileApplyOptions? options = await ShowImportReview(review);
+        if (options is null)
         {
             return;
         }
@@ -625,7 +675,7 @@ public sealed partial class MainPage : Page
         {
             InstalledPetPackage installed = app.ImportReviewedPackage(
                 review,
-                appliesRecommendedProfile.Value);
+                options);
             ShowLibraryMessage(
                 InfoBarSeverity.Success,
                 "가져오기 완료",
@@ -639,7 +689,7 @@ public sealed partial class MainPage : Page
                 app,
                 review,
                 exception.MatchingInstallationIds[0],
-                appliesRecommendedProfile.Value,
+                options,
                 usesRemoteErrorSurface);
         }
         catch (Exception exception)
@@ -656,13 +706,14 @@ public sealed partial class MainPage : Page
         App app,
         PetPackageImportReview review,
         Guid existingInstallationId,
-        bool appliesRecommendedProfileToSeparateInstall,
+        PetRecommendedProfileApplyOptions optionsForSeparateInstall,
         bool usesRemoteErrorSurface)
     {
         var replaceProfileCheckBox = new CheckBox
         {
             Content = "교체하면서 권장 설정으로 기존 로컬 설정도 바꾸기",
-            IsEnabled = review.CanApplyRecommendedProfile,
+            IsEnabled = review.CanApplyRecommendedProfile &&
+                optionsForSeparateInstall.AppliesProfile,
             IsChecked = false,
         };
         var content = new StackPanel { Spacing = 10 };
@@ -689,12 +740,14 @@ public sealed partial class MainPage : Page
             {
                 ContentDialogResult.Primary => app.ImportReviewedPackage(
                     review,
-                    replaceProfileCheckBox.IsChecked == true,
+                    replaceProfileCheckBox.IsChecked == true
+                        ? optionsForSeparateInstall
+                        : PetRecommendedProfileApplyOptions.None,
                     PetPackageInstallMode.Replace,
                     existingInstallationId),
                 ContentDialogResult.Secondary => app.ImportReviewedPackage(
                     review,
-                    appliesRecommendedProfileToSeparateInstall,
+                    optionsForSeparateInstall,
                     PetPackageInstallMode.InstallSeparately),
                 _ => null,
             };
@@ -724,7 +777,8 @@ public sealed partial class MainPage : Page
         ShowLibraryMessage(InfoBarSeverity.Error, "가져오기 실패", message);
     }
 
-    private async Task<bool?> ShowImportReview(PetPackageImportReview review)
+    private async Task<PetRecommendedProfileApplyOptions?> ShowImportReview(
+        PetPackageImportReview review)
     {
         var content = new StackPanel { Spacing = 10, MaxWidth = 520 };
         content.Children.Add(new TextBlock
@@ -764,6 +818,44 @@ public sealed partial class MainPage : Page
             IsEnabled = review.CanApplyRecommendedProfile,
             IsChecked = false,
         };
+        CheckBox Option(string text, bool defaultValue = true) => new()
+        {
+            Content = text,
+            IsChecked = defaultValue,
+            IsEnabled = false,
+            Margin = new Thickness(20, 0, 0, 0),
+        };
+        CheckBox behavior = Option("행동과 자동 규칙");
+        CheckBox applicationRules = Option("앱별 자동 규칙", defaultValue: false);
+        CheckBox movement = Option("이동 설정");
+        CheckBox petting = Option("쓰다듬기 행동");
+        CheckBox speech = Option("말풍선 설정");
+        CheckBox display = Option("크기·투명도·클릭 통과 표시 설정");
+        CheckBox[] options = [behavior, applicationRules, movement, petting, speech, display];
+        apply.Checked += (_, _) =>
+        {
+            foreach (CheckBox option in options) option.IsEnabled = true;
+        };
+        apply.Unchecked += (_, _) =>
+        {
+            foreach (CheckBox option in options) option.IsEnabled = false;
+        };
+        behavior.Unchecked += (_, _) =>
+        {
+            movement.IsChecked = false;
+            petting.IsChecked = false;
+            applicationRules.IsChecked = false;
+            movement.IsEnabled = false;
+            petting.IsEnabled = false;
+            applicationRules.IsEnabled = false;
+        };
+        behavior.Checked += (_, _) =>
+        {
+            bool enabled = apply.IsChecked == true;
+            movement.IsEnabled = enabled;
+            petting.IsEnabled = enabled;
+            applicationRules.IsEnabled = enabled;
+        };
         if (review.RecommendedProfile is { } profile)
         {
             content.Children.Add(new TextBlock
@@ -772,6 +864,7 @@ public sealed partial class MainPage : Page
                 TextWrapping = TextWrapping.Wrap,
             });
             content.Children.Add(apply);
+            foreach (CheckBox option in options) content.Children.Add(option);
         }
         else if (review.ContainsRecommendedProfile)
         {
@@ -795,9 +888,19 @@ public sealed partial class MainPage : Page
             CloseButtonText = "취소",
             DefaultButton = ContentDialogButton.Primary,
         };
-        return await dialog.ShowAsync() == ContentDialogResult.Primary
-            ? apply.IsChecked == true
-            : null;
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+        {
+            return null;
+        }
+        bool applies = apply.IsChecked == true;
+        return new PetRecommendedProfileApplyOptions(
+            applies,
+            applies && behavior.IsChecked == true,
+            applies && applicationRules.IsChecked == true,
+            applies && movement.IsChecked == true,
+            applies && petting.IsChecked == true,
+            applies && speech.IsChecked == true,
+            applies && display.IsChecked == true);
     }
 
     private async void ExportPackageButton_Click(object sender, RoutedEventArgs e)
@@ -835,7 +938,12 @@ public sealed partial class MainPage : Page
             app.ExportActivePackage(
                 file.Path,
                 options.Value.IncludesRecommendedProfile,
-                options.Value.IncludesApplicationRules);
+                options.Value.IncludesApplicationRules,
+                options.Value.IncludesBehavior,
+                options.Value.IncludesMovement,
+                options.Value.IncludesPetting,
+                options.Value.IncludesSpeech,
+                options.Value.IncludesDisplay);
             ShowLibraryMessage(
                 InfoBarSeverity.Success,
                 "내보내기 완료",
@@ -854,20 +962,57 @@ public sealed partial class MainPage : Page
         var includeProfile = new CheckBox
         {
             Content = "펫 설정도 함께 공유",
-            IsChecked = false,
+            IsChecked = true,
+            Visibility = Visibility.Collapsed,
         };
         var includeApplicationRules = new CheckBox
         {
             Content = "앱별 자동 규칙도 포함",
             IsChecked = false,
-            IsEnabled = false,
+            IsEnabled = hasApplicationRules,
             Visibility = hasApplicationRules ? Visibility.Visible : Visibility.Collapsed,
         };
-        includeProfile.Checked += (_, _) => includeApplicationRules.IsEnabled = hasApplicationRules;
+        CheckBox Option(string text) => new()
+        {
+            Content = text,
+            IsChecked = true,
+            IsEnabled = false,
+            Margin = new Thickness(20, 0, 0, 0),
+        };
+        CheckBox includeBehavior = Option("행동과 자동 규칙");
+        CheckBox includeMovement = Option("이동 설정");
+        CheckBox includePetting = Option("쓰다듬기 행동");
+        CheckBox includeSpeech = Option("말풍선 설정");
+        CheckBox includeDisplay = Option("크기·투명도·클릭 통과 표시 설정");
+        CheckBox[] portableOptions =
+            [includeBehavior, includeMovement, includePetting, includeSpeech, includeDisplay];
+        includeProfile.Checked += (_, _) =>
+        {
+            includeApplicationRules.IsEnabled = hasApplicationRules;
+            foreach (CheckBox option in portableOptions) option.IsEnabled = true;
+        };
         includeProfile.Unchecked += (_, _) =>
         {
             includeApplicationRules.IsChecked = false;
             includeApplicationRules.IsEnabled = false;
+            foreach (CheckBox option in portableOptions)
+            {
+                option.IsChecked = true;
+                option.IsEnabled = false;
+            }
+        };
+        includeBehavior.Unchecked += (_, _) =>
+        {
+            includeMovement.IsChecked = false;
+            includePetting.IsChecked = false;
+            includeMovement.IsEnabled = false;
+            includePetting.IsEnabled = false;
+        };
+        includeBehavior.Checked += (_, _) =>
+        {
+            bool enabled = includeProfile.IsChecked == true;
+            includeMovement.IsEnabled = enabled;
+            includePetting.IsEnabled = enabled;
         };
         var rights = new CheckBox
         {
@@ -877,10 +1022,9 @@ public sealed partial class MainPage : Page
         var content = new StackPanel { Spacing = 10, MaxWidth = 520 };
         content.Children.Add(new TextBlock
         {
-            Text = "manifest, 미리보기와 참조 atlas만 새 패키지에 포함합니다. 로컬 편집 marker와 앱 설정 파일은 제외됩니다.",
+            Text = "펫의 행동, 랜덤 선택, 자동 규칙 순서, 각 이동 방식, 쓰다듬기, 말풍선과 휴대 가능한 표시 설정을 함께 저장합니다. 화면 위치·모니터·활성 인스턴스 같은 기기 전용 값은 제외됩니다.",
             TextWrapping = TextWrapping.Wrap,
         });
-        content.Children.Add(includeProfile);
         content.Children.Add(includeApplicationRules);
         content.Children.Add(new TextBlock
         {
@@ -906,7 +1050,12 @@ public sealed partial class MainPage : Page
         }
         return new ExportReviewOptions(
             includeProfile.IsChecked == true,
-            includeProfile.IsChecked == true && includeApplicationRules.IsChecked == true);
+            includeProfile.IsChecked == true && includeApplicationRules.IsChecked == true,
+            includeProfile.IsChecked == true && includeBehavior.IsChecked == true,
+            includeProfile.IsChecked == true && includeMovement.IsChecked == true,
+            includeProfile.IsChecked == true && includePetting.IsChecked == true,
+            includeProfile.IsChecked == true && includeSpeech.IsChecked == true,
+            includeProfile.IsChecked == true && includeDisplay.IsChecked == true);
     }
 
     private static string RecommendedProfileSummary(BehaviorProfile profile)
@@ -916,8 +1065,33 @@ public sealed partial class MainPage : Page
             rule => rule.Condition is RuleCondition.Application);
         int periodicPhrases = profile.Speech.Phrases.Count(
             phrase => phrase.Trigger is PetSpeechTrigger.Periodic);
-        return $"권장 설정: {profile.Mode} · 루틴 {profile.Sequences.Count}개/단계 {stepCount}개 · " +
-               $"자동 규칙 {profile.AutomaticRules.Count}개(앱 {applicationRules}개) · 이동 {profile.Movement.Mode} · " +
+        string mode = profile.Mode switch
+        {
+            BehaviorMode.Automatic => "자동 규칙",
+            BehaviorMode.Manual => "직접 선택",
+            BehaviorMode.Random => "랜덤 선택",
+            _ => "자동 규칙",
+        };
+        string movement = profile.Movement.Mode switch
+        {
+            PetMovementMode.Fixed => "위치 고정",
+            PetMovementMode.CursorFollowing => "마우스 따라가기",
+            PetMovementMode.FreeRoaming => "자유 이동",
+            PetMovementMode.CursorAvoiding => "마우스 도망가기",
+            _ => "위치 고정",
+        };
+        IReadOnlyDictionary<string, string> names = profile.Sequences
+            .ToDictionary(sequence => sequence.Id, sequence => sequence.DisplayName, StringComparer.Ordinal);
+        IEnumerable<string> selectedIds = profile.Mode == BehaviorMode.Random
+            ? profile.RandomSequences
+            : profile.ManualSequenceId is { } manual ? [manual] : [];
+        string selected = string.Join(", ", selectedIds
+            .Select(id => names.GetValueOrDefault(id))
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Take(3));
+        string selectedDetail = selected.Length == 0 ? string.Empty : $" · 선택 {selected}";
+        return $"권장 설정: {mode}{selectedDetail} · 행동 {profile.Sequences.Count}개/단계 {stepCount}개 · " +
+               $"자동 규칙 {profile.AutomaticRules.Count}개(앱 {applicationRules}개) · 이동 {movement} · " +
                $"말풍선 {(profile.Speech.IsEnabled ? "사용" : "사용 안 함")}, 주기 대사 {periodicPhrases}개";
     }
 
@@ -1121,12 +1295,26 @@ public sealed partial class MainPage : Page
         {
             return;
         }
+        UserPetAnimationRequest animationRequest = editor.CreateAnimationRequest();
+        BehaviorProfile connectedProfile = ApplyAnimationBehaviorConnection(
+            app.ActiveBehaviorProfile,
+            editor.BehaviorConnectionRequest(),
+            animationRequest.AnimationName);
 
         await RunPetEditAsync("애니메이션 추가", async () =>
         {
             InstalledPetPackage updated = await app.PetEditor.AddAnimationAsync(
                 installed,
-                editor.CreateAnimationRequest());
+                animationRequest);
+            try
+            {
+                app.SaveBehaviorProfile(connectedProfile);
+            }
+            catch
+            {
+                _ = app.PetEditor.RemoveAnimation(updated, animationRequest.AnimationName);
+                throw;
+            }
             app.ActivateInstallation(updated.InstallationId);
             return $"'{updated.Package.Manifest.DisplayName}'에 애니메이션을 추가했습니다.";
         });
@@ -1153,22 +1341,117 @@ public sealed partial class MainPage : Page
         }
 
         UserPetAnimationUpdateRequest request = editor.CreateAnimationUpdateRequest(motion.Id);
+        BehaviorProfile renamedProfile = BehaviorProfileMotionReferences.Replacing(
+            app.ActiveBehaviorProfile,
+            motion.Id,
+            request.AnimationName);
+        BehaviorProfile connectedProfile = ApplyAnimationBehaviorConnection(
+            renamedProfile,
+            editor.BehaviorConnectionRequest(),
+            request.AnimationName);
         await RunPetEditAsync("애니메이션 수정", async () =>
         {
             InstalledPetPackage updated = await app.PetEditor.UpdateAnimationAsync(
                 installed,
                 request);
-            app.ReplaceActiveMotionReferences(motion.Id, request.AnimationName);
+            app.SaveBehaviorProfile(connectedProfile);
             app.ActivateInstallation(updated.InstallationId);
             return $"'{motion.Id}' 애니메이션을 수정했습니다.";
         });
     }
 
+    private async void DuplicatePetAnimationButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!TryGetSelectedEditableAnimation(
+                out App app,
+                out InstalledPetPackage installed,
+                out PetPackageMotion motion))
+        {
+            return;
+        }
+
+        PetAnimationEditorControl? editor = await ShowPetAnimationEditorAsync(
+            "애니메이션 복제",
+            "복제본 저장",
+            installed.Package,
+            motion,
+            AvailableAnimationCopyName(installed.Package.Manifest, motion.Id));
+        if (editor is null)
+        {
+            return;
+        }
+        UserPetAnimationRequest animationRequest = editor.CreateAnimationRequest();
+        BehaviorProfile connectedProfile = ApplyAnimationBehaviorConnection(
+            app.ActiveBehaviorProfile,
+            editor.BehaviorConnectionRequest(),
+            animationRequest.AnimationName);
+        await RunPetEditAsync("애니메이션 복제", async () =>
+        {
+            InstalledPetPackage updated = await app.PetEditor.AddAnimationAsync(
+                installed,
+                animationRequest);
+            try
+            {
+                app.SaveBehaviorProfile(connectedProfile);
+            }
+            catch
+            {
+                _ = app.PetEditor.RemoveAnimation(updated, animationRequest.AnimationName);
+                throw;
+            }
+            app.ActivateInstallation(updated.InstallationId);
+            return $"'{motion.Id}' 애니메이션 복제본을 만들었습니다.";
+        });
+    }
+
+    private static string AvailableAnimationCopyName(
+        PetPackageManifest manifest,
+        string sourceName)
+    {
+        string first = $"{sourceName} 복사본";
+        if (!manifest.Motions.Any(motion => string.Equals(
+                motion.Id,
+                first,
+                StringComparison.OrdinalIgnoreCase)))
+        {
+            return first;
+        }
+        for (int suffix = 2; suffix < 10_000; suffix++)
+        {
+            string candidate = $"{sourceName} 복사본 {suffix}";
+            if (!manifest.Motions.Any(motion => string.Equals(
+                    motion.Id,
+                    candidate,
+                    StringComparison.OrdinalIgnoreCase)))
+            {
+                return candidate;
+            }
+        }
+        return $"{sourceName} 복사본 {Guid.NewGuid():N}";
+    }
+
+    private static BehaviorProfile ApplyAnimationBehaviorConnection(
+        BehaviorProfile profile,
+        AnimationBehaviorConnectionRequest request,
+        string motionId) => request.Mode switch
+    {
+        AnimationBehaviorConnectionMode.CreateNew =>
+            BehaviorProfileEditor.AddSequenceForMotion(
+                profile,
+                request.NewBehaviorName ?? motionId,
+                motionId),
+        AnimationBehaviorConnectionMode.AppendExisting
+            when request.ExistingBehaviorId is { } sequenceId =>
+                BehaviorProfileEditor.AppendMotionStep(profile, sequenceId, motionId),
+        _ => profile,
+    };
+
     private async Task<PetAnimationEditorControl?> ShowPetAnimationEditorAsync(
         string title,
         string primaryButtonText,
         LoadedPetPackage? package = null,
-        PetPackageMotion? motion = null)
+        PetPackageMotion? motion = null,
+        string? suggestedAnimationName = null)
     {
         try
         {
@@ -1176,6 +1459,14 @@ public sealed partial class MainPage : Page
             if (package is not null)
             {
                 await editor.ConfigureForAnimationAsync(package, motion);
+                if (Application.Current is App app)
+                {
+                    editor.ConfigureBehaviorConnection(app.ActiveBehaviorProfile, motion?.Id);
+                }
+            }
+            if (!string.IsNullOrWhiteSpace(suggestedAnimationName))
+            {
+                editor.SetAnimationName(suggestedAnimationName);
             }
             string description = package is null
                 ? "펫 정보와 첫 애니메이션을 설정하고 PNG 또는 스프라이트 프레임을 추가합니다."
@@ -1304,23 +1595,49 @@ public sealed partial class MainPage : Page
 
     private async void CreateEditablePetCopyButton_Click(object sender, RoutedEventArgs e)
     {
-        if (!TryGetActiveInstalledPet(out App app, out InstalledPetPackage installed) ||
-            app.PetEditor.IsEditable(installed))
+        if (Application.Current is not App app || app.ActivePackage is not { } package)
         {
             return;
         }
 
         var name = new TextBox
         {
-            Header = "새 펫 이름",
-            Text = $"{installed.Package.Manifest.DisplayName} 사본",
-            Width = 440,
+            Header = "사본 이름",
+            Text = $"{package.Manifest.DisplayName} 사본",
+            MinWidth = 360,
         };
+        var content = new StackPanel
+        {
+            Spacing = 12,
+            MaxWidth = 520,
+        };
+        content.Children.Add(new TextBlock
+        {
+            Text = "현재 펫은 그대로 보존됩니다. 사본은 새 패키지 ID를 가진 독립된 사용자 펫으로 설치되어 정보와 애니메이션을 수정할 수 있습니다.",
+            TextWrapping = TextWrapping.Wrap,
+        });
+        content.Children.Add(name);
+        content.Children.Add(new TextBlock
+        {
+            Text = $"원본 펫: {package.Manifest.DisplayName}\n" +
+                   $"제작자: {package.Manifest.Author}\n" +
+                   $"버전: {package.Manifest.Version}\n" +
+                   $"원본 패키지 ID: {package.Manifest.Id}",
+            TextWrapping = TextWrapping.Wrap,
+            Opacity = 0.72,
+            IsTextSelectionEnabled = true,
+        });
+        content.Children.Add(new TextBlock
+        {
+            Text = "애니메이션과 미리보기 자산을 복사하고, 현재 행동·자동 동작·이동·쓰다듬기·말풍선 설정도 새 펫에 복사합니다.",
+            TextWrapping = TextWrapping.Wrap,
+            Opacity = 0.72,
+        });
         var dialog = new ContentDialog
         {
             XamlRoot = XamlRoot,
-            Title = "편집 가능한 사본 만들기",
-            Content = name,
+            Title = "펫 사본 새로 만들기",
+            Content = content,
             PrimaryButtonText = "사본 만들기",
             CloseButtonText = "취소",
             DefaultButton = ContentDialogButton.Primary,
@@ -1330,10 +1647,16 @@ public sealed partial class MainPage : Page
             return;
         }
 
+        BehaviorProfile sourceProfile = app.ActiveBehaviorProfile;
         await RunPetEditAsync("편집 가능한 사본", () =>
         {
-            InstalledPetPackage copied = app.PetEditor.CreateEditableCopy(installed, name.Text);
-            app.ActivateInstallation(copied.InstallationId);
+            InstalledPetPackage copied = app.PetEditor.CreateEditableCopy(
+                package,
+                package.PackageRootPath,
+                name.Text);
+            app.ActivateInstallationCopyingSelectedProfile(
+                copied.InstallationId,
+                sourceProfile);
             return Task.FromResult($"'{copied.Package.Manifest.DisplayName}' 사본을 만들었습니다.");
         });
     }
@@ -1417,12 +1740,8 @@ public sealed partial class MainPage : Page
 
     private void RefreshOverlayState()
     {
-        App? app = Application.Current as App;
-        if (app?.Overlay is not { } overlay)
+        if (Application.Current is not App app)
         {
-            OverlayInfoBar.Severity = InfoBarSeverity.Error;
-            OverlayInfoBar.Title = "오버레이 초기화 실패";
-            OverlayInfoBar.Message = app?.OverlayInitializationError ?? "오버레이를 사용할 수 없습니다.";
             VisibilityButton.IsEnabled = false;
             ClickThroughToggle.IsEnabled = false;
             OverlayWidthSlider.IsEnabled = false;
@@ -1430,23 +1749,13 @@ public sealed partial class MainPage : Page
             PointerOverlapFadeToggle.IsEnabled = false;
             PointerOverlapOpacitySlider.IsEnabled = false;
             PixelArtToggle.IsEnabled = false;
-            OverlayStatusText.Text = "네이티브 창이 생성되지 않았습니다.";
             return;
         }
 
-        if (!ReferenceEquals(_subscribedOverlay, overlay))
-        {
-            if (_subscribedOverlay is not null)
-            {
-                _subscribedOverlay.StateChanged -= Overlay_StateChanged;
-            }
-
-            _subscribedOverlay = overlay;
-            _subscribedOverlay.StateChanged += Overlay_StateChanged;
-        }
-
-        RefreshOverlayPlaybackInfo();
-        VisibilityButton.Content = overlay.IsVisible ? "펫 재우기" : "펫 깨우기";
+        VisibilityButton.Content =
+            app.CurrentSettings.SelectedPetInstance?.Presentation == PetPresentation.Awake
+                ? "펫 재우기"
+                : "펫 깨우기";
         bool canEdit = app.SettingsStore.IsWritingEnabled;
         VisibilityButton.IsEnabled = canEdit;
         ClickThroughToggle.IsEnabled = canEdit;
@@ -1472,19 +1781,7 @@ public sealed partial class MainPage : Page
         {
             _isRefreshingDisplayControls = false;
         }
-        RefreshOverlayStatusText();
     }
-
-    private void Overlay_StateChanged(object? sender, EventArgs e) =>
-        DispatcherQueue.TryEnqueue(() =>
-        {
-            if (!_isLoaded)
-            {
-                return;
-            }
-            RefreshOverlayPlaybackInfo();
-            RefreshOverlayStatusText();
-        });
 
     private void App_InitializationCompleted(object? sender, EventArgs e) =>
         DispatcherQueue.TryEnqueue(() =>
@@ -1499,31 +1796,26 @@ public sealed partial class MainPage : Page
             RefreshBehaviorState();
         });
 
-    private void App_BehaviorStateChanged(object? sender, EventArgs e) =>
-        DispatcherQueue.TryEnqueue(() =>
-        {
-            if (_isLoaded)
-            {
-                RefreshBehaviorRuntimeStatus();
-                RefreshSpeechRuntimeStatus();
-                RefreshActivePetsState();
-            }
-        });
-
-    private void App_MovementStateChanged(object? sender, EventArgs e) =>
-        DispatcherQueue.TryEnqueue(() =>
-        {
-            if (_isLoaded)
-            {
-                RefreshMovementRuntimeStatus();
-                RefreshActivePetsState();
-            }
-        });
-
-    private void App_SettingsStateChanged(object? sender, EventArgs e) =>
+    private void App_SettingsStateChanged(object? sender, EventArgs e)
+    {
+        bool preservesMovementEditor = _isPersistingMovementControls;
+        bool preservesBehaviorEditor = _isPersistingBehaviorControls;
         DispatcherQueue.TryEnqueue(() =>
         {
             if (!_isLoaded)
+            {
+                return;
+            }
+            if (preservesMovementEditor)
+            {
+                // The controls already contain the values that were just
+                // persisted. Rebuilding unrelated display controls and active
+                // pet cards here makes WinUI recalculate pointer hit testing,
+                // which can replace the NumberBox I-beam cursor and disrupt
+                // continued editing.
+                return;
+            }
+            if (preservesBehaviorEditor)
             {
                 return;
             }
@@ -1532,6 +1824,7 @@ public sealed partial class MainPage : Page
             RefreshLibraryState();
             RefreshBehaviorState();
         });
+    }
 
     private void App_SelectedPetInstanceChanged(object? sender, EventArgs e) =>
         DispatcherQueue.TryEnqueue(() =>
@@ -1579,8 +1872,6 @@ public sealed partial class MainPage : Page
         for (int targetIndex = 0; targetIndex < orderedInstances.Count; targetIndex++)
         {
             ActivePetInstance instance = orderedInstances[targetIndex];
-            PetRuntimeSnapshot? snapshot = app.ActivePetSnapshots.FirstOrDefault(value =>
-                value.InstanceId == instance.InstanceId);
             string originalName;
             try
             {
@@ -1591,14 +1882,16 @@ public sealed partial class MainPage : Page
                 originalName = "찾을 수 없는 펫";
             }
             string nickname = instance.Nickname ?? originalName;
+            PetMovementMode movementMode = app.CurrentSettings.BehaviorProfiles
+                .FirstOrDefault(value => value.ProfileId == instance.BehaviorProfileId)?
+                .Movement.Mode ?? PetMovementMode.Fixed;
             string detail =
-                $"{originalName} · {MovementModeTitle(app.CurrentSettings.BehaviorProfiles.First(value => value.ProfileId == instance.BehaviorProfileId).Movement.Mode)} · {(instance.Overlay.ClickThrough ? "클릭 통과" : "상호작용")}";
-            string runtimeStatus = snapshot is null
-                ? "복원 대기 · 다른 펫 설정과 파일은 유지됩니다."
-                : $"{(instance.Presentation == PetPresentation.Awake ? "깨어 있음" : "자는 중")} · {snapshot.MovementStatus}";
-            string presentationCommand = snapshot is null
-                ? "복원"
-                : instance.Presentation == PetPresentation.Awake ? "재우기" : "깨우기";
+                $"{originalName} · {MovementModeTitle(movementMode)} · " +
+                $"{(instance.Overlay.ClickThrough ? "클릭 통과" : "상호작용")} · " +
+                $"{(instance.Presentation == PetPresentation.Awake ? "표시" : "숨김")}";
+            string presentationCommand = instance.Presentation == PetPresentation.Awake
+                ? "재우기"
+                : "깨우기";
 
             int currentIndex = IndexOfActivePet(instance.InstanceId);
             ActivePetItem item;
@@ -1619,10 +1912,8 @@ public sealed partial class MainPage : Page
             item.Update(
                 nickname,
                 detail,
-                runtimeStatus,
                 presentationCommand,
                 instance.DisplayOrder,
-                snapshot is not null,
                 instance.InstanceId == app.CurrentSettings.SelectedPetInstanceId);
             if (item.NeedsPreview(instance.PetKey))
             {
@@ -1641,17 +1932,10 @@ public sealed partial class MainPage : Page
                 }
             }
         }
-        PauseAllPetsButton.Content = app.AreAllPetsPaused ? "모두 다시 시작" : "모두 일시정지";
         SafeStartInfoBar.IsOpen = app.SafeStartRecovery is not null;
         ResumeWithoutLastSafeStartButton.Visibility = app.SafeStartRecovery is not null
             ? Visibility.Visible
             : Visibility.Collapsed;
-        ResourceWarningInfoBar.IsOpen = app.ResourceWarning is not null;
-        if (app.ResourceWarning is { } warning)
-        {
-            ResourceWarningInfoBar.Message =
-                $"CPU {warning.Sample.CpuPercent:0.0}% · private memory {warning.Sample.PrivateMemoryBytes / 1024d / 1024d:0}MiB · 활성 {warning.Sample.ActivePetCount}마리";
-        }
     }
 
     private async Task LoadActivePetPreviewAsync(
@@ -1753,12 +2037,6 @@ public sealed partial class MainPage : Page
         }
         ActivePetInstance instance = app.CurrentSettings.ActivePetInstances.Single(value =>
             value.InstanceId == instanceId);
-        if (_activePets.FirstOrDefault(pet => pet.InstanceId == instanceId) is
-            { IsRuntimeAvailable: false })
-        {
-            app.RestorePetInstance(instanceId);
-            return;
-        }
         app.SelectPetInstance(instanceId);
         app.SetUserPresentation(instance.Presentation == PetPresentation.Awake
             ? PetPresentation.TuckedAway
@@ -1910,10 +2188,10 @@ public sealed partial class MainPage : Page
             CreatePetButton.IsEnabled = canManage;
             EditPetDetailsButton.Visibility = isEditable ? Visibility.Visible : Visibility.Collapsed;
             EditPetDetailsButton.IsEnabled = canManage && isEditable;
-            CreateEditablePetCopyButton.Visibility = isInstalled && !isEditable
+            CreateEditablePetCopyButton.Visibility = app.ActivePackage is not null
                 ? Visibility.Visible
                 : Visibility.Collapsed;
-            CreateEditablePetCopyButton.IsEnabled = canManage && isInstalled && !isEditable;
+            CreateEditablePetCopyButton.IsEnabled = canManage && app.ActivePackage is not null;
             DeleteCurrentPetButton.Visibility = isInstalled ? Visibility.Visible : Visibility.Collapsed;
             DeleteCurrentPetButton.IsEnabled = canManage && isInstalled;
             AnimationEditingCaptionText.Text = isEditable
@@ -1947,9 +2225,13 @@ public sealed partial class MainPage : Page
         PetAnimationItem? selected = PetAnimationsList.SelectedItem as PetAnimationItem;
         AddPetAnimationButton.Visibility = isEditable ? Visibility.Visible : Visibility.Collapsed;
         EditPetAnimationButton.Visibility = isEditable ? Visibility.Visible : Visibility.Collapsed;
+        DuplicatePetAnimationButton.Visibility = isEditable
+            ? Visibility.Visible
+            : Visibility.Collapsed;
         DeletePetAnimationButton.Visibility = isEditable ? Visibility.Visible : Visibility.Collapsed;
         AddPetAnimationButton.IsEnabled = canEdit;
         EditPetAnimationButton.IsEnabled = canEdit && selected is not null;
+        DuplicatePetAnimationButton.IsEnabled = canEdit && selected is not null;
         DeletePetAnimationButton.IsEnabled = canEdit &&
             selected is not null &&
             _petAnimations.Count > 1 &&
@@ -1959,6 +2241,7 @@ public sealed partial class MainPage : Page
     private void RefreshCurrentPetSummary(LoadedPetPackage? package)
     {
         long generation = ++_petPreviewGeneration;
+        _petAnimationPreviewGeneration++;
         _petAnimationPreviewTimer?.Stop();
         _petAnimationPreviewPackage = null;
         _petAnimationPreviewMotion = null;
@@ -2025,6 +2308,7 @@ public sealed partial class MainPage : Page
         {
             return;
         }
+        _petAnimationPreviewGeneration++;
         _petAnimationPreviewTimer?.Stop();
         _petAnimationPreviewPackage = package;
         _petAnimationPreviewMotion = motion;
@@ -2034,41 +2318,29 @@ public sealed partial class MainPage : Page
 
     private async Task ShowNextPetAnimationPreviewFrameAsync()
     {
-        if (_isLoadingPetAnimationPreviewFrame || !_isLoaded ||
+        if (!_isLoaded ||
             _petAnimationPreviewPackage is not { } package ||
             _petAnimationPreviewMotion is not { Frames.Count: > 0 } motion)
         {
             return;
         }
+        long generation = _petAnimationPreviewGeneration;
         int frameIndex = Math.Clamp(_petAnimationPreviewFrameIndex, 0, motion.Frames.Count - 1);
         PetPackageFrame frame = motion.Frames[frameIndex];
         LoadedPetAtlas atlas = package.Atlases[motion.Atlas];
-        _isLoadingPetAnimationPreviewFrame = true;
         try
         {
-            StorageFile file = await StorageFile.GetFileFromPathAsync(atlas.FilePath);
-            using global::Windows.Storage.Streams.IRandomAccessStream stream =
-                await file.OpenAsync(FileAccessMode.Read);
-            BitmapDecoder decoder = await BitmapDecoder.CreateAsync(stream);
-            var transform = new BitmapTransform
-            {
-                Bounds = new BitmapBounds
-                {
-                    X = (uint)frame.X,
-                    Y = (uint)frame.Y,
-                    Width = (uint)frame.Width,
-                    Height = (uint)frame.Height,
-                },
-            };
-            using SoftwareBitmap bitmap = await decoder.GetSoftwareBitmapAsync(
-                BitmapPixelFormat.Bgra8,
-                BitmapAlphaMode.Premultiplied,
-                transform,
-                ExifOrientationMode.IgnoreExifOrientation,
-                ColorManagementMode.DoNotColorManage);
-            var source = new SoftwareBitmapSource();
-            await source.SetBitmapAsync(bitmap);
-            if (!ReferenceEquals(package, _petAnimationPreviewPackage) ||
+            WindowsDecodedImage decoded = await _petAnimationPreviewImageCache.GetAsync(
+                atlas.FilePath);
+            UserPetProcessedFrame processed = UserPetPixelProcessor.Process(
+                decoded.BgraPixels,
+                decoded.Width,
+                decoded.Height,
+                frame);
+            ImageSource source = await WindowsImagePreviewFactory.CreateTransparentAsync(
+                processed);
+            if (generation != _petAnimationPreviewGeneration ||
+                !ReferenceEquals(package, _petAnimationPreviewPackage) ||
                 !ReferenceEquals(motion, _petAnimationPreviewMotion) || !_isLoaded)
             {
                 return;
@@ -2098,11 +2370,10 @@ public sealed partial class MainPage : Page
         }
         catch
         {
-            _petAnimationPreviewTimer?.Stop();
-        }
-        finally
-        {
-            _isLoadingPetAnimationPreviewFrame = false;
+            if (generation == _petAnimationPreviewGeneration)
+            {
+                _petAnimationPreviewTimer?.Stop();
+            }
         }
     }
 
@@ -2133,7 +2404,7 @@ public sealed partial class MainPage : Page
     {
         Version? version = Assembly.GetEntryAssembly()?.GetName().Version;
         return version is null
-            ? new RemotePetSemanticVersion(1, 3, 0)
+            ? new RemotePetSemanticVersion(1, 4, 0)
             : new RemotePetSemanticVersion(
                 Math.Max(version.Major, 0),
                 Math.Max(version.Minor, 0),
@@ -2167,24 +2438,48 @@ public sealed partial class MainPage : Page
             {
                 _behaviorSequences.Add(new BehaviorSequenceItem(
                     sequence.Id,
-                    string.Equals(
-                        sequence.Id,
-                        BehaviorMotionReferences.DefaultSequence,
-                        StringComparison.Ordinal)
-                        ? "기본"
-                        : sequence.Id));
+                    sequence.DisplayName));
             }
 
-            BehaviorModeComboBox.SelectedIndex = profile.Mode == BehaviorMode.Manual ? 1 : 0;
+            BehaviorModeComboBox.SelectedIndex = profile.Mode switch
+            {
+                BehaviorMode.Manual => 1,
+                BehaviorMode.Random => 2,
+                _ => 0,
+            };
             string? selectedId = profile.ManualSequenceId ?? profile.Sequences.FirstOrDefault()?.Id;
             ManualSequenceComboBox.SelectedItem = _behaviorSequences.FirstOrDefault(item =>
                 string.Equals(item.Id, selectedId, StringComparison.Ordinal));
+            RandomSequencesList.SelectedItems.Clear();
+            foreach (BehaviorSequenceItem item in _behaviorSequences.Where(item =>
+                profile.RandomSequences.Contains(item.Id, StringComparer.Ordinal)))
+            {
+                RandomSequencesList.SelectedItems.Add(item);
+            }
             BehaviorModeComboBox.IsEnabled = canEdit;
             ManualSequenceComboBox.IsEnabled =
                 canEdit && profile.Mode == BehaviorMode.Manual && _behaviorSequences.Count > 0;
-            BehaviorDescriptionText.Text = profile.Mode == BehaviorMode.Manual
-                ? "수동 모드는 전면 앱과 입력 없음 상태를 무시하고 선택한 루틴을 반복합니다."
-                : "자동 모드는 Windows 전면 앱·입력 없음 규칙을 우선순위 순으로 평가하고 일치하지 않으면 기본 루틴을 재생합니다.";
+            ManualSequenceComboBox.Visibility = profile.Mode == BehaviorMode.Manual
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+            RandomSequencesList.IsEnabled = canEdit && profile.Mode == BehaviorMode.Random;
+            RandomSequencesList.Visibility = profile.Mode == BehaviorMode.Random
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+            BehaviorDescriptionText.Text = profile.Mode switch
+            {
+                BehaviorMode.Manual => "선택한 행동을 반복해서 재생합니다.",
+                BehaviorMode.Random when profile.RandomSequences.Count == 0 =>
+                    "행동을 하나 이상 선택해 주세요. 선택 전에는 기본 행동을 표시합니다.",
+                BehaviorMode.Random =>
+                    "선택한 행동을 모두 한 번씩 섞어 재생한 뒤 새 순서로 반복합니다. 같은 행동은 연속해서 나오지 않습니다.",
+                _ => "이동 상태, 현재 사용 중인 앱과 입력 없음 상태에 따라 표시할 행동을 자동으로 선택합니다.",
+            };
+            AutomaticRulesCard.Visibility =
+                _currentSettingsSection == "automaticRules" &&
+                profile.Mode == BehaviorMode.Automatic
+                    ? Visibility.Visible
+                    : Visibility.Collapsed;
             RefreshMotionOptions(app);
             RefreshMovementControls(app, profile, canEdit);
             RefreshRoutineEditor(profile, canEdit);
@@ -2197,7 +2492,6 @@ public sealed partial class MainPage : Page
             _isRefreshingBehaviorEditor = false;
         }
 
-        RefreshBehaviorRuntimeStatus();
     }
 
     private void RefreshMotionOptions(App app)
@@ -2219,9 +2513,11 @@ public sealed partial class MainPage : Page
         {
             _movementMotionOptions.Clear();
             _movementMotionOptions.Add(new MotionOptionItem(string.Empty, "사용 안 함"));
-            foreach (string motionId in app.ActiveMotionIds)
+            foreach (BehaviorSequence behavior in profile.Sequences)
             {
-                _movementMotionOptions.Add(new MotionOptionItem(motionId, motionId));
+                _movementMotionOptions.Add(new MotionOptionItem(
+                    behavior.Id,
+                    behavior.DisplayName));
             }
 
             _movementScreens.Clear();
@@ -2246,16 +2542,33 @@ public sealed partial class MainPage : Page
             CursorFollowingMovementModeRadio.IsChecked = MovementModeComboBox.SelectedIndex == 1;
             FreeRoamingMovementModeRadio.IsChecked = MovementModeComboBox.SelectedIndex == 2;
             CursorAvoidingMovementModeRadio.IsChecked = MovementModeComboBox.SelectedIndex == 3;
-            MovementSpeedNumberBox.Value = movement.Speed;
-            MovementStopRadiusNumberBox.Value = movement.StopRadius;
-            CursorDistanceNumberBox.Value = movement.CursorDistance;
+            CursorFollowingMovementSettings following = movement.CursorFollowing;
+            FreeRoamingMovementSettings roaming = movement.Mode == PetMovementMode.CursorAvoiding
+                ? movement.CursorAvoiding.IdleFreeRoaming
+                : movement.FreeRoaming;
+            MovementSpeedNumberBox.Value = movement.Mode switch
+            {
+                PetMovementMode.CursorFollowing => following.Speed,
+                PetMovementMode.CursorAvoiding => roaming.Speed,
+                _ => movement.FreeRoaming.Speed,
+            };
+            MovementStopRadiusNumberBox.Value = movement.Mode switch
+            {
+                PetMovementMode.CursorFollowing => following.StopRadius,
+                PetMovementMode.CursorAvoiding => movement.CursorAvoiding.StopRadius,
+                _ => movement.FreeRoaming.StopRadius,
+            };
+            CursorDistanceNumberBox.Value = following.CursorDistance;
             FreeRoamingDwellNumberBox.Value =
-                movement.FreeRoamingDwellMilliseconds / 1000d;
-            PrefersFrontmostWindowToggle.IsOn = movement.PrefersFrontmostWindow;
-            AvoidingDetectionNumberBox.Value = movement.CursorAvoidingDetectionDistance;
-            AvoidingSpeedNumberBox.Value = movement.CursorAvoidingSpeed;
+                roaming.DwellMilliseconds / 1000d;
+            RandomizesDwellToggle.IsOn = roaming.RandomizesDwell;
+            FreeRoamingDwellMinimumNumberBox.Value =
+                roaming.DwellMinimumMilliseconds / 1000d;
+            PrefersFrontmostWindowToggle.IsOn = roaming.PrefersFrontmostWindow;
+            AvoidingDetectionNumberBox.Value = movement.CursorAvoiding.DetectionDistance;
+            AvoidingSpeedNumberBox.Value = movement.CursorAvoiding.Speed;
             AvoidingIdleBehaviorComboBox.SelectedIndex =
-                movement.CursorAvoidingIdleBehavior == CursorAvoidingIdleBehavior.FreeRoaming
+                movement.CursorAvoiding.IdleBehavior == CursorAvoidingIdleBehavior.FreeRoaming
                     ? 1
                     : 0;
 
@@ -2287,22 +2600,22 @@ public sealed partial class MainPage : Page
 
             CursorFollowingAnimationEditor.SetState(
                 "이동 애니메이션",
-                movement.CursorFollowingAnimation,
-                app.ActiveMotionIds,
+                following.Behavior,
+                profile.Sequences,
                 canEdit);
             FreeRoamingAnimationEditor.SetState(
                 movement.Mode == PetMovementMode.CursorAvoiding
                     ? "평상시 자유 이동 애니메이션"
                     : "이동 애니메이션",
-                movement.FreeRoamingAnimation,
-                app.ActiveMotionIds,
+                roaming.Behavior,
+                profile.Sequences,
                 canEdit);
             CursorAvoidingAnimationEditor.SetState(
                 "도망가기 애니메이션",
-                movement.CursorAvoidingAnimation,
-                app.ActiveMotionIds,
+                movement.CursorAvoiding.Behavior,
+                profile.Sequences,
                 canEdit);
-            SelectMotion(PettingMotionComboBox, profile.PettingMotionId);
+            SelectMotion(PettingMotionComboBox, profile.PettingBehaviorId);
 
             MovementModeComboBox.IsEnabled = canEdit;
             FixedMovementModeRadio.IsEnabled = canEdit;
@@ -2313,6 +2626,8 @@ public sealed partial class MainPage : Page
             MovementStopRadiusNumberBox.IsEnabled = canEdit;
             CursorDistanceNumberBox.IsEnabled = canEdit;
             FreeRoamingDwellNumberBox.IsEnabled = canEdit;
+            RandomizesDwellToggle.IsEnabled = canEdit;
+            FreeRoamingDwellMinimumNumberBox.IsEnabled = canEdit;
             PrefersFrontmostWindowToggle.IsEnabled = canEdit;
             AvoidingDetectionNumberBox.IsEnabled = canEdit;
             AvoidingSpeedNumberBox.IsEnabled = canEdit;
@@ -2332,7 +2647,6 @@ public sealed partial class MainPage : Page
         {
             _isRefreshingMovementControls = false;
         }
-        RefreshMovementRuntimeStatus();
     }
 
     private void RefreshMovementControlVisibility(bool canEdit)
@@ -2361,6 +2675,8 @@ public sealed partial class MainPage : Page
             ? Visibility.Visible
             : Visibility.Collapsed;
         FreeRoamingSectionTitle.Text = avoidingRoams ? "평상시 자유 이동" : "자유 이동";
+        FreeRoamingDwellMinimumNumberBox.Visibility =
+            RandomizesDwellToggle.IsOn ? Visibility.Visible : Visibility.Collapsed;
         CursorAvoidingOptionsPanel.Visibility = isAvoiding ? Visibility.Visible : Visibility.Collapsed;
 
         bool clickThrough = Application.Current is App app && app.CurrentSettings.Overlay.ClickThrough;
@@ -2401,8 +2717,11 @@ public sealed partial class MainPage : Page
                     index,
                     index + 1,
                     step.MotionId,
+                    _motionOptions.FirstOrDefault(option => string.Equals(
+                        option.Id,
+                        step.MotionId,
+                        StringComparison.Ordinal))?.DisplayName ?? step.MotionId,
                     step.RepeatCount,
-                    _motionOptions,
                     index > 0,
                     index < sequence.Steps.Count - 1,
                     sequence.Steps.Count > 1));
@@ -2415,8 +2734,8 @@ public sealed partial class MainPage : Page
         }
 
         RoutineEditorComboBox.IsEnabled = canEdit && profile.Sequences.Count > 0;
-        NewSequenceNameTextBox.IsEnabled = canEdit;
         AddSequenceButton.IsEnabled = canEdit;
+        RenameSequenceButton.IsEnabled = canEdit && sequence is not null;
         DeleteSequenceButton.IsEnabled = canEdit && sequence is not null && !string.Equals(
             sequence.Id,
             BehaviorMotionReferences.DefaultSequence,
@@ -2428,13 +2747,36 @@ public sealed partial class MainPage : Page
 
     private void RefreshRulesEditor(BehaviorProfile profile, bool canEdit)
     {
+        _rulePriorityKinds.Clear();
+        foreach ((AutomaticRuleKind kind, int index) in profile.RulePriorityOrder
+                     .Select((kind, index) => (kind, index)))
+        {
+            _rulePriorityKinds.Add(new RulePriorityKindItem(
+                kind,
+                kind switch
+                {
+                    AutomaticRuleKind.Movement => "표시 및 이동",
+                    AutomaticRuleKind.Idle => "입력 없음 규칙",
+                    _ => "앱 사용 규칙",
+                },
+                kind switch
+                {
+                    AutomaticRuleKind.Movement => "펫이 움직이는 동안 설정한 이동 행동",
+                    AutomaticRuleKind.Idle => "설정한 시간 동안 입력이 없을 때의 행동",
+                    _ => "현재 사용 중인 앱에 등록된 행동",
+                },
+                $"{index + 1}순위"));
+        }
         _automaticRules.Clear();
-        foreach (AutomaticRule rule in profile.AutomaticRules)
+        foreach (AutomaticRule rule in profile.AutomaticRules.Where(rule =>
+            rule.Condition is not RuleCondition.IdleAtLeast))
         {
             _automaticRules.Add(new AutomaticRuleEditorItem(
                 rule.Id,
                 RuleSummary(rule),
-                $"{(rule.IsEnabled ? "사용" : "중지")} · 우선순위 {rule.Priority} · {rule.SequenceId}"));
+                $"{(rule.IsEnabled ? "사용" : "중지")} · " +
+                (profile.Sequences.FirstOrDefault(sequence =>
+                    sequence.Id == rule.SequenceId)?.DisplayName ?? "찾을 수 없는 행동")));
         }
 
         AutomaticRuleEditorItem? selected = _automaticRules.FirstOrDefault(item =>
@@ -2446,12 +2788,14 @@ public sealed partial class MainPage : Page
             : profile.AutomaticRules.First(rule => rule.Id == selected.Id));
         AutomaticRulesList.IsEnabled = canEdit;
         NewApplicationRuleButton.IsEnabled = canEdit;
-        NewIdleRuleButton.IsEnabled = canEdit;
+        NewIdleRuleButton.IsEnabled = canEdit && !profile.AutomaticRules.Any(rule =>
+            rule.Condition is RuleCondition.IdleAtLeast);
         AddRuleButton.IsEnabled = canEdit;
         SaveRuleButton.IsEnabled = canEdit && selected is not null;
         DeleteRuleButton.IsEnabled = canEdit && selected is not null;
         RuleEnabledToggle.IsEnabled = canEdit;
         RulePriorityNumberBox.IsEnabled = canEdit;
+        RulePriorityOrderList.IsEnabled = canEdit;
         RuleConditionTypeComboBox.IsEnabled = canEdit;
         RuleApplicationIdTextBox.IsEnabled = canEdit;
         ChooseApplicationButton.IsEnabled = canEdit;
@@ -2459,6 +2803,18 @@ public sealed partial class MainPage : Page
         UseCurrentApplicationButton.IsEnabled = canEdit;
         RuleIdleMinutesNumberBox.IsEnabled = canEdit;
         RuleTargetSequenceComboBox.IsEnabled = canEdit && profile.Sequences.Count > 0;
+        AutomaticRule? idleRule = profile.AutomaticRules.FirstOrDefault(rule =>
+            rule.Condition is RuleCondition.IdleAtLeast);
+        IdleRuleEnabledToggle.IsOn = idleRule?.IsEnabled ?? false;
+        IdleRuleSecondsNumberBox.Value = idleRule?.Condition is RuleCondition.IdleAtLeast idle
+            ? idle.Milliseconds / 1_000d
+            : 60;
+        IdleRuleTargetSequenceComboBox.SelectedValue = idleRule?.SequenceId ??
+            profile.Sequences.FirstOrDefault()?.Id;
+        IdleRuleEnabledToggle.IsEnabled = canEdit;
+        IdleRuleSecondsNumberBox.IsEnabled = canEdit;
+        IdleRuleTargetSequenceComboBox.IsEnabled = canEdit && profile.Sequences.Count > 0;
+        SaveIdleRuleSettingsButton.IsEnabled = canEdit && profile.Sequences.Count > 0;
     }
 
     private void RefreshSpeechControls(App app, BehaviorProfile profile, bool canEdit)
@@ -2475,7 +2831,7 @@ public sealed partial class MainPage : Page
                 var item = new SpeechPhraseEditorItem(
                     phrase.Id,
                     phrase.Text,
-                    SpeechPhraseDetail(phrase));
+                    SpeechPhraseDetail(phrase, profile));
                 if (phrase.Trigger is PetSpeechTrigger.Sequence)
                 {
                     _behaviorSpeechPhrases.Add(item);
@@ -2579,7 +2935,6 @@ public sealed partial class MainPage : Page
         {
             _isRefreshingSpeechControls = false;
         }
-        RefreshSpeechRuntimeStatus();
     }
 
     private void RefreshSpeechPhraseForm(
@@ -3161,25 +3516,21 @@ public sealed partial class MainPage : Page
         (byte)Math.Round(color.Green * 255),
         (byte)Math.Round(color.Blue * 255));
 
-    private static string SpeechPhraseDetail(PetSpeechPhrase phrase)
+    private static string SpeechPhraseDetail(PetSpeechPhrase phrase, BehaviorProfile profile)
     {
         string trigger = phrase.Trigger switch
         {
-            PetSpeechTrigger.Sequence sequence => $"행동 · {sequence.SequenceId}",
+            PetSpeechTrigger.Sequence sequence =>
+                $"행동 · {profile.Sequences.FirstOrDefault(candidate => string.Equals(
+                    candidate.Id,
+                    sequence.SequenceId,
+                    StringComparison.Ordinal))?.DisplayName ?? "찾을 수 없는 행동"}",
             _ => "주기",
         };
         string display = phrase.DisplayMode == PetSpeechDisplayMode.UntilNextPhrase
             ? "다음 대사까지 유지"
             : $"{phrase.DisplayDurationMilliseconds / 1_000d:0.#}초 표시";
         return $"{trigger} · {display}";
-    }
-
-    private void RefreshSpeechRuntimeStatus()
-    {
-        if (Application.Current is App app && SpeechRuntimeStatusText is not null)
-        {
-            SpeechRuntimeStatusText.Text = $"실행 상태: {app.SpeechStatus}";
-        }
     }
 
     private void ShowSpeechError(string title, Exception exception)
@@ -3206,8 +3557,8 @@ public sealed partial class MainPage : Page
         }
         RuleApplicationIdTextBox.Text = applicationId;
         RuleIdleMinutesNumberBox.Value = rule?.Condition is RuleCondition.IdleAtLeast idle
-            ? idle.Milliseconds / 60_000d
-            : 1;
+            ? idle.Milliseconds / 1_000d
+            : 60;
         string? targetId = rule?.SequenceId ?? profile.Sequences.FirstOrDefault()?.Id;
         RuleTargetSequenceComboBox.SelectedItem = _behaviorSequences.FirstOrDefault(item =>
             string.Equals(item.Id, targetId, StringComparison.Ordinal));
@@ -3237,16 +3588,83 @@ public sealed partial class MainPage : Page
         }
     }
 
-    private void AddSequenceButton_Click(object sender, RoutedEventArgs e)
+    private async void AddSequenceButton_Click(object sender, RoutedEventArgs e)
     {
-        string requestedId = NewSequenceNameTextBox.Text;
+        string? requestedName = await ShowRoutineNameDialogAsync(
+            "새 행동 루틴 만들기",
+            "새 루틴 이름",
+            string.Empty,
+            "만들기");
+        if (requestedName is null)
+        {
+            return;
+        }
+
         ApplyBehaviorProfileEdit(
-            profile => BehaviorProfileEditor.AddSequence(profile, requestedId),
+            profile => BehaviorProfileEditor.AddSequence(profile, requestedName),
             onSuccess: profile =>
             {
-                _selectedRoutineId = requestedId.Trim();
-                NewSequenceNameTextBox.Text = string.Empty;
+                _selectedRoutineId = profile.Sequences.Last().Id;
             });
+    }
+
+    private async void RenameSequenceButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedRoutineId is not { } sequenceId ||
+            Application.Current is not App app ||
+            app.ActiveBehaviorProfile.Sequences.FirstOrDefault(sequence =>
+                string.Equals(sequence.Id, sequenceId, StringComparison.Ordinal)) is not { } sequence)
+        {
+            return;
+        }
+
+        string? requestedName = await ShowRoutineNameDialogAsync(
+            "행동 루틴 이름 변경",
+            "행동 루틴 이름",
+            sequence.DisplayName,
+            "변경");
+        if (requestedName is null)
+        {
+            return;
+        }
+
+        ApplyBehaviorProfileEdit(
+            profile => BehaviorProfileEditor.RenameSequence(
+                profile,
+                sequenceId,
+                requestedName));
+    }
+
+    private async Task<string?> ShowRoutineNameDialogAsync(
+        string title,
+        string inputHeader,
+        string initialValue,
+        string primaryButtonText)
+    {
+        var nameTextBox = new TextBox
+        {
+            Header = inputHeader,
+            MaxLength = 80,
+            PlaceholderText = "예: 집중하기",
+            Text = initialValue,
+        };
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = title,
+            Content = nameTextBox,
+            PrimaryButtonText = primaryButtonText,
+            CloseButtonText = "취소",
+            DefaultButton = ContentDialogButton.Primary,
+        };
+        dialog.Opened += (_, _) =>
+        {
+            nameTextBox.Focus(FocusState.Programmatic);
+            nameTextBox.SelectAll();
+        };
+        return await dialog.ShowAsync() == ContentDialogResult.Primary
+            ? nameTextBox.Text
+            : null;
     }
 
     private void DeleteSequenceButton_Click(object sender, RoutedEventArgs e)
@@ -3286,24 +3704,52 @@ public sealed partial class MainPage : Page
         ApplyBehaviorProfileEdit(profile => BehaviorProfileEditor.AddStep(profile, sequenceId));
     }
 
-    private void StepMotionComboBox_SelectionChanged(
-        object sender,
-        SelectionChangedEventArgs e)
+    private async void ChooseStepMotionButton_Click(object sender, RoutedEventArgs e)
     {
         if (!_isLoaded || _isRefreshingBehaviorEditor ||
             _selectedRoutineId is not { } sequenceId ||
-            sender is not ComboBox { Tag: int index, SelectedItem: MotionOptionItem motion })
+            sender is not Button { Tag: int index } ||
+            Application.Current is not App app)
         {
             return;
         }
+
+        BehaviorStep current = RequiredStep(app.ActiveBehaviorProfile, sequenceId, index);
+        var picker = new ListView
+        {
+            DisplayMemberPath = nameof(MotionOptionItem.DisplayName),
+            ItemsSource = _motionOptions,
+            MaxHeight = 360,
+            MinWidth = 320,
+            SelectionMode = ListViewSelectionMode.Single,
+            SelectedItem = _motionOptions.FirstOrDefault(option => string.Equals(
+                option.Id,
+                current.MotionId,
+                StringComparison.Ordinal)),
+        };
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = $"{index + 1}단계 애니메이션",
+            Content = picker,
+            PrimaryButtonText = "선택",
+            CloseButtonText = "취소",
+            DefaultButton = ContentDialogButton.Primary,
+        };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary ||
+            picker.SelectedItem is not MotionOptionItem motion)
+        {
+            return;
+        }
+
         ApplyBehaviorProfileEdit(profile =>
         {
-            BehaviorStep current = RequiredStep(profile, sequenceId, index);
+            BehaviorStep latest = RequiredStep(profile, sequenceId, index);
             return BehaviorProfileEditor.ReplaceStep(
                 profile,
                 sequenceId,
                 index,
-                current with { MotionId = motion.Id });
+                latest with { MotionId = motion.Id });
         });
     }
 
@@ -3397,8 +3843,106 @@ public sealed partial class MainPage : Page
     private void NewApplicationRuleButton_Click(object sender, RoutedEventArgs e) =>
         PrepareNewRule(conditionIndex: 0);
 
+    private void MoveRulePriorityUpButton_Click(object sender, RoutedEventArgs e) =>
+        MoveRulePriority(-1);
+
+    private void MoveRulePriorityDownButton_Click(object sender, RoutedEventArgs e) =>
+        MoveRulePriority(1);
+
+    private void MoveRulePriority(int delta)
+    {
+        int source = RulePriorityOrderList.SelectedIndex;
+        int destination = source + delta;
+        if (source < 0 || destination < 0 || destination >= _rulePriorityKinds.Count)
+        {
+            return;
+        }
+        RulePriorityKindItem item = _rulePriorityKinds[source];
+        _rulePriorityKinds.Move(source, destination);
+        RulePriorityOrderList.SelectedItem = item;
+        ApplyBehaviorProfileEdit(profile => profile with
+        {
+            AutomaticRulePriorityOrder = _rulePriorityKinds
+                .Select(value => value.Kind)
+                .ToArray(),
+        });
+    }
+
     private void NewIdleRuleButton_Click(object sender, RoutedEventArgs e) =>
         PrepareNewRule(conditionIndex: 1);
+
+    private void IdleRuleEnabledToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (!_isLoaded || _isRefreshingBehaviorEditor)
+        {
+            return;
+        }
+        SaveIdleRuleSettings();
+    }
+
+    private void SaveIdleRuleSettingsButton_Click(object sender, RoutedEventArgs e)
+    {
+        SaveIdleRuleSettings();
+    }
+
+    private void SaveIdleRuleSettings()
+    {
+        if (Application.Current is not App app)
+        {
+            return;
+        }
+        try
+        {
+            BehaviorProfile profile = app.ActiveBehaviorProfile;
+            AutomaticRule? existing = profile.AutomaticRules.FirstOrDefault(rule =>
+                rule.Condition is RuleCondition.IdleAtLeast);
+            if (IdleRuleTargetSequenceComboBox.SelectedValue is not string sequenceId)
+            {
+                throw new InvalidOperationException("입력 없음 때 실행할 행동을 선택해 주세요.");
+            }
+            double rawSeconds = IdleRuleSecondsNumberBox.Value;
+            if (!double.IsFinite(rawSeconds) || rawSeconds != Math.Truncate(rawSeconds) ||
+                rawSeconds is < 1 or > 86_400)
+            {
+                throw new InvalidOperationException("입력 없음 시간은 1초에서 86,400초 사이의 정수여야 합니다.");
+            }
+            int seconds = (int)rawSeconds;
+            BehaviorProfile updated;
+            if (existing is null)
+            {
+                if (!IdleRuleEnabledToggle.IsOn)
+                {
+                    BehaviorSettingsInfoBar.IsOpen = false;
+                    return;
+                }
+                updated = BehaviorProfileEditor.AddIdleRule(profile, seconds, sequenceId);
+            }
+            else
+            {
+                updated = BehaviorProfileEditor.ReplaceRule(profile, existing with
+                {
+                    IsEnabled = IdleRuleEnabledToggle.IsOn,
+                    Condition = new RuleCondition.IdleAtLeast(checked((long)seconds * 1_000)),
+                    SequenceId = sequenceId,
+                });
+            }
+            _isPersistingBehaviorControls = true;
+            try
+            {
+                app.SaveBehaviorProfile(updated);
+            }
+            finally
+            {
+                _isPersistingBehaviorControls = false;
+            }
+            BehaviorSettingsInfoBar.IsOpen = false;
+            RefreshBehaviorState();
+        }
+        catch (Exception exception)
+        {
+            ShowBehaviorError(exception);
+        }
+    }
 
     private void PrepareNewRule(int conditionIndex)
     {
@@ -3688,7 +4232,7 @@ public sealed partial class MainPage : Page
                 BehaviorProfile added = RuleConditionTypeComboBox.SelectedIndex == 1
                     ? BehaviorProfileEditor.AddIdleRule(
                         profile,
-                        RequiredIdleMinutes(),
+                        RequiredIdleSeconds(),
                         targetId,
                         ruleId)
                     : BehaviorProfileEditor.AddApplicationRule(
@@ -3718,7 +4262,7 @@ public sealed partial class MainPage : Page
         {
             AutomaticRule current = profile.AutomaticRules.First(rule => rule.Id == ruleId);
             RuleCondition condition = RuleConditionTypeComboBox.SelectedIndex == 1
-                ? new RuleCondition.IdleAtLeast(checked((long)RequiredIdleMinutes() * 60_000))
+                ? new RuleCondition.IdleAtLeast(checked((long)RequiredIdleSeconds() * 1_000))
                 : new RuleCondition.Application(RequiredWindowsApplicationId());
             return BehaviorProfileEditor.ReplaceRule(
                 profile,
@@ -3754,7 +4298,15 @@ public sealed partial class MainPage : Page
         try
         {
             BehaviorProfile updated = edit(app.ActiveBehaviorProfile);
-            app.SaveBehaviorProfile(updated);
+            _isPersistingBehaviorControls = true;
+            try
+            {
+                app.SaveBehaviorProfile(updated);
+            }
+            finally
+            {
+                _isPersistingBehaviorControls = false;
+            }
             onSuccess?.Invoke(updated);
             BehaviorSettingsInfoBar.IsOpen = false;
         }
@@ -3770,7 +4322,6 @@ public sealed partial class MainPage : Page
             }
 
             RefreshBehaviorState();
-            RefreshLibraryState();
         });
     }
 
@@ -3813,12 +4364,12 @@ public sealed partial class MainPage : Page
         return value;
     }
 
-    private int RequiredIdleMinutes()
+    private int RequiredIdleSeconds()
     {
         double value = RuleIdleMinutesNumberBox.Value;
-        if (!double.IsFinite(value) || Math.Truncate(value) != value || value is < 1 or > 1_440)
+        if (!double.IsFinite(value) || Math.Truncate(value) != value || value is < 1 or > 86_400)
         {
-            throw new InvalidOperationException("입력 없음 시간은 1분에서 1,440분 사이의 정수여야 합니다.");
+            throw new InvalidOperationException("입력 없음 시간은 1초에서 86,400초 사이의 정수여야 합니다.");
         }
         return checked((int)value);
     }
@@ -3847,7 +4398,7 @@ public sealed partial class MainPage : Page
     private static string RuleSummary(AutomaticRule rule) => rule.Condition switch
     {
         RuleCondition.Application application => $"전면 앱 · {application.ApplicationId}",
-        RuleCondition.IdleAtLeast idle => $"입력 없음 · {idle.Milliseconds / 60_000d:0.##}분",
+        RuleCondition.IdleAtLeast idle => $"입력 없음 · {idle.Milliseconds / 1_000d:0.###}초",
         RuleCondition.Unsupported unsupported => $"지원하지 않는 조건 · {unsupported.Type}",
         _ => "알 수 없는 조건",
     };
@@ -3859,14 +4410,29 @@ public sealed partial class MainPage : Page
             return;
         }
 
-        BehaviorMode mode = BehaviorModeComboBox.SelectedIndex == 1
-            ? BehaviorMode.Manual
-            : BehaviorMode.Automatic;
+        BehaviorMode mode = BehaviorModeComboBox.SelectedIndex switch
+        {
+            1 => BehaviorMode.Manual,
+            2 => BehaviorMode.Random,
+            _ => BehaviorMode.Automatic,
+        };
         string? sequenceId =
             (ManualSequenceComboBox.SelectedItem as BehaviorSequenceItem)?.Id;
         try
         {
-            app.SaveBehaviorSelection(mode, sequenceId);
+            string[] randomIds = RandomSequencesList.SelectedItems
+                .OfType<BehaviorSequenceItem>()
+                .Select(item => item.Id)
+                .ToArray();
+            _isPersistingBehaviorControls = true;
+            try
+            {
+                app.SaveBehaviorSelection(mode, sequenceId, randomIds);
+            }
+            finally
+            {
+                _isPersistingBehaviorControls = false;
+            }
             BehaviorSettingsInfoBar.IsOpen = false;
         }
         catch (Exception exception)
@@ -3878,18 +4444,6 @@ public sealed partial class MainPage : Page
         }
 
         RefreshBehaviorState();
-        RefreshLibraryState();
-    }
-
-    private void RefreshBehaviorRuntimeStatus()
-    {
-        if (Application.Current is not App app || BehaviorStatusText is null)
-        {
-            return;
-        }
-
-        BehaviorStatusText.Text = $"실행 상태: {app.BehaviorStatus}";
-        ActivityStatusText.Text = $"Windows 활동: {app.ActivityStatus}";
     }
 
     private void PersistMovementSettingsFromControls()
@@ -3899,41 +4453,92 @@ public sealed partial class MainPage : Page
             return;
         }
 
+        _isPersistingMovementControls = true;
         try
         {
             BehaviorProfile profile = app.ActiveBehaviorProfile;
             PetMovementSettings current = profile.Movement;
-            var movement = current with
+            PetMovementMode selectedMode = MovementModeComboBox.SelectedIndex switch
             {
-                Mode = MovementModeComboBox.SelectedIndex switch
-                {
-                    1 => PetMovementMode.CursorFollowing,
-                    2 => PetMovementMode.FreeRoaming,
-                    3 => PetMovementMode.CursorAvoiding,
-                    _ => PetMovementMode.Fixed,
-                },
-                Speed = RequiredFiniteValue(MovementSpeedNumberBox, 20, 1_000, "이동 속도"),
-                StopRadius = RequiredFiniteValue(MovementStopRadiusNumberBox, 0, 128, "정지 반경"),
-                CursorDistance = RequiredFiniteValue(CursorDistanceNumberBox, 0, 512, "마우스 거리"),
-                FreeRoamingDwellMilliseconds = checked((long)Math.Round(
-                    RequiredFiniteValue(FreeRoamingDwellNumberBox, 0.5, 300, "머무름 시간") * 1_000)),
+                1 => PetMovementMode.CursorFollowing,
+                2 => PetMovementMode.FreeRoaming,
+                3 => PetMovementMode.CursorAvoiding,
+                _ => PetMovementMode.Fixed,
+            };
+            double sharedSpeed = RequiredFiniteValue(
+                MovementSpeedNumberBox, 20, 1_000, "이동 속도");
+            double sharedStopRadius = RequiredFiniteValue(
+                MovementStopRadiusNumberBox, 0, 128, "정지 반경");
+            long dwellMilliseconds = checked((long)Math.Round(
+                RequiredFiniteValue(
+                    FreeRoamingDwellNumberBox, 0.5, 300, "머무름 시간") * 1_000));
+            long minimumDwellMilliseconds = checked((long)Math.Round(
+                RequiredFiniteValue(
+                    FreeRoamingDwellMinimumNumberBox, 0.5, 300, "최소 머무름 시간") * 1_000));
+            if (minimumDwellMilliseconds > dwellMilliseconds)
+            {
+                throw new InvalidOperationException(
+                    "최소 머무는 시간은 최대 머무는 시간보다 길 수 없습니다.");
+            }
+            CursorFollowingMovementSettings following = current.CursorFollowing with
+            {
+                Speed = selectedMode == PetMovementMode.CursorFollowing
+                    ? sharedSpeed
+                    : current.CursorFollowing.Speed,
+                StopRadius = selectedMode == PetMovementMode.CursorFollowing
+                    ? sharedStopRadius
+                    : current.CursorFollowing.StopRadius,
+                CursorDistance = RequiredFiniteValue(
+                    CursorDistanceNumberBox, 0, 512, "마우스 거리"),
+                Behavior = CursorFollowingAnimationEditor.Settings,
+            };
+            FreeRoamingMovementSettings roaming = current.FreeRoaming with
+            {
+                Speed = selectedMode == PetMovementMode.FreeRoaming
+                    ? sharedSpeed
+                    : current.FreeRoaming.Speed,
+                StopRadius = selectedMode == PetMovementMode.FreeRoaming
+                    ? sharedStopRadius
+                    : current.FreeRoaming.StopRadius,
+                DwellMilliseconds = dwellMilliseconds,
+                RandomizesDwell = RandomizesDwellToggle.IsOn,
+                DwellMinimumMilliseconds = minimumDwellMilliseconds,
                 PrefersFrontmostWindow = PrefersFrontmostWindowToggle.IsOn,
-                CursorAvoidingDetectionDistance = RequiredFiniteValue(
-                    AvoidingDetectionNumberBox,
-                    32,
-                    1_024,
-                    "도망 감지 거리"),
-                CursorAvoidingSpeed = RequiredFiniteValue(
-                    AvoidingSpeedNumberBox,
-                    20,
-                    1_000,
-                    "도망 속도"),
-                CursorAvoidingIdleBehavior = AvoidingIdleBehaviorComboBox.SelectedIndex == 1
+                Behavior = FreeRoamingAnimationEditor.Settings,
+            };
+            FreeRoamingMovementSettings avoidingIdleRoaming =
+                current.CursorAvoiding.IdleFreeRoaming with
+                {
+                    Speed = selectedMode == PetMovementMode.CursorAvoiding
+                        ? sharedSpeed
+                        : current.CursorAvoiding.IdleFreeRoaming.Speed,
+                    DwellMilliseconds = dwellMilliseconds,
+                    RandomizesDwell = RandomizesDwellToggle.IsOn,
+                    DwellMinimumMilliseconds = minimumDwellMilliseconds,
+                    PrefersFrontmostWindow = PrefersFrontmostWindowToggle.IsOn,
+                    Behavior = FreeRoamingAnimationEditor.Settings,
+                };
+            CursorAvoidingMovementSettings avoiding = current.CursorAvoiding with
+            {
+                IdleBehavior = AvoidingIdleBehaviorComboBox.SelectedIndex == 1
                     ? CursorAvoidingIdleBehavior.FreeRoaming
                     : CursorAvoidingIdleBehavior.Stationary,
-                CursorFollowingAnimation = CursorFollowingAnimationEditor.Settings,
-                FreeRoamingAnimation = FreeRoamingAnimationEditor.Settings,
-                CursorAvoidingAnimation = CursorAvoidingAnimationEditor.Settings,
+                DetectionDistance = RequiredFiniteValue(
+                    AvoidingDetectionNumberBox, 32, 1_024, "도망 감지 거리"),
+                Speed = RequiredFiniteValue(
+                    AvoidingSpeedNumberBox, 20, 1_000, "도망 속도"),
+                StopRadius = selectedMode == PetMovementMode.CursorAvoiding
+                    ? sharedStopRadius
+                    : current.CursorAvoiding.StopRadius,
+                Behavior = CursorAvoidingAnimationEditor.Settings,
+                IdleFreeRoaming = avoidingIdleRoaming,
+            };
+            var movement = current with
+            {
+                Mode = selectedMode,
+                CursorFollowingSettings = following,
+                FreeRoamingSettings = roaming,
+                CursorAvoidingSettings = avoiding,
             };
 
             MovementBoundaryMode boundaryMode = MovementBoundaryModeComboBox.SelectedIndex switch
@@ -3957,7 +4562,8 @@ public sealed partial class MainPage : Page
             app.SaveBehaviorProfile(profile with
             {
                 Movement = movement,
-                PettingMotionId = SelectedMotionId(PettingMotionComboBox),
+                PettingMotionId = null,
+                PettingBehaviorId = SelectedMotionId(PettingMotionComboBox),
             });
             if (boundary != app.CurrentSettings.Overlay.MovementBoundary)
             {
@@ -3971,6 +4577,10 @@ public sealed partial class MainPage : Page
         catch (Exception exception)
         {
             ShowMovementError(exception);
+        }
+        finally
+        {
+            _isPersistingMovementControls = false;
         }
     }
 
@@ -3987,14 +4597,6 @@ public sealed partial class MainPage : Page
             throw new InvalidOperationException("사용자 지정 이동 영역이 모니터 범위를 벗어납니다. 여백과 크기를 조정해 주세요.");
         }
         return value;
-    }
-
-    private void RefreshMovementRuntimeStatus()
-    {
-        if (Application.Current is App app && MovementStatusText is not null)
-        {
-            MovementStatusText.Text = $"실행 상태: {app.MovementStatus}";
-        }
     }
 
     private void ShowMovementError(Exception exception)
@@ -4025,12 +4627,48 @@ public sealed partial class MainPage : Page
             ? id
             : null;
 
+    private void ScheduleMovementSave()
+    {
+        if (_movementSaveTimer is null)
+        {
+            return;
+        }
+        _movementSaveTimer.Stop();
+        _movementSaveTimer.Start();
+    }
+
+    private void FlushMovementSave()
+    {
+        if (_movementSaveTimer?.IsRunning != true)
+        {
+            return;
+        }
+        _movementSaveTimer.Stop();
+        PersistMovementSettingsFromControls();
+    }
+
     private DispatcherQueueTimer CreateDisplaySaveTimer()
     {
         DispatcherQueueTimer timer = DispatcherQueue.CreateTimer();
         timer.Interval = TimeSpan.FromMilliseconds(350);
         timer.IsRepeating = false;
         timer.Tick += (_, _) => PersistCurrentDisplayPreview();
+        return timer;
+    }
+
+    private DispatcherQueueTimer CreateMovementSaveTimer()
+    {
+        DispatcherQueueTimer timer = DispatcherQueue.CreateTimer();
+        timer.Interval = TimeSpan.FromMilliseconds(350);
+        timer.IsRepeating = false;
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            if (_isLoaded && !_isRefreshingMovementControls)
+            {
+                PersistMovementSettingsFromControls();
+            }
+        };
         return timer;
     }
 
@@ -4126,37 +4764,16 @@ public sealed partial class MainPage : Page
             return;
         }
 
-        OverlayWidthValueText.Text = $"{OverlayWidthSlider.Value:0} px";
+        OverlayWidthValueText.Text =
+            $"{OverlayWidthSlider.Value / AppSettingsLimits.DefaultOverlayWidth * 100:0}%";
+        if (TinyPetInfoBar is not null)
+        {
+            TinyPetInfoBar.IsOpen = OverlayWidthSlider.Value <
+                AppSettingsLimits.DefaultOverlayWidth * 0.25;
+        }
         OverlayOpacityValueText.Text = $"{OverlayOpacitySlider.Value:P0}";
         PointerOverlapOpacityValueText.Text =
             $"{PointerOverlapOpacitySlider.Value:P0}";
-    }
-
-    private void RefreshOverlayStatusText()
-    {
-        if (Overlay is not { } overlay)
-        {
-            return;
-        }
-
-        OverlayStatusText.Text =
-            $"HWND 0x{overlay.Handle:X} · {(overlay.IsVisible ? "표시 중" : "숨김")} · " +
-            $"{overlay.Width:0}px · 투명도 {overlay.Opacity:P0} · " +
-            $"입력 통과 {(overlay.IsClickThrough ? "켜짐" : "꺼짐")} · " +
-            $"겹침 {(overlay.IsPointerOverVisibleContent ? $"적용 {overlay.AppliedOpacity:P0}" : "없음")} · " +
-            $"픽셀 아트 {(overlay.PixelArtRendering ? "켜짐" : "꺼짐")}";
-    }
-
-    private void RefreshOverlayPlaybackInfo()
-    {
-        if (Overlay is not { } overlay)
-        {
-            return;
-        }
-
-        OverlayInfoBar.Severity = InfoBarSeverity.Success;
-        OverlayInfoBar.Title = $"{overlay.PackageDisplayName}이(가) 함께하고 있어요";
-        OverlayInfoBar.Message = $"현재 애니메이션: {overlay.MotionId}";
     }
 
     private void ShowDisplaySettingsError(Exception exception)
@@ -4191,8 +4808,8 @@ public sealed partial class MainPage : Page
         int Index,
         int DisplayIndex,
         string MotionId,
+        string MotionDisplayName,
         int RepeatCount,
-        IReadOnlyList<MotionOptionItem> MotionOptions,
         bool CanMoveUp,
         bool CanMoveDown,
         bool CanDelete);
@@ -4203,10 +4820,8 @@ public sealed partial class MainPage : Page
     {
         private string _nickname = string.Empty;
         private string _detail = string.Empty;
-        private string _runtimeStatus = string.Empty;
         private string _presentationCommand = string.Empty;
         private int _displayOrder;
-        private bool _isRuntimeAvailable;
         private bool _isSelected;
         private BitmapImage? _preview;
         private PetBehaviorKey? _previewPetKey;
@@ -4238,12 +4853,6 @@ public sealed partial class MainPage : Page
             private set => SetProperty(ref _detail, value);
         }
 
-        public string RuntimeStatus
-        {
-            get => _runtimeStatus;
-            private set => SetProperty(ref _runtimeStatus, value);
-        }
-
         public string PresentationCommand
         {
             get => _presentationCommand;
@@ -4254,12 +4863,6 @@ public sealed partial class MainPage : Page
         {
             get => _displayOrder;
             private set => SetProperty(ref _displayOrder, value);
-        }
-
-        public bool IsRuntimeAvailable
-        {
-            get => _isRuntimeAvailable;
-            private set => SetProperty(ref _isRuntimeAvailable, value);
         }
 
         public BitmapImage? Preview
@@ -4275,18 +4878,14 @@ public sealed partial class MainPage : Page
         public void Update(
             string nickname,
             string detail,
-            string runtimeStatus,
             string presentationCommand,
             int displayOrder,
-            bool isRuntimeAvailable,
             bool isSelected)
         {
             Nickname = nickname;
             Detail = detail;
-            RuntimeStatus = runtimeStatus;
             PresentationCommand = presentationCommand;
             DisplayOrder = displayOrder;
-            IsRuntimeAvailable = isRuntimeAvailable;
             if (_isSelected != isSelected)
             {
                 _isSelected = isSelected;
@@ -4343,9 +4942,20 @@ public sealed partial class MainPage : Page
 
     public sealed record SpeechPhraseEditorItem(Guid Id, string Text, string Detail);
 
+    public sealed record RulePriorityKindItem(
+        AutomaticRuleKind Kind,
+        string DisplayName,
+        string Subtitle,
+        string Rank);
+
     private readonly record struct ExportReviewOptions(
         bool IncludesRecommendedProfile,
-        bool IncludesApplicationRules);
+        bool IncludesApplicationRules,
+        bool IncludesBehavior,
+        bool IncludesMovement,
+        bool IncludesPetting,
+        bool IncludesSpeech,
+        bool IncludesDisplay);
 
     public sealed class ApplicationPickerItem : INotifyPropertyChanged
     {

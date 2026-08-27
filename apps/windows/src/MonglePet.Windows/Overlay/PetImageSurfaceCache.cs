@@ -44,9 +44,11 @@ internal sealed class PetImageSurfaceLease : IDisposable
 
 internal static class PetImageSurfaceCache
 {
+    private const int MaximumIdleEntries = 16;
     private static readonly object CacheLock = new();
     private static readonly Dictionary<string, Entry> Entries =
         new(StringComparer.OrdinalIgnoreCase);
+    private static long _accessGeneration;
 
     public static PetImageSurfaceLease Acquire(string path)
     {
@@ -60,6 +62,7 @@ internal static class PetImageSurfaceCache
                 Entries.Add(key, entry);
             }
             entry.ReferenceCount++;
+            entry.LastAccessGeneration = ++_accessGeneration;
             return new PetImageSurfaceLease(key, entry);
         }
     }
@@ -69,13 +72,30 @@ internal static class PetImageSurfaceCache
         lock (CacheLock)
         {
             entry.ReferenceCount--;
+            entry.LastAccessGeneration = ++_accessGeneration;
             if (entry.ReferenceCount == 0 &&
+                entry.Status is not null and not LoadedImageSourceLoadStatus.Success &&
                 Entries.TryGetValue(key, out Entry? current) &&
                 ReferenceEquals(current, entry))
             {
                 Entries.Remove(key);
                 entry.Dispose();
+                return;
             }
+            TrimIdleEntries();
+        }
+    }
+
+    private static void TrimIdleEntries()
+    {
+        Entry[] idle = Entries.Values
+            .Where(entry => entry.ReferenceCount == 0)
+            .OrderByDescending(entry => entry.LastAccessGeneration)
+            .ToArray();
+        foreach (Entry entry in idle.Skip(MaximumIdleEntries))
+        {
+            Entries.Remove(entry.Path);
+            entry.Dispose();
         }
     }
 
@@ -83,15 +103,20 @@ internal static class PetImageSurfaceCache
     {
         public Entry(string path)
         {
+            Path = path;
             Surface = LoadedImageSurface.StartLoadFromUri(new Uri(path));
             Surface.LoadCompleted += Surface_LoadCompleted;
         }
+
+        public string Path { get; }
 
         public LoadedImageSurface Surface { get; }
 
         public LoadedImageSourceLoadStatus? Status { get; private set; }
 
         public int ReferenceCount { get; set; }
+
+        public long LastAccessGeneration { get; set; }
 
         public event EventHandler? StateChanged;
 

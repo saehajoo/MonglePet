@@ -5,10 +5,34 @@ namespace MonglePet.Settings.Tests;
 public sealed class BehaviorProfileEditorTests
 {
     [Fact]
+    public void AnimationConnectionCreatesOrAppendsOneRepeatStep()
+    {
+        BehaviorProfile profile = Profile();
+
+        BehaviorProfile created = BehaviorProfileEditor.AddSequenceForMotion(
+            profile,
+            "인사",
+            "wave",
+            Guid.Parse("11111111-2222-3333-4444-555555555555"));
+        string createdId = created.Sequences[^1].Id;
+        BehaviorProfile appended = BehaviorProfileEditor.AppendMotionStep(
+            created,
+            created.Sequences[0].Id,
+            "wave");
+
+        Assert.Equal("인사", created.Sequences[^1].DisplayName);
+        Assert.Equal(new BehaviorStep("wave", 1), created.Sequences[^1].Steps.Single());
+        Assert.Contains(createdId, created.Sequences.Select(sequence => sequence.Id));
+        Assert.Equal(new BehaviorStep("wave", 1), appended.Sequences[0].Steps[^1]);
+    }
+
+    [Fact]
     public void AddsTrimmedUniqueSequenceWithDefaultStep()
     {
-        BehaviorProfile result = BehaviorProfileEditor.AddSequence(Profile(), "  focus  ");
-        BehaviorSequence sequence = Assert.Single(result.Sequences, value => value.Id == "focus");
+        Guid id = Guid.Parse("90000000-0000-0000-0000-000000000001");
+        BehaviorProfile result = BehaviorProfileEditor.AddSequence(Profile(), "  focus  ", id);
+        BehaviorSequence sequence = Assert.Single(result.Sequences, value => value.Id == id.ToString("D"));
+        Assert.Equal("focus", sequence.DisplayName);
         Assert.Equal(BehaviorMotionReferences.CurrentPetDefault, Assert.Single(sequence.Steps).MotionId);
         Assert.True(sequence.Repeats);
     }
@@ -37,24 +61,26 @@ public sealed class BehaviorProfileEditorTests
     {
         Guid keptPhraseId = Guid.NewGuid();
         Guid removedPhraseId = Guid.NewGuid();
-        BehaviorProfile profile = BehaviorProfileEditor.AddSequence(Profile(), "focus") with
+        BehaviorProfile added = BehaviorProfileEditor.AddSequence(Profile(), "focus");
+        string focusId = added.Sequences.Single(sequence => sequence.DisplayName == "focus").Id;
+        BehaviorProfile profile = added with
         {
-            ManualSequenceId = "focus",
+            ManualSequenceId = focusId,
             AutomaticRules =
             [
-                new(Guid.NewGuid(), true, 1, new RuleCondition.IdleAtLeast(60_000), "focus"),
+                new(Guid.NewGuid(), true, 1, new RuleCondition.IdleAtLeast(60_000), focusId),
             ],
             Speech = PetSpeechSettings.Default with
             {
                 Phrases =
                 [
-                    new(removedPhraseId, "focus", 3_000, new PetSpeechTrigger.Sequence("focus"), PetSpeechDisplayMode.Timed),
+                    new(removedPhraseId, "focus", 3_000, new PetSpeechTrigger.Sequence(focusId), PetSpeechDisplayMode.Timed),
                     new(keptPhraseId, "periodic", 3_000, new PetSpeechTrigger.Periodic(), PetSpeechDisplayMode.Timed),
                 ],
             },
         };
 
-        BehaviorProfile result = BehaviorProfileEditor.RemoveSequence(profile, "focus");
+        BehaviorProfile result = BehaviorProfileEditor.RemoveSequence(profile, focusId);
         Assert.Equal(BehaviorMotionReferences.DefaultSequence, result.ManualSequenceId);
         Assert.Empty(result.AutomaticRules);
         Assert.Equal(keptPhraseId, Assert.Single(result.Speech.Phrases).Id);
@@ -118,7 +144,7 @@ public sealed class BehaviorProfileEditorTests
             Guid.Parse("10000000-0000-0000-0000-000000000001"));
         profile = BehaviorProfileEditor.AddIdleRule(
             profile,
-            2,
+            120,
             BehaviorMotionReferences.DefaultSequence,
             Guid.Parse("10000000-0000-0000-0000-000000000002"));
         Assert.Equal(0, profile.AutomaticRules[0].Priority);
@@ -148,13 +174,13 @@ public sealed class BehaviorProfileEditorTests
 
     [Theory]
     [InlineData(0)]
-    [InlineData(1441)]
-    public void RejectsInvalidIdleRuleMinutes(int minutes)
+    [InlineData(86401)]
+    public void RejectsInvalidIdleRuleSeconds(int seconds)
     {
         BehaviorProfileEditException error = Assert.Throws<BehaviorProfileEditException>(() =>
             BehaviorProfileEditor.AddIdleRule(
                 Profile(),
-                minutes,
+                seconds,
                 BehaviorMotionReferences.DefaultSequence));
         Assert.Equal(BehaviorProfileEditError.InvalidRule, error.Error);
     }

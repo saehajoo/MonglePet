@@ -22,12 +22,11 @@ internal sealed class PetFrameCompositionPlayer : IDisposable
     private PetImageSurfaceLease? _displayedSurface;
     private string? _loadedAtlasId;
     private bool _disposed;
-    private bool _surfaceLoaded;
+    private bool _requestedSurfaceLoadCompleted;
     private bool _isPaused;
     private bool _alphaMaskObservationEnabled;
-    private long _scheduledAtTimestamp;
-    private TimeSpan _scheduledDelay;
-    private TimeSpan? _remainingFrameDelay;
+    private long _playbackStartedAtTimestamp;
+    private TimeSpan _playbackOffset;
 
     public PetFrameCompositionPlayer(
         Compositor compositor,
@@ -70,7 +69,7 @@ internal sealed class PetFrameCompositionPlayer : IDisposable
 
     public bool IsPlaying => !_isPaused && _state.IsPlaying && Status == "재생 중";
 
-    public bool IsReady => _surfaceLoaded;
+    public bool IsReady => _requestedSurfaceLoadCompleted;
 
     public string AlphaMaskStatus => _alphaMaskLoader.Status;
 
@@ -108,7 +107,10 @@ internal sealed class PetFrameCompositionPlayer : IDisposable
         }
     }
 
-    public bool PlayMotion(string requestedMotionId, bool restart)
+    public bool PlayMotion(
+        string requestedMotionId,
+        bool restart,
+        TimeSpan? cycleElapsed = null)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         PetPackageMotion motion = ResolveMotion(requestedMotionId);
@@ -118,13 +120,13 @@ internal sealed class PetFrameCompositionPlayer : IDisposable
         }
 
         _timer.Stop();
-        _remainingFrameDelay = null;
         bool atlasChanged = !string.Equals(
             _loadedAtlasId,
             motion.Atlas,
             StringComparison.Ordinal);
         _motion = motion;
         _state = new PetFramePlaybackState(motion, loops: true);
+        ResetPlaybackClock(cycleElapsed ?? TimeSpan.Zero);
         if (_alphaMaskObservationEnabled)
         {
             _alphaMaskLoader.Preload(motion.Atlas, motion.Frames);
@@ -133,11 +135,12 @@ internal sealed class PetFrameCompositionPlayer : IDisposable
         {
             LoadAtlasForCurrentMotion();
         }
-        else if (_surfaceLoaded)
+        else if (_requestedSurfaceLoadCompleted &&
+            _surface?.Status == LoadedImageSourceLoadStatus.Success)
         {
-            ApplyCurrentFrame();
+            StartPlaybackClock();
             Status = _isPaused ? "일시 정지" : "재생 중";
-            ScheduleCurrentFrame();
+            RefreshFrameAndSchedule();
             StateChanged?.Invoke(this, EventArgs.Empty);
         }
 
@@ -152,16 +155,10 @@ internal sealed class PetFrameCompositionPlayer : IDisposable
             return;
         }
 
+        CapturePlaybackClock();
         _isPaused = true;
-        if (_timer.IsRunning)
-        {
-            TimeSpan elapsed = Stopwatch.GetElapsedTime(_scheduledAtTimestamp);
-            _remainingFrameDelay = _scheduledDelay > elapsed
-                ? _scheduledDelay - elapsed
-                : TimeSpan.FromMilliseconds(1);
-        }
         _timer.Stop();
-        if (_surfaceLoaded)
+        if (_requestedSurfaceLoadCompleted)
         {
             Status = "일시 정지";
         }
@@ -177,11 +174,12 @@ internal sealed class PetFrameCompositionPlayer : IDisposable
         }
 
         _isPaused = false;
-        if (_surfaceLoaded)
+        if (_requestedSurfaceLoadCompleted &&
+            _surface?.Status == LoadedImageSourceLoadStatus.Success)
         {
+            StartPlaybackClock();
             Status = "재생 중";
-            ScheduleCurrentFrame(_remainingFrameDelay);
-            _remainingFrameDelay = null;
+            RefreshFrameAndSchedule();
         }
         StateChanged?.Invoke(this, EventArgs.Empty);
     }
@@ -191,7 +189,8 @@ internal sealed class PetFrameCompositionPlayer : IDisposable
         ObjectDisposedException.ThrowIf(_disposed, this);
         _visual.Size = visualSize;
         _visual.Offset = visualOffset;
-        if (_surfaceLoaded)
+        if (_requestedSurfaceLoadCompleted &&
+            _surface?.Status == LoadedImageSourceLoadStatus.Success)
         {
             ApplyCurrentFrame();
         }
@@ -245,6 +244,7 @@ internal sealed class PetFrameCompositionPlayer : IDisposable
             return;
         }
 
+        _requestedSurfaceLoadCompleted = true;
         if (surface.Status != LoadedImageSourceLoadStatus.Success)
         {
             Status = $"이미지 디코딩 실패: {surface.Status}";
@@ -257,10 +257,9 @@ internal sealed class PetFrameCompositionPlayer : IDisposable
         _brush.Surface = surface.Surface;
         _visual.Brush = _brush;
         _displayedSurface = surface;
-        _surfaceLoaded = true;
-        ApplyCurrentFrame();
+        StartPlaybackClock();
         Status = _isPaused ? "일시 정지" : "재생 중";
-        ScheduleCurrentFrame();
+        RefreshFrameAndSchedule();
         StateChanged?.Invoke(this, EventArgs.Empty);
         if (previous is not null && !ReferenceEquals(previous, surface))
         {
@@ -273,15 +272,13 @@ internal sealed class PetFrameCompositionPlayer : IDisposable
 
     private void Timer_Tick(DispatcherQueueTimer sender, object args)
     {
-        _remainingFrameDelay = null;
-        if (_disposed || _isPaused || !_state.Advance())
+        if (_disposed || _isPaused || !_requestedSurfaceLoadCompleted)
         {
             StateChanged?.Invoke(this, EventArgs.Empty);
             return;
         }
 
-        ApplyCurrentFrame();
-        ScheduleCurrentFrame();
+        RefreshFrameAndSchedule();
         StateChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -302,21 +299,58 @@ internal sealed class PetFrameCompositionPlayer : IDisposable
             top - frame.Y * scale);
     }
 
-    private void ScheduleCurrentFrame(TimeSpan? delay = null)
+    private void RefreshFrameAndSchedule()
     {
-        if (_isPaused || !_surfaceLoaded || !_state.NeedsScheduling)
+        if (_isPaused ||
+            !_requestedSurfaceLoadCompleted ||
+            _surface?.Status != LoadedImageSourceLoadStatus.Success)
         {
             return;
         }
 
-        _scheduledDelay = delay ?? TimeSpan.FromMilliseconds(_state.CurrentFrame.DurationMs);
-        if (_scheduledDelay <= TimeSpan.Zero)
+        TimeSpan remaining = _state.Seek(CurrentPlaybackElapsed());
+        ApplyCurrentFrame();
+        if (!_state.NeedsScheduling)
         {
-            _scheduledDelay = TimeSpan.FromMilliseconds(1);
+            return;
         }
-        _scheduledAtTimestamp = Stopwatch.GetTimestamp();
-        _timer.Interval = _scheduledDelay;
+
+        _timer.Interval = remaining > TimeSpan.Zero
+            ? remaining
+            : TimeSpan.FromMilliseconds(1);
         _timer.Start();
+    }
+
+    private TimeSpan CurrentPlaybackElapsed() =>
+        _playbackStartedAtTimestamp == 0
+            ? _playbackOffset
+            : _playbackOffset + Stopwatch.GetElapsedTime(_playbackStartedAtTimestamp);
+
+    private void CapturePlaybackClock()
+    {
+        if (_playbackStartedAtTimestamp == 0)
+        {
+            return;
+        }
+
+        _playbackOffset += Stopwatch.GetElapsedTime(_playbackStartedAtTimestamp);
+        _playbackStartedAtTimestamp = 0;
+        _state.Seek(_playbackOffset);
+    }
+
+    private void ResetPlaybackClock(TimeSpan offset)
+    {
+        _playbackOffset = offset < TimeSpan.Zero ? TimeSpan.Zero : offset;
+        _playbackStartedAtTimestamp = 0;
+        _state.Seek(_playbackOffset);
+    }
+
+    private void StartPlaybackClock()
+    {
+        if (!_isPaused && _playbackStartedAtTimestamp == 0)
+        {
+            _playbackStartedAtTimestamp = Stopwatch.GetTimestamp();
+        }
     }
 
     private PetPackageMotion ResolveMotion(string requestedMotionId)
@@ -339,7 +373,8 @@ internal sealed class PetFrameCompositionPlayer : IDisposable
     private void LoadAtlasForCurrentMotion()
     {
         _timer.Stop();
-        _remainingFrameDelay = null;
+        _playbackStartedAtTimestamp = 0;
+        _requestedSurfaceLoadCompleted = false;
         if (_surface is not null && !ReferenceEquals(_surface, _displayedSurface))
         {
             _surface.StateChanged -= Surface_StateChanged;
@@ -350,7 +385,6 @@ internal sealed class PetFrameCompositionPlayer : IDisposable
         {
             _brush.Surface = null;
             _visual.Brush = null;
-            _surfaceLoaded = false;
         }
         _loadedAtlasId = _motion.Atlas;
         LoadedPetAtlas atlas = _package.Atlases[_motion.Atlas];

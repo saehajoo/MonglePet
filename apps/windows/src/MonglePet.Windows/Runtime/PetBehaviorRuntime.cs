@@ -10,7 +10,9 @@ namespace MonglePet.Windows.Runtime;
 internal sealed class PetBehaviorRuntime : IDisposable
 {
     private readonly BehaviorResolver _resolver = new();
-    private readonly MotionScheduler _scheduler;
+    private readonly MotionScheduler _baseScheduler;
+    private readonly MotionScheduler _movementScheduler;
+    private readonly MotionScheduler _interactionScheduler;
     private readonly IReadOnlyDictionary<string, TimeSpan> _cycleDurations;
     private readonly PetOverlayWindow _overlay;
     private readonly DispatcherQueueTimer _boundaryTimer;
@@ -18,9 +20,12 @@ internal sealed class PetBehaviorRuntime : IDisposable
     private readonly long _originTimestamp = Stopwatch.GetTimestamp();
     private long _lastAdvancedTimestamp;
     private ScheduledMotion? _currentMotion;
-    private string? _movementMotionId;
-    private string? _interactionMotionId;
+    private string? _movementBehaviorId;
+    private string? _interactionBehaviorId;
     private string? _displayedMotionId;
+    private readonly RandomBehaviorSelector _randomSelector = new();
+    private BehaviorProfile? _latestProfile;
+    private PetPresentation _latestPresentation = PetPresentation.TuckedAway;
     private ActivitySnapshot _activitySnapshot = new(
         TimeSpan.Zero,
         TimeSpan.Zero,
@@ -29,6 +34,7 @@ internal sealed class PetBehaviorRuntime : IDisposable
         false);
     private bool _waitingForPlaybackReady;
     private bool _isUserPaused;
+    private PlaybackLayer _playbackLayer = PlaybackLayer.Base;
     private bool _disposed;
 
     public PetBehaviorRuntime(LoadedPetPackage package, PetOverlayWindow overlay)
@@ -37,7 +43,9 @@ internal sealed class PetBehaviorRuntime : IDisposable
         ArgumentNullException.ThrowIfNull(overlay);
         _overlay = overlay;
         _cycleDurations = BuildCycleDurations(package);
-        _scheduler = new MotionScheduler(package.DefaultMotionId, _cycleDurations);
+        _baseScheduler = new MotionScheduler(package.DefaultMotionId, _cycleDurations);
+        _movementScheduler = new MotionScheduler(package.DefaultMotionId, _cycleDurations);
+        _interactionScheduler = new MotionScheduler(package.DefaultMotionId, _cycleDurations);
         _boundaryTimer = DispatcherQueue.GetForCurrentThread().CreateTimer();
         _boundaryTimer.IsRepeating = false;
         _boundaryTimer.Tick += BoundaryTimer_Tick;
@@ -54,7 +62,9 @@ internal sealed class PetBehaviorRuntime : IDisposable
 
     public int? StepIndex => _currentMotion?.StepIndex;
 
-    public bool IsPaused => _scheduler.IsPaused;
+    public bool IsPaused => ActiveScheduler.IsPaused;
+
+    public bool ShouldPauseMovement { get; private set; }
 
     public event EventHandler? StateChanged;
 
@@ -72,24 +82,28 @@ internal sealed class PetBehaviorRuntime : IDisposable
         }
     }
 
-    public void SetMovementMotion(string? motionId)
+    public void SetMovementBehavior(string? behaviorId)
     {
         ThrowIfDisposed();
-        if (string.Equals(_movementMotionId, motionId, StringComparison.Ordinal))
+        if (string.Equals(_movementBehaviorId, behaviorId, StringComparison.Ordinal))
         {
             return;
         }
-        _movementMotionId = motionId;
-        RenderPreferredMotion(restart: _interactionMotionId is null && motionId is not null);
+        _movementBehaviorId = behaviorId;
+        if (_latestProfile is not null)
+        {
+            Update(_latestProfile, _latestPresentation);
+        }
         StateChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    public void PlayInteraction(string motionId)
+    public void PlayInteraction(string behaviorId)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(motionId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(behaviorId);
         ThrowIfDisposed();
-        if (_interactionMotionId is not null ||
-            !_cycleDurations.TryGetValue(motionId, out TimeSpan duration))
+        if (_interactionBehaviorId is not null ||
+            _latestProfile?.Sequences.FirstOrDefault(sequence =>
+                string.Equals(sequence.Id, behaviorId, StringComparison.Ordinal)) is not { } behavior)
         {
             return;
         }
@@ -97,14 +111,15 @@ internal sealed class PetBehaviorRuntime : IDisposable
         long now = Stopwatch.GetTimestamp();
         AdvanceTo(now);
         _boundaryTimer.Stop();
-        _scheduler.Pause();
-        _interactionMotionId = motionId;
-        _interactionTimer.Interval = duration > TimeSpan.Zero
-            ? duration
-            : TimeSpan.FromMilliseconds(1);
-        _interactionTimer.Start();
-        RenderPreferredMotion(restart: true);
-        Status = $"쓰다듬기 · {motionId}";
+        _baseScheduler.Pause();
+        _movementScheduler.Pause();
+        _interactionBehaviorId = behaviorId;
+        _interactionScheduler.Request(behavior with { Repeats = false });
+        _interactionScheduler.Resume();
+        _lastAdvancedTimestamp = now;
+        EmitCurrentMotion(restart: true);
+        ScheduleNextBoundary();
+        Status = $"쓰다듬기 · {behavior.DisplayName}";
         StateChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -112,21 +127,58 @@ internal sealed class PetBehaviorRuntime : IDisposable
     {
         ArgumentNullException.ThrowIfNull(profile);
         ThrowIfDisposed();
+        _latestProfile = profile;
+        _latestPresentation = presentation;
         long now = Stopwatch.GetTimestamp();
         AdvanceTo(now);
+        bool restartRandomAfterMovement =
+            profile.Mode == BehaviorMode.Random &&
+            _playbackLayer == PlaybackLayer.Movement &&
+            _movementBehaviorId is null;
+        if (profile.Mode == BehaviorMode.Random)
+        {
+            string[] available = profile.RandomSequences
+                .Where(id => profile.Sequences.Any(sequence =>
+                    string.Equals(sequence.Id, id, StringComparison.Ordinal)))
+                .ToArray();
+            _randomSelector.Update(
+                available,
+                restartRandomAfterMovement ||
+                    _baseScheduler.Status is MotionSchedulerStatus.Completed);
+        }
+        else
+        {
+            _randomSelector.Reset();
+        }
         if (_isUserPaused)
         {
             Pause("사용자가 모든 펫을 일시정지했습니다", now);
             return;
         }
+        BehaviorConfiguration configuration = Configuration(profile);
+        ActivitySnapshot currentSnapshot = _activitySnapshot with
+        {
+            CapturedAt = Stopwatch.GetElapsedTime(_originTimestamp, now),
+        };
+        BehaviorDecision generalDecision = _resolver.Resolve(
+            configuration,
+            currentSnapshot,
+            new BehaviorRuntimeState(
+                presentation,
+                RandomSequenceId: _randomSelector.CurrentSequenceId));
         BehaviorDecision decision = _resolver.Resolve(
-            Configuration(profile),
-            _activitySnapshot with
-            {
-                CapturedAt = Stopwatch.GetElapsedTime(_originTimestamp, now),
-            },
-            new BehaviorRuntimeState(presentation));
-        Apply(decision, now);
+            configuration,
+            currentSnapshot,
+            new BehaviorRuntimeState(
+                presentation,
+                MovementSequenceId: _movementBehaviorId,
+                RandomSequenceId: _randomSelector.CurrentSequenceId));
+        Apply(
+            generalDecision,
+            decision,
+            profile,
+            now,
+            restartRandomAfterMovement);
     }
 
     public void UpdateActivity(ActivitySnapshot snapshot, BehaviorProfile profile, PetPresentation presentation)
@@ -152,8 +204,18 @@ internal sealed class PetBehaviorRuntime : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    private void Apply(BehaviorDecision decision, long now)
+    private void Apply(
+        BehaviorDecision generalDecision,
+        BehaviorDecision decision,
+        BehaviorProfile profile,
+        long now,
+        bool restartBaseSequence)
     {
+        bool pauseMovement = decision is BehaviorDecision.Sequence
+        {
+            Source: BehaviorSource.AutomaticRule,
+        } && _movementBehaviorId is not null;
+        ShouldPauseMovement = pauseMovement;
         switch (decision)
         {
             case BehaviorDecision.TuckedAway:
@@ -163,16 +225,44 @@ internal sealed class PetBehaviorRuntime : IDisposable
                 Pause("시스템 상태로 일시 정지했습니다", now);
                 break;
             case BehaviorDecision.Sequence sequence:
-                _scheduler.Resume();
-                bool changed = _scheduler.Request(sequence.Value);
-                _lastAdvancedTimestamp = now;
-                if (_interactionMotionId is not null)
+                bool baseChanged = generalDecision is BehaviorDecision.Sequence generalSequence &&
+                    (restartBaseSequence
+                        ? _baseScheduler.Restart(generalSequence.Value)
+                        : _baseScheduler.Request(generalSequence.Value));
+                if (generalDecision is not BehaviorDecision.Sequence)
                 {
-                    _scheduler.Pause();
+                    _baseScheduler.Stop();
                 }
-                bool runtimeChanged = EmitCurrentMotion(changed);
-                if (_interactionMotionId is null &&
-                    (changed || runtimeChanged || !_boundaryTimer.IsRunning))
+                bool movementChanged = false;
+                if (_movementBehaviorId is { } movementBehaviorId &&
+                    profile.Sequences.FirstOrDefault(value => string.Equals(
+                        value.Id,
+                        movementBehaviorId,
+                        StringComparison.Ordinal)) is { } movementSequence)
+                {
+                    movementChanged = _movementScheduler.Request(movementSequence);
+                }
+                else
+                {
+                    _movementScheduler.Stop();
+                }
+                PlaybackLayer nextLayer = sequence.Source is BehaviorSource.Movement
+                    ? PlaybackLayer.Movement
+                    : PlaybackLayer.Base;
+                bool layerChanged = SetPlaybackLayer(nextLayer);
+                _lastAdvancedTimestamp = now;
+                if (_interactionBehaviorId is not null)
+                {
+                    _baseScheduler.Pause();
+                    _movementScheduler.Pause();
+                }
+                bool requestedChanged = nextLayer == PlaybackLayer.Movement
+                    ? movementChanged
+                    : baseChanged;
+                bool runtimeChanged = EmitCurrentMotion(requestedChanged || layerChanged);
+                if (_interactionBehaviorId is null &&
+                    (requestedChanged || layerChanged || runtimeChanged ||
+                        !_boundaryTimer.IsRunning))
                 {
                     ScheduleNextBoundary();
                 }
@@ -180,8 +270,10 @@ internal sealed class PetBehaviorRuntime : IDisposable
             case BehaviorDecision.Unavailable:
                 _boundaryTimer.Stop();
                 _interactionTimer.Stop();
-                _interactionMotionId = null;
-                _scheduler.Stop();
+                _interactionBehaviorId = null;
+                _interactionScheduler.Stop();
+                _baseScheduler.Stop();
+                _movementScheduler.Stop();
                 _overlay.PausePlayback();
                 _currentMotion = null;
                 Status = "재생 가능한 행동 루틴이 없습니다";
@@ -192,13 +284,15 @@ internal sealed class PetBehaviorRuntime : IDisposable
 
     private void Pause(string status, long now)
     {
-        bool changed = !_scheduler.IsPaused ||
-            _interactionMotionId is not null ||
+        bool changed = !_baseScheduler.IsPaused || !_movementScheduler.IsPaused ||
+            _interactionBehaviorId is not null ||
             !string.Equals(Status, status, StringComparison.Ordinal);
         _boundaryTimer.Stop();
         _interactionTimer.Stop();
-        _interactionMotionId = null;
-        _scheduler.Pause();
+        _interactionBehaviorId = null;
+        _interactionScheduler.Stop();
+        _baseScheduler.Pause();
+        _movementScheduler.Pause();
         _overlay.PausePlayback();
         _waitingForPlaybackReady = false;
         _lastAdvancedTimestamp = now;
@@ -217,19 +311,35 @@ internal sealed class PetBehaviorRuntime : IDisposable
         }
 
         AdvanceTo(Stopwatch.GetTimestamp());
+        if (_interactionBehaviorId is not null &&
+            _interactionScheduler.Status is MotionSchedulerStatus.Completed)
+        {
+            _interactionBehaviorId = null;
+            _interactionScheduler.Stop();
+            ActiveScheduler.Resume();
+            _lastAdvancedTimestamp = Stopwatch.GetTimestamp();
+        }
         EmitCurrentMotion(restart: false);
+        if (_interactionBehaviorId is null &&
+            _latestProfile?.Mode == BehaviorMode.Random &&
+            _baseScheduler.Status is MotionSchedulerStatus.Completed)
+        {
+            Update(_latestProfile, _latestPresentation);
+            return;
+        }
         ScheduleNextBoundary();
     }
 
     private void InteractionTimer_Tick(DispatcherQueueTimer sender, object args)
     {
-        if (_disposed || _interactionMotionId is null)
+        if (_disposed || _interactionBehaviorId is null)
         {
             return;
         }
 
-        _interactionMotionId = null;
-        _scheduler.Resume();
+        _interactionBehaviorId = null;
+        _interactionScheduler.Stop();
+        ActiveScheduler.Resume();
         _lastAdvancedTimestamp = Stopwatch.GetTimestamp();
         RenderPreferredMotion(restart: true);
         EmitCurrentMotion(restart: false);
@@ -253,9 +363,16 @@ internal sealed class PetBehaviorRuntime : IDisposable
     {
         TimeSpan elapsed = Stopwatch.GetElapsedTime(_lastAdvancedTimestamp, timestamp);
         _lastAdvancedTimestamp = timestamp;
-        if (elapsed > TimeSpan.Zero)
+        if (elapsed > TimeSpan.Zero && !_waitingForPlaybackReady)
         {
-            _scheduler.Advance(elapsed);
+            if (_interactionBehaviorId is not null)
+            {
+                _interactionScheduler.Advance(elapsed);
+            }
+            else
+            {
+                ActiveScheduler.Advance(elapsed);
+            }
         }
     }
 
@@ -263,25 +380,25 @@ internal sealed class PetBehaviorRuntime : IDisposable
     {
         ScheduledMotion? previousMotion = _currentMotion;
         string previousStatus = Status;
-        switch (_scheduler.Status)
+        MotionSchedulerStatus schedulerStatus = _interactionBehaviorId is not null
+            ? _interactionScheduler.Status
+            : ActiveScheduler.Status;
+        switch (schedulerStatus)
         {
             case MotionSchedulerStatus.Playing playing:
                 bool changed = playing.Motion != _currentMotion;
                 _currentMotion = playing.Motion;
-                RenderPreferredMotion(_interactionMotionId is null && (restart || changed));
-                _waitingForPlaybackReady =
-                    _interactionMotionId is null &&
-                    _movementMotionId is null &&
-                    !_overlay.IsPlaybackReady;
-                Status = _interactionMotionId is { } interaction
-                    ? $"쓰다듬기 · {interaction}"
-                    : $"{playing.Motion.SequenceId} · 단계 {playing.Motion.StepIndex + 1}" +
+                RenderPreferredMotion(restart || changed);
+                _waitingForPlaybackReady = !_overlay.IsPlaybackReady;
+                Status = _interactionBehaviorId is { } interaction
+                    ? $"쓰다듬기 · {BehaviorDisplayName(interaction)}"
+                    : $"{BehaviorDisplayName(playing.Motion.SequenceId)} · 단계 {playing.Motion.StepIndex + 1}" +
                         (playing.Motion.UsesFallback ? " · 기본 모션 대체" : string.Empty);
                 break;
             case MotionSchedulerStatus.Completed completed:
                 _currentMotion = null;
                 RenderPreferredMotion(restart: false);
-                Status = $"{completed.SequenceId} · 완료";
+                Status = $"{BehaviorDisplayName(completed.SequenceId)} · 완료";
                 break;
             case MotionSchedulerStatus.Unavailable:
                 _currentMotion = null;
@@ -303,11 +420,18 @@ internal sealed class PetBehaviorRuntime : IDisposable
         return didChange;
     }
 
+    private string BehaviorDisplayName(string sequenceId) =>
+        _latestProfile?.Sequences.FirstOrDefault(sequence => string.Equals(
+            sequence.Id,
+            sequenceId,
+            StringComparison.Ordinal))?.DisplayName ?? "찾을 수 없는 행동";
+
     private void RenderPreferredMotion(bool restart)
     {
-        string? desired = _interactionMotionId ??
-            _movementMotionId ??
-            (_scheduler.Status as MotionSchedulerStatus.Playing)?.Motion.ResolvedMotionId;
+        MotionSchedulerStatus schedulerStatus = _interactionBehaviorId is not null
+            ? _interactionScheduler.Status
+            : ActiveScheduler.Status;
+        string? desired = (schedulerStatus as MotionSchedulerStatus.Playing)?.Motion.ResolvedMotionId;
         if (desired is null)
         {
             _overlay.PausePlayback();
@@ -316,7 +440,10 @@ internal sealed class PetBehaviorRuntime : IDisposable
         }
         if (restart || !string.Equals(_displayedMotionId, desired, StringComparison.Ordinal))
         {
-            _overlay.PlayMotion(desired, restart: true);
+            TimeSpan cycleElapsed = (_interactionBehaviorId is not null
+                ? _interactionScheduler
+                : ActiveScheduler).ActiveCycleElapsedDuration ?? TimeSpan.Zero;
+            _overlay.PlayMotion(desired, restart: true, cycleElapsed);
             _displayedMotionId = desired;
         }
         _overlay.ResumePlayback();
@@ -325,16 +452,41 @@ internal sealed class PetBehaviorRuntime : IDisposable
     private void ScheduleNextBoundary()
     {
         _boundaryTimer.Stop();
-        if (_scheduler.IsPaused || _waitingForPlaybackReady ||
-            _scheduler.ActiveCycleRemainingDuration is not { } remaining)
+        if (_waitingForPlaybackReady)
         {
             return;
         }
 
-        _boundaryTimer.Interval = remaining > TimeSpan.Zero
-            ? remaining
+        MotionScheduler active = _interactionBehaviorId is not null
+            ? _interactionScheduler
+            : ActiveScheduler;
+        if (active.IsPaused ||
+            active.ActiveCycleRemainingDuration is not { } remainingValue)
+        {
+            return;
+        }
+
+        _boundaryTimer.Interval = remainingValue > TimeSpan.Zero
+            ? remainingValue
             : TimeSpan.FromMilliseconds(1);
         _boundaryTimer.Start();
+    }
+
+    private MotionScheduler ActiveScheduler => _playbackLayer == PlaybackLayer.Movement
+        ? _movementScheduler
+        : _baseScheduler;
+
+    private bool SetPlaybackLayer(PlaybackLayer layer)
+    {
+        bool changed = _playbackLayer != layer;
+        _playbackLayer = layer;
+        _baseScheduler.Pause();
+        _movementScheduler.Pause();
+        if (_interactionBehaviorId is null)
+        {
+            ActiveScheduler.Resume();
+        }
+        return changed;
     }
 
     private static BehaviorConfiguration Configuration(BehaviorProfile profile)
@@ -351,7 +503,9 @@ internal sealed class PetBehaviorRuntime : IDisposable
             defaultSequenceId,
             profile.Sequences,
             profile.ManualSequenceId,
-            profile.AutomaticRules);
+            profile.AutomaticRules,
+            profile.RandomSequences,
+            profile.RulePriorityOrder);
     }
 
     private static IReadOnlyDictionary<string, TimeSpan> BuildCycleDurations(
@@ -374,4 +528,10 @@ internal sealed class PetBehaviorRuntime : IDisposable
     }
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, this);
+
+    private enum PlaybackLayer
+    {
+        Base,
+        Movement,
+    }
 }

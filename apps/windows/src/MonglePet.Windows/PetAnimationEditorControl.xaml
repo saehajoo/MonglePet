@@ -34,6 +34,39 @@
                 </StackPanel>
             </Border>
 
+            <Border
+                x:Name="BehaviorConnectionCard"
+                Style="{StaticResource SettingsSubcardStyle}"
+                Visibility="Collapsed">
+                <StackPanel Spacing="10">
+                    <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="행동 연결" />
+                    <TextBlock
+                        x:Name="BehaviorConnectionUsageText"
+                        Style="{StaticResource SettingsCaptionStyle}"
+                        Text="애니메이션 저장과 함께 행동을 연결할 수 있습니다. 저장하기 전에는 행동 설정을 바꾸지 않습니다."
+                        TextWrapping="Wrap" />
+                    <ComboBox
+                        x:Name="BehaviorConnectionModeComboBox"
+                        Header="저장 후 연결"
+                        SelectionChanged="BehaviorConnectionModeComboBox_SelectionChanged">
+                        <ComboBoxItem Content="연결 안 함" Tag="none" />
+                        <ComboBoxItem Content="새 행동 만들기" Tag="new" />
+                        <ComboBoxItem Content="기존 행동에 추가" Tag="existing" />
+                    </ComboBox>
+                    <TextBox
+                        x:Name="NewBehaviorNameTextBox"
+                        Header="새 행동 이름"
+                        PlaceholderText="비우면 애니메이션 이름을 사용합니다."
+                        Visibility="Collapsed" />
+                    <ComboBox
+                        x:Name="ExistingBehaviorComboBox"
+                        DisplayMemberPath="DisplayName"
+                        Header="추가할 행동"
+                        SelectedValuePath="Id"
+                        Visibility="Collapsed" />
+                </StackPanel>
+            </Border>
+
             <Border Style="{StaticResource SettingsSubcardStyle}">
                 <StackPanel Spacing="12">
                     <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="애니메이션 설정" />
@@ -101,6 +134,7 @@
                         <Button x:Name="FrameImportButton" Grid.Column="1" Content="프레임 선택">
                             <Button.Flyout>
                                 <MenuFlyout Placement="BottomEdgeAlignedRight">
+                                    <MenuFlyoutItem Click="ChooseCurrentPetFramesButton_Click" Text="현재 펫 프레임에서 추가…" />
                                     <MenuFlyoutItem Click="ChooseFramesButton_Click" Text="개별 PNG 추가…" />
                                     <MenuFlyoutItem Click="ChooseSpriteSheetButton_Click" Text="스프라이트 시트에서 추가…" />
                                 </MenuFlyout>
@@ -132,25 +166,45 @@
                                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                                 BorderThickness="1"
                                 CornerRadius="8">
-                                <Canvas
-                                    x:Name="FramePlacementCanvas"
+                                <ScrollViewer
                                     Width="260"
                                     Height="220"
-                                    PointerPressed="FramePlacementCanvas_PointerPressed"
-                                    PointerMoved="FramePlacementCanvas_PointerMoved"
-                                    PointerReleased="FramePlacementCanvas_PointerReleased"
-                                    PointerCanceled="FramePlacementCanvas_PointerReleased">
-                                    <Image x:Name="FrameCheckerImage" Width="260" Height="220" Stretch="Fill" />
-                                    <Image x:Name="FirstFrameReferenceImage" Opacity="0.35" Stretch="Fill" Visibility="Collapsed" />
-                                    <Image x:Name="SelectedFramePlacementImage" Stretch="Fill" />
-                                    <Border x:Name="SelectedFramePlacementBorder" BorderBrush="#FF1877F2" BorderThickness="2" />
-                                </Canvas>
+                                    HorizontalScrollBarVisibility="Auto"
+                                    HorizontalScrollMode="Enabled"
+                                    VerticalScrollBarVisibility="Auto"
+                                    VerticalScrollMode="Enabled"
+                                    ZoomMode="Disabled">
+                                    <Canvas
+                                        x:Name="FramePlacementCanvas"
+                                        Width="260"
+                                        Height="220"
+                                        PointerPressed="FramePlacementCanvas_PointerPressed"
+                                        PointerMoved="FramePlacementCanvas_PointerMoved"
+                                        PointerReleased="FramePlacementCanvas_PointerReleased"
+                                        PointerCanceled="FramePlacementCanvas_PointerReleased">
+                                        <Image x:Name="FrameCheckerImage" Width="260" Height="220" Stretch="Fill" />
+                                        <Image x:Name="FirstFrameReferenceImage" Opacity="0.35" Stretch="Fill" Visibility="Collapsed" />
+                                        <Image x:Name="SelectedFramePlacementImage" Stretch="Fill" />
+                                        <Border x:Name="SelectedFramePlacementBorder" BorderBrush="#FF1877F2" BorderThickness="2" />
+                                    </Canvas>
+                                </ScrollViewer>
                             </Border>
                             <CheckBox
                                 x:Name="CompareFirstFrameCheckBox"
                                 Content="첫 프레임 반투명 비교"
                                 Checked="CompareFirstFrameCheckBox_Changed"
                                 Unchecked="CompareFirstFrameCheckBox_Changed" />
+                            <StackPanel Spacing="4">
+                                <TextBlock Style="{StaticResource SettingsCaptionStyle}" Text="미리보기 확대" />
+                                <Slider
+                                    x:Name="PlacementZoomSlider"
+                                    AutomationProperties.Name="프레임 미리보기 확대"
+                                    Maximum="8"
+                                    Minimum="1"
+                                    StepFrequency="0.5"
+                                    Value="1"
+                                    ValueChanged="PlacementZoomSlider_ValueChanged" />
+                            </StackPanel>
                             <Expander Header="선택 프레임 위치와 크기" IsExpanded="False">
                                 <StackPanel Spacing="8" Padding="0,8,0,0">
                                     <Grid ColumnSpacing="8">
@@ -218,6 +272,9 @@
                                 <Button Click="MoveFrameUpButton_Click" AutomationProperties.Name="위로 이동" ToolTipService.ToolTip="위로 이동"><FontIcon FontSize="12" Glyph="&#xE74A;" /></Button>
                                 <Button Click="MoveFrameDownButton_Click" AutomationProperties.Name="아래로 이동" ToolTipService.ToolTip="아래로 이동"><FontIcon FontSize="12" Glyph="&#xE74B;" /></Button>
                                 <Button Click="DuplicateFrameButton_Click" AutomationProperties.Name="프레임 복사" ToolTipService.ToolTip="프레임 복사"><FontIcon FontSize="12" Glyph="&#xE8C8;" /></Button>
+                                <Button Click="FlipFrameHorizontalButton_Click" AutomationProperties.Name="좌우 반전" Content="좌우 반전" />
+                                <Button Click="FlipFrameVerticalButton_Click" AutomationProperties.Name="상하 반전" Content="상하 반전" />
+                                <Button Click="ResetFrameDirectionButton_Click" AutomationProperties.Name="방향 초기화" Content="방향 초기화" />
                                 <Button Click="RemoveFrameButton_Click" AutomationProperties.Name="프레임 삭제" ToolTipService.ToolTip="프레임 삭제"><FontIcon FontSize="12" Glyph="&#xE74D;" /></Button>
                             </StackPanel>
                         </StackPanel>

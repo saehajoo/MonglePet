@@ -97,6 +97,11 @@ public sealed class MotionScheduler
             ? cursor.RemainingCycleDuration
             : null;
 
+    public TimeSpan? ActiveCycleElapsedDuration =>
+        _cursor is { IsComplete: false } cursor
+            ? cursor.Steps[cursor.StepIndex].CycleDuration - cursor.RemainingCycleDuration
+            : null;
+
     public bool Request(BehaviorSequence sequence)
     {
         ArgumentNullException.ThrowIfNull(sequence);
@@ -110,9 +115,27 @@ public sealed class MotionScheduler
             return false;
         }
 
-        if (_cursor is not null && SequencesEqual(_cursor.Sequence, sequence))
+        if (_cursor is { IsComplete: false } && SequencesEqual(_cursor.Sequence, sequence))
         {
             _unavailable = false;
+            return false;
+        }
+
+        _cursor = requested;
+        _unavailable = false;
+        return true;
+    }
+
+    public bool Restart(BehaviorSequence sequence)
+    {
+        ArgumentNullException.ThrowIfNull(sequence);
+        Cursor? requested = MakeCursor(sequence);
+        if (requested is null)
+        {
+            if (_cursor is null)
+            {
+                _unavailable = true;
+            }
             return false;
         }
 

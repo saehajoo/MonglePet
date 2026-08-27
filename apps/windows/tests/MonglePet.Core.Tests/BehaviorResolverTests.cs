@@ -56,7 +56,7 @@ public sealed class BehaviorResolverTests
     }
 
     [Fact]
-    public void AutomaticRulesUsePriorityAcrossConditionTypes()
+    public void AutomaticRulesUseConfiguredConditionTypeOrderBeforeLegacyPriority()
     {
         var applicationRule = new AutomaticRule(
             Guid.NewGuid(),
@@ -74,6 +74,8 @@ public sealed class BehaviorResolverTests
         var configuration = basis with
         {
             AutomaticRules = [idleRule, applicationRule],
+            AutomaticRulePriorityOrder =
+                [AutomaticRuleKind.Application, AutomaticRuleKind.Idle, AutomaticRuleKind.Movement],
         };
 
         var decision = Assert.IsType<BehaviorDecision.Sequence>(
@@ -88,6 +90,53 @@ public sealed class BehaviorResolverTests
         Assert.Equal(
             new BehaviorSource.AutomaticRule(applicationRule.Id),
             decision.Source);
+    }
+
+    [Fact]
+    public void MovementParticipatesInAutomaticPriorityAndOverridesDirectModes()
+    {
+        AutomaticRule idleRule = new(
+            Guid.NewGuid(), true, 1, new RuleCondition.IdleAtLeast(1_000), "sleep");
+        BehaviorConfiguration automatic = MakeConfiguration(BehaviorMode.Automatic) with
+        {
+            AutomaticRules = [idleRule],
+            AutomaticRulePriorityOrder =
+                [AutomaticRuleKind.Idle, AutomaticRuleKind.Movement, AutomaticRuleKind.Application],
+        };
+        var idleDecision = Assert.IsType<BehaviorDecision.Sequence>(_resolver.Resolve(
+            automatic,
+            Snapshot(idle: TimeSpan.FromSeconds(2)),
+            new(PetPresentation.Awake, MovementSequenceId: "focus")));
+        var manualDecision = Assert.IsType<BehaviorDecision.Sequence>(_resolver.Resolve(
+            MakeConfiguration(BehaviorMode.Manual, "manual"),
+            Snapshot(),
+            new(PetPresentation.Awake, MovementSequenceId: "focus")));
+
+        Assert.Equal("sleep", idleDecision.Value.Id);
+        Assert.Equal("focus", manualDecision.Value.Id);
+        Assert.IsType<BehaviorSource.Movement>(manualDecision.Source);
+    }
+
+    [Fact]
+    public void RandomModeUsesSelectedBagEntryOnceAndFallsBackWhenMissing()
+    {
+        BehaviorConfiguration configuration = MakeConfiguration(BehaviorMode.Random) with
+        {
+            RandomSequenceIds = ["focus", "rest"],
+        };
+        var selected = Assert.IsType<BehaviorDecision.Sequence>(_resolver.Resolve(
+            configuration,
+            Snapshot(),
+            new(PetPresentation.Awake, RandomSequenceId: "focus")));
+        var missing = Assert.IsType<BehaviorDecision.Sequence>(_resolver.Resolve(
+            configuration,
+            Snapshot(),
+            new(PetPresentation.Awake, RandomSequenceId: "missing")));
+
+        Assert.Equal("focus", selected.Value.Id);
+        Assert.False(selected.Value.Repeats);
+        Assert.IsType<BehaviorSource.Random>(selected.Source);
+        Assert.Equal("idle", missing.Value.Id);
     }
 
     [Fact]

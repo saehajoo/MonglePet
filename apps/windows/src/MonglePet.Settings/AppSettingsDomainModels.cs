@@ -6,7 +6,7 @@ namespace MonglePet.Settings;
 public static class AppSettingsLimits
 {
     public const double DefaultOverlayWidth = 192;
-    public const double MinimumOverlayWidth = 96;
+    public const double MinimumOverlayWidth = 19.2;
     public const double MaximumOverlayWidth = 384;
     public const int MaximumSequences = 100;
     public const int MaximumStepsPerSequence = 100;
@@ -131,6 +131,70 @@ public sealed record MovementAnimationSettings(
         new DirectionalMotionIds());
 }
 
+public sealed record DirectionalBehaviorIds(
+    string? Left = null,
+    string? Right = null,
+    string? Up = null,
+    string? Down = null,
+    string? UpLeft = null,
+    string? UpRight = null,
+    string? DownLeft = null,
+    string? DownRight = null)
+{
+    public IEnumerable<string?> All =>
+        [Left, Right, Up, Down, UpLeft, UpRight, DownLeft, DownRight];
+}
+
+public sealed record MovementBehaviorSettings(
+    string? FallbackBehaviorId,
+    bool UsesDirectionalBehaviors,
+    bool UsesDiagonalBehaviors,
+    DirectionalBehaviorIds DirectionBehaviorIds)
+{
+    public static readonly MovementBehaviorSettings Default = new(
+        null,
+        false,
+        false,
+        new DirectionalBehaviorIds());
+
+    public static MovementBehaviorSettings FromLegacy(MovementAnimationSettings value) => new(
+        value.FallbackMotionId,
+        value.UsesDirectionalMotions,
+        value.UsesDiagonalMotions,
+        new DirectionalBehaviorIds(
+            value.DirectionMotionIds.Left,
+            value.DirectionMotionIds.Right,
+            value.DirectionMotionIds.Up,
+            value.DirectionMotionIds.Down,
+            value.DirectionMotionIds.UpLeft,
+            value.DirectionMotionIds.UpRight,
+            value.DirectionMotionIds.DownLeft,
+            value.DirectionMotionIds.DownRight));
+}
+
+public sealed record CursorFollowingMovementSettings(
+    double Speed,
+    double CursorDistance,
+    double StopRadius,
+    MovementBehaviorSettings Behavior);
+
+public sealed record FreeRoamingMovementSettings(
+    double Speed,
+    double StopRadius,
+    long DwellMilliseconds,
+    bool RandomizesDwell,
+    long DwellMinimumMilliseconds,
+    bool PrefersFrontmostWindow,
+    MovementBehaviorSettings Behavior);
+
+public sealed record CursorAvoidingMovementSettings(
+    CursorAvoidingIdleBehavior IdleBehavior,
+    double DetectionDistance,
+    double Speed,
+    double StopRadius,
+    MovementBehaviorSettings Behavior,
+    FreeRoamingMovementSettings IdleFreeRoaming);
+
 public sealed record PetMovementSettings(
     PetMovementMode Mode,
     double Speed,
@@ -143,7 +207,10 @@ public sealed record PetMovementSettings(
     CursorAvoidingIdleBehavior CursorAvoidingIdleBehavior,
     double CursorAvoidingDetectionDistance,
     double CursorAvoidingSpeed,
-    MovementAnimationSettings CursorAvoidingAnimation)
+    MovementAnimationSettings CursorAvoidingAnimation,
+    CursorFollowingMovementSettings? CursorFollowingSettings = null,
+    FreeRoamingMovementSettings? FreeRoamingSettings = null,
+    CursorAvoidingMovementSettings? CursorAvoidingSettings = null)
 {
     public static readonly PetMovementSettings Default = new(
         PetMovementMode.Fixed,
@@ -158,6 +225,29 @@ public sealed record PetMovementSettings(
         AppSettingsLimits.DefaultCursorAvoidingDetectionDistance,
         AppSettingsLimits.DefaultCursorAvoidingSpeed,
         MovementAnimationSettings.Default);
+
+    public CursorFollowingMovementSettings CursorFollowing => CursorFollowingSettings ?? new(
+        Speed,
+        CursorDistance,
+        StopRadius,
+        MovementBehaviorSettings.FromLegacy(CursorFollowingAnimation));
+
+    public FreeRoamingMovementSettings FreeRoaming => FreeRoamingSettings ?? new(
+        Speed,
+        StopRadius,
+        FreeRoamingDwellMilliseconds,
+        false,
+        Math.Max(AppSettingsLimits.MinimumFreeRoamingDwellMilliseconds, FreeRoamingDwellMilliseconds / 2),
+        PrefersFrontmostWindow,
+        MovementBehaviorSettings.FromLegacy(FreeRoamingAnimation));
+
+    public CursorAvoidingMovementSettings CursorAvoiding => CursorAvoidingSettings ?? new(
+        CursorAvoidingIdleBehavior,
+        CursorAvoidingDetectionDistance,
+        CursorAvoidingSpeed,
+        StopRadius,
+        MovementBehaviorSettings.FromLegacy(CursorAvoidingAnimation),
+        FreeRoaming);
 }
 
 public sealed record PetSpeechColor(double Red, double Green, double Blue)
@@ -279,7 +369,19 @@ public sealed record BehaviorProfile(
     IReadOnlyList<AutomaticRule> AutomaticRules,
     PetMovementSettings Movement,
     string? PettingMotionId,
-    PetSpeechSettings Speech);
+    PetSpeechSettings Speech,
+    IReadOnlyList<string>? RandomSequenceIds = null,
+    IReadOnlyList<AutomaticRuleKind>? AutomaticRulePriorityOrder = null,
+    string? PettingBehaviorId = null)
+{
+    public IReadOnlyList<string> RandomSequences => RandomSequenceIds ?? Array.Empty<string>();
+
+    public IReadOnlyList<AutomaticRuleKind> RulePriorityOrder =>
+        AutomaticRulePriorityOrder ??
+        [AutomaticRuleKind.Movement, AutomaticRuleKind.Idle, AutomaticRuleKind.Application];
+
+    public string? EffectivePettingBehaviorId => PettingBehaviorId ?? PettingMotionId;
+}
 
 public sealed record ActivePetInstance(
     Guid InstanceId,

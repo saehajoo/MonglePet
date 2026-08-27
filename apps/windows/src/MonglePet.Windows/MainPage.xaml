@@ -85,6 +85,10 @@
             <NavigationViewItem Content="펫 보관함" Tag="pet">
                 <NavigationViewItem.Icon><SymbolIcon Symbol="Folder" /></NavigationViewItem.Icon>
             </NavigationViewItem>
+            <NavigationViewItemHeader Content="지원" />
+            <NavigationViewItem Content="문제 해결" Tag="troubleshooting">
+                <NavigationViewItem.Icon><SymbolIcon Symbol="Help" /></NavigationViewItem.Icon>
+            </NavigationViewItem>
         </NavigationView.MenuItems>
         <ScrollViewer
             HorizontalContentAlignment="Stretch"
@@ -135,16 +139,26 @@
                 </InfoBar.ActionButton>
             </InfoBar>
 
-            <InfoBar
-                x:Name="ResourceWarningInfoBar"
-                IsClosable="True"
-                IsOpen="False"
-                Severity="Warning"
-                Title="활성 펫의 자원 사용량이 높습니다">
-                <InfoBar.ActionButton>
-                    <Button Click="PauseAllPetsButton_Click" Content="모두 일시정지" />
-                </InfoBar.ActionButton>
-            </InfoBar>
+            <Border
+                x:Name="TroubleshootingCard"
+                Style="{StaticResource SettingsCardStyle}"
+                Visibility="Collapsed">
+                <StackPanel Spacing="14">
+                    <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="안전 모드" />
+                    <TextBlock
+                        Style="{StaticResource SettingsCaptionStyle}"
+                        Text="이전 실행에서 펫 복원이 중단되었을 때만 안전 시작이 활성화됩니다. 문제가 된 마지막 펫을 제외하거나 모든 펫을 다시 복원할 수 있습니다."
+                        TextWrapping="Wrap" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Click="ResumeAllSafeStartButton_Click" Content="모두 복원" />
+                        <Button
+                            x:Name="ResumeWithoutLastSafeStartButton"
+                            Click="ResumeWithoutLastSafeStartButton_Click"
+                            Content="마지막 복원 펫 제외"
+                            Visibility="Collapsed" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
 
             <Border
                 x:Name="ActivePetsCard"
@@ -168,12 +182,7 @@
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <Button Click="WakeAllPetsButton_Click" Content="모두 깨우기" />
                         <Button Click="TuckAwayAllPetsButton_Click" Content="모두 재우기" />
-                        <Button x:Name="PauseAllPetsButton" Click="PauseAllPetsButton_Click" Content="모두 일시정지" />
-                        <Button
-                            x:Name="ResumeWithoutLastSafeStartButton"
-                            Click="ResumeWithoutLastSafeStartButton_Click"
-                            Content="마지막 복원 펫 제외"
-                            Visibility="Collapsed" />
+                        <Button x:Name="PauseAllPetsButton" Click="PauseAllPetsButton_Click" Content="모든 펫 일시정지/재개" />
                     </StackPanel>
                     <ListView
                         x:Name="ActivePetsList"
@@ -244,7 +253,6 @@
                                                 Tag="{Binding InstanceId}"
                                                 Text="{Binding Nickname, Mode=OneWay}" />
                                             <TextBlock Style="{StaticResource SettingsCaptionStyle}" Text="{Binding Detail}" />
-                                            <TextBlock Style="{StaticResource SettingsCaptionStyle}" Text="{Binding RuntimeStatus}" />
                                         </StackPanel>
                                         <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                                             <Button Click="MoveActivePetUpButton_Click" Content="↑" Tag="{Binding InstanceId}" ToolTipService.ToolTip="앞으로" />
@@ -267,14 +275,6 @@
                 </StackPanel>
             </Border>
 
-            <InfoBar
-                x:Name="OverlayInfoBar"
-                IsClosable="False"
-                IsOpen="True"
-                Message="공통 샘플 패키지를 읽고 Composition 이미지 표면을 준비하는 중입니다."
-                Severity="Informational"
-                Title="펫 오버레이 실험" />
-
             <Border
                 x:Name="GeneralSettingsCard"
                 Style="{StaticResource SettingsCardStyle}"
@@ -292,37 +292,6 @@
                             Click="VisibilityButton_Click"
                             Content="펫 재우기"
                             HorizontalAlignment="Left" />
-                    </StackPanel>
-                    <Border x:Name="PetBehaviorDivider" Style="{StaticResource SettingsDividerStyle}" />
-                    <StackPanel x:Name="BehaviorOverviewPanel" Spacing="12">
-                        <StackPanel Spacing="4">
-                            <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="행동 모드" />
-                            <TextBlock
-                                Style="{StaticResource SettingsCaptionStyle}"
-                                Text="자동 모드에서는 사용 중인 앱과 입력 없음 시간을 살피고, 수동 모드에서는 선택한 행동 루틴을 반복합니다." />
-                        </StackPanel>
-                        <ComboBox
-                            x:Name="BehaviorModeComboBox"
-                            Header="행동 모드"
-                            SelectionChanged="BehaviorModeComboBox_SelectionChanged">
-                            <ComboBoxItem Content="자동" Tag="Automatic" />
-                            <ComboBoxItem Content="수동" Tag="Manual" />
-                        </ComboBox>
-                        <ComboBox
-                            x:Name="ManualSequenceComboBox"
-                            DisplayMemberPath="DisplayName"
-                            Header="수동 행동 루틴"
-                            SelectedValuePath="Id"
-                            SelectionChanged="ManualSequenceComboBox_SelectionChanged" />
-                        <TextBlock
-                            x:Name="BehaviorDescriptionText"
-                            Style="{StaticResource SettingsCaptionStyle}" />
-                        <Expander Header="행동 상태 진단">
-                            <StackPanel Spacing="4">
-                                <TextBlock x:Name="BehaviorStatusText" Style="{StaticResource SettingsCaptionStyle}" />
-                                <TextBlock x:Name="ActivityStatusText" Style="{StaticResource SettingsCaptionStyle}" />
-                            </StackPanel>
-                        </Expander>
                     </StackPanel>
                 </StackPanel>
             </Border>
@@ -364,9 +333,9 @@
                                 x:Name="OverlayWidthSlider"
                                 Grid.Column="1"
                                 Maximum="384"
-                                Minimum="96"
-                                SmallChange="8"
-                                StepFrequency="8"
+                                Minimum="19.2"
+                                SmallChange="9.6"
+                                StepFrequency="9.6"
                                 ValueChanged="DisplaySlider_ValueChanged" />
                             <TextBlock
                                 x:Name="OverlayWidthValueText"
@@ -406,6 +375,26 @@
                                 HorizontalAlignment="Right"
                                 VerticalAlignment="Center" />
                         </Grid>
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock VerticalAlignment="Center" Style="{StaticResource SettingsCaptionStyle}" Text="빠른 크기" />
+                            <Button Click="OverlaySizePresetButton_Click" Content="10%" Tag="10" />
+                            <Button Click="OverlaySizePresetButton_Click" Content="25%" Tag="25" />
+                            <Button Click="OverlaySizePresetButton_Click" Content="50%" Tag="50" />
+                            <Button Click="OverlaySizePresetButton_Click" Content="100%" Tag="100" />
+                            <Button Click="OverlaySizePresetButton_Click" Content="150%" Tag="150" />
+                            <Button Click="OverlaySizePresetButton_Click" Content="200%" Tag="200" />
+                        </StackPanel>
+                        <InfoBar
+                            x:Name="TinyPetInfoBar"
+                            IsClosable="False"
+                            IsOpen="False"
+                            Message="25% 미만에서는 펫을 찾거나 직접 드래그하기 어려울 수 있습니다."
+                            Severity="Informational"
+                            Title="아주 작은 펫 크기">
+                            <InfoBar.ActionButton>
+                                <Button Click="BringPetToCurrentScreenButton_Click" Content="현재 화면으로 가져오기" />
+                            </InfoBar.ActionButton>
+                        </InfoBar>
                         <TextBlock
                             Style="{StaticResource SettingsCaptionStyle}"
                             Text="클릭 통과가 켜진 동안 마우스가 펫의 보이는 부분에 닿았을 때만 겹침 투명도를 적용합니다." />
@@ -445,9 +434,6 @@
                                 Style="{StaticResource SettingsCaptionStyle}"
                                 Text="Windows 11에서 동작하는 네이티브 데스크톱 펫입니다. 설정과 활동 정보는 이 기기 안에 저장됩니다." />
                         </StackPanel>
-                        <Expander Header="진단 정보">
-                            <TextBlock x:Name="OverlayStatusText" Style="{StaticResource SettingsCaptionStyle}" />
-                        </Expander>
                     </StackPanel>
                     <InfoBar
                         x:Name="DisplaySettingsInfoBar"
@@ -830,7 +816,6 @@
                         Click="SaveSpeechSettingsButton_Click"
                         Content="말풍선 설정 저장"
                         HorizontalAlignment="Left" />
-                    <TextBlock x:Name="SpeechRuntimeStatusText" Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap" />
                     <InfoBar
                         x:Name="SpeechSettingsInfoBar"
                         IsClosable="True"
@@ -1022,6 +1007,17 @@
                             SmallChange="0.5"
                             ValueChanged="MovementControls_Changed" />
                         <ToggleSwitch
+                            x:Name="RandomizesDwellToggle"
+                            Header="머무는 시간을 범위 안에서 무작위로 선택"
+                            Toggled="MovementControls_Changed" />
+                        <NumberBox
+                            x:Name="FreeRoamingDwellMinimumNumberBox"
+                            Header="최소 머무는 시간 (초)"
+                            Maximum="300"
+                            Minimum="0.5"
+                            SmallChange="0.5"
+                            ValueChanged="MovementControls_Changed" />
+                        <ToggleSwitch
                             x:Name="PrefersFrontmostWindowToggle"
                             Header="현재 사용 중인 앱의 창 근처를 우선"
                             Toggled="MovementControls_Changed" />
@@ -1066,14 +1062,11 @@
                         <ComboBox
                             x:Name="PettingMotionComboBox"
                             DisplayMemberPath="DisplayName"
-                            Header="쓰다듬기 애니메이션"
+                            Header="쓰다듬기 행동"
                             SelectedValuePath="Id"
                             SelectionChanged="MovementControls_Changed" />
                         <TextBlock x:Name="PettingDescriptionText" Style="{StaticResource SettingsCaptionStyle}" />
                     </StackPanel>
-                    <Expander Header="이동 상태 진단">
-                        <TextBlock x:Name="MovementStatusText" Style="{StaticResource SettingsCaptionStyle}" />
-                    </Expander>
                     <InfoBar
                         x:Name="MovementSettingsInfoBar"
                         IsClosable="True"
@@ -1144,8 +1137,14 @@
                         <ListView
                             x:Name="PetAnimationsList"
                             MaxHeight="260"
+                            HorizontalContentAlignment="Stretch"
                             SelectionChanged="PetAnimationsList_SelectionChanged"
                             SelectionMode="Single">
+                            <ListView.ItemContainerStyle>
+                                <Style TargetType="ListViewItem">
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                </Style>
+                            </ListView.ItemContainerStyle>
                             <ListView.ItemTemplate>
                                 <DataTemplate>
                                     <Grid Padding="0,7" ColumnSpacing="12">
@@ -1175,6 +1174,10 @@
                                 x:Name="EditPetAnimationButton"
                                 Click="EditPetAnimationButton_Click"
                                 Content="수정…" />
+                            <Button
+                                x:Name="DuplicatePetAnimationButton"
+                                Click="DuplicatePetAnimationButton_Click"
+                                Content="애니메이션 복제…" />
                             <Button
                                 x:Name="DeletePetAnimationButton"
                                 Click="DeletePetAnimationButton_Click"
@@ -1310,7 +1313,7 @@
                             <Button
                                 x:Name="CreateEditablePetCopyButton"
                                 Click="CreateEditablePetCopyButton_Click"
-                                Content="편집 가능한 사본 만들기…" />
+                                Content="펫 사본 새로 만들기…" />
                             <Button
                                 x:Name="DeleteCurrentPetButton"
                                 Click="DeleteCurrentPetButton_Click"
@@ -1382,31 +1385,85 @@
                         </Grid>
                     </Border>
                     <Border
+                        x:Name="BehaviorOverviewPanel"
+                        Style="{StaticResource SettingsSubcardStyle}"
+                        Visibility="Collapsed">
+                        <StackPanel Spacing="12">
+                            <StackPanel Spacing="4">
+                                <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="행동 모드" />
+                                <TextBlock
+                                    Style="{StaticResource SettingsCaptionStyle}"
+                                    Text="현재 펫의 행동 선택 방식을 정합니다. 자동 규칙은 이동 상태와 앱·입력 없음 조건을 함께 평가합니다." />
+                            </StackPanel>
+                            <ComboBox
+                                x:Name="BehaviorModeComboBox"
+                                Header="행동 모드"
+                                SelectionChanged="BehaviorModeComboBox_SelectionChanged">
+                                <ComboBoxItem Content="자동 규칙" Tag="Automatic" />
+                                <ComboBoxItem Content="직접 선택" Tag="Manual" />
+                                <ComboBoxItem Content="랜덤 선택" Tag="Random" />
+                            </ComboBox>
+                            <ComboBox
+                                x:Name="ManualSequenceComboBox"
+                                DisplayMemberPath="DisplayName"
+                                Header="직접 재생할 행동"
+                                SelectedValuePath="Id"
+                                SelectionChanged="ManualSequenceComboBox_SelectionChanged" />
+                            <ListView
+                                x:Name="RandomSequencesList"
+                                DisplayMemberPath="DisplayName"
+                                Header="랜덤으로 재생할 행동"
+                                MaxHeight="220"
+                                SelectionChanged="RandomSequencesList_SelectionChanged"
+                                SelectionMode="Multiple" />
+                            <TextBlock
+                                x:Name="BehaviorDescriptionText"
+                                Style="{StaticResource SettingsCaptionStyle}"
+                                TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+                    <Border
                         x:Name="RoutineEditorCard"
                         Style="{StaticResource SettingsSubcardStyle}"
                         Visibility="Collapsed">
                         <StackPanel Spacing="12">
-                            <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="편집할 행동 루틴" />
-                            <ComboBox
-                                x:Name="RoutineEditorComboBox"
-                                DisplayMemberPath="DisplayName"
-                                Header="편집할 루틴"
-                                SelectedValuePath="Id"
-                                SelectionChanged="RoutineEditorComboBox_SelectionChanged" />
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Spacing="4">
+                                    <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="행동 루틴 편집" />
+                                    <TextBlock
+                                        Style="{StaticResource SettingsCaptionStyle}"
+                                        Text="루틴을 선택한 뒤 애니메이션 단계와 반복 방식을 편집합니다."
+                                        TextWrapping="Wrap" />
+                                </StackPanel>
+                                <Button
+                                    x:Name="AddSequenceButton"
+                                    Grid.Column="1"
+                                    Click="AddSequenceButton_Click"
+                                    Content="새 행동 루틴 만들기"
+                                    Style="{StaticResource AccentButtonStyle}" />
+                            </Grid>
                             <Grid ColumnSpacing="8">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <TextBox x:Name="NewSequenceNameTextBox" Header="새 행동 루틴 만들기" PlaceholderText="루틴 이름" />
-                            <Button
-                                x:Name="AddSequenceButton"
-                                Grid.Column="1"
-                                Margin="0,24,0,0"
-                                Click="AddSequenceButton_Click"
-                                Content="만들기"
-                                Style="{StaticResource AccentButtonStyle}" />
+                                <ComboBox
+                                    x:Name="RoutineEditorComboBox"
+                                    DisplayMemberPath="DisplayName"
+                                    Header="현재 행동 루틴"
+                                    SelectedValuePath="Id"
+                                    SelectionChanged="RoutineEditorComboBox_SelectionChanged" />
+                                <Button
+                                    x:Name="RenameSequenceButton"
+                                    Grid.Column="1"
+                                    Margin="0,24,0,0"
+                                    Click="RenameSequenceButton_Click"
+                                    Content="이름 변경" />
                                 <Button
                                     x:Name="DeleteSequenceButton"
                                     Grid.Column="2"
@@ -1421,7 +1478,14 @@
                             <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="애니메이션 단계" />
                             <ListView
                                 x:Name="BehaviorStepsList"
+                                HorizontalContentAlignment="Stretch"
                                 SelectionMode="None">
+                                <ListView.ItemContainerStyle>
+                                    <Style TargetType="ListViewItem">
+                                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                        <Setter Property="Padding" Value="0" />
+                                    </Style>
+                                </ListView.ItemContainerStyle>
                                 <ListView.ItemTemplate>
                                     <DataTemplate>
                                         <Border
@@ -1429,17 +1493,20 @@
                                             Padding="12"
                                             Background="{ThemeResource SubtleFillColorSecondaryBrush}"
                                             CornerRadius="10">
-                                            <Grid ColumnSpacing="12">
+                                            <Grid ColumnSpacing="12" RowSpacing="10">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="36" />
                                                     <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="124" />
                                                     <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto" />
+                                                    <RowDefinition Height="Auto" />
+                                                </Grid.RowDefinitions>
                                                 <Border
                                                     Width="32"
                                                     Height="32"
-                                                    VerticalAlignment="Bottom"
+                                                    VerticalAlignment="Center"
                                                     Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                                     CornerRadius="16">
                                                     <TextBlock
@@ -1450,17 +1517,21 @@
                                                 </Border>
                                                 <StackPanel Grid.Column="1" Spacing="5">
                                                     <TextBlock Style="{StaticResource SettingsCaptionStyle}" Text="애니메이션" />
-                                                    <ComboBox
-                                                        MinWidth="220"
+                                                    <Button
+                                                        AutomationProperties.Name="단계 애니메이션 선택"
+                                                        Click="ChooseStepMotionButton_Click"
+                                                        Content="{Binding MotionDisplayName}"
+                                                        HorizontalContentAlignment="Left"
                                                         HorizontalAlignment="Stretch"
-                                                        ItemsSource="{Binding MotionOptions}"
-                                                        DisplayMemberPath="DisplayName"
-                                                        SelectedValue="{Binding MotionId, Mode=OneWay}"
-                                                        SelectedValuePath="Id"
-                                                        SelectionChanged="StepMotionComboBox_SelectionChanged"
+                                                        MinWidth="220"
                                                         Tag="{Binding Index}" />
                                                 </StackPanel>
-                                                <StackPanel Grid.Column="2" Spacing="5">
+                                                <StackPanel
+                                                    Grid.Row="1"
+                                                    Grid.Column="1"
+                                                    MaxWidth="180"
+                                                    HorizontalAlignment="Left"
+                                                    Spacing="5">
                                                     <TextBlock Style="{StaticResource SettingsCaptionStyle}" Text="반복 횟수" />
                                                     <NumberBox
                                                         Maximum="100000"
@@ -1472,7 +1543,8 @@
                                                         ValueChanged="StepRepeatCountNumberBox_ValueChanged" />
                                                 </StackPanel>
                                                 <StackPanel
-                                                    Grid.Column="3"
+                                                    Grid.Row="1"
+                                                    Grid.Column="2"
                                                     VerticalAlignment="Bottom"
                                                     Orientation="Horizontal"
                                                     Spacing="6">
@@ -1508,7 +1580,7 @@
                                 Style="{StaticResource AccentButtonStyle}" />
                             <TextBlock
                                 Style="{StaticResource SettingsCaptionStyle}"
-                                Text="현재 펫이 가진 애니메이션을 순서대로 조합합니다. 루틴 이름은 생성 후에는 바꿀 수 없습니다." />
+                                Text="현재 펫이 가진 애니메이션을 순서대로 조합합니다. 루틴 이름은 위의 이름 변경 버튼으로 바꿀 수 있습니다." />
                         </StackPanel>
                     </Border>
 
@@ -1517,7 +1589,77 @@
                         Style="{StaticResource SettingsSubcardStyle}"
                         Visibility="Collapsed">
                         <StackPanel Spacing="12">
-                            <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="등록된 규칙" />
+                            <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="자동 동작 우선순위" />
+                            <TextBlock
+                                Style="{StaticResource SettingsCaptionStyle}"
+                                Text="위에 있는 항목부터 적용합니다. 규칙이 표시 및 이동보다 앞에 있으면 펫이 현재 위치에서 멈추고 해당 규칙의 행동을 표시합니다."
+                                TextWrapping="Wrap" />
+                            <ListView
+                                x:Name="RulePriorityOrderList"
+                                MaxHeight="150"
+                                SelectionMode="Single">
+                                <ListView.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Padding="0,6" ColumnSpacing="12">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Spacing="2">
+                                                <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="{Binding DisplayName}" />
+                                                <TextBlock Style="{StaticResource CaptionTextBlockStyle}" Text="{Binding Subtitle}" TextWrapping="Wrap" />
+                                            </StackPanel>
+                                            <TextBlock
+                                                Grid.Column="1"
+                                                VerticalAlignment="Center"
+                                                Style="{StaticResource SettingsCaptionStyle}"
+                                                Text="{Binding Rank}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListView.ItemTemplate>
+                            </ListView>
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button Click="MoveRulePriorityUpButton_Click" Content="위로" />
+                                <Button Click="MoveRulePriorityDownButton_Click" Content="아래로" />
+                            </StackPanel>
+                            <Border Style="{StaticResource SettingsDividerStyle}" />
+                            <Border Style="{StaticResource SettingsSubcardStyle}">
+                                <StackPanel Spacing="10">
+                                    <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="입력 없음 규칙" />
+                                    <ToggleSwitch
+                                        x:Name="IdleRuleEnabledToggle"
+                                        Header="입력 없음 규칙 사용"
+                                        IsOn="False"
+                                        Toggled="IdleRuleEnabledToggle_Toggled" />
+                                    <Grid ColumnSpacing="12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="180" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <NumberBox
+                                            x:Name="IdleRuleSecondsNumberBox"
+                                            Header="입력 없음 시간 (초)"
+                                            Maximum="86400"
+                                            Minimum="1"
+                                            SmallChange="1"
+                                            SpinButtonPlacementMode="Compact"
+                                            Value="60" />
+                                        <ComboBox
+                                            x:Name="IdleRuleTargetSequenceComboBox"
+                                            Grid.Column="1"
+                                            DisplayMemberPath="DisplayName"
+                                            Header="실행할 행동"
+                                            SelectedValuePath="Id" />
+                                    </Grid>
+                                    <Button
+                                        x:Name="SaveIdleRuleSettingsButton"
+                                        HorizontalAlignment="Left"
+                                        Click="SaveIdleRuleSettingsButton_Click"
+                                        Content="입력 없음 규칙 변경" />
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource SettingsDividerStyle}" />
+                            <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="등록된 앱 사용 규칙" />
                             <ListView
                                 x:Name="AutomaticRulesList"
                                 SelectionChanged="AutomaticRulesList_SelectionChanged"
@@ -1537,7 +1679,7 @@
                                     Click="NewApplicationRuleButton_Click"
                                     Content="앱 규칙 추가"
                                     Style="{StaticResource AccentButtonStyle}" />
-                                <Button x:Name="NewIdleRuleButton" Click="NewIdleRuleButton_Click" Content="입력 없음 규칙 추가" />
+                                <Button x:Name="NewIdleRuleButton" Click="NewIdleRuleButton_Click" Content="입력 없음 규칙 추가" Visibility="Collapsed" />
                                 <Button x:Name="DeleteRuleButton" Click="DeleteRuleButton_Click" Content="선택 규칙 삭제" />
                             </StackPanel>
                             <ToggleSwitch x:Name="RuleEnabledToggle" Header="규칙 사용" IsOn="True" />
@@ -1547,11 +1689,13 @@
                                 Maximum="2147483647"
                                 Minimum="-2147483648"
                                 SmallChange="1"
+                                Visibility="Collapsed"
                                 SpinButtonPlacementMode="Compact" />
                             <ComboBox
                                 x:Name="RuleConditionTypeComboBox"
                                 Header="조건 종류"
-                                SelectionChanged="RuleConditionTypeComboBox_SelectionChanged">
+                                SelectionChanged="RuleConditionTypeComboBox_SelectionChanged"
+                                Visibility="Collapsed">
                                 <ComboBoxItem Content="전면 앱" Tag="Application" />
                                 <ComboBoxItem Content="입력 없음" Tag="Idle" />
                             </ComboBox>
@@ -1590,19 +1734,20 @@
                             </StackPanel>
                             <NumberBox
                                 x:Name="RuleIdleMinutesNumberBox"
-                                Header="입력 없음 시간 (분)"
-                                Maximum="1440"
+                                Header="입력 없음 시간 (초)"
+                                Maximum="86400"
                                 Minimum="1"
                                 SmallChange="1"
                                 SpinButtonPlacementMode="Compact"
-                                Value="1" />
+                                Value="1"
+                                Visibility="Collapsed" />
                             <ComboBox
                                 x:Name="RuleTargetSequenceComboBox"
                                 DisplayMemberPath="DisplayName"
                                 Header="실행할 루틴"
                                 SelectedValuePath="Id" />
                             <StackPanel Orientation="Horizontal" Spacing="8">
-                                <Button x:Name="AddRuleButton" Click="AddRuleButton_Click" Content="새 규칙 추가" />
+                                <Button x:Name="AddRuleButton" Click="AddRuleButton_Click" Content="앱 규칙 추가" />
                                 <Button
                                     x:Name="SaveRuleButton"
                                     Click="SaveRuleButton_Click"
@@ -1610,7 +1755,7 @@
                             </StackPanel>
                             <TextBlock
                                 Style="{StaticResource SettingsCaptionStyle}"
-                                Text="숫자가 큰 우선순위부터 검사하며, 조건을 만족하는 첫 번째 규칙을 사용합니다." />
+                                Text="입력 없음 감지는 1초 주기라 실제 전환에 최대 약 1초가 걸릴 수 있습니다." />
                         </StackPanel>
                     </Border>
                     <InfoBar

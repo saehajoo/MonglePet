@@ -175,22 +175,34 @@ public sealed class UserPetPackageEditor
         InstalledPetPackage installed,
         string displayName)
     {
-        if (IsEditable(installed))
-        {
-            throw Error(UserPetEditingError.PetIsAlreadyEditable, "이미 편집 가능한 펫입니다.");
-        }
+        ArgumentNullException.ThrowIfNull(installed);
+        return CreateEditableCopy(installed.Package, installed.RootPath, displayName);
+    }
+
+    public InstalledPetPackage CreateEditableCopy(
+        LoadedPetPackage package,
+        string sourceRootPath,
+        string displayName)
+    {
+        ArgumentNullException.ThrowIfNull(package);
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourceRootPath);
         string normalizedName = Required(displayName, UserPetEditingError.InvalidPetName, "펫 이름을 입력해 주세요.");
         string packageId = $"kr.mapleroom.monglepet.user.{Guid.NewGuid():N}";
-        return EditCopy(installed, replace: false, (workspace, manifest) =>
+        return WithWorkspace(workspace =>
         {
-            PetPackageManifest updated = manifest with
+            CopyDirectory(sourceRootPath, workspace);
+            PetPackageManifest updated = package.Manifest with
             {
                 Id = packageId,
                 DisplayName = normalizedName,
             };
             WriteManifest(workspace, updated);
             WriteMarker(workspace, packageId);
-        });
+            _loader.LoadDirectory(workspace);
+            return _store.InstallEditableFromDirectory(
+                workspace,
+                PetPackageInstallMode.InstallSeparately);
+        }, createWorkspace: false);
     }
 
     public InstalledPetPackage UpdateDetails(

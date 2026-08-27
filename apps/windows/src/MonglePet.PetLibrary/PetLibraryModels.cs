@@ -25,7 +25,9 @@ public sealed record PetPackageImportReview(
     string? RecommendedProfileIssueDetail,
     RemotePetSemanticVersion? CurrentAppVersion = null,
     RemotePetSemanticVersion? PublishedMinimumAppVersion = null,
-    PetCompatibilityAdvisory? CompatibilityAdvisory = null)
+    PetCompatibilityAdvisory? CompatibilityAdvisory = null,
+    PortablePetDisplaySettings? RecommendedDisplay = null,
+    bool RecommendedProfileIncludesDisplay = false)
 {
     public bool CanApplyRecommendedProfile => RecommendedProfile is not null;
 }

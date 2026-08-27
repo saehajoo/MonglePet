@@ -15,7 +15,7 @@ public sealed class PetPackageExporter
         PetPackageLoader? loader = null,
         PetPackageArchiveExtractor? archiveExtractor = null,
         Func<Guid>? operationIdGenerator = null,
-        string appVersion = "1.3.0")
+        string appVersion = "1.4.0")
     {
         _loader = loader ?? new PetPackageLoader();
         _archiveExtractor = archiveExtractor ?? new PetPackageArchiveExtractor();
@@ -27,7 +27,8 @@ public sealed class PetPackageExporter
         InstalledPetPackage installedPackage,
         string destinationPath,
         BehaviorProfile? recommendedProfile = null,
-        bool includesApplicationRules = false)
+        bool includesApplicationRules = false,
+        OverlaySettings? recommendedDisplay = null)
     {
         ArgumentNullException.ThrowIfNull(installedPackage);
         ArgumentException.ThrowIfNullOrWhiteSpace(destinationPath);
@@ -77,7 +78,8 @@ public sealed class PetPackageExporter
                 expectedRecommendedProfile = RecommendedPetProfileCodec.Encode(
                     recommendedProfile,
                     exportedManifest.Motions.Select(motion => motion.Id).ToArray(),
-                    includesApplicationRules);
+                    includesApplicationRules,
+                    recommendedDisplay);
                 File.WriteAllBytes(
                     Path.Combine(payload, "recommended-profile.json"),
                     expectedRecommendedProfile);

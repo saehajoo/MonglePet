@@ -45,8 +45,14 @@ public sealed class RecommendedPetProfileCodecTests
 
         Assert.Equal(TargetKey, profile.PetKey);
         Assert.Equal(BehaviorMode.Manual, profile.Mode);
-        Assert.Equal("walk", profile.Movement.CursorFollowingAnimation.FallbackMotionId);
-        Assert.Equal("idle", profile.Movement.FreeRoamingAnimation.FallbackMotionId);
+        string followingBehavior = Assert.IsType<string>(
+            profile.Movement.CursorFollowing.Behavior.FallbackBehaviorId);
+        string roamingBehavior = Assert.IsType<string>(
+            profile.Movement.FreeRoaming.Behavior.FallbackBehaviorId);
+        Assert.Equal("walk", Assert.Single(profile.Sequences.Single(
+            sequence => sequence.Id == followingBehavior).Steps).MotionId);
+        Assert.Equal("idle", Assert.Single(profile.Sequences.Single(
+            sequence => sequence.Id == roamingBehavior).Steps).MotionId);
         Assert.False(profile.Speech.IsEnabled);
     }
 
@@ -91,7 +97,7 @@ public sealed class RecommendedPetProfileCodecTests
     }
 
     [Fact]
-    public void VersionSevenRoundTripsAndCanExcludeApplicationRules()
+    public void VersionTenRoundTripsAndCanExcludeApplicationRules()
     {
         BehaviorProfile profile = BehaviorProfileDefaults.Create(TargetKey) with
         {
@@ -104,11 +110,27 @@ public sealed class RecommendedPetProfileCodecTests
             ],
         };
 
-        byte[] data = RecommendedPetProfileCodec.Encode(profile, ["idle"], false);
-        BehaviorProfile decoded = RecommendedPetProfileCodec.Decode(data, TargetKey, ["idle"]);
+        OverlaySettings overlay = OverlaySettings.Default with
+        {
+            Width = 96,
+            ClickThrough = true,
+            Opacity = 0.8,
+            PointerOverlapFadeEnabled = true,
+            PointerOverlapOpacity = 0.4,
+            PixelArtRendering = true,
+        };
+        byte[] data = RecommendedPetProfileCodec.Encode(
+            profile, ["idle"], false, overlay);
+        DecodedRecommendedPetProfile package =
+            RecommendedPetProfileCodec.DecodeWithDisplay(data, TargetKey, ["idle"]);
+        BehaviorProfile decoded = package.Profile;
 
         AutomaticRule rule = Assert.Single(decoded.AutomaticRules);
         Assert.IsType<RuleCondition.IdleAtLeast>(rule.Condition);
+        Assert.True(package.IncludesDisplaySettings);
+        Assert.Equal(50, package.Display.ScalePercent);
+        Assert.Equal(overlay.Width, package.Display.ApplyTo(OverlaySettings.Default).Width);
+        Assert.True(package.Display.ClickThrough);
     }
 
     [Fact]

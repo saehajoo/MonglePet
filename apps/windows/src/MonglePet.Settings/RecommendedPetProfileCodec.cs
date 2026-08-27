@@ -21,9 +21,44 @@ public sealed class RecommendedPetProfileException(
     public RecommendedPetProfileError Error { get; } = error;
 }
 
+public sealed record PortablePetDisplaySettings(
+    double ScalePercent,
+    bool ClickThrough,
+    double Opacity,
+    bool PointerOverlapFadeEnabled,
+    double PointerOverlapOpacity,
+    bool PixelArtRendering)
+{
+    public static readonly PortablePetDisplaySettings Default = FromOverlay(
+        OverlaySettings.Default);
+
+    public static PortablePetDisplaySettings FromOverlay(OverlaySettings overlay) => new(
+        overlay.Width / AppSettingsLimits.DefaultOverlayWidth * 100,
+        overlay.ClickThrough,
+        overlay.Opacity,
+        overlay.PointerOverlapFadeEnabled,
+        overlay.PointerOverlapOpacity,
+        overlay.PixelArtRendering);
+
+    public OverlaySettings ApplyTo(OverlaySettings overlay) => overlay with
+    {
+        Width = AppSettingsLimits.DefaultOverlayWidth * ScalePercent / 100,
+        ClickThrough = ClickThrough,
+        Opacity = Opacity,
+        PointerOverlapFadeEnabled = PointerOverlapFadeEnabled,
+        PointerOverlapOpacity = PointerOverlapOpacity,
+        PixelArtRendering = PixelArtRendering,
+    };
+}
+
+public sealed record DecodedRecommendedPetProfile(
+    BehaviorProfile Profile,
+    PortablePetDisplaySettings Display,
+    bool IncludesDisplaySettings);
+
 public static class RecommendedPetProfileCodec
 {
-    public const int CurrentSchemaVersion = 7;
+    public const int CurrentSchemaVersion = 10;
     public const int MaximumFileSize = 1 * 1024 * 1024;
     private static readonly Guid PlaceholderInstallationId =
         Guid.Parse("00000000-0000-0000-0000-000000000001");
@@ -33,6 +68,12 @@ public static class RecommendedPetProfileCodec
         Guid.Parse("00000000-0000-0000-0000-000000000003");
 
     public static BehaviorProfile Decode(
+        ReadOnlySpan<byte> data,
+        PetBehaviorKey targetKey,
+        IReadOnlyCollection<string> availableMotionIds) =>
+        DecodeWithDisplay(data, targetKey, availableMotionIds).Profile;
+
+    public static DecodedRecommendedPetProfile DecodeWithDisplay(
         ReadOnlySpan<byte> data,
         PetBehaviorKey targetKey,
         IReadOnlyCollection<string> availableMotionIds)
@@ -81,6 +122,13 @@ public static class RecommendedPetProfileCodec
 
         NormalizeLegacyProfile(source, schemaVersion);
 
+        int appSettingsSchemaVersion = schemaVersion switch
+        {
+            <= 7 => 11,
+            8 => 12,
+            9 => 13,
+            _ => 14,
+        };
         JsonObject profile = behavior.DeepClone().AsObject();
         profile["petKey"] = new JsonObject
         {
@@ -88,10 +136,29 @@ public static class RecommendedPetProfileCodec
             ["installationID"] = PlaceholderInstallationId.ToString("D"),
         };
         profile["automaticRules"] = source["automaticRules"]?.DeepClone() ?? new JsonArray();
+        if (schemaVersion >= 8)
+        {
+            profile["automaticRulePriorityOrder"] =
+                source["automaticRulePriorityOrder"]?.DeepClone();
+        }
         profile["movement"] = source["movement"]?.DeepClone();
-        profile["pettingMotionID"] = source["pettingMotionID"]?.DeepClone();
+        if (schemaVersion >= 8)
+        {
+            profile["pettingBehaviorID"] = source["pettingBehaviorID"]?.DeepClone();
+        }
+        else
+        {
+            profile["pettingMotionID"] = source["pettingMotionID"]?.DeepClone();
+        }
         profile["speech"] = source["speech"]?.DeepClone();
-        JsonObject wrapper = Wrapper(profile);
+        JsonObject wrapper = Wrapper(profile, appSettingsSchemaVersion);
+        if (appSettingsSchemaVersion < AppSettingsStore.CurrentSchemaVersion)
+        {
+            wrapper = AppSettingsMigrator.Migrate(
+                wrapper,
+                appSettingsSchemaVersion,
+                legacyMotionCycleMillisecondsResolver: null).Document;
+        }
         AppSettingsDocumentMappingResult mapping = AppSettingsDocumentMapper.FromDocument(wrapper);
         if (mapping.Issues.Count > 0 || mapping.Settings.BehaviorProfiles.Count != 1)
         {
@@ -104,13 +171,20 @@ public static class RecommendedPetProfileCodec
 
         BehaviorProfile decoded = mapping.Settings.BehaviorProfiles[0] with { PetKey = targetKey };
         ValidateMotionReferences(decoded, availableMotionIds);
-        return decoded;
+        PortablePetDisplaySettings display = schemaVersion >= 10
+            ? ReadDisplay(source["display"])
+            : PortablePetDisplaySettings.Default;
+        return new DecodedRecommendedPetProfile(
+            decoded,
+            display,
+            schemaVersion >= 10);
     }
 
     public static byte[] Encode(
         BehaviorProfile profile,
         IReadOnlyCollection<string> availableMotionIds,
-        bool includesApplicationRules)
+        bool includesApplicationRules,
+        OverlaySettings? displaySettings = null)
     {
         ArgumentNullException.ThrowIfNull(profile);
         ValidateMotionReferences(profile, availableMotionIds);
@@ -141,16 +215,29 @@ public static class RecommendedPetProfileCodec
         {
             ["mode"] = stored["mode"]?.DeepClone(),
             ["manualSequenceID"] = stored["manualSequenceID"]?.DeepClone(),
+            ["randomSequenceIDs"] = stored["randomSequenceIDs"]?.DeepClone(),
             ["sequences"] = stored["sequences"]?.DeepClone(),
         };
+        OverlaySettings display = displaySettings ?? OverlaySettings.Default;
         var result = new JsonObject
         {
             ["schemaVersion"] = CurrentSchemaVersion,
             ["behavior"] = behavior,
             ["movement"] = stored["movement"]?.DeepClone(),
-            ["pettingMotionID"] = stored["pettingMotionID"]?.DeepClone(),
+            ["pettingBehaviorID"] = stored["pettingBehaviorID"]?.DeepClone(),
             ["automaticRules"] = stored["automaticRules"]?.DeepClone(),
+            ["automaticRulePriorityOrder"] =
+                stored["automaticRulePriorityOrder"]?.DeepClone(),
             ["speech"] = stored["speech"]?.DeepClone(),
+            ["display"] = new JsonObject
+            {
+                ["scalePercent"] = display.Width / OverlaySettings.Default.Width * 100,
+                ["clickThrough"] = display.ClickThrough,
+                ["opacity"] = display.Opacity,
+                ["pointerOverlapFadeEnabled"] = display.PointerOverlapFadeEnabled,
+                ["pointerOverlapOpacity"] = display.PointerOverlapOpacity,
+                ["pixelArtRendering"] = display.PixelArtRendering,
+            },
         };
         byte[] data = JsonSerializer.SerializeToUtf8Bytes(
             result,
@@ -162,12 +249,12 @@ public static class RecommendedPetProfileCodec
         return data;
     }
 
-    private static JsonObject Wrapper(JsonObject profile)
+    private static JsonObject Wrapper(JsonObject profile, int schemaVersion)
     {
         profile["profileID"] = PlaceholderProfileId.ToString("D");
         return new JsonObject
         {
-            ["schemaVersion"] = AppSettingsStore.CurrentSchemaVersion,
+            ["schemaVersion"] = schemaVersion,
             ["selectedPetInstanceID"] = PlaceholderInstanceId.ToString("D"),
             ["activePetInstances"] = new JsonArray(new JsonObject
             {
@@ -241,6 +328,29 @@ public static class RecommendedPetProfileCodec
                 throw Error(RecommendedPetProfileError.MissingMotion, $"권장 설정 모션을 찾을 수 없습니다: {step.MotionId}");
             }
         }
+        var behaviorIds = profile.Sequences
+            .Select(sequence => sequence.Id)
+            .ToHashSet(StringComparer.Ordinal);
+        IEnumerable<string?> movementBehaviors =
+        [
+            profile.Movement.CursorFollowing.Behavior.FallbackBehaviorId,
+            .. profile.Movement.CursorFollowing.Behavior.DirectionBehaviorIds.All,
+            profile.Movement.FreeRoaming.Behavior.FallbackBehaviorId,
+            .. profile.Movement.FreeRoaming.Behavior.DirectionBehaviorIds.All,
+            profile.Movement.CursorAvoiding.Behavior.FallbackBehaviorId,
+            .. profile.Movement.CursorAvoiding.Behavior.DirectionBehaviorIds.All,
+            profile.Movement.CursorAvoiding.IdleFreeRoaming.Behavior.FallbackBehaviorId,
+            .. profile.Movement.CursorAvoiding.IdleFreeRoaming.Behavior.DirectionBehaviorIds.All,
+            profile.PettingBehaviorId,
+        ];
+        string? missingBehavior = movementBehaviors.FirstOrDefault(id =>
+            id is not null && !behaviorIds.Contains(id));
+        if (missingBehavior is not null)
+        {
+            throw Error(
+                RecommendedPetProfileError.InvalidContent,
+                $"권장 설정 행동을 찾을 수 없습니다: {missingBehavior}");
+        }
         IEnumerable<string?> movementMotions =
         [
             profile.Movement.CursorFollowingAnimation.FallbackMotionId,
@@ -256,6 +366,61 @@ public static class RecommendedPetProfileCodec
         {
             throw Error(RecommendedPetProfileError.MissingMotion, $"권장 설정 모션을 찾을 수 없습니다: {missing}");
         }
+    }
+
+    private static PortablePetDisplaySettings ReadDisplay(JsonNode? node)
+    {
+        if (node is not JsonObject value ||
+            !TryDouble(value["scalePercent"], out double scale) ||
+            scale is < 10 or > 200 ||
+            !TryBool(value["clickThrough"], out bool clickThrough) ||
+            !TryDouble(value["opacity"], out double opacity) ||
+            opacity is < AppSettingsLimits.MinimumOverlayOpacity or
+                > AppSettingsLimits.MaximumOverlayOpacity ||
+            !TryBool(value["pointerOverlapFadeEnabled"], out bool overlapFade) ||
+            !TryDouble(value["pointerOverlapOpacity"], out double overlapOpacity) ||
+            overlapOpacity is < AppSettingsLimits.MinimumPointerOverlapOpacity or
+                > AppSettingsLimits.MaximumPointerOverlapOpacity ||
+            !TryBool(value["pixelArtRendering"], out bool pixelArt))
+        {
+            throw Error(
+                RecommendedPetProfileError.InvalidContent,
+                "권장 표시 설정이 올바르지 않습니다.");
+        }
+        return new PortablePetDisplaySettings(
+            scale,
+            clickThrough,
+            opacity,
+            overlapFade,
+            overlapOpacity,
+            pixelArt);
+    }
+
+    private static bool TryBool(JsonNode? node, out bool value)
+    {
+        value = default;
+        return node is JsonValue json && json.TryGetValue(out value);
+    }
+
+    private static bool TryDouble(JsonNode? node, out double value)
+    {
+        value = default;
+        if (node is not JsonValue json)
+        {
+            return false;
+        }
+        if (json.TryGetValue(out value)) return double.IsFinite(value);
+        if (json.TryGetValue(out int integer))
+        {
+            value = integer;
+            return true;
+        }
+        if (json.TryGetValue(out long longValue))
+        {
+            value = longValue;
+            return true;
+        }
+        return false;
     }
 
     private static RecommendedPetProfileException Error(

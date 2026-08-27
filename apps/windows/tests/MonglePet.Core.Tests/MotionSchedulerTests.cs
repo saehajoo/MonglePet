@@ -96,6 +96,49 @@ public sealed class MotionSchedulerTests
         Assert.Null(scheduler.ActiveCycleRemainingDuration);
     }
 
+    [Fact]
+    public void EquivalentRequestRestartsAfterNonRepeatingSequenceCompletes()
+    {
+        var scheduler = Scheduler();
+        var sequence = new BehaviorSequence("once", [new("idle", 1)], false);
+
+        Assert.True(scheduler.Request(sequence));
+        scheduler.Advance(TimeSpan.FromMilliseconds(100));
+        Assert.IsType<MotionSchedulerStatus.Completed>(scheduler.Status);
+
+        Assert.True(scheduler.Request(sequence));
+        AssertPlaying(scheduler, "once", 0, "idle");
+        Assert.Equal(TimeSpan.FromMilliseconds(100), scheduler.ActiveCycleRemainingDuration);
+        Assert.Equal(TimeSpan.Zero, scheduler.ActiveCycleElapsedDuration);
+    }
+
+    [Fact]
+    public void ReportsElapsedTimeInsideCurrentMotionCycle()
+    {
+        var scheduler = Scheduler();
+        scheduler.Request(new BehaviorSequence("routine", [new("focus", 1)], true));
+
+        scheduler.Advance(TimeSpan.FromMilliseconds(175));
+
+        Assert.Equal(TimeSpan.FromMilliseconds(175), scheduler.ActiveCycleElapsedDuration);
+        Assert.Equal(TimeSpan.FromMilliseconds(75), scheduler.ActiveCycleRemainingDuration);
+    }
+
+    [Fact]
+    public void ExplicitRestartStartsEquivalentSequenceFromFirstCycle()
+    {
+        var scheduler = Scheduler();
+        var sequence = new BehaviorSequence("random", [new("focus", 1)], false);
+        scheduler.Request(sequence);
+        scheduler.Advance(TimeSpan.FromMilliseconds(175));
+
+        Assert.True(scheduler.Restart(sequence));
+
+        AssertPlaying(scheduler, "random", 0, "focus");
+        Assert.Equal(TimeSpan.Zero, scheduler.ActiveCycleElapsedDuration);
+        Assert.Equal(TimeSpan.FromMilliseconds(250), scheduler.ActiveCycleRemainingDuration);
+    }
+
     private static MotionScheduler Scheduler() => new(
         "idle",
         new Dictionary<string, TimeSpan>(StringComparer.Ordinal)

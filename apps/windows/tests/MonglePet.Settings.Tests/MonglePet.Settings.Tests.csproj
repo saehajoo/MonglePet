@@ -30,5 +30,14 @@
     <None Include="..\..\..\..\shared\Fixtures\Settings\schema-v11-single-instance.expected.json"
           Link="Fixtures\schema-v11-single-instance.expected.json"
           CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\..\..\shared\Fixtures\Settings\schema-v11-behavior-references.json"
+          Link="Fixtures\schema-v11-behavior-references.json"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\..\..\shared\Fixtures\Settings\schema-v12-behavior-references.expected.json"
+          Link="Fixtures\schema-v12-behavior-references.expected.json"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\..\..\shared\Fixtures\Settings\schema-v13-random-behaviors.json"
+          Link="Fixtures\schema-v13-random-behaviors.json"
+          CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

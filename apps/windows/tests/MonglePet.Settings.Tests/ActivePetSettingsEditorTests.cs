@@ -120,4 +120,49 @@ public sealed class ActivePetSettingsEditorTests
                 profile.ProfileId == instance.BehaviorProfileId &&
                 profile.PetKey == PetBehaviorKey.BuiltInKey));
     }
+
+    [Fact]
+    public void ReplacingPetForEditableCopyPreservesTheCompleteSelectedProfile()
+    {
+        AppSettings settings = AppSettings.CreateDefault();
+        ActivePetInstance sourceInstance = settings.SelectedPetInstance!;
+        BehaviorProfile source = settings.SelectedBehaviorProfile! with
+        {
+            Mode = BehaviorMode.Random,
+            ManualSequenceId = BuiltInBehaviorProfileDefaults.SleepSequenceId,
+            RandomSequenceIds =
+            [
+                BuiltInBehaviorProfileDefaults.SleepSequenceId,
+                BuiltInBehaviorProfileDefaults.WorkSequenceId,
+            ],
+            Movement = settings.SelectedBehaviorProfile!.Movement with
+            {
+                Mode = PetMovementMode.FreeRoaming,
+            },
+            Speech = settings.SelectedBehaviorProfile!.Speech with
+            {
+                IsEnabled = true,
+            },
+        };
+        settings = settings.WithSelectedBehaviorProfile(source);
+        Guid copiedInstallationId = Guid.NewGuid();
+        Guid copiedProfileId = Guid.NewGuid();
+        var copiedPetKey = new PetBehaviorKey.Installed(copiedInstallationId);
+
+        AppSettings copied = ActivePetSettingsEditor.ReplacePetCopyingProfile(
+            settings,
+            sourceInstance.InstanceId,
+            copiedPetKey,
+            source,
+            () => copiedProfileId);
+
+        Assert.Equal(sourceInstance.Overlay, copied.SelectedPetInstance!.Overlay);
+        Assert.Equal(copiedPetKey, copied.SelectedPetInstance.PetKey);
+        Assert.Equal(copiedProfileId, copied.SelectedPetInstance.BehaviorProfileId);
+        Assert.Equal(
+            source with { ProfileId = copiedProfileId, PetKey = copiedPetKey },
+            copied.SelectedBehaviorProfile);
+        Assert.DoesNotContain(copied.BehaviorProfiles, profile =>
+            profile.ProfileId == source.ProfileId);
+    }
 }

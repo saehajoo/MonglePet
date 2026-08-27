@@ -27,6 +27,50 @@ public sealed class PetFramePlaybackState
 
     public bool NeedsScheduling => IsPlaying && Motion.Frames.Count > 1;
 
+    public TimeSpan CycleDuration => TimeSpan.FromMilliseconds(
+        Motion.Frames.Sum(frame => (long)frame.DurationMs));
+
+    public TimeSpan Seek(TimeSpan elapsed)
+    {
+        if (elapsed < TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(elapsed));
+        }
+
+        TimeSpan cycleDuration = CycleDuration;
+        TimeSpan position;
+        if (_loops)
+        {
+            position = TimeSpan.FromTicks(elapsed.Ticks % cycleDuration.Ticks);
+            IsPlaying = true;
+        }
+        else if (elapsed >= cycleDuration)
+        {
+            CurrentFrameIndex = Motion.Frames.Count - 1;
+            IsPlaying = false;
+            return TimeSpan.Zero;
+        }
+        else
+        {
+            position = elapsed;
+            IsPlaying = true;
+        }
+
+        for (int index = 0; index < Motion.Frames.Count; index++)
+        {
+            TimeSpan frameDuration = TimeSpan.FromMilliseconds(Motion.Frames[index].DurationMs);
+            if (position < frameDuration)
+            {
+                CurrentFrameIndex = index;
+                return frameDuration - position;
+            }
+            position -= frameDuration;
+        }
+
+        CurrentFrameIndex = 0;
+        return TimeSpan.FromMilliseconds(Motion.Frames[0].DurationMs);
+    }
+
     public bool Advance()
     {
         if (!IsPlaying)

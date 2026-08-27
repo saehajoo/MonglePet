@@ -1,0 +1,70 @@
+<UserControl
+    x:Class="MonglePet.Windows.CurrentPetFramePickerControl"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid RowSpacing="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <TextBlock
+            Style="{StaticResource SettingsCaptionStyle}"
+            Text="프레임을 사용할 순서대로 누르세요. 다시 누르면 선택에서 제외됩니다. 원본 프레임 간격과 배치는 보존되고 저장할 때 독립 atlas로 복사됩니다."
+            TextWrapping="Wrap" />
+        <ListView
+            x:Name="FramesList"
+            Grid.Row="1"
+            HorizontalContentAlignment="Stretch"
+            IsItemClickEnabled="True"
+            ItemClick="FramesList_ItemClick"
+            SelectionMode="None">
+            <ListView.ItemContainerStyle>
+                <Style TargetType="ListViewItem">
+                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                </Style>
+            </ListView.ItemContainerStyle>
+            <ListView.ItemTemplate>
+                <DataTemplate>
+                    <Grid Padding="8" ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="58" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Border
+                            Width="54"
+                            Height="54"
+                            Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                            BorderThickness="1"
+                            CornerRadius="7">
+                            <Image Source="{Binding Thumbnail}" Stretch="Uniform" />
+                        </Border>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                            <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="{Binding MotionName}" />
+                            <TextBlock Style="{StaticResource CaptionTextBlockStyle}" Text="{Binding Detail}" />
+                        </StackPanel>
+                        <Border
+                            Grid.Column="2"
+                            MinWidth="34"
+                            Padding="9,4"
+                            VerticalAlignment="Center"
+                            Background="{ThemeResource AccentFillColorSecondaryBrush}"
+                            CornerRadius="10"
+                            Visibility="{Binding SelectionVisibility}">
+                            <TextBlock
+                                Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
+                                Text="{Binding SelectionOrder}" />
+                        </Border>
+                    </Grid>
+                </DataTemplate>
+            </ListView.ItemTemplate>
+        </ListView>
+        <TextBlock
+            x:Name="SelectionSummaryText"
+            Grid.Row="2"
+            Style="{StaticResource SettingsCaptionStyle}"
+            Text="선택한 프레임이 없습니다." />
+    </Grid>
+</UserControl>

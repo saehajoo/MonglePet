@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using MonglePet.Core.Behavior;
 using MonglePet.Settings;
 
 namespace MonglePet.Windows;
@@ -19,15 +20,15 @@ public sealed partial class MovementAnimationEditor : UserControl
         }
     }
 
-    public MovementAnimationSettings Settings { get; private set; } =
-        MovementAnimationSettings.Default;
+    public MovementBehaviorSettings Settings { get; private set; } =
+        MovementBehaviorSettings.Default;
 
     public event EventHandler? SettingsChanged;
 
     public void SetState(
         string title,
-        MovementAnimationSettings settings,
-        IEnumerable<string> motionIds,
+        MovementBehaviorSettings settings,
+        IEnumerable<BehaviorSequence> behaviors,
         bool canEdit)
     {
         _isRefreshing = true;
@@ -36,23 +37,26 @@ public sealed partial class MovementAnimationEditor : UserControl
             EditorTitleText.Text = title;
             _motions.Clear();
             _motions.Add(new MovementAnimationMotionOption(string.Empty, "기존 행동 유지"));
-            foreach (string motionId in motionIds.Distinct(StringComparer.Ordinal))
+            foreach (BehaviorSequence behavior in behaviors
+                .DistinctBy(value => value.Id))
             {
-                _motions.Add(new MovementAnimationMotionOption(motionId, motionId));
+                _motions.Add(new MovementAnimationMotionOption(
+                    behavior.Id,
+                    behavior.DisplayName));
             }
 
             Settings = settings;
-            AnimationStyleComboBox.SelectedIndex = settings.UsesDirectionalMotions ? 1 : 0;
-            UsesDiagonalsToggle.IsOn = settings.UsesDiagonalMotions;
-            Select(FallbackMotionComboBox, settings.FallbackMotionId);
-            Select(LeftMotionComboBox, settings.DirectionMotionIds.Left);
-            Select(RightMotionComboBox, settings.DirectionMotionIds.Right);
-            Select(UpMotionComboBox, settings.DirectionMotionIds.Up);
-            Select(DownMotionComboBox, settings.DirectionMotionIds.Down);
-            Select(UpLeftMotionComboBox, settings.DirectionMotionIds.UpLeft);
-            Select(UpRightMotionComboBox, settings.DirectionMotionIds.UpRight);
-            Select(DownLeftMotionComboBox, settings.DirectionMotionIds.DownLeft);
-            Select(DownRightMotionComboBox, settings.DirectionMotionIds.DownRight);
+            AnimationStyleComboBox.SelectedIndex = settings.UsesDirectionalBehaviors ? 1 : 0;
+            UsesDiagonalsToggle.IsOn = settings.UsesDiagonalBehaviors;
+            Select(FallbackMotionComboBox, settings.FallbackBehaviorId);
+            Select(LeftMotionComboBox, settings.DirectionBehaviorIds.Left);
+            Select(RightMotionComboBox, settings.DirectionBehaviorIds.Right);
+            Select(UpMotionComboBox, settings.DirectionBehaviorIds.Up);
+            Select(DownMotionComboBox, settings.DirectionBehaviorIds.Down);
+            Select(UpLeftMotionComboBox, settings.DirectionBehaviorIds.UpLeft);
+            Select(UpRightMotionComboBox, settings.DirectionBehaviorIds.UpRight);
+            Select(DownLeftMotionComboBox, settings.DirectionBehaviorIds.DownLeft);
+            Select(DownRightMotionComboBox, settings.DirectionBehaviorIds.DownRight);
             IsEnabled = canEdit;
             RefreshVisibility();
         }
@@ -71,11 +75,11 @@ public sealed partial class MovementAnimationEditor : UserControl
         }
 
         bool directional = AnimationStyleComboBox.SelectedIndex == 1;
-        Settings = new MovementAnimationSettings(
+        Settings = new MovementBehaviorSettings(
             Selected(FallbackMotionComboBox),
             directional,
             directional && UsesDiagonalsToggle.IsOn,
-            new DirectionalMotionIds(
+            new DirectionalBehaviorIds(
                 Selected(LeftMotionComboBox),
                 Selected(RightMotionComboBox),
                 Selected(UpMotionComboBox),
@@ -92,8 +96,8 @@ public sealed partial class MovementAnimationEditor : UserControl
         bool directional = AnimationStyleComboBox.SelectedIndex == 1;
         DirectionalPanel.Visibility = directional ? Visibility.Visible : Visibility.Collapsed;
         FallbackMotionComboBox.Header = directional
-            ? "기본 이동 애니메이션"
-            : "이동 중 애니메이션";
+            ? "기본 이동 행동"
+            : "이동 중 행동";
         UsesDiagonalsToggle.IsEnabled = directional && IsEnabled;
         Visibility diagonalVisibility = directional && UsesDiagonalsToggle.IsOn
             ? Visibility.Visible

@@ -10,6 +10,19 @@ using MonglePet.Windows.Runtime;
 
 namespace MonglePet.Windows;
 
+internal sealed record PetRecommendedProfileApplyOptions(
+    bool AppliesProfile,
+    bool IncludesBehavior,
+    bool IncludesApplicationRules,
+    bool IncludesMovement,
+    bool IncludesPetting,
+    bool IncludesSpeech,
+    bool IncludesDisplay)
+{
+    public static readonly PetRecommendedProfileApplyOptions None = new(
+        false, false, false, false, false, false, false);
+}
+
 public partial class App : Application
 {
     private const string DevelopmentPackageFamilyName =
@@ -107,15 +120,6 @@ public partial class App : Application
     public IReadOnlyList<MonitorWorkArea> AvailableMonitorWorkAreas() =>
         _monitorPlacement.AvailableWorkAreas();
 
-    public string BehaviorStatus => _instanceManager?.SelectedContext?.Snapshot.BehaviorStatus
-        ?? "행동 런타임 없음";
-
-    public string SpeechStatus => _instanceManager?.SelectedContext?.Snapshot.SpeechStatus
-        ?? "말풍선 런타임 없음";
-
-    public string MovementStatus => _instanceManager?.SelectedContext?.Snapshot.MovementStatus
-        ?? "이동 런타임 없음";
-
     public ActivitySnapshot? LatestActivitySnapshot => _instanceManager?.LatestActivitySnapshot;
 
     internal IReadOnlyList<PetRuntimeSnapshot> ActivePetSnapshots =>
@@ -127,21 +131,7 @@ public partial class App : Application
 
     public PetRestoreRecoveryState? SafeStartRecovery { get; private set; }
 
-    public string ActivityStatus => LatestActivitySnapshot switch
-    {
-        null => "활동 감지 준비 중",
-        { IsSystemSleeping: true } => "시스템 절전 중",
-        { IsScreenLocked: true } => "Windows 세션 잠금 중",
-        { } snapshot =>
-            $"{snapshot.FrontmostApplicationId ?? "전면 앱 식별 불가"} · " +
-            $"입력 없음 {snapshot.IdleDuration.TotalSeconds:0}초",
-    };
-
     public event EventHandler? InitializationCompleted;
-
-    public event EventHandler? BehaviorStateChanged;
-
-    public event EventHandler? MovementStateChanged;
 
     public event EventHandler? SettingsStateChanged;
 
@@ -343,21 +333,21 @@ public partial class App : Application
     {
         Version? version = System.Reflection.Assembly.GetEntryAssembly()?.GetName().Version;
         return version is null
-            ? new RemotePetSemanticVersion(1, 3, 0)
+            ? new RemotePetSemanticVersion(1, 4, 0)
             : new RemotePetSemanticVersion(
                 Math.Max(version.Major, 0),
                 Math.Max(version.Minor, 0),
                 Math.Max(version.Build, 0));
     }
 
-    public InstalledPetPackage ImportReviewedPackage(
+    internal InstalledPetPackage ImportReviewedPackage(
         PetPackageImportReview review,
-        bool appliesRecommendedProfile,
+        PetRecommendedProfileApplyOptions options,
         PetPackageInstallMode mode = PetPackageInstallMode.RejectDuplicate,
         Guid? replacementInstallationId = null)
     {
         EnsureSettingsWritingEnabled();
-        if (appliesRecommendedProfile && review.RecommendedProfile is null)
+        if (options.AppliesProfile && review.RecommendedProfile is null)
         {
             throw new PetLibraryException(
                 PetLibraryError.PackageValidationFailed,
@@ -371,12 +361,51 @@ public partial class App : Application
         try
         {
             ActivateInstalledPackage(installed);
-            if (appliesRecommendedProfile && review.RecommendedProfile is { } recommended)
+            if (options.AppliesProfile && review.RecommendedProfile is { } recommended)
             {
-                SaveBehaviorProfile(recommended with
+                BehaviorProfile target = ActiveBehaviorProfile;
+                BehaviorProfile applied = target;
+                if (options.IncludesBehavior)
+                {
+                    IReadOnlyList<AutomaticRule> rules = options.IncludesApplicationRules
+                        ? recommended.AutomaticRules
+                        : recommended.AutomaticRules.Where(rule =>
+                            rule.Condition is not RuleCondition.Application).ToArray();
+                    applied = applied with
+                    {
+                        Mode = recommended.Mode,
+                        ManualSequenceId = recommended.ManualSequenceId,
+                        RandomSequenceIds = recommended.RandomSequences,
+                        Sequences = recommended.Sequences,
+                        AutomaticRules = rules,
+                        AutomaticRulePriorityOrder = recommended.RulePriorityOrder,
+                    };
+                }
+                if (options.IncludesMovement) applied = applied with
+                {
+                    Movement = recommended.Movement,
+                };
+                if (options.IncludesPetting) applied = applied with
+                {
+                    PettingMotionId = null,
+                    PettingBehaviorId = recommended.PettingBehaviorId,
+                };
+                if (options.IncludesSpeech) applied = applied with
+                {
+                    Speech = options.IncludesBehavior
+                        ? recommended.Speech
+                        : WithoutBehaviorTriggeredSpeech(recommended.Speech),
+                };
+                SaveBehaviorProfile(applied with
                 {
                     PetKey = new PetBehaviorKey.Installed(installed.InstallationId),
                 });
+                if (options.IncludesDisplay &&
+                    review.RecommendedProfileIncludesDisplay &&
+                    review.RecommendedDisplay is { } display)
+                {
+                    SaveOverlaySettings(display.ApplyTo(CurrentSettings.Overlay));
+                }
             }
             return installed;
         }
@@ -393,7 +422,12 @@ public partial class App : Application
     public string ExportActivePackage(
         string destinationPath,
         bool includesRecommendedProfile,
-        bool includesApplicationRules)
+        bool includesApplicationRules,
+        bool includesBehavior,
+        bool includesMovement,
+        bool includesPetting,
+        bool includesSpeech,
+        bool includesDisplay)
     {
         if (ActiveInstallationId is not Guid installationId)
         {
@@ -402,14 +436,47 @@ public partial class App : Application
                 "내장 펫은 내보낼 수 없습니다.");
         }
         InstalledPetPackage installed = PetLibrary.GetInstallation(installationId);
-        BehaviorProfile? profile = includesRecommendedProfile
-            ? ActiveBehaviorProfile
-            : null;
+        BehaviorProfile? profile = null;
+        if (includesRecommendedProfile)
+        {
+            BehaviorProfile source = ActiveBehaviorProfile;
+            BehaviorProfile portable = BehaviorProfileDefaults.Create(
+                source.PetKey,
+                source.ProfileId);
+            if (includesBehavior)
+            {
+                portable = portable with
+                {
+                    Mode = source.Mode,
+                    ManualSequenceId = source.ManualSequenceId,
+                    RandomSequenceIds = source.RandomSequences,
+                    Sequences = source.Sequences,
+                    AutomaticRules = source.AutomaticRules,
+                    AutomaticRulePriorityOrder = source.RulePriorityOrder,
+                };
+            }
+            if (includesMovement) portable = portable with { Movement = source.Movement };
+            if (includesPetting) portable = portable with
+            {
+                PettingMotionId = null,
+                PettingBehaviorId = source.PettingBehaviorId,
+            };
+            if (includesSpeech) portable = portable with
+            {
+                Speech = includesBehavior
+                    ? source.Speech
+                    : WithoutBehaviorTriggeredSpeech(source.Speech),
+            };
+            profile = portable;
+        }
         return PetExporter.Export(
             installed,
             destinationPath,
             profile,
-            includesApplicationRules);
+            includesApplicationRules,
+            includesRecommendedProfile && includesDisplay
+                ? CurrentSettings.Overlay
+                : OverlaySettings.Default);
     }
 
     public InstalledPetPackage ActivateInstallation(Guid installationId)
@@ -419,6 +486,25 @@ public partial class App : Application
         ActivateInstalledPackage(installed);
         return installed;
     }
+
+    public InstalledPetPackage ActivateInstallationCopyingSelectedProfile(
+        Guid installationId,
+        BehaviorProfile sourceProfile)
+    {
+        ArgumentNullException.ThrowIfNull(sourceProfile);
+        EnsureSettingsWritingEnabled();
+        InstalledPetPackage installed = PetLibrary.GetInstallation(installationId);
+        ActivateInstalledPackage(installed, sourceProfile);
+        return installed;
+    }
+
+    private static PetSpeechSettings WithoutBehaviorTriggeredSpeech(
+        PetSpeechSettings source) => source with
+    {
+        Phrases = source.Phrases
+            .Where(phrase => phrase.Trigger is PetSpeechTrigger.Periodic)
+            .ToArray(),
+    };
 
     public void ActivateBundledPet()
     {
@@ -648,7 +734,6 @@ public partial class App : Application
         _resourceMonitor = null;
         if (_instanceManager is not null)
         {
-            _instanceManager.StateChanged -= InstanceManager_StateChanged;
             _instanceManager.OverlayChanged -= InstanceManager_OverlayChanged;
             _instanceManager.Dispose();
             _instanceManager = null;
@@ -681,7 +766,10 @@ public partial class App : Application
         }
     }
 
-    public void SaveBehaviorSelection(BehaviorMode mode, string? manualSequenceId)
+    public void SaveBehaviorSelection(
+        BehaviorMode mode,
+        string? manualSequenceId,
+        IReadOnlyList<string>? randomSequenceIds = null)
     {
         EnsureSettingsWritingEnabled();
         BehaviorProfile current = ActiveBehaviorProfile;
@@ -697,6 +785,13 @@ public partial class App : Application
         {
             Mode = mode,
             ManualSequenceId = resolvedManual,
+            RandomSequenceIds = (randomSequenceIds ?? current.RandomSequences)
+                .Where(id => current.Sequences.Any(sequence => string.Equals(
+                    sequence.Id,
+                    id,
+                    StringComparison.Ordinal)))
+                .Distinct(StringComparer.Ordinal)
+                .ToArray(),
         };
         SaveBehaviorProfile(updated);
     }
@@ -716,7 +811,6 @@ public partial class App : Application
         SettingsStore.Save(next);
         CurrentSettings = next;
         SynchronizePetInstances();
-        BehaviorStateChanged?.Invoke(this, EventArgs.Empty);
         SettingsStateChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -770,7 +864,6 @@ public partial class App : Application
                 ResolvePackage,
                 _monitorPlacement,
                 _restoreJournal);
-            _instanceManager.StateChanged += InstanceManager_StateChanged;
             _instanceManager.OverlayChanged += InstanceManager_OverlayChanged;
             if (SafeStartRecovery is null)
             {
@@ -791,13 +884,22 @@ public partial class App : Application
         }
     }
 
-    private void ActivateInstalledPackage(InstalledPetPackage installed)
+    private void ActivateInstalledPackage(
+        InstalledPetPackage installed,
+        BehaviorProfile? sourceProfile = null)
     {
         Guid instanceId = CurrentSettings.SelectedPetInstanceId;
-        CurrentSettings = ActivePetSettingsEditor.ReplacePet(
-            CurrentSettings,
-            instanceId,
-            new PetBehaviorKey.Installed(installed.InstallationId));
+        var petKey = new PetBehaviorKey.Installed(installed.InstallationId);
+        CurrentSettings = sourceProfile is null
+            ? ActivePetSettingsEditor.ReplacePet(
+                CurrentSettings,
+                instanceId,
+                petKey)
+            : ActivePetSettingsEditor.ReplacePetCopyingProfile(
+                CurrentSettings,
+                instanceId,
+                petKey,
+                sourceProfile);
         SettingsStore.Save(CurrentSettings);
         _instanceManager?.InvalidateInstance(instanceId);
         SynchronizePetInstances();
@@ -1106,15 +1208,6 @@ public partial class App : Application
                     $"펫 {issue.InstanceId:D} 복원 실패: {issue.Message}"));
         }
         RefreshNotificationArea();
-        BehaviorStateChanged?.Invoke(this, EventArgs.Empty);
-        MovementStateChanged?.Invoke(this, EventArgs.Empty);
-    }
-
-    private void InstanceManager_StateChanged(object? sender, EventArgs e)
-    {
-        Overlay = _instanceManager?.SelectedContext?.Overlay;
-        BehaviorStateChanged?.Invoke(this, EventArgs.Empty);
-        MovementStateChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private void InstanceManager_OverlayChanged(
@@ -1132,7 +1225,6 @@ public partial class App : Application
                 e.InstanceId,
                 e.Overlay);
             SettingsStore.Save(CurrentSettings);
-            SettingsStateChanged?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception exception)
         {
@@ -1144,7 +1236,6 @@ public partial class App : Application
     private void ResourceMonitor_WarningChanged(object? sender, EventArgs e)
     {
         RefreshNotificationArea();
-        SettingsStateChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private string BuiltInMonglePath => Path.Combine(

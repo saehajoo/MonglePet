@@ -3,9 +3,11 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using MonglePet.Packages;
 using MonglePet.PetLibrary;
+using MonglePet.Settings;
 using Windows.Foundation;
 using Windows.Storage.Pickers;
 
@@ -23,7 +25,9 @@ public sealed partial class PetAnimationEditorControl : UserControl
     private double _placementDisplayScale = 1;
     private double _placementDisplayX;
     private double _placementDisplayY;
+    private double _placementZoom = 1;
     private bool _isReady;
+    private LoadedPetPackage? _sourcePackage;
 
     public PetAnimationEditorControl()
     {
@@ -33,6 +37,7 @@ public sealed partial class PetAnimationEditorControl : UserControl
         AuthorTextBox.Text = "MonglePet 사용자";
         DescriptionTextBox.Text = "MonglePet에서 사용자가 만든 펫입니다.";
         AnimationNameTextBox.Text = "기본";
+        BehaviorConnectionModeComboBox.SelectedIndex = 0;
         _isReady = true;
         RefreshFrameEditorVisibility();
     }
@@ -65,11 +70,95 @@ public sealed partial class PetAnimationEditorControl : UserControl
         {
             return "프레임 간격은 16~60000ms 사이여야 합니다.";
         }
+        if (BehaviorConnectionCard.Visibility == Visibility.Visible &&
+            ConnectionMode() == AnimationBehaviorConnectionMode.CreateNew)
+        {
+            string behaviorName = string.IsNullOrWhiteSpace(NewBehaviorNameTextBox.Text)
+                ? AnimationNameTextBox.Text.Trim()
+                : NewBehaviorNameTextBox.Text.Trim();
+            if (_behaviorProfile?.Sequences.Any(sequence => string.Equals(
+                    sequence.DisplayName,
+                    behaviorName,
+                    StringComparison.OrdinalIgnoreCase)) == true)
+            {
+                return "같은 이름의 행동이 이미 있습니다.";
+            }
+        }
+        if (BehaviorConnectionCard.Visibility == Visibility.Visible &&
+            ConnectionMode() == AnimationBehaviorConnectionMode.AppendExisting &&
+            ExistingBehaviorComboBox.SelectedValue is not string)
+        {
+            return "애니메이션을 추가할 기존 행동을 선택해 주세요.";
+        }
         return null;
+    }
+
+    private BehaviorProfile? _behaviorProfile;
+
+    public void ConfigureBehaviorConnection(
+        BehaviorProfile profile,
+        string? currentMotionId = null)
+    {
+        _behaviorProfile = profile;
+        BehaviorConnectionCard.Visibility = Visibility.Visible;
+        ExistingBehaviorComboBox.ItemsSource = profile.Sequences;
+        ExistingBehaviorComboBox.SelectedIndex = profile.Sequences.Count > 0 ? 0 : -1;
+        string[] users = currentMotionId is null
+            ? []
+            : profile.Sequences
+                .Where(sequence => sequence.Steps.Any(step => string.Equals(
+                    step.MotionId,
+                    currentMotionId,
+                    StringComparison.Ordinal)))
+                .Select(sequence => sequence.DisplayName)
+                .ToArray();
+        BehaviorConnectionUsageText.Text = users.Length == 0
+            ? "애니메이션 저장과 함께 행동을 연결할 수 있습니다. 저장하기 전에는 행동 설정을 바꾸지 않습니다."
+            : $"현재 사용하는 행동: {string.Join(", ", users)}\n저장하면서 다른 행동에도 연결할 수 있습니다.";
+    }
+
+    internal AnimationBehaviorConnectionRequest BehaviorConnectionRequest()
+    {
+        AnimationBehaviorConnectionMode mode = ConnectionMode();
+        string? name = string.IsNullOrWhiteSpace(NewBehaviorNameTextBox.Text)
+            ? AnimationNameTextBox.Text.Trim()
+            : NewBehaviorNameTextBox.Text.Trim();
+        return new AnimationBehaviorConnectionRequest(
+            mode,
+            mode == AnimationBehaviorConnectionMode.CreateNew ? name : null,
+            mode == AnimationBehaviorConnectionMode.AppendExisting
+                ? ExistingBehaviorComboBox.SelectedValue as string
+                : null);
+    }
+
+    private AnimationBehaviorConnectionMode ConnectionMode() =>
+        (BehaviorConnectionModeComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() switch
+        {
+            "new" => AnimationBehaviorConnectionMode.CreateNew,
+            "existing" => AnimationBehaviorConnectionMode.AppendExisting,
+            _ => AnimationBehaviorConnectionMode.None,
+        };
+
+    private void BehaviorConnectionModeComboBox_SelectionChanged(
+        object sender,
+        SelectionChangedEventArgs e)
+    {
+        if (NewBehaviorNameTextBox is null || ExistingBehaviorComboBox is null)
+        {
+            return;
+        }
+        AnimationBehaviorConnectionMode mode = ConnectionMode();
+        NewBehaviorNameTextBox.Visibility = mode == AnimationBehaviorConnectionMode.CreateNew
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        ExistingBehaviorComboBox.Visibility = mode == AnimationBehaviorConnectionMode.AppendExisting
+            ? Visibility.Visible
+            : Visibility.Collapsed;
     }
 
     public async Task ConfigureForAnimationAsync(LoadedPetPackage package, PetPackageMotion? motion)
     {
+        _sourcePackage = package;
         PetInformationCard.Visibility = Visibility.Collapsed;
         if (motion is null)
         {
@@ -112,6 +201,8 @@ public sealed partial class PetAnimationEditorControl : UserControl
         LoopsToggle.IsOn,
         FrameRequests());
 
+    public void SetAnimationName(string value) => AnimationNameTextBox.Text = value;
+
     public UserPetAnimationUpdateRequest CreateAnimationUpdateRequest(string animationId) => new(
         animationId,
         AnimationNameTextBox.Text,
@@ -132,6 +223,57 @@ public sealed partial class PetAnimationEditorControl : UserControl
                 frame.FrameId,
                 frame.BackgroundRemoval))
             .ToArray();
+    }
+
+    private async void ChooseCurrentPetFramesButton_Click(object sender, RoutedEventArgs e)
+    {
+        nint ownerWindow = EffectiveOwnerWindowHandle();
+        if (ownerWindow == nint.Zero || _sourcePackage is not { } package)
+        {
+            return;
+        }
+        try
+        {
+            var picker = new CurrentPetFramePickerControl();
+            await picker.LoadAsync(package);
+            var window = new EditorWindowHost(
+                "현재 펫 프레임에서 추가",
+                "이미 저장된 애니메이션 프레임을 클릭한 순서대로 새 애니메이션에 복사합니다.",
+                picker,
+                "선택 프레임 추가",
+                "취소하면 현재 편집 중인 프레임 목록도 바뀌지 않습니다.",
+                width: 820,
+                height: 720,
+                validation: () => picker.HasSelection ? null : "추가할 프레임을 하나 이상 선택해 주세요.");
+            if (!await window.ShowAsync(ownerWindow))
+            {
+                return;
+            }
+            foreach (UserPetFrameSourceRequest request in picker.CreateRequests())
+            {
+                _frames.Add(new FrameItem(
+                    request.ImagePath,
+                    request.DurationMilliseconds,
+                    request.SourceFrame,
+                    "현재 펫 프레임",
+                    request.FlipsHorizontally,
+                    request.FlipsVertically,
+                    request.CanvasPlacement,
+                    request.FrameId,
+                    request.BackgroundRemoval));
+            }
+            RefreshIndexes();
+            await InitializeUnplacedFramePlacementsAsync();
+            NormalizeCommonCanvas();
+            await RefreshFrameThumbnailsAsync(_frames);
+            RefreshFrameEditorVisibility();
+            FramesList.SelectedIndex = _frames.Count - 1;
+            EditorInfoBar.IsOpen = false;
+        }
+        catch (Exception exception)
+        {
+            ShowEditorError("현재 펫 프레임을 불러오지 못했습니다", exception);
+        }
     }
 
     private async void ChooseFramesButton_Click(object sender, RoutedEventArgs e)
@@ -324,6 +466,49 @@ public sealed partial class PetAnimationEditorControl : UserControl
         FramesList.SelectedIndex = index + 1;
     }
 
+    private async void FlipFrameHorizontalButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (FramesList.SelectedItem is not FrameItem selected)
+        {
+            return;
+        }
+        selected.FlipsHorizontally = !selected.FlipsHorizontally;
+        await RefreshPlacementEditorAsync();
+    }
+
+    private async void FlipFrameVerticalButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (FramesList.SelectedItem is not FrameItem selected)
+        {
+            return;
+        }
+        selected.FlipsVertically = !selected.FlipsVertically;
+        await RefreshPlacementEditorAsync();
+    }
+
+    private async void ResetFrameDirectionButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (FramesList.SelectedItem is not FrameItem selected)
+        {
+            return;
+        }
+        selected.FlipsHorizontally = false;
+        selected.FlipsVertically = false;
+        await RefreshPlacementEditorAsync();
+    }
+
+    private async void PlacementZoomSlider_ValueChanged(
+        object sender,
+        RangeBaseValueChangedEventArgs e)
+    {
+        if (!_isReady)
+        {
+            return;
+        }
+        _placementZoom = Math.Clamp(e.NewValue, 1, 8);
+        await RefreshPlacementEditorAsync();
+    }
+
     private void RefreshIndexes()
     {
         for (int index = 0; index < _frames.Count; index++)
@@ -453,9 +638,12 @@ public sealed partial class PetAnimationEditorControl : UserControl
     {
         const double availableWidth = 260;
         const double availableHeight = 220;
-        _placementDisplayScale = Math.Min(availableWidth / canvasWidth, availableHeight / canvasHeight);
-        _placementDisplayX = (availableWidth - (canvasWidth * _placementDisplayScale)) / 2;
-        _placementDisplayY = (availableHeight - (canvasHeight * _placementDisplayScale)) / 2;
+        double fitScale = Math.Min(availableWidth / canvasWidth, availableHeight / canvasHeight);
+        FramePlacementCanvas.Width = availableWidth * _placementZoom;
+        FramePlacementCanvas.Height = availableHeight * _placementZoom;
+        _placementDisplayScale = fitScale * _placementZoom;
+        _placementDisplayX = ((availableWidth - (canvasWidth * fitScale)) / 2) * _placementZoom;
+        _placementDisplayY = ((availableHeight - (canvasHeight * fitScale)) / 2) * _placementZoom;
         FrameCheckerImage.Width = canvasWidth * _placementDisplayScale;
         FrameCheckerImage.Height = canvasHeight * _placementDisplayScale;
         Canvas.SetLeft(FrameCheckerImage, _placementDisplayX);
@@ -740,8 +928,8 @@ public sealed partial class PetAnimationEditorControl : UserControl
         public string FileName { get; }
         public PetPackageFrame? SourceFrame { get; }
         public string SourceDetail { get; }
-        public bool FlipsHorizontally { get; }
-        public bool FlipsVertically { get; }
+        public bool FlipsHorizontally { get; set; }
+        public bool FlipsVertically { get; set; }
         public UserPetCanvasPlacement? CanvasPlacement { get; set; }
         public Guid FrameId { get; }
         public UserPetBackgroundRemoval? BackgroundRemoval { get; }
@@ -799,3 +987,15 @@ public sealed partial class PetAnimationEditorControl : UserControl
         }
     }
 }
+
+internal enum AnimationBehaviorConnectionMode
+{
+    None,
+    CreateNew,
+    AppendExisting,
+}
+
+internal sealed record AnimationBehaviorConnectionRequest(
+    AnimationBehaviorConnectionMode Mode,
+    string? NewBehaviorName,
+    string? ExistingBehaviorId);

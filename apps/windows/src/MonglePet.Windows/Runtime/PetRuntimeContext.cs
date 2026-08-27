@@ -51,13 +51,12 @@ internal sealed class PetRuntimeContext : IDisposable
         _movement = new PetMovementRuntime(
             Overlay,
             monitorPlacement,
-            package.Manifest.Motions.Select(motion => motion.Id),
             frontmostWindowProvider,
             desktopEnvironment);
 
         _behavior.StateChanged += Behavior_StateChanged;
         _movement.StateChanged += Runtime_StateChanged;
-        _movement.MovementMotionChanged += Movement_MovementMotionChanged;
+        _movement.MovementBehaviorChanged += Movement_MovementBehaviorChanged;
         _movement.PettingRequested += Movement_PettingRequested;
         _movement.DirectDragCompleted += Movement_DirectDragCompleted;
         Overlay.UserDragStateChanged += Overlay_UserDragStateChanged;
@@ -173,7 +172,7 @@ internal sealed class PetRuntimeContext : IDisposable
         Overlay.UserDragStateChanged -= Overlay_UserDragStateChanged;
         Overlay.DisplayEnvironmentChanged -= Overlay_DisplayEnvironmentChanged;
         _movement.StateChanged -= Runtime_StateChanged;
-        _movement.MovementMotionChanged -= Movement_MovementMotionChanged;
+        _movement.MovementBehaviorChanged -= Movement_MovementBehaviorChanged;
         _movement.PettingRequested -= Movement_PettingRequested;
         _movement.DirectDragCompleted -= Movement_DirectDragCompleted;
         _behavior.StateChanged -= Behavior_StateChanged;
@@ -218,6 +217,7 @@ internal sealed class PetRuntimeContext : IDisposable
 
     private void Behavior_StateChanged(object? sender, EventArgs e)
     {
+        _movement.SetBehaviorPaused(_behavior.ShouldPauseMovement);
         _speech.BehaviorSequenceDidChange(_behavior.SequenceId);
         StateChanged?.Invoke(this, EventArgs.Empty);
     }
@@ -225,15 +225,15 @@ internal sealed class PetRuntimeContext : IDisposable
     private void Runtime_StateChanged(object? sender, EventArgs e) =>
         StateChanged?.Invoke(this, EventArgs.Empty);
 
-    private void Movement_MovementMotionChanged(
+    private void Movement_MovementBehaviorChanged(
         object? sender,
-        MovementMotionChangedEventArgs e) =>
-        _behavior.SetMovementMotion(e.MotionId);
+        MovementBehaviorChangedEventArgs e) =>
+        _behavior.SetMovementBehavior(e.BehaviorId);
 
     private void Movement_PettingRequested(
         object? sender,
         PettingRequestedEventArgs e) =>
-        _behavior.PlayInteraction(e.MotionId);
+        _behavior.PlayInteraction(e.BehaviorId);
 
     private void Movement_DirectDragCompleted(
         object? sender,

@@ -90,6 +90,23 @@ public sealed class UserPetPackageEditorTests
     }
 
     [Fact]
+    public async Task EditablePetCanAlsoCreateIndependentEditableCopy()
+    {
+        using var workspace = new Workspace();
+        var store = workspace.CreateStore();
+        var editor = new UserPetPackageEditor(store, new FixtureAtlasBuilder());
+        InstalledPetPackage original = await editor.CreatePetAsync(Request());
+
+        InstalledPetPackage copy = editor.CreateEditableCopy(original, "두 번째 구름이");
+
+        Assert.True(editor.IsEditable(original));
+        Assert.True(editor.IsEditable(copy));
+        Assert.Equal("두 번째 구름이", copy.Package.Manifest.DisplayName);
+        Assert.NotEqual(original.InstallationId, copy.InstallationId);
+        Assert.NotEqual(original.Package.Manifest.Id, copy.Package.Manifest.Id);
+    }
+
+    [Fact]
     public async Task CanceledFrameEditLeavesInstalledPackageAndTemporaryWorkspaceUnchanged()
     {
         using var workspace = new Workspace();

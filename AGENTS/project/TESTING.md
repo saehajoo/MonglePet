@@ -959,6 +959,29 @@ UI 테스트는 앱 실행과 접근성 자동화가 가능한 macOS 세션에�
 - 전체 단위 테스트 503개 중 502개 성공·선택형 WebP fixture 1개 건너뜀·실패 0개와 코드 서명 없는 Debug 빌드를 통과했다.
 - macOS `1.4.0 (8)` 배포 기준 커밋 `78ac0dfb52f0cb4e0d436649603c29dea91e652d`에서 8,833,960 bytes Universal ZIP을 생성하고 압축 무결성, `1.4.0 (8)`, Bundle ID `kr.mapleroom.MonglePet`, arm64·x86_64와 SHA-256 `ebb3a12f0b829671399d44e1fd71ab16486e590f46ac1ec57f0c904aecf55820`을 확인했다. GitHub Pre-release의 세 자산을 다시 내려받아 바이트 단위 일치와 태그 대상을 검증했다.
 
+### Windows 1.4.0 행동 중심·schema-v14 후보 검증
+
+- 측정일: 2026-08-27
+- Windows 마케팅 버전 `1.4.0`, Assembly·File·MSIX `1.4.0.13` 후보와 기존 공개 `1.3.0.13`을 덮어쓰지 않는 버전 순서를 확인했다. 태그 후보는 `windows-v1.4.0-preview.1`이며 릴리스는 게시하지 않았다.
+- schema-v11→v12 안정 행동 ID·표시 이름, v12→v13 랜덤 행동·고정/랜덤 머무르기, v13→v14 네 독립 이동 설정과 v1~v14 순차 이관을 검증했다. 손상된 행동·규칙·프로필 참조만 항목별로 복구하면서 활성 인스턴스와 알 수 없는 확장 필드를 보존한다.
+- 권장 프로필 v10의 전체 휴대 행동·랜덤 선택·규칙 종류 순서·이동·도망가기 평상시 이동·쓰다듬기·말풍선·표시 설정을 Windows codec으로 왕복했다. 앱 식별자 규칙은 별도 선택이며 v1~v9 적용은 없던 표시 설정을 보존한다.
+- 공통 `shared/BuiltInPets/Mongle.monglepet`의 콘텐츠 `1.0.3`, 13개 모션·53프레임과 정확한 PNG digest를 자동 계약으로 확인했다. loose AppX와 unpackaged publish의 16개 파일 tree SHA-256은 기준본과 같은 `0463D7B6897E8D14C3BA053F953D69DC49FB31930DB1D03D3797B9EC37B95503`다.
+- Debug·Release 빌드는 경고·오류 없이 통과했다. 최종 두 구성 모두 Activity 27개, Core 56개, Packages 28개, PetLibrary 88개, Settings 77개, Shell 20개로 총 296개 xUnit 테스트가 통과했다.
+- 기존 개발 package `1.3.0.13`을 loose package `1.4.0.13`으로 등록 업데이트해 LocalState 22개 파일의 전체 inventory digest `A2ECB77D1D55BE35C7920F904A34154A8B75155B4DE6FEE6E41C5854120A1B29`을 전후 동일하게 보존했다. 실행 뒤 schema-v14·3개 활성 instance·4개 profile·라이브러리 21개를 확인했다.
+- unpackaged publish 실제 실행은 `%LOCALAPPDATA%\MonglePet`의 schema-v11 설정을 schema-v14로 이관하면서 3개 instance·4개 profile·라이브러리 21개를 보존했고 프로세스 응답 상태를 확인했다.
+- 실제 loose AppX UI에서 문제 해결 하위 안전 모드, 10~200% 빠른 크기, 자동 규칙 종류 우선순위와 전용 입력 없음 규칙, 펫 보관함의 전체 행 선택·단일 애니메이션 복제, 편집기의 행동 연결과 현재 펫 프레임 메뉴를 확인했다. 복제 편집기를 저장 없이 취소해 사용자 데이터가 바뀌지 않았다.
+- 활성 펫에서 내장 몽글이로 전환할 때 `Microsoft.UI.Xaml.dll`과 `RO_E_CLOSED (0x80000013)`로 종료된 실제 WER를 확인했다. 펫 보관함의 현재 애니메이션 미리보기가 프레임마다 닫힐 수 있는 `SoftwareBitmapSource`를 만들던 경로를 atlas decode cache·순수 crop·독립 `WriteableBitmap`과 전환 generation 경계로 바꿨다. 수정된 Release loose AppX에서 설치 펫→내장 몽글이 카드 왕복과 보관함 현재 펫 왕복을 반복한 뒤 프로세스 응답과 신규 Application 오류 0건을 확인했다.
+- 자동 이동의 소수점 좌표 누산기와 실제 Win32 overlay 픽셀 원점이 외부 보정 뒤 달라질 때 이전 누산 좌표로 되돌아가는 경로를 수정했다. 반올림 픽셀이 같으면 소수점 진행을 보존하고 실제 HWND 원점이 다를 때만 누산 원점을 재동기화하는 Core 회귀 테스트 2개를 추가했다.
+- 마우스 도망가기의 평상시 자유 이동에서 매 60Hz tick마다 목표와 이동 행동을 비우던 경로를 도망 상태 해제 전환 때 한 번만 초기화하도록 수정했다. 실제 도망 목표도 작은 포인터 변화에는 유지하고 24px 이상 이동하거나 목표가 없을 때만 다시 계산하는 Core 회귀 테스트 2개를 추가했다. 평상시 자유 이동은 별도 상태 문구를 사용해 실제 도망 상태와 구분한다.
+- 표시 및 이동 입력은 350ms one-shot 저장으로 합치고 저장 중에는 이동 편집 컨트롤을 전체 새로 고치지 않는다. runtime 상태 알림은 low-priority로 합치며 활성 펫 화면이 숨겨진 동안 목록 전체를 반복 갱신하지 않는다. 펫 HWND는 `WS_EX_TOPMOST | WS_EX_NOACTIVATE`를 계속 유지하고 실제 frame의 투명 픽셀만 `HTTRANSPARENT`로 입력을 통과시킨다.
+- 완료된 랜덤 행동과 1초 activity 갱신이 같은 경계에서 만날 때 동등 요청이 완료 cursor를 보존해 timer가 멈추던 경합을 회귀 테스트로 고정했다. 같은 랜덤 행동 하나만 선택한 경우도 완료 후 새 cursor로 시작하며 유효하지 않은 선택은 항목 단위로 제외한다.
+- 프레임 playback은 callback 횟수가 아니라 단조 경과 시간으로 현재 frame과 남은 시간을 seek한다. 새 atlas 준비 전에는 행동 표시 시간축을 소비하지 않고 최근 사용 atlas 16개를 제한 재사용한다. 랜덤 모드는 이동 동안 기본 행동을 멈추고 이동 종료 시 shuffle bag의 다음 행동을 첫 frame부터 명시적으로 재시작한다. 이동 뒤 과거 행동의 짧은 나머지나 가려진 동안 진행된 중간 frame을 표시하지 않으며 자동·직접 모드의 중단 복원은 유지한다.
+- 설정의 말풍선 실행 상태·이동 상태 진단·행동 상태 진단을 제거했다. 행동·이동 runtime 이벤트는 활성 펫 화면이 실제로 보일 때만 low-priority 카드 갱신을 예약하므로 이동 설정의 포커스와 포인터를 지속적으로 흔들지 않는다.
+- 위 수정의 최종 packaged Release 30초·5초 간격 표본은 전체 시스템 환산 평균 CPU 약 1.12%, private memory 136.9~143.6MiB, 무응답 0회였고 같은 10분 범위의 새 Application Error·WER는 없었다. 자동 UI 도구가 여러 topmost overlay 중 설정 WinUI HWND를 안정적으로 선택하지 못해 숫자 입력 포커스와 도망가기 평상시 자유 이동의 최종 시각 판정은 사용자 실기기 확인으로 남긴다.
+- 설정창과 펫 보관함 애니메이션 미리보기를 연 3펫 Release 5분은 평균 CPU 5.915%, private memory 189.40→226.91MiB였다. 설정창을 닫은 뒤 같은 프로세스의 추가 5분은 CPU 1.058%, private memory 227.44→227.28MiB로 안정되어 상주 runtime 누수는 재현되지 않았다.
+- 앱을 새로 시작하고 설정창을 닫은 마우스 도망가기·자유 이동·고정 3펫 Release 대표 workload 5분은 평균 CPU 0.680%, private memory 126.51→126.51MiB·최소 125.44MiB·최대 129.62MiB·증가 0.00MiB, 무응답 0회로 기준을 통과했다.
+- 100% 화면에서 핵심 정보 구조와 취소 원자성은 확인했다. 150%·200% DPI, Narrator·전체 키보드 탐색, 최소 창 높이·큰 이미지 반복 drag, 설치기 생성·업데이트·제거와 Windows→macOS 실제 교차 왕복은 릴리스 전 수동 QA로 남긴다.
+
 ## 변경 유형별 최소 검증
 
 ### 후속 단계 필수 검증

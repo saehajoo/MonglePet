@@ -19,7 +19,7 @@ internal sealed class PetMovementRuntime : IDisposable
     private readonly PetOverlayWindow _overlay;
     private readonly PetDesktopEnvironment _environment;
     private readonly IWindowsFrontmostWindowProvider _frontmostWindowProvider;
-    private readonly HashSet<string> _availableMotionIds;
+    private HashSet<string> _availableBehaviorIds = new(StringComparer.Ordinal);
     private readonly DispatcherQueueTimer _timer;
     private readonly PointerHoverTracker _hoverTracker = new();
     private IReadOnlyList<MonitorWorkArea>? _resolvedWorkAreasSource;
@@ -28,12 +28,14 @@ internal sealed class PetMovementRuntime : IDisposable
     private PetMovementSettings _settings = PetMovementSettings.Default;
     private MovementBoundarySettings _boundary = MovementBoundarySettings.Default;
     private OverlaySettings _overlaySettings = OverlaySettings.Default;
-    private string? _pettingMotionId;
+    private string? _pettingBehaviorId;
     private PetPresentation _presentation = PetPresentation.TuckedAway;
     private bool _isSystemSuspended = true;
     private bool _isUserDragging;
+    private bool _isBehaviorPaused;
     private bool _isEscaping;
     private MovementPoint? _target;
+    private MovementPoint? _cursorAvoidingPointerAnchor;
     private MovementPositionAccumulator? _positionAccumulator;
     private long? _dwellUntil;
     private long _lastTickTimestamp = Stopwatch.GetTimestamp();
@@ -41,27 +43,23 @@ internal sealed class PetMovementRuntime : IDisposable
     private ScreenPoint? _directDragOffset;
     private bool _isDirectDragging;
     private bool _wasPrimaryButtonPressed;
-    private string? _reportedMotionId;
+    private string? _reportedBehaviorId;
+    private MovementDirection? _lastMovementDirection;
     private TimeSpan? _scheduledInterval;
     private bool _disposed;
 
     public PetMovementRuntime(
         PetOverlayWindow overlay,
         WindowsMonitorPlacementService monitorService,
-        IEnumerable<string> availableMotionIds,
         IWindowsFrontmostWindowProvider? frontmostWindowProvider = null,
         PetDesktopEnvironment? environment = null)
     {
         ArgumentNullException.ThrowIfNull(overlay);
         ArgumentNullException.ThrowIfNull(monitorService);
-        ArgumentNullException.ThrowIfNull(availableMotionIds);
         _overlay = overlay;
         _environment = environment ?? new PetDesktopEnvironment(monitorService);
         _frontmostWindowProvider =
             frontmostWindowProvider ?? new WindowsFrontmostWindowProvider();
-        _availableMotionIds = new HashSet<string>(
-            availableMotionIds,
-            StringComparer.Ordinal);
         _timer = DispatcherQueue.GetForCurrentThread().CreateTimer();
         _timer.IsRepeating = true;
         _timer.Tick += Timer_Tick;
@@ -75,7 +73,7 @@ internal sealed class PetMovementRuntime : IDisposable
 
     public event EventHandler? StateChanged;
 
-    public event EventHandler<MovementMotionChangedEventArgs>? MovementMotionChanged;
+    public event EventHandler<MovementBehaviorChangedEventArgs>? MovementBehaviorChanged;
 
     public event EventHandler<PettingRequestedEventArgs>? PettingRequested;
 
@@ -92,20 +90,23 @@ internal sealed class PetMovementRuntime : IDisposable
         ThrowIfDisposed();
         PetMovementSettings nextSettings = profile.Movement;
         MovementBoundarySettings nextBoundary = overlaySettings.MovementBoundary;
-        string? nextPettingMotionId = ValidMotionId(profile.PettingMotionId);
+        _availableBehaviorIds = profile.Sequences
+            .Select(sequence => sequence.Id)
+            .ToHashSet(StringComparer.Ordinal);
+        string? nextPettingBehaviorId = ValidBehaviorId(profile.PettingBehaviorId);
         bool targetSettingsChanged = nextSettings != _settings ||
             nextBoundary != _boundary;
         bool observationSettingsChanged =
             overlaySettings.ClickThrough != _overlaySettings.ClickThrough ||
             overlaySettings.PointerOverlapFadeEnabled !=
                 _overlaySettings.PointerOverlapFadeEnabled ||
-            nextPettingMotionId != _pettingMotionId;
+            nextPettingBehaviorId != _pettingBehaviorId;
         bool lifecycleChanged = presentation != _presentation ||
             isSystemSuspended != _isSystemSuspended;
         _settings = nextSettings;
         _boundary = nextBoundary;
         _overlaySettings = overlaySettings;
-        _pettingMotionId = nextPettingMotionId;
+        _pettingBehaviorId = nextPettingBehaviorId;
         _presentation = presentation;
         _isSystemSuspended = isSystemSuspended;
         if (!targetSettingsChanged &&
@@ -148,6 +149,18 @@ internal sealed class PetMovementRuntime : IDisposable
         Reconfigure();
     }
 
+    public void SetBehaviorPaused(bool paused)
+    {
+        ThrowIfDisposed();
+        if (_isBehaviorPaused == paused)
+        {
+            return;
+        }
+        _isBehaviorPaused = paused;
+        ResetMovementTarget();
+        Reconfigure();
+    }
+
     public void InvalidateEnvironment()
     {
         ThrowIfDisposed();
@@ -181,11 +194,12 @@ internal sealed class PetMovementRuntime : IDisposable
         _presentation == PetPresentation.Awake &&
         !_isSystemSuspended &&
         !_isUserDragging &&
+        !_isBehaviorPaused &&
         _overlay.IsVisible;
 
     private bool NeedsPointerObservation =>
         CanDirectDrag ||
-        _pettingMotionId is not null ||
+        _pettingBehaviorId is not null ||
         ShouldMonitorOpacity ||
         _settings.Mode is PetMovementMode.CursorFollowing or PetMovementMode.CursorAvoiding;
 
@@ -200,7 +214,7 @@ internal sealed class PetMovementRuntime : IDisposable
     private bool ShouldObserveAlpha =>
         CanDirectDrag ||
         ShouldMonitorOpacity ||
-        (_pettingMotionId is not null &&
+        (_pettingBehaviorId is not null &&
             _settings.Mode != PetMovementMode.CursorAvoiding);
 
     private void Reconfigure()
@@ -212,8 +226,13 @@ internal sealed class PetMovementRuntime : IDisposable
             _hoverTracker.Reset();
             _overlay.SetAlphaMaskObservationEnabled(false);
             _overlay.SetPointerOverVisibleContent(false);
-            ReportMotion(null);
-            Status = _presentation == PetPresentation.TuckedAway
+            if (!_isBehaviorPaused)
+            {
+                ReportMotion(null);
+            }
+            Status = _isBehaviorPaused
+                ? "자동 규칙 우선순위로 이동을 잠시 멈췄습니다"
+                : _presentation == PetPresentation.TuckedAway
                 ? "펫이 숨겨져 이동을 멈췄습니다"
                 : _isSystemSuspended
                     ? "시스템 상태로 이동을 멈췄습니다"
@@ -225,13 +244,13 @@ internal sealed class PetMovementRuntime : IDisposable
         _lastTickTimestamp = Stopwatch.GetTimestamp();
         bool canPreferFrontmostWindow = _settings.Mode == PetMovementMode.FreeRoaming ||
             (_settings.Mode == PetMovementMode.CursorAvoiding &&
-                _settings.CursorAvoidingIdleBehavior ==
+                _settings.CursorAvoiding.IdleBehavior ==
                     CursorAvoidingIdleBehavior.FreeRoaming);
         if (!canPreferFrontmostWindow)
         {
             WindowPreferenceStatus = "전면 창 선호 대기";
         }
-        else if (!_settings.PrefersFrontmostWindow)
+        else if (!ActiveFreeRoamingSettings().PrefersFrontmostWindow)
         {
             WindowPreferenceStatus = "전면 창 선호 꺼짐";
         }
@@ -363,6 +382,7 @@ internal sealed class PetMovementRuntime : IDisposable
         IReadOnlyList<MovementScreen> screens = ResolvedScreens(workAreas);
         var observedOrigin = new MovementPoint(_overlay.OriginX, _overlay.OriginY);
         _positionAccumulator ??= new MovementPositionAccumulator(observedOrigin);
+        _positionAccumulator.SynchronizeObservedPixelOrigin(observedOrigin);
         MovementPoint origin = _positionAccumulator.Origin;
         var size = new MovementSize(_overlay.Width, _overlay.Height);
         var pointerPoint = new MovementPoint(pointer.X, pointer.Y);
@@ -375,23 +395,33 @@ internal sealed class PetMovementRuntime : IDisposable
                     : NeedsPointerObservation ? PointerInterval : null);
                 return;
             case PetMovementMode.CursorFollowing:
+                CursorFollowingMovementSettings following = _settings.CursorFollowing;
                 _target = PetMovementGeometry.CursorFollowingTarget(
                     pointerPoint,
                     origin,
                     size,
-                    _settings.CursorDistance,
+                    following.CursorDistance,
                     screens);
                 bool arrived = MoveToward(
                     origin,
                     size,
-                    _settings.Speed,
+                    following.Speed,
+                    following.StopRadius,
+                    following.Behavior,
                     elapsedSeconds,
-                    screens,
-                    false);
+                    screens);
+                Status = arrived ? "마우스 따라가기 · 대기" : "마우스를 따라 이동 중";
                 Schedule(arrived ? PointerInterval : MovementInterval);
                 return;
             case PetMovementMode.FreeRoaming:
-                TickFreeRoaming(origin, size, now, elapsedSeconds, screens, false);
+                TickFreeRoaming(
+                    origin,
+                    size,
+                    now,
+                    elapsedSeconds,
+                    screens,
+                    _settings.FreeRoaming,
+                    false);
                 return;
             case PetMovementMode.CursorAvoiding:
                 TickCursorAvoiding(pointerPoint, origin, size, now, elapsedSeconds, screens);
@@ -408,6 +438,7 @@ internal sealed class PetMovementRuntime : IDisposable
         long now,
         double elapsedSeconds,
         IReadOnlyList<MovementScreen> screens,
+        FreeRoamingMovementSettings settings,
         bool avoidingIdle)
     {
         if (_dwellUntil is long dwellUntil && now < dwellUntil)
@@ -421,7 +452,7 @@ internal sealed class PetMovementRuntime : IDisposable
         if (_target is null)
         {
             MovementRect? preferredWindow = null;
-            if (_settings.PrefersFrontmostWindow)
+            if (settings.PrefersFrontmostWindow)
             {
                 preferredWindow = _frontmostWindowProvider
                     .RepresentativeWindow(screens);
@@ -439,15 +470,17 @@ internal sealed class PetMovementRuntime : IDisposable
         bool arrived = MoveToward(
             origin,
             size,
-            _settings.Speed,
+            settings.Speed,
+            settings.StopRadius,
+            settings.Behavior,
             elapsedSeconds,
-            screens,
-            avoidingIdle);
+            screens);
+        Status = avoidingIdle ? "도망가기 · 자유 이동 중" : "자유 이동 중";
         if (arrived)
         {
             _target = null;
-            _dwellUntil = now + MillisecondsToStopwatchTicks(
-                _settings.FreeRoamingDwellMilliseconds);
+            long dwellMilliseconds = NextDwellMilliseconds(settings);
+            _dwellUntil = now + MillisecondsToStopwatchTicks(dwellMilliseconds);
         }
         Schedule(arrived ? PointerInterval : MovementInterval);
     }
@@ -464,40 +497,76 @@ internal sealed class PetMovementRuntime : IDisposable
             pointer,
             origin,
             size) ?? double.MaxValue;
-        double releaseDistance = _settings.CursorAvoidingDetectionDistance +
-            Math.Max(64, _settings.StopRadius * 2);
-        if (distance <= _settings.CursorAvoidingDetectionDistance ||
+        CursorAvoidingMovementSettings avoiding = _settings.CursorAvoiding;
+        double releaseDistance = avoiding.DetectionDistance +
+            Math.Max(64, avoiding.StopRadius * 2);
+        if (distance <= avoiding.DetectionDistance ||
             (_isEscaping && distance < releaseDistance))
         {
             _isEscaping = true;
             _dwellUntil = null;
-            _target = PetMovementGeometry.CursorAvoidingTarget(
-                pointer,
+            if (PetMovementGeometry.ShouldRefreshCursorAvoidingTarget(
+                    pointer,
+                    _cursorAvoidingPointerAnchor,
+                    _target is not null))
+            {
+                _target = PetMovementGeometry.CursorAvoidingTarget(
+                    pointer,
+                    origin,
+                    size,
+                    releaseDistance,
+                    screens);
+                _cursorAvoidingPointerAnchor = pointer;
+            }
+            bool arrived = MoveToward(
                 origin,
                 size,
-                releaseDistance,
-                screens);
-            MoveToward(
-                origin,
-                size,
-                _settings.CursorAvoidingSpeed,
+                avoiding.Speed,
+                avoiding.StopRadius,
+                avoiding.Behavior,
                 elapsedSeconds,
-                screens,
-                true);
+                screens);
+            if (arrived && distance < releaseDistance)
+            {
+                _target = null;
+                _cursorAvoidingPointerAnchor = null;
+            }
             Status = "마우스에서 도망가는 중";
             Schedule(MovementInterval);
             return;
         }
 
+        bool escapedThisTick = _isEscaping;
         _isEscaping = false;
-        _target = null;
-        ReportMotion(null);
-        if (_settings.CursorAvoidingIdleBehavior == CursorAvoidingIdleBehavior.FreeRoaming)
+        _cursorAvoidingPointerAnchor = null;
+        if (escapedThisTick)
         {
-            TickFreeRoaming(origin, size, now, elapsedSeconds, screens, true);
+            // The escape destination belongs to a different movement phase.
+            // Clear it once when transitioning into idle behavior, but retain
+            // the idle free-roaming destination on subsequent timer ticks.
+            _target = null;
+            ReportMotion(null);
+        }
+        if (avoiding.IdleBehavior == CursorAvoidingIdleBehavior.FreeRoaming)
+        {
+            if (escapedThisTick)
+            {
+                _dwellUntil = now + MillisecondsToStopwatchTicks(
+                    NextDwellMilliseconds(avoiding.IdleFreeRoaming));
+            }
+            TickFreeRoaming(
+                origin,
+                size,
+                now,
+                elapsedSeconds,
+                screens,
+                avoiding.IdleFreeRoaming,
+                true);
         }
         else
         {
+            _target = null;
+            ReportMotion(null);
             Status = "마우스 도망가기 · 대기";
             Schedule(PointerInterval);
         }
@@ -507,9 +576,10 @@ internal sealed class PetMovementRuntime : IDisposable
         MovementPoint origin,
         MovementSize size,
         double speed,
+        double stopRadius,
+        MovementBehaviorSettings behavior,
         double elapsedSeconds,
-        IReadOnlyList<MovementScreen> screens,
-        bool avoiding)
+        IReadOnlyList<MovementScreen> screens)
     {
         if (_target is not { } target)
         {
@@ -520,7 +590,7 @@ internal sealed class PetMovementRuntime : IDisposable
             target,
             speed,
             elapsedSeconds,
-            _settings.StopRadius);
+            stopRadius);
         if (!advance.DidMove)
         {
             ReportMotion(null);
@@ -541,19 +611,7 @@ internal sealed class PetMovementRuntime : IDisposable
         _overlay.MoveTo(pixelX, pixelY);
         double actualDeltaX = applied.X - origin.X;
         double actualDeltaY = applied.Y - origin.Y;
-        MovementAnimationSettings animation = avoiding
-            ? _settings.CursorAvoidingAnimation
-            : _settings.Mode == PetMovementMode.CursorFollowing
-                ? _settings.CursorFollowingAnimation
-                : _settings.FreeRoamingAnimation;
-        ReportMotion(ResolveMovementMotion(animation, actualDeltaX, actualDeltaY));
-        Status = _settings.Mode switch
-        {
-            PetMovementMode.CursorFollowing => "마우스를 따라 이동 중",
-            PetMovementMode.FreeRoaming => "자유 이동 중",
-            PetMovementMode.CursorAvoiding when avoiding => "마우스에서 도망가는 중",
-            _ => "이동 중",
-        };
+        ReportMotion(ResolveMovementBehavior(behavior, actualDeltaX, actualDeltaY));
         return advance.HasArrived;
     }
 
@@ -565,7 +623,7 @@ internal sealed class PetMovementRuntime : IDisposable
             pointer.X < _overlay.OriginX + _overlay.Width &&
             pointer.Y >= _overlay.OriginY &&
             pointer.Y < _overlay.OriginY + _overlay.Height;
-        bool pettingEnabled = _pettingMotionId is not null &&
+        bool pettingEnabled = _pettingBehaviorId is not null &&
             _settings.Mode != PetMovementMode.CursorAvoiding;
         bool overVisibleContent = insidePanel &&
             (pettingEnabled || ShouldMonitorOpacity) &&
@@ -594,9 +652,9 @@ internal sealed class PetMovementRuntime : IDisposable
                 moved,
                 pettingEnabled,
                 _isUserDragging) &&
-            _pettingMotionId is { } motionId)
+            _pettingBehaviorId is { } behaviorId)
         {
-            PettingRequested?.Invoke(this, new PettingRequestedEventArgs(motionId));
+            PettingRequested?.Invoke(this, new PettingRequestedEventArgs(behaviorId));
         }
     }
 
@@ -659,67 +717,95 @@ internal sealed class PetMovementRuntime : IDisposable
         _resolvedScreens = null;
     }
 
-    private string? ResolveMovementMotion(
-        MovementAnimationSettings animation,
+    private string? ResolveMovementBehavior(
+        MovementBehaviorSettings behavior,
         double deltaX,
         double deltaY)
     {
-        if (!animation.UsesDirectionalMotions)
+        if (!behavior.UsesDirectionalBehaviors)
         {
-            return ValidMotionId(animation.FallbackMotionId);
+            _lastMovementDirection = null;
+            return ValidBehaviorId(behavior.FallbackBehaviorId);
         }
-        MovementDirection? direction = PetMovementGeometry.Direction(
-            deltaX,
-            deltaY,
-            animation.UsesDiagonalMotions);
-        string? exact = direction switch
+        IReadOnlyList<MovementDirection> candidates =
+            PetMovementGeometry.CompatibleDirections(
+                deltaX,
+                deltaY,
+                behavior.UsesDiagonalBehaviors,
+                _lastMovementDirection);
+        if (candidates.Count == 0)
         {
-            MovementDirection.Left => animation.DirectionMotionIds.Left,
-            MovementDirection.Right => animation.DirectionMotionIds.Right,
-            MovementDirection.Up => animation.DirectionMotionIds.Up,
-            MovementDirection.Down => animation.DirectionMotionIds.Down,
-            MovementDirection.UpLeft => animation.DirectionMotionIds.UpLeft,
-            MovementDirection.UpRight => animation.DirectionMotionIds.UpRight,
-            MovementDirection.DownLeft => animation.DirectionMotionIds.DownLeft,
-            MovementDirection.DownRight => animation.DirectionMotionIds.DownRight,
-            _ => null,
-        };
-        exact = ValidMotionId(exact);
-        if (exact is not null)
-        {
-            return exact;
+            _lastMovementDirection = null;
+            return ValidBehaviorId(behavior.FallbackBehaviorId);
         }
-        string? axisFallback = Math.Abs(deltaX) >= Math.Abs(deltaY)
-            ? ValidMotionId(deltaX < 0
-                ? animation.DirectionMotionIds.Left
-                : animation.DirectionMotionIds.Right)
-            : ValidMotionId(deltaY < 0
-                ? animation.DirectionMotionIds.Up
-                : animation.DirectionMotionIds.Down);
-        return axisFallback ?? ValidMotionId(animation.FallbackMotionId);
+        _lastMovementDirection = candidates[0];
+        foreach (MovementDirection direction in candidates)
+        {
+            string? candidate = ValidBehaviorId(DirectionBehaviorId(
+                behavior.DirectionBehaviorIds,
+                direction));
+            if (candidate is not null)
+            {
+                return candidate;
+            }
+        }
+        return ValidBehaviorId(behavior.FallbackBehaviorId);
     }
 
-    private string? ValidMotionId(string? value) =>
-        value is not null && _availableMotionIds.Contains(value) ? value : null;
-
-    private void ReportMotion(string? motionId)
+    private static string? DirectionBehaviorId(
+        DirectionalBehaviorIds ids,
+        MovementDirection direction) => direction switch
     {
-        if (string.Equals(_reportedMotionId, motionId, StringComparison.Ordinal))
+        MovementDirection.Left => ids.Left,
+        MovementDirection.Right => ids.Right,
+        MovementDirection.Up => ids.Up,
+        MovementDirection.Down => ids.Down,
+        MovementDirection.UpLeft => ids.UpLeft,
+        MovementDirection.UpRight => ids.UpRight,
+        MovementDirection.DownLeft => ids.DownLeft,
+        MovementDirection.DownRight => ids.DownRight,
+        _ => null,
+    };
+
+    private string? ValidBehaviorId(string? value) =>
+        value is not null && _availableBehaviorIds.Contains(value) ? value : null;
+
+    private void ReportMotion(string? behaviorId)
+    {
+        if (behaviorId is null)
+        {
+            _lastMovementDirection = null;
+        }
+        if (string.Equals(_reportedBehaviorId, behaviorId, StringComparison.Ordinal))
         {
             return;
         }
-        _reportedMotionId = motionId;
-        MovementMotionChanged?.Invoke(
+        _reportedBehaviorId = behaviorId;
+        MovementBehaviorChanged?.Invoke(
             this,
-            new MovementMotionChangedEventArgs(motionId));
+            new MovementBehaviorChangedEventArgs(behaviorId));
     }
+
+    private FreeRoamingMovementSettings ActiveFreeRoamingSettings() =>
+        _settings.Mode == PetMovementMode.CursorAvoiding
+            ? _settings.CursorAvoiding.IdleFreeRoaming
+            : _settings.FreeRoaming;
+
+    private static long NextDwellMilliseconds(FreeRoamingMovementSettings settings) =>
+        settings.RandomizesDwell
+            ? Random.Shared.NextInt64(
+                settings.DwellMinimumMilliseconds,
+                settings.DwellMilliseconds + 1)
+            : settings.DwellMilliseconds;
 
     private void ResetMovementTarget()
     {
         _target = null;
+        _cursorAvoidingPointerAnchor = null;
         _positionAccumulator = null;
         _dwellUntil = null;
         _isEscaping = false;
+        _lastMovementDirection = null;
     }
 
     private void Schedule(TimeSpan? interval)
@@ -751,8 +837,8 @@ internal sealed class PetMovementRuntime : IDisposable
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, this);
 }
 
-internal sealed record MovementMotionChangedEventArgs(string? MotionId);
+internal sealed record MovementBehaviorChangedEventArgs(string? BehaviorId);
 
-internal sealed record PettingRequestedEventArgs(string MotionId);
+internal sealed record PettingRequestedEventArgs(string BehaviorId);
 
 internal sealed record DirectDragCompletedEventArgs(int X, int Y);

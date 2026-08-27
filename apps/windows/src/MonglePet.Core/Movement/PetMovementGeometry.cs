@@ -287,6 +287,26 @@ public static class PetMovementGeometry
             DistanceFromPointerToPet(pointer, candidate, petSize) ?? 0);
     }
 
+    public static bool ShouldRefreshCursorAvoidingTarget(
+        MovementPoint pointer,
+        MovementPoint? pointerAnchor,
+        bool hasTarget,
+        double minimumPointerTravel = 24)
+    {
+        if (!pointer.IsFinite ||
+            !double.IsFinite(minimumPointerTravel) || minimumPointerTravel < 0)
+        {
+            return true;
+        }
+        if (!hasTarget || pointerAnchor is not { IsFinite: true } anchor)
+        {
+            return true;
+        }
+
+        return SquaredDistance(pointer, anchor) >=
+            minimumPointerTravel * minimumPointerTravel;
+    }
+
     public static MovementAdvance Advance(
         MovementPoint currentOrigin,
         MovementPoint targetOrigin,
@@ -332,7 +352,9 @@ public static class PetMovementGeometry
     public static MovementDirection? Direction(
         double deltaX,
         double deltaY,
-        bool usesDiagonals)
+        bool usesDiagonals,
+        MovementDirection? previousDirection = null,
+        double hysteresisDegrees = 8)
     {
         if (!double.IsFinite(deltaX) || !double.IsFinite(deltaY) ||
             Math.Abs(deltaX) + Math.Abs(deltaY) <= 0.0001)
@@ -340,25 +362,145 @@ public static class PetMovementGeometry
             return null;
         }
 
+        MovementDirection classified;
         if (!usesDiagonals)
         {
-            return Math.Abs(deltaX) >= Math.Abs(deltaY)
+            classified = Math.Abs(deltaX) >= Math.Abs(deltaY)
                 ? deltaX < 0 ? MovementDirection.Left : MovementDirection.Right
                 : deltaY < 0 ? MovementDirection.Up : MovementDirection.Down;
         }
-
-        double angle = Math.Atan2(deltaY, deltaX) * 180 / Math.PI;
-        return angle switch
+        else
         {
-            >= -22.5 and < 22.5 => MovementDirection.Right,
-            >= 22.5 and < 67.5 => MovementDirection.DownRight,
-            >= 67.5 and < 112.5 => MovementDirection.Down,
-            >= 112.5 and < 157.5 => MovementDirection.DownLeft,
-            >= 157.5 or < -157.5 => MovementDirection.Left,
-            >= -157.5 and < -112.5 => MovementDirection.UpLeft,
-            >= -112.5 and < -67.5 => MovementDirection.Up,
-            _ => MovementDirection.UpRight,
+            double angle = Math.Atan2(deltaY, deltaX) * 180 / Math.PI;
+            classified = angle switch
+            {
+                >= -22.5 and < 22.5 => MovementDirection.Right,
+                >= 22.5 and < 67.5 => MovementDirection.DownRight,
+                >= 67.5 and < 112.5 => MovementDirection.Down,
+                >= 112.5 and < 157.5 => MovementDirection.DownLeft,
+                >= 157.5 or < -157.5 => MovementDirection.Left,
+                >= -157.5 and < -112.5 => MovementDirection.UpLeft,
+                >= -112.5 and < -67.5 => MovementDirection.Up,
+                _ => MovementDirection.UpRight,
+            };
+        }
+
+        if (previousDirection is not { } previous ||
+            (!usesDiagonals && IsDiagonal(previous)) ||
+            !double.IsFinite(hysteresisDegrees) ||
+            hysteresisDegrees <= 0)
+        {
+            return classified;
+        }
+
+        double currentAngle = Math.Atan2(deltaY, deltaX) * 180 / Math.PI;
+        double halfSector = usesDiagonals ? 22.5 : 45;
+        return AngularDistance(currentAngle, DirectionAngle(previous)) <=
+            halfSector + hysteresisDegrees
+                ? previous
+                : classified;
+    }
+
+    public static IReadOnlyList<MovementDirection> CompatibleDirections(
+        double deltaX,
+        double deltaY,
+        bool usesDiagonals,
+        MovementDirection? previousDirection = null,
+        double hysteresisDegrees = 8)
+    {
+        MovementDirection? exact = Direction(
+            deltaX,
+            deltaY,
+            usesDiagonals,
+            previousDirection,
+            hysteresisDegrees);
+        if (exact is null)
+        {
+            return Array.Empty<MovementDirection>();
+        }
+
+        double distance = Math.Sqrt((deltaX * deltaX) + (deltaY * deltaY));
+        if (!double.IsFinite(distance) || distance <= 0.0001)
+        {
+            return Array.Empty<MovementDirection>();
+        }
+
+        MovementDirection[] stableOrder = usesDiagonals
+            ? [
+                MovementDirection.Left,
+                MovementDirection.Right,
+                MovementDirection.Up,
+                MovementDirection.Down,
+                MovementDirection.UpLeft,
+                MovementDirection.UpRight,
+                MovementDirection.DownLeft,
+                MovementDirection.DownRight,
+            ]
+            : [
+                MovementDirection.Left,
+                MovementDirection.Right,
+                MovementDirection.Up,
+                MovementDirection.Down,
+            ];
+        return stableOrder
+            .Select((direction, index) =>
+            {
+                (double X, double Y) vector = DirectionVector(direction);
+                double similarity = ((deltaX / distance) * vector.X) +
+                    ((deltaY / distance) * vector.Y);
+                bool opposesX = Math.Abs(deltaX / distance) > 0.05 &&
+                    vector.X != 0 && Math.Sign(vector.X) != Math.Sign(deltaX);
+                bool opposesY = Math.Abs(deltaY / distance) > 0.05 &&
+                    vector.Y != 0 && Math.Sign(vector.Y) != Math.Sign(deltaY);
+                return (Direction: direction, Similarity: similarity, Index: index,
+                    IsCompatible: similarity > 0.05 && !opposesX && !opposesY);
+            })
+            .Where(item => item.IsCompatible)
+            .OrderByDescending(item => item.Direction == exact)
+            .ThenByDescending(item => item.Similarity)
+            .ThenBy(item => item.Index)
+            .Select(item => item.Direction)
+            .ToArray();
+    }
+
+    private static bool IsDiagonal(MovementDirection direction) => direction is
+        MovementDirection.UpLeft or MovementDirection.UpRight or
+        MovementDirection.DownLeft or MovementDirection.DownRight;
+
+    private static double DirectionAngle(MovementDirection direction) => direction switch
+    {
+        MovementDirection.Right => 0,
+        MovementDirection.DownRight => 45,
+        MovementDirection.Down => 90,
+        MovementDirection.DownLeft => 135,
+        MovementDirection.Left => 180,
+        MovementDirection.UpLeft => -135,
+        MovementDirection.Up => -90,
+        MovementDirection.UpRight => -45,
+        _ => 0,
+    };
+
+    private static (double X, double Y) DirectionVector(MovementDirection direction)
+    {
+        const double diagonal = 0.7071067811865476;
+        return direction switch
+        {
+            MovementDirection.Left => (-1, 0),
+            MovementDirection.Right => (1, 0),
+            MovementDirection.Up => (0, -1),
+            MovementDirection.Down => (0, 1),
+            MovementDirection.UpLeft => (-diagonal, -diagonal),
+            MovementDirection.UpRight => (diagonal, -diagonal),
+            MovementDirection.DownLeft => (-diagonal, diagonal),
+            MovementDirection.DownRight => (diagonal, diagonal),
+            _ => (0, 0),
         };
+    }
+
+    private static double AngularDistance(double left, double right)
+    {
+        double delta = Math.Abs(left - right) % 360;
+        return delta > 180 ? 360 - delta : delta;
     }
 
     private static MovementScreen? ScreenContainingOrNearest(

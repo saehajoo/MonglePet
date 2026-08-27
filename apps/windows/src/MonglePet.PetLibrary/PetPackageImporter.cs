@@ -67,7 +67,8 @@ public sealed class PetPackageImporter
 
             try
             {
-                BehaviorProfile profile = RecommendedPetProfileCodec.Decode(
+                DecodedRecommendedPetProfile recommended =
+                    RecommendedPetProfileCodec.DecodeWithDisplay(
                     File.ReadAllBytes(recommendedPath),
                     PetBehaviorKey.BuiltInKey,
                     package.Manifest.Motions.Select(motion => motion.Id).ToArray());
@@ -76,12 +77,14 @@ public sealed class PetPackageImporter
                     fingerprint,
                     package.Manifest,
                     true,
-                    profile,
+                    recommended.Profile,
                     null,
                     null,
                     currentAppVersion,
                     publishedMinimumAppVersion,
-                    advisory);
+                    advisory,
+                    recommended.Display,
+                    recommended.IncludesDisplaySettings);
             }
             catch (RecommendedPetProfileException exception)
                 when (exception.Error != RecommendedPetProfileError.TooLarge)

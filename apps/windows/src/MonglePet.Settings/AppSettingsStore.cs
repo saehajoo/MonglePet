@@ -5,7 +5,7 @@ namespace MonglePet.Settings;
 
 public sealed class AppSettingsStore
 {
-    public const int CurrentSchemaVersion = 11;
+    public const int CurrentSchemaVersion = 14;
     public const int MaximumFileSize = 5 * 1024 * 1024;
 
     private static readonly JsonSerializerOptions SerializerOptions = new()

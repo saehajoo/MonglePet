@@ -17,7 +17,7 @@ WPF는 초기 성능 비교 또는 호환성 대안일 뿐 최종 기준 기술�
 - `src/MonglePet.Core`: UI와 운영체제 API에서 분리한 행동 Domain
 - `src/MonglePet.Packages`: `.monglepet` manifest, 디렉터리·ZIP 로더와 프레임 모델
 - `src/MonglePet.PetLibrary`: LocalState 기반 설치·목록·교체·삭제와 ZIP importer
-- `src/MonglePet.Settings`: schema-v1~v11 순차 마이그레이션, 멀티펫 instance·profile Domain 매핑·항목 복구와 원자적 JSON 저장
+- `src/MonglePet.Settings`: schema-v1~v14 순차 마이그레이션, 멀티펫 instance·profile Domain 매핑·항목 복구와 원자적 JSON 저장
 - `src/MonglePet.Shell`: notification area 메뉴와 모니터 작업 영역 배치의 Windows 전용 adapter
 - `src/MonglePet.Windows`: packaged MSIX와 unpackaged self-contained 배포를 지원하는 WinUI 3 앱
 - `tests`: Activity·Core·Packages·PetLibrary·Settings·Shell xUnit 테스트
@@ -28,13 +28,13 @@ WPF는 초기 성능 비교 또는 호환성 대안일 뿐 최종 기준 기술�
 
 `MonglePet.Windows`는 설정 창과 별개로 Win32 `WS_POPUP` 오버레이를 만든다. 부모 HWND가 항상 위, 작업 표시줄 제외, 포커스 비활성화와 마우스 입력 통과를 담당하고, 내부 `ContentIsland`·`DesktopChildSiteBridge`가 `Microsoft.UI.Composition` 이미지 비주얼을 표시한다.
 
-WinUI 화면에서 96–384px 펫 너비, 10–100% 기본 투명도, 입력 통과, 클릭 통과 중 마우스 겹침 투명도, nearest 픽셀 아트 렌더링과 표시·숨김을 즉시 변경한다. 값은 schema-v11의 활성 instance별 overlay에 원자적으로 저장되고 시작·펫 전환 뒤 복원되며, 높이는 현재 패키지 기본 모션 첫 프레임의 종횡비로 계산한다. 내장 펫은 Windows 사본 없이 공통 `shared/BuiltInPets/Mongle.monglepet`의 PNG atlas와 기본 모션을 manifest 프레임 좌표·시간에 맞춰 표시한다. notification area의 현재 화면 이동과 클릭 통과를 끈 overlay 드래그로 작업 영역 위치와 화면 식별자를 저장·복원한다. 최대 64px frame 알파 마스크가 aspect-fit 여백을 제외한 실제 표시 픽셀을 판정하며 기능이 꺼지면 디코딩과 100ms 포인터 관찰도 중지한다.
+WinUI 화면에서 192px를 100%로 한 10~200% 펫 크기, 10~100% 기본 투명도, 입력 통과, 클릭 통과 중 마우스 겹침 투명도, nearest 픽셀 아트 렌더링과 표시·숨김을 즉시 변경한다. 값은 schema-v14의 활성 instance별 overlay에 원자적으로 저장되고 시작·펫 전환 뒤 복원되며, 높이는 현재 패키지 기본 모션 첫 프레임의 종횡비로 계산한다. 내장 펫은 Windows 사본 없이 공통 `shared/BuiltInPets/Mongle.monglepet`의 PNG atlas와 기본 모션을 manifest 프레임 좌표·시간에 맞춰 표시한다. notification area의 현재 화면 이동과 클릭 통과를 끈 overlay 드래그로 작업 영역 위치와 화면 식별자를 저장·복원한다. 최대 64px frame 알파 마스크가 aspect-fit 여백을 제외한 실제 표시 픽셀을 판정하며 기능이 꺼지면 디코딩과 100ms 포인터 관찰도 중지한다.
 
 2026-08-08 x64 Release 고정 workload 30초 측정에서 CPU는 전체 시스템 기준 평균 0.017%(단일 코어 환산 0.103%), private memory 최대 100.2 MiB, 3D GPU 평균·최대 0%였다. 1프레임 정지 상태의 기준선이며 이동·말풍선·프레임 지연과 1시간 메모리 증가는 후속 workload에서 별도로 측정한다.
 
 ## 말풍선
 
-말풍선 설정은 schema-v11 행동 프로필에 활성 펫별로 저장한다. 행동 루틴 진입 대사는 주기 대사보다 우선하고 같은 루틴에서는 한 번만 발생한다. 주기 대사는 순차·무작위 순서와 별도 간격을 사용하며, 각 대사는 지정 시간 뒤 닫거나 다음 대사까지 유지할 수 있다. 펫을 숨기거나 Windows가 잠금·절전에 들어가고 펫을 전환하면 현재 말풍선과 모든 timer를 즉시 정리한다.
+말풍선 설정은 schema-v14 행동 프로필에 활성 펫별로 저장한다. 행동 루틴 진입 대사는 주기 대사보다 우선하고 같은 루틴에서는 한 번만 발생한다. 주기 대사는 순차·무작위 순서와 별도 간격을 사용하며, 각 대사는 지정 시간 뒤 닫거나 다음 대사까지 유지할 수 있다. 펫을 숨기거나 Windows가 잠금·절전에 들어가고 펫을 전환하면 현재 말풍선과 모든 timer를 즉시 정리한다.
 
 표시는 펫 오버레이가 소유하는 별도 non-activating·click-through Win32 `WS_POPUP`에 WinUI 3 `DesktopWindowXamlSource`를 연결해 수행한다. 시스템·크림·밤·민트·복숭아·사용자 지정 테마, 불투명도·글자·여백·모서리·꼬리와 자동·위·아래 위치, 좌우 오프셋·간격을 지원하며 부모 이동과 모니터 작업 영역 경계를 따라 재배치한다. 설정 화면은 행동 대사와 주기 대사를 분리하고 저장 전 draft, 즉시 반영되는 사용·모양·위치 설정, 꼬리·정렬·상대 위치 미리보기를 제공한다. 실제 혼합 DPI·긴 대사 시각 QA와 이동 말풍선 workload는 최종 검증에 남아 있다.
 
@@ -48,7 +48,7 @@ WinUI 화면에서 96–384px 펫 너비, 10–100% 기본 투명도, 입력 통
 
 ## 이동·드래그·쓰다듬기
 
-순수 이동 Geometry가 Win32와 독립적으로 화면 safe bounds, 마우스 따라가기 목표, 자유 이동 무작위·전면 창 선호 목표, 마우스 도망 목표, 속도 advance와 Windows 좌상단 좌표 방향을 계산한다. `PetMovementRuntime`은 위치 고정, 마우스 따라가기, 자유 이동과 마우스 도망가기 모드를 schema-v11 활성 펫별 설정과 전역 이동 범위에서 읽어 실제 overlay 좌표에 적용한다. 이동 중에는 16ms tick과 `double` 논리 위치를 사용하고 HWND에 적용할 때만 반올림해 저속 진행량을 보존한다. 모든 화면 범위는 가상 데스크톱의 모니터 사이 공간을 횡단할 수 있고 선택 모니터·사용자 영역만 지정 경계로 제한한다. 정지 포인터 관찰은 100ms, 환경 오류 재시도는 1초다.
+순수 이동 Geometry가 Win32와 독립적으로 화면 safe bounds, 마우스 따라가기 목표, 자유 이동 무작위·전면 창 선호 목표, 마우스 도망 목표, 속도 advance와 Windows 좌상단 좌표 방향을 계산한다. `PetMovementRuntime`은 위치 고정, 마우스 따라가기, 자유 이동과 마우스 도망가기 모드를 schema-v14 활성 펫별 독립 설정과 전역 이동 범위에서 읽어 실제 overlay 좌표에 적용한다. 도망가기의 평상시 자유 이동도 일반 자유 이동과 별도 값을 소유하며 목표는 도착·범위 무효화·도망 상태 전환에서만 다시 고른다. 이동 중에는 16ms tick과 `double` 논리 위치를 사용하고 HWND에 적용할 때만 반올림해 저속 진행량을 보존한다. 모든 화면 범위는 가상 데스크톱의 모니터 사이 공간을 횡단할 수 있고 선택 모니터·사용자 영역만 지정 경계로 제한한다. 정지 포인터 관찰은 100ms, 환경 오류 재시도는 1초다.
 
 이동 설정 UI에서 속도·마우스 거리·정지 반경·자유 이동 dwell·전면 앱 창 주변 선호·도망 거리와 속도·평상시 행동, 모든/선택/저장된 사용자 영역 범위, 모드별 fallback 모션과 쓰다듬기 모션을 선택한다. 저장된 방향 모션도 실제 적용 좌표 방향에 맞춰 사용한다. 전면 창 선호는 창 제목 없이 foreground PID와 보이는 일반 창의 DWM bounds만 최대 1초 캐시해 사용하며 전체 화면·작은 창·조회 실패는 작업 영역으로 복구한다. 자동 이동 좌표와 창 이력은 저장하지 않고 사용자 드래그 완료와 notification area 현재 화면 이동만 원점을 저장한다.
 
@@ -60,7 +60,7 @@ WinUI 화면에서 96–384px 펫 너비, 10–100% 기본 투명도, 입력 통
 
 `MonglePet.Core`의 순수 cycle scheduler가 모션 한 사이클, 단계별 `repeatCount`, 여러 단계와 루틴 반복을 계산한다. Windows runtime은 `Stopwatch` 단조 시간과 일회성 `DispatcherQueueTimer`로 경계에서만 다음 모션을 요청하며, 숨김 중에는 scheduler와 프레임 timer를 멈추고 다시 표시할 때 남은 시간부터 재개한다. 현재 펫 기본 모션 예약 참조와 누락 모션 fallback도 Composition 재생 경계에서 처리한다.
 
-WinUI 행동 설정에서 현재 펫의 자동·수동 모드와 수동 루틴을 선택하고, 루틴·단계·반복과 앱·입력 없음 자동 규칙을 생성·수정·삭제하면 schema-v11 전체 설정에 원자적으로 저장되고 즉시 재생에 반영된다. 기본 루틴은 삭제를 막고 루틴 삭제 시 이를 참조하는 규칙·행동 대사를 함께 정리한다. 내장 펫과 설치 UUID별로 행동 프로필을 분리하며 펫 전환과 재실행 뒤 선택을 복원한다. 자동 모드는 1초 간격의 전면 앱·입력 없음 snapshot으로 규칙을 평가하고, 세션 잠금·절전 중에는 수동 모드를 포함한 재생을 즉시 멈춘다. 숨김·잠금·절전 중에는 activity polling도 중지한다.
+WinUI 행동 설정에서 현재 펫의 자동·직접 선택·복수 행동 랜덤 모드를 선택하고, 안정 ID와 변경 가능한 표시 이름을 가진 행동·단계·반복을 편집하면 schema-v14 전체 설정에 원자적으로 저장되고 즉시 재생에 반영된다. 자동 모드는 표시 및 이동·입력 없음·앱 사용 규칙을 사용자가 정한 종류 순서로 평가하며 입력 없음 규칙은 하나만 두고 1~86,400초를 입력한다. 랜덤 모드는 shuffle bag으로 선택 행동을 한 번씩 재생한 뒤 다시 섞는다. 기본 행동은 삭제를 막고 행동 삭제 시 이를 참조하는 규칙·대사·이동·쓰다듬기 설정을 함께 정리한다. 내장 펫과 설치 UUID별로 행동 프로필을 분리하며 펫 전환과 재실행 뒤 선택을 복원한다. 세션 잠금·절전 중에는 직접·랜덤 모드를 포함한 재생을 즉시 멈추고 activity polling도 중지한다.
 
 Windows 앱 규칙 식별자는 package identity가 있으면 소문자 `pfn:<package-family-name>`, 일반 Win32 앱이면 소문자 `exe:<file-name>`이다. 규칙 편집기에서 이를 직접 입력하거나 현재 전면 앱 식별자를 채울 수 있고, 창 제목 없이 일반 최상위 창이 열린 앱을 이름·아이콘 목록에서 고르거나 표준 파일 선택기로 `.exe`를 명시적으로 선택할 수 있다. 전체 설치 앱·디스크·레지스트리는 스캔하지 않는다. 선택용 이름·아이콘·경로는 메모리에서만 사용하며 창 제목·문서명·브라우저 주소·실제 입력 내용과 실행 파일 전체 경로는 설정에 저장하지 않는다.
 
@@ -70,9 +70,9 @@ packaged 앱은 `ApplicationData.Current.LocalFolder\MonglePet\Library\<installa
 
 설치는 라이브러리와 같은 볼륨의 숨은 staging 디렉터리로 복사한 뒤 전체 패키지를 다시 검증하고 UUID 최종 경로로 rename한다. 같은 패키지 ID는 기본적으로 중복을 거부하며 별도 설치와 같은 ID 설치 교체를 명시적으로 지원한다. 교체 중 실패하면 기존 설치 backup을 복구하고, 손상된 설치와 남은 staging·backup은 사용 가능한 목록에서 제외한다.
 
-개발 화면에서 `.monglepet 가져오기`로 아카이브를 선택하면 이름·버전·제작자·모션 수와 권장 설정을 먼저 검토한다. 권장 설정은 schema-v1~v7을 읽고 사용자가 선택한 경우에만 설치 UUID의 로컬 프로필로 복사한다. 중복이면 기존 설정을 기본 보존하는 교체 또는 권장 설정 선택을 유지하는 별도 설치를 결정할 수 있다. `현재 펫 내보내기`는 공유 권한 확인 후 canonical manifest·미리보기·참조 atlas와 선택 권장 설정만 ZIP에 넣고 전체 왕복 검증 뒤 저장한다.
+개발 화면에서 `.monglepet 가져오기`로 아카이브를 선택하면 이름·버전·제작자·모션 수와 권장 설정을 먼저 검토한다. 권장 설정은 schema-v1~v10을 읽고 사용자가 선택한 경우에만 설치 UUID의 로컬 프로필로 복사한다. v9 이하에는 휴대 표시 설정이 없으므로 현재 표시값을 덮어쓰지 않는다. 중복이면 기존 설정을 기본 보존하는 교체 또는 권장 설정 선택을 유지하는 별도 설치를 결정할 수 있다. `현재 펫 내보내기`는 행동·랜덤 선택·규칙 종류 순서·네 독립 이동 설정·쓰다듬기·말풍선·휴대 표시 설정을 포함하며 `pfn:`/`exe:` 앱 규칙만 별도 동의로 추가한다.
 
-`ApplicationData.Current.LocalFolder\MonglePet\settings.json`의 schema-v11은 `activePetInstances`, 독립 `behaviorProfiles`, `selectedPetInstanceID`를 저장한다. schema-v1부터 v10까지는 기존 필드와 알 수 없는 확장 필드를 보존하며 v11로 순차 변환하고, 잘못된 UUID·프로필 참조·표시 순서만 항목별로 복구한다. v1의 유지 시간은 당시 선택 펫 manifest의 모션 한 사이클로 반복 횟수를 계산하며, 선택 펫 정의 자체를 얻지 못하면 원본을 보존하고 쓰기를 차단한다. 전체 설정 저장은 유효하지 않은 Domain 값을 거부하고 살아남은 항목의 알 수 없는 확장 필드를 보존한다. 손상·5MiB 초과 파일은 격리하고 미래 schema도 원본 보호를 위해 쓰기를 차단한다.
+`ApplicationData.Current.LocalFolder\MonglePet\settings.json`의 schema-v14는 `activePetInstances`, 독립 `behaviorProfiles`, `selectedPetInstanceID`를 저장한다. schema-v1부터 v11까지의 사용자 설정은 활성 인스턴스·프로필·알 수 없는 확장 필드를 보존하며 v12 안정 행동 참조, v13 랜덤 선택·머무르기, v14 독립 이동 설정으로 순차 변환한다. 잘못된 UUID·프로필 참조·표시 순서와 행동 참조는 손상된 항목만 복구한다. v1의 유지 시간은 당시 선택 펫 manifest의 모션 한 사이클로 반복 횟수를 계산하며, 선택 펫 정의 자체를 얻지 못하면 원본을 보존하고 쓰기를 차단한다. 전체 설정 저장은 유효하지 않은 Domain 값을 거부하고 살아남은 항목의 알 수 없는 확장 필드를 보존한다. 손상·5MiB 초과 파일은 격리하고 미래 schema도 원본 보호를 위해 쓰기를 차단한다.
 
 packaged 앱을 실행하려면 먼저 빌드 결과의 loose AppX를 개발 등록한 뒤 AUMID로 시작한다. 현재 `Microsoft.Windows.SDK.BuildTools.WinApp` 0.5.0의 `dotnet run` helper는 이 .NET 10 프로젝트에서 `ErrorStartingProcess`를 반환할 수 있으므로 실제 앱 검증 기준으로 사용하지 않는다.
 
@@ -117,6 +117,10 @@ dotnet test apps/windows/MonglePet.slnx --configuration Debug --no-build --no-re
 SDK는 루트 `global.json`의 .NET 10.0.302로 고정한다. .NET 10이 제공하는 안정 Windows API 계약은 build 26100을 대상으로 컴파일하며, 실제 제품 설치 최소 버전 build 26200은 `Package.appxmanifest`의 MSIX 대상 제품군에서 적용한다.
 
 2026-08-25 Windows `1.3.0.13` Preview는 x64 Debug·Release 전체 빌드와 Activity 27개, Core 38개, Packages 22개, PetLibrary 87개, Settings 72개, Shell 20개로 각 구성 총 266개 xUnit 테스트가 통과했다. Release loose AppX·unpackaged publish·실제 설치본의 공통 built-in 13개 파일은 기준본과 같은 tree SHA-256 `08E8E09643B0CEE5FED8D8246729EBB5CF00E18B72871EA6FCD7BE26DB76DB59`다. packaged `1.2.0.13→1.3.0.13` 업데이트는 LocalState 22개 파일을 보존했고 최종 unpackaged 설치기도 사용자 데이터 22개 파일의 inventory digest를 보존한 채 정상 실행됐다. 미수정 built-in 중립 프로필만 새 기본값으로 이관되고 설치 펫 프로필·라이브러리 자산은 유지됐다. 64,866,058 bytes 설치기 SHA-256 `5F8A14314447F70C74704793BC5ED0EA8744DF0276303470D366500D4777B808`을 `windows-v1.3.0-preview.1`로 게시하고 원격 자산을 재검증했다. 편집 대화상자의 실제 최소 높이·가로/세로 긴 시트·혼합 DPI·키보드/Narrator·큰 이미지 반복 drag, 운영 URL과 Windows→macOS 왕복은 최종 수동 QA로 남아 있다.
+
+2026-08-27 Windows `1.4.0.13` 후보는 Debug·Release 전체 빌드와 Activity 27개, Core 56개, Packages 28개, PetLibrary 88개, Settings 77개, Shell 20개로 각 구성 총 296개 xUnit 테스트가 통과했다. 완료 랜덤 행동과 1초 activity 경계가 겹쳐 timer가 멈추던 경합과 callback 지연으로 행동·frame 시간이 벌어지는 현상을 수정했다. 랜덤은 이동 중 멈추고 이동 종료 시 shuffle bag의 다음 행동을 첫 frame부터 시작해 과거 행동의 짧은 나머지와 가려진 중간 frame을 표시하지 않는다. atlas 준비 전에는 표시 시간을 소비하지 않으며 최근 atlas 16개를 제한 재사용한다. 설정창은 행동·이동·말풍선·오버레이 frame·자원 경고의 실시간 구독과 활성 펫 runtime 문구를 모두 제거하고 저장된 표시 상태·이동 방식만 표시한다. 고정 위치 저장은 설정 화면 갱신 없이 유지한다. 행동 루틴 생성 입력은 별도 카드와 Enter 확정을 제공하고, 이름 변경은 현재 이름이 채워진 대화상자에서 처리하며 애니메이션 단계는 선택 이름이 항상 보이도록 폭과 바인딩을 정리했다. loose AppX와 unpackaged publish의 공통 built-in 16개 파일은 기준본과 같은 tree SHA-256 `0463D7B6897E8D14C3BA053F953D69DC49FB31930DB1D03D3797B9EC37B95503`다. packaged `1.3.0.13→1.4.0.13`은 LocalState 22개 파일을 그대로 보존했고 unpackaged 실제 실행은 schema-v11의 3개 instance·4개 profile·라이브러리 21개를 schema-v14로 보존 이관했다. 설정창을 닫고 도망가기·자유 이동·고정 3펫을 실행한 Release 5분은 평균 CPU 0.680%, private memory 126.51→126.51MiB·최대 129.62MiB, 무응답 0회였다. 혼합 100%·150%·200% DPI, Narrator, 큰 이미지 반복 drag와 Windows→macOS 실제 교차 왕복은 릴리스 전 수동 QA로 남아 있으며 릴리스는 아직 게시하지 않았다.
+
+2026-08-28 후속 후보는 행동 루틴의 상시 이름 입력 카드를 단일 생성 대화상자로 정리하고, 단계 애니메이션을 현재 이름이 표시되는 버튼과 별도 선택 목록으로 바꿔 `ComboBox` placeholder 회귀를 제거했다. 설정창의 남은 runtime 상태 구독도 제거했다. 최종 미서명 설치기는 65,260,678 bytes, SHA-256 `7F608226091564AC0B2841E99DA6CF60FFF542EC5FBE4AACAC492C11B8FBC30A`이며 기존 설치본 위 업그레이드에서 사용자 데이터 40개 파일의 inventory digest를 보존하고 설치본 `1.4.0.13` 실행 응답을 확인했다.
 
 Windows 기반부터 로컬 공유까지의 완료 기록은 `../../AGENTS/work_plans/INDEX.md`에서 확인한다. 이번 가져오기 검토·권장 설정·내보내기 구현은 `../../AGENTS/work_plans/tasks/2026-08-09-windows-local-sharing.md`에 정리했다. 다음 구현을 시작하기 전 이 디렉터리의 `AGENTS.md`와 새 작업 계획을 함께 확인한다.
 

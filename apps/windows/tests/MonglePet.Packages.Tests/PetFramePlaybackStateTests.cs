@@ -36,6 +36,26 @@ public sealed class PetFramePlaybackStateTests
         Assert.True(state.IsPlaying);
     }
 
+    [Theory]
+    [InlineData(0, 0, 100)]
+    [InlineData(75, 0, 25)]
+    [InlineData(100, 1, 200)]
+    [InlineData(250, 1, 50)]
+    [InlineData(300, 0, 100)]
+    [InlineData(725, 1, 175)]
+    public void SeekUsesMonotonicElapsedTimeAcrossFrameBoundaries(
+        int elapsedMilliseconds,
+        int expectedFrameIndex,
+        int expectedRemainingMilliseconds)
+    {
+        var state = new PetFramePlaybackState(Motion(loop: true));
+
+        TimeSpan remaining = state.Seek(TimeSpan.FromMilliseconds(elapsedMilliseconds));
+
+        Assert.Equal(expectedFrameIndex, state.CurrentFrameIndex);
+        Assert.Equal(TimeSpan.FromMilliseconds(expectedRemainingMilliseconds), remaining);
+    }
+
     private static PetPackageMotion Motion(bool loop) => new(
         "idle",
         "main",

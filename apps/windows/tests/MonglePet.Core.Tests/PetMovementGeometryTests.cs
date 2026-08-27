@@ -153,6 +153,60 @@ public sealed class PetMovementGeometryTests
         Assert.Equal(target, accumulator.Origin);
     }
 
+    [Fact]
+    public void PositionAccumulatorPreservesSubPixelProgressWhenObservedPixelMatches()
+    {
+        var accumulator = new MovementPositionAccumulator(new MovementPoint(10.4, 20.4));
+
+        bool synchronized = accumulator.SynchronizeObservedPixelOrigin(
+            new MovementPoint(10, 20));
+
+        Assert.False(synchronized);
+        Assert.Equal(new MovementPoint(10.4, 20.4), accumulator.Origin);
+    }
+
+    [Fact]
+    public void PositionAccumulatorSynchronizesWhenNativeWindowMovedExternally()
+    {
+        var accumulator = new MovementPositionAccumulator(new MovementPoint(10.4, 20.4));
+
+        bool synchronized = accumulator.SynchronizeObservedPixelOrigin(
+            new MovementPoint(180, 240));
+
+        Assert.True(synchronized);
+        Assert.Equal(new MovementPoint(180, 240), accumulator.Origin);
+    }
+
+    [Fact]
+    public void CursorAvoidingTargetRemainsStableForSmallPointerChanges()
+    {
+        var anchor = new MovementPoint(100, 100);
+
+        Assert.False(PetMovementGeometry.ShouldRefreshCursorAvoidingTarget(
+            new MovementPoint(110, 108),
+            anchor,
+            hasTarget: true));
+        Assert.True(PetMovementGeometry.ShouldRefreshCursorAvoidingTarget(
+            new MovementPoint(130, 100),
+            anchor,
+            hasTarget: true));
+    }
+
+    [Fact]
+    public void CursorAvoidingTargetRefreshesWhenTargetOrAnchorIsMissing()
+    {
+        var pointer = new MovementPoint(100, 100);
+
+        Assert.True(PetMovementGeometry.ShouldRefreshCursorAvoidingTarget(
+            pointer,
+            pointerAnchor: null,
+            hasTarget: true));
+        Assert.True(PetMovementGeometry.ShouldRefreshCursorAvoidingTarget(
+            pointer,
+            pointerAnchor: pointer,
+            hasTarget: false));
+    }
+
     [Theory]
     [InlineData(-10, 0, false, MovementDirection.Left)]
     [InlineData(10, 0, false, MovementDirection.Right)]
@@ -167,5 +221,58 @@ public sealed class PetMovementGeometryTests
         MovementDirection expected)
     {
         Assert.Equal(expected, PetMovementGeometry.Direction(deltaX, deltaY, diagonals));
+    }
+
+    [Fact]
+    public void DirectionKeepsPreviousValueInsideEightDegreeHysteresis()
+    {
+        double angle = 27;
+        double radians = angle * Math.PI / 180;
+
+        MovementDirection? direction = PetMovementGeometry.Direction(
+            Math.Cos(radians),
+            Math.Sin(radians),
+            usesDiagonals: true,
+            previousDirection: MovementDirection.Right);
+
+        Assert.Equal(MovementDirection.Right, direction);
+    }
+
+    [Fact]
+    public void DirectionLeavesPreviousValueOutsideEightDegreeHysteresis()
+    {
+        double angle = 31;
+        double radians = angle * Math.PI / 180;
+
+        MovementDirection? direction = PetMovementGeometry.Direction(
+            Math.Cos(radians),
+            Math.Sin(radians),
+            usesDiagonals: true,
+            previousDirection: MovementDirection.Right);
+
+        Assert.Equal(MovementDirection.DownRight, direction);
+    }
+
+    [Fact]
+    public void CompatibleDirectionsUseNearestSameSideFallback()
+    {
+        IReadOnlyList<MovementDirection> directions =
+            PetMovementGeometry.CompatibleDirections(10, -8, usesDiagonals: true);
+
+        Assert.Equal(MovementDirection.UpRight, directions[0]);
+        Assert.Contains(MovementDirection.Right, directions);
+        Assert.Contains(MovementDirection.Up, directions);
+        Assert.DoesNotContain(MovementDirection.Left, directions);
+        Assert.DoesNotContain(MovementDirection.Down, directions);
+    }
+
+    [Fact]
+    public void CompatibleDirectionsIgnoresMicroscopicOppositeAxis()
+    {
+        IReadOnlyList<MovementDirection> directions =
+            PetMovementGeometry.CompatibleDirections(100, -1, usesDiagonals: true);
+
+        Assert.Equal(MovementDirection.Right, directions[0]);
+        Assert.Contains(MovementDirection.DownRight, directions);
     }
 }

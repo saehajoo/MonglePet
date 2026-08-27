@@ -232,11 +232,14 @@ public sealed unsafe class PetOverlayWindow : IDisposable
         StateChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    public bool PlayMotion(string motionId, bool restart = false)
+    public bool PlayMotion(
+        string motionId,
+        bool restart = false,
+        TimeSpan? cycleElapsed = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(motionId);
         ThrowIfDisposed();
-        return _framePlayer?.PlayMotion(motionId, restart) ?? false;
+        return _framePlayer?.PlayMotion(motionId, restart, cycleElapsed) ?? false;
     }
 
     public void PausePlayback()
@@ -569,6 +572,14 @@ public sealed unsafe class PetOverlayWindow : IDisposable
         PositionChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    private bool ContainsVisibleContentAtScreenPoint(LPARAM packedPoint)
+    {
+        long value = packedPoint.Value;
+        int screenX = unchecked((short)(value & 0xffff));
+        int screenY = unchecked((short)((value >> 16) & 0xffff));
+        return ContainsVisibleContent(screenX - _originX, screenY - _originY);
+    }
+
     private void FramePlayer_StateChanged(object? sender, EventArgs e)
     {
         StateChanged?.Invoke(this, EventArgs.Empty);
@@ -580,7 +591,11 @@ public sealed unsafe class PetOverlayWindow : IDisposable
         {
             if (message == WmNcHitTest)
             {
-                return new LRESULT(owner._isClickThrough ? -1 : 2);
+                return new LRESULT(
+                    owner._isClickThrough ||
+                    !owner.ContainsVisibleContentAtScreenPoint(lParam)
+                        ? -1 // HTTRANSPARENT
+                        : 2); // HTCAPTION
             }
 
             if (message == WmMouseActivate)

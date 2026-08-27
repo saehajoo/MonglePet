@@ -46,6 +46,24 @@ public sealed class MovementPositionAccumulator
         Origin = origin;
     }
 
+    public bool SynchronizeObservedPixelOrigin(MovementPoint observedOrigin)
+    {
+        if (!observedOrigin.IsFinite)
+        {
+            throw new ArgumentOutOfRangeException(nameof(observedOrigin));
+        }
+
+        (int expectedX, int expectedY) = RoundedPixelOrigin();
+        if (expectedX == (int)Math.Round(observedOrigin.X) &&
+            expectedY == (int)Math.Round(observedOrigin.Y))
+        {
+            return false;
+        }
+
+        Origin = observedOrigin;
+        return true;
+    }
+
     public (int X, int Y) RoundedPixelOrigin() =>
         ((int)Math.Round(Origin.X), (int)Math.Round(Origin.Y));
 }

@@ -29,6 +29,10 @@ public sealed class BehaviorResolver
 
         if (configuration.Mode == BehaviorMode.Manual)
         {
+            if (MovementDecision(configuration, runtimeState) is { } movement)
+            {
+                return movement;
+            }
             if (configuration.ManualSequenceId is { } manualId &&
                 configuration.FindSequence(manualId) is { } manual)
             {
@@ -40,35 +44,74 @@ public sealed class BehaviorResolver
             return DefaultDecision(configuration);
         }
 
-        return ResolveAutomatic(configuration, snapshot);
+        if (configuration.Mode == BehaviorMode.Random)
+        {
+            if (MovementDecision(configuration, runtimeState) is { } movement)
+            {
+                return movement;
+            }
+            if (runtimeState.RandomSequenceId is { } randomId &&
+                configuration.RandomSequences.Contains(randomId, StringComparer.Ordinal) &&
+                configuration.FindSequence(randomId) is { } random)
+            {
+                return new BehaviorDecision.Sequence(
+                    random with { Repeats = false },
+                    new BehaviorSource.Random());
+            }
+            return DefaultDecision(configuration);
+        }
+
+        return ResolveAutomatic(configuration, snapshot, runtimeState);
     }
 
     private static BehaviorDecision ResolveAutomatic(
         BehaviorConfiguration configuration,
-        ActivitySnapshot snapshot)
+        ActivitySnapshot snapshot,
+        BehaviorRuntimeState runtimeState)
     {
-        var matchingRule = configuration.Rules
+        AutomaticRule? BestRule(AutomaticRuleKind kind) => configuration.Rules
             .Select((rule, index) => (Rule: rule, Index: index))
-            .Where(item => item.Rule.IsEnabled)
+            .Where(item => item.Rule.IsEnabled && Kind(item.Rule.Condition) == kind)
             .OrderByDescending(item => item.Rule.Priority)
             .ThenBy(item => item.Index)
             .Select(item => item.Rule)
             .FirstOrDefault(rule => Matches(rule.Condition, snapshot));
-
-        if (matchingRule is null)
+        foreach (AutomaticRuleKind kind in configuration.RulePriorityOrder)
         {
-            return DefaultDecision(configuration);
+            if (kind == AutomaticRuleKind.Movement)
+            {
+                if (MovementDecision(configuration, runtimeState) is { } movement)
+                {
+                    return movement;
+                }
+                continue;
+            }
+            AutomaticRule? matchingRule = BestRule(kind);
+            if (matchingRule is not null &&
+                configuration.FindSequence(matchingRule.SequenceId) is { } sequence)
+            {
+                return new BehaviorDecision.Sequence(
+                    sequence,
+                    new BehaviorSource.AutomaticRule(matchingRule.Id));
+            }
         }
-
-        if (configuration.FindSequence(matchingRule.SequenceId) is not { } sequence)
-        {
-            return DefaultDecision(configuration);
-        }
-
-        return new BehaviorDecision.Sequence(
-            sequence,
-            new BehaviorSource.AutomaticRule(matchingRule.Id));
+        return DefaultDecision(configuration);
     }
+
+    private static BehaviorDecision.Sequence? MovementDecision(
+        BehaviorConfiguration configuration,
+        BehaviorRuntimeState runtimeState) =>
+        runtimeState.MovementSequenceId is { } movementId &&
+        configuration.FindSequence(movementId) is { } movement
+            ? new BehaviorDecision.Sequence(movement, new BehaviorSource.Movement())
+            : null;
+
+    private static AutomaticRuleKind? Kind(RuleCondition condition) => condition switch
+    {
+        RuleCondition.IdleAtLeast => AutomaticRuleKind.Idle,
+        RuleCondition.Application => AutomaticRuleKind.Application,
+        _ => null,
+    };
 
     private static bool Matches(
         RuleCondition condition,

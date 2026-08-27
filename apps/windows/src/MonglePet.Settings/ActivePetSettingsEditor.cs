@@ -140,6 +140,37 @@ public static class ActivePetSettingsEditor
         PetBehaviorKey petKey,
         Func<Guid>? idGenerator = null)
     {
+        return ReplacePetCore(
+            settings,
+            instanceId,
+            petKey,
+            sourceProfile: null,
+            idGenerator);
+    }
+
+    public static AppSettings ReplacePetCopyingProfile(
+        AppSettings settings,
+        Guid instanceId,
+        PetBehaviorKey petKey,
+        BehaviorProfile sourceProfile,
+        Func<Guid>? idGenerator = null)
+    {
+        ArgumentNullException.ThrowIfNull(sourceProfile);
+        return ReplacePetCore(
+            settings,
+            instanceId,
+            petKey,
+            sourceProfile,
+            idGenerator);
+    }
+
+    private static AppSettings ReplacePetCore(
+        AppSettings settings,
+        Guid instanceId,
+        PetBehaviorKey petKey,
+        BehaviorProfile? sourceProfile,
+        Func<Guid>? idGenerator)
+    {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(petKey);
         ActivePetInstance instance = RequiredInstance(settings, instanceId);
@@ -151,7 +182,13 @@ public static class ActivePetSettingsEditor
         Guid profileId = NextUniqueId(
             idGenerator,
             settings.BehaviorProfiles.Select(profile => profile.ProfileId));
-        BehaviorProfile profile = BehaviorProfileDefaults.Create(petKey, profileId);
+        BehaviorProfile profile = sourceProfile is null
+            ? BehaviorProfileDefaults.Create(petKey, profileId)
+            : sourceProfile with
+            {
+                ProfileId = profileId,
+                PetKey = petKey,
+            };
         var referencedByOthers = settings.ActivePetInstances
             .Where(value => value.InstanceId != instanceId)
             .Select(value => value.BehaviorProfileId)

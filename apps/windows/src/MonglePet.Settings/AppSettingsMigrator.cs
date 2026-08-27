@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json.Nodes;
 
 namespace MonglePet.Settings;
@@ -15,11 +16,17 @@ internal static class AppSettingsMigrator
         JsonObject source,
         int sourceSchema,
         Func<Guid?, string, long?>? legacyMotionCycleMillisecondsResolver,
-        Func<Guid>? settingsIdGenerator = null)
+        Func<Guid>? settingsIdGenerator = null,
+        int? targetSchema = null)
     {
+        int finalSchema = targetSchema ?? AppSettingsStore.CurrentSchemaVersion;
+        if (finalSchema < sourceSchema || finalSchema > AppSettingsStore.CurrentSchemaVersion)
+        {
+            throw new ArgumentOutOfRangeException(nameof(targetSchema));
+        }
         JsonObject document = source.DeepClone().AsObject();
         var issues = new List<string>();
-        for (int schema = sourceSchema; schema < AppSettingsStore.CurrentSchemaVersion; schema++)
+        for (int schema = sourceSchema; schema < finalSchema; schema++)
         {
             switch (schema)
             {
@@ -52,6 +59,15 @@ internal static class AppSettingsMigrator
                     break;
                 case 10:
                     MigrateV10ToV11(document, settingsIdGenerator ?? Guid.NewGuid);
+                    break;
+                case 11:
+                    MigrateV11ToV12(document);
+                    break;
+                case 12:
+                    MigrateV12ToV13(document);
+                    break;
+                case 13:
+                    MigrateV13ToV14(document);
                     break;
                 default:
                     throw new InvalidOperationException($"Unsupported settings schema: {schema}.");
@@ -327,6 +343,223 @@ internal static class AppSettingsMigrator
         document.Remove("overlay");
         document["schemaVersion"] = 11;
     }
+
+    private static void MigrateV11ToV12(JsonObject document)
+    {
+        foreach (JsonObject profile in Profiles(document))
+        {
+            JsonArray sequences = RequiredArray(profile, "sequences");
+            var usedIds = new HashSet<string>(StringComparer.Ordinal);
+            var motionBehaviorIds = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (JsonObject sequence in Objects(sequences, "sequences"))
+            {
+                string id = RequiredString(sequence, "id");
+                usedIds.Add(id);
+                sequence["displayName"] = id == DefaultBehavior ? "기본" : id;
+                if (IsSingleMotionBehavior(sequence, out string? motionId) && motionId is not null)
+                {
+                    motionBehaviorIds.TryAdd(motionId, id);
+                }
+            }
+
+            string? PromoteMotion(JsonNode? node)
+            {
+                string? motionId = node?.GetValue<string?>()?.Trim();
+                if (string.IsNullOrEmpty(motionId))
+                {
+                    return null;
+                }
+                if (motionBehaviorIds.TryGetValue(motionId, out string? existing))
+                {
+                    return existing;
+                }
+                string baseId = "__monglepet_motion_behavior__" + Base64Url(motionId);
+                string id = baseId;
+                for (int suffix = 2; !usedIds.Add(id); suffix++)
+                {
+                    id = $"{baseId}_{suffix}";
+                }
+                sequences.Add(new JsonObject
+                {
+                    ["id"] = id,
+                    ["displayName"] = motionId,
+                    ["steps"] = new JsonArray(new JsonObject
+                    {
+                        ["motionID"] = motionId,
+                        ["repeatCount"] = 1,
+                    }),
+                    ["repeats"] = true,
+                });
+                motionBehaviorIds[motionId] = id;
+                return id;
+            }
+
+            JsonObject movement = RequiredObject(profile, "movement");
+            PromoteAnimation(movement, "cursorFollowingAnimation", "cursorFollowingBehavior", PromoteMotion);
+            PromoteAnimation(movement, "freeRoamingAnimation", "freeRoamingBehavior", PromoteMotion);
+            PromoteAnimation(movement, "cursorAvoidingAnimation", "cursorAvoidingBehavior", PromoteMotion);
+            profile["pettingBehaviorID"] = PromoteMotion(profile["pettingMotionID"]);
+            profile.Remove("pettingMotionID");
+
+            JsonArray rules = RequiredArray(profile, "automaticRules");
+            int idlePriority = HighestPriority(rules, "idleAtLeast");
+            int applicationPriority = HighestPriority(rules, "application");
+            var order = new JsonArray("movement");
+            if (applicationPriority > idlePriority)
+            {
+                order.Add("application");
+                order.Add("idle");
+            }
+            else
+            {
+                order.Add("idle");
+                order.Add("application");
+            }
+            profile["automaticRulePriorityOrder"] = order;
+        }
+        document["schemaVersion"] = 12;
+    }
+
+    private static void MigrateV12ToV13(JsonObject document)
+    {
+        foreach (JsonObject profile in Profiles(document))
+        {
+            profile["randomSequenceIDs"] = new JsonArray();
+            JsonObject movement = RequiredObject(profile, "movement");
+            long dwell = ReadLongOr(movement["freeRoamingDwellMilliseconds"], 6_000);
+            movement["randomizesFreeRoamingDwell"] = false;
+            movement["freeRoamingDwellMinimumMilliseconds"] = Math.Max(500, dwell / 2);
+        }
+        document["schemaVersion"] = 13;
+    }
+
+    private static void MigrateV13ToV14(JsonObject document)
+    {
+        foreach (JsonObject profile in Profiles(document))
+        {
+            JsonObject movement = RequiredObject(profile, "movement");
+            JsonNode? mode = movement["mode"]?.DeepClone() ?? JsonValue.Create("fixed");
+            double speed = ReadDoubleOr(movement["speed"], 160);
+            double cursorDistance = ReadDoubleOr(movement["cursorDistance"], 96);
+            double stopRadius = ReadDoubleOr(movement["stopRadius"], 16);
+            long dwell = ReadLongOr(movement["freeRoamingDwellMilliseconds"], 6_000);
+            bool randomizesDwell = ReadBoolOr(movement["randomizesFreeRoamingDwell"], false);
+            long minimumDwell = ReadLongOr(
+                movement["freeRoamingDwellMinimumMilliseconds"],
+                Math.Max(500, dwell / 2));
+            bool prefersFrontmost = ReadBoolOr(movement["prefersFrontmostWindow"], true);
+
+            JsonObject FreeRoaming(JsonNode? behavior) => new()
+            {
+                ["speed"] = speed,
+                ["stopRadius"] = stopRadius,
+                ["dwellMilliseconds"] = dwell,
+                ["randomizesDwell"] = randomizesDwell,
+                ["dwellMinimumMilliseconds"] = minimumDwell,
+                ["prefersFrontmostWindow"] = prefersFrontmost,
+                ["behavior"] = behavior?.DeepClone() ?? new JsonObject(),
+            };
+
+            profile["movement"] = new JsonObject
+            {
+                ["mode"] = mode,
+                ["cursorFollowing"] = new JsonObject
+                {
+                    ["speed"] = speed,
+                    ["cursorDistance"] = cursorDistance,
+                    ["stopRadius"] = stopRadius,
+                    ["behavior"] = movement["cursorFollowingBehavior"]?.DeepClone() ?? new JsonObject(),
+                },
+                ["freeRoaming"] = FreeRoaming(movement["freeRoamingBehavior"]),
+                ["cursorAvoiding"] = new JsonObject
+                {
+                    ["idleBehavior"] = movement["cursorAvoidingIdleBehavior"]?.DeepClone() ?? JsonValue.Create("stationary"),
+                    ["detectionDistance"] = movement["cursorAvoidingDetectionDistance"]?.DeepClone() ?? JsonValue.Create(160),
+                    ["speed"] = movement["cursorAvoidingSpeed"]?.DeepClone() ?? JsonValue.Create(320),
+                    ["stopRadius"] = stopRadius,
+                    ["behavior"] = movement["cursorAvoidingBehavior"]?.DeepClone() ?? new JsonObject(),
+                    ["idleFreeRoaming"] = FreeRoaming(movement["freeRoamingBehavior"]),
+                },
+            };
+        }
+        document["schemaVersion"] = 14;
+    }
+
+    private static void PromoteAnimation(
+        JsonObject movement,
+        string legacyName,
+        string currentName,
+        Func<JsonNode?, string?> promoteMotion)
+    {
+        JsonObject source = movement[legacyName] as JsonObject ?? new JsonObject();
+        JsonObject directions = source["directionMotionIDs"] as JsonObject ?? new JsonObject();
+        var promotedDirections = new JsonObject();
+        foreach (string name in new[] { "left", "right", "up", "down", "upLeft", "upRight", "downLeft", "downRight" })
+        {
+            promotedDirections[name] = promoteMotion(directions[name]);
+        }
+        movement[currentName] = new JsonObject
+        {
+            ["fallbackBehaviorID"] = promoteMotion(source["fallbackMotionID"]),
+            ["usesDirectionalBehaviors"] = source["usesDirectionalMotions"]?.DeepClone() ?? false,
+            ["usesDiagonalBehaviors"] = source["usesDiagonalMotions"]?.DeepClone() ?? false,
+            ["directionBehaviorIDs"] = promotedDirections,
+        };
+        movement.Remove(legacyName);
+    }
+
+    private static bool IsSingleMotionBehavior(JsonObject sequence, out string? motionId)
+    {
+        motionId = null;
+        if (sequence["steps"] is not JsonArray { Count: 1 } steps ||
+            steps[0] is not JsonObject step ||
+            step["repeatCount"]?.GetValue<int>() != 1)
+        {
+            return false;
+        }
+        motionId = step["motionID"]?.GetValue<string?>();
+        return !string.IsNullOrWhiteSpace(motionId);
+    }
+
+    private static int HighestPriority(JsonArray rules, string conditionType) =>
+        rules.OfType<JsonObject>()
+            .Where(rule => string.Equals(
+                (rule["condition"] as JsonObject)?["type"]?.GetValue<string?>(),
+                conditionType,
+                StringComparison.Ordinal))
+            .Select(rule => rule["priority"]?.GetValue<int>() ?? 0)
+            .DefaultIfEmpty(int.MinValue)
+            .Max();
+
+    private static string Base64Url(string value) =>
+        Convert.ToBase64String(Encoding.UTF8.GetBytes(value))
+            .TrimEnd('=')
+            .Replace('+', '-')
+            .Replace('/', '_');
+
+    private static double ReadDoubleOr(JsonNode? node, double fallback)
+    {
+        if (node is JsonValue value)
+        {
+            if (value.TryGetValue(out double doubleValue)) return doubleValue;
+            if (value.TryGetValue(out long longValue)) return longValue;
+            if (value.TryGetValue(out int intValue)) return intValue;
+        }
+        return fallback;
+    }
+
+    private static long ReadLongOr(JsonNode? node, long fallback)
+    {
+        if (node is JsonValue value)
+        {
+            if (value.TryGetValue(out long longValue)) return longValue;
+            if (value.TryGetValue(out int intValue)) return intValue;
+        }
+        return fallback;
+    }
+
+    private static bool ReadBoolOr(JsonNode? node, bool fallback) =>
+        node is JsonValue value && value.TryGetValue(out bool result) ? result : fallback;
 
     private static JsonObject CreateSelectedPetKey(JsonNode? selectedInstallationId) =>
         TryReadGuid(selectedInstallationId) is Guid installationId

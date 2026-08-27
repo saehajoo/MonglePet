@@ -4,10 +4,10 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <StackPanel Spacing="10">
-        <TextBlock x:Name="EditorTitleText" Style="{StaticResource BodyStrongTextBlockStyle}" Text="이동 애니메이션" />
+        <TextBlock x:Name="EditorTitleText" Style="{StaticResource BodyStrongTextBlockStyle}" Text="이동 행동" />
         <ComboBox
             x:Name="AnimationStyleComboBox"
-            Header="애니메이션 구성"
+            Header="행동 구성"
             SelectionChanged="AnimationControl_Changed">
             <ComboBoxItem Content="공통 하나" />
             <ComboBoxItem Content="방향별" />
@@ -15,7 +15,7 @@
         <ComboBox
             x:Name="FallbackMotionComboBox"
             DisplayMemberPath="DisplayName"
-            Header="이동 중 애니메이션"
+            Header="이동 중 행동"
             SelectedValuePath="Id"
             SelectionChanged="AnimationControl_Changed" />
         <StackPanel x:Name="DirectionalPanel" Spacing="10" Visibility="Collapsed">
@@ -45,7 +45,7 @@
             </Grid>
             <TextBlock
                 Style="{StaticResource CaptionTextBlockStyle}"
-                Text="자동 선택 방향은 실제 이동과 같은 쪽의 애니메이션을 사용합니다. 지정하지 않은 방향은 기본 이동 애니메이션이나 기존 행동으로 돌아갑니다."
+                Text="자동 선택 방향은 실제 이동과 같은 쪽의 행동을 사용합니다. 지정하지 않은 방향은 기본 이동 행동이나 기존 행동으로 돌아갑니다."
                 TextWrapping="Wrap" />
         </StackPanel>
     </StackPanel>

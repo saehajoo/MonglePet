@@ -5,7 +5,7 @@ namespace MonglePet.Settings.Tests;
 public sealed class BuiltInBehaviorProfileDefaultsTests
 {
     [Fact]
-    public void FreshBuiltInUsesMongleRecommendedProfileAndWindowsCodexRule()
+    public void FreshBuiltInUsesCommonMongleVersionTenRecommendedProfile()
     {
         Guid profileId = Guid.Parse("10000000-0000-0000-0000-000000000001");
         var ids = new Queue<Guid>(
@@ -20,26 +20,25 @@ public sealed class BuiltInBehaviorProfileDefaultsTests
 
         Assert.Equal(profileId, profile.ProfileId);
         Assert.Equal(BehaviorMode.Automatic, profile.Mode);
-        Assert.Equal(
-            [BehaviorMotionReferences.DefaultSequence, "수면 중", "일해라"],
-            profile.Sequences.Select(sequence => sequence.Id));
-        Assert.Equal(
-            [BehaviorMotionReferences.CurrentPetDefault, "물뿜기", "정면"],
-            profile.Sequences[0].Steps.Select(step => step.MotionId));
-        AutomaticRule codex = Assert.IsType<RuleCondition.Application>(
-            profile.AutomaticRules[0].Condition) is RuleCondition.Application condition
-                ? profile.AutomaticRules[0]
-                : throw new InvalidOperationException();
-        Assert.Equal(0, codex.Priority);
-        Assert.Equal(
-            BuiltInBehaviorProfileDefaults.WindowsCodexApplicationId,
-            Assert.IsType<RuleCondition.Application>(codex.Condition).ApplicationId);
+        Assert.Equal(12, profile.Sequences.Count);
+        BehaviorSequence defaultSequence = profile.Sequences.Single(
+            sequence => sequence.Id == BehaviorMotionReferences.DefaultSequence);
+        Assert.Equal(BehaviorMotionReferences.CurrentPetDefault,
+            Assert.Single(defaultSequence.Steps).MotionId);
+        AutomaticRule idle = Assert.Single(profile.AutomaticRules);
         Assert.Equal(60_000, Assert.IsType<RuleCondition.IdleAtLeast>(
-            profile.AutomaticRules[1].Condition).Milliseconds);
+            idle.Condition).Milliseconds);
+        Assert.DoesNotContain(profile.AutomaticRules,
+            rule => rule.Condition is RuleCondition.Application);
         Assert.Equal(PetMovementMode.CursorAvoiding, profile.Movement.Mode);
-        Assert.Equal("보글보글", profile.Movement.CursorAvoidingAnimation.FallbackMotionId);
-        Assert.Equal("오른쪽", profile.Movement.CursorAvoidingAnimation.DirectionMotionIds.Right);
-        Assert.Equal("해피", profile.PettingMotionId);
+        Assert.True(profile.Movement.CursorAvoiding.Behavior.UsesDirectionalBehaviors);
+        string rightBehaviorId = Assert.IsType<string>(
+            profile.Movement.CursorAvoiding.Behavior.DirectionBehaviorIds.Right);
+        Assert.Equal("오른쪽 보글보글", Assert.Single(profile.Sequences.Single(
+            sequence => sequence.Id == rightBehaviorId).Steps).MotionId);
+        string pettingBehaviorId = Assert.IsType<string>(profile.PettingBehaviorId);
+        Assert.Equal("행복", Assert.Single(profile.Sequences.Single(
+            sequence => sequence.Id == pettingBehaviorId).Steps).MotionId);
         Assert.False(profile.Speech.IsEnabled);
     }
 
@@ -50,6 +49,7 @@ public sealed class BuiltInBehaviorProfileDefaultsTests
             new PetBehaviorKey.Installed(Guid.NewGuid()));
 
         Assert.Single(profile.Sequences);
+        Assert.Equal("기본", profile.Sequences[0].DisplayName);
         Assert.Empty(profile.AutomaticRules);
         Assert.Equal(PetMovementMode.Fixed, profile.Movement.Mode);
         Assert.Null(profile.PettingMotionId);
@@ -80,7 +80,7 @@ public sealed class BuiltInBehaviorProfileDefaultsTests
 
         AppSettings upgraded = BuiltInBehaviorProfileDefaults.UpgradeLegacyNeutralProfiles(settings);
 
-        Assert.Equal(3, upgraded.BehaviorProfiles[0].Sequences.Count);
+        Assert.Equal(12, upgraded.BehaviorProfiles[0].Sequences.Count);
         Assert.Equal(profileId, upgraded.BehaviorProfiles[0].ProfileId);
         Assert.Equal(200, upgraded.BehaviorProfiles[1].Movement.Speed);
     }

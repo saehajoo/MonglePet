@@ -5,6 +5,15 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="MonglePet.Settings.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\MonglePet.Core\MonglePet.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\..\..\shared\BuiltInPets\Mongle.monglepet\pet.json"
+                      LogicalName="MonglePet.BuiltIn.Mongle.pet.json" />
+    <EmbeddedResource Include="..\..\..\..\shared\BuiltInPets\Mongle.monglepet\recommended-profile.json"
+                      LogicalName="MonglePet.BuiltIn.Mongle.recommended-profile.json" />
   </ItemGroup>
 </Project>
