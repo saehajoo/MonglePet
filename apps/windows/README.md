@@ -122,6 +122,8 @@ SDK는 루트 `global.json`의 .NET 10.0.302로 고정한다. .NET 10이 제공�
 
 2026-08-28 후속 후보는 행동 루틴의 상시 이름 입력 카드를 단일 생성 대화상자로 정리하고, 단계 애니메이션을 현재 이름이 표시되는 버튼과 별도 선택 목록으로 바꿔 `ComboBox` placeholder 회귀를 제거했다. 설정창의 남은 runtime 상태 구독도 제거했다. 최종 미서명 설치기는 65,260,678 bytes, SHA-256 `7F608226091564AC0B2841E99DA6CF60FFF542EC5FBE4AACAC492C11B8FBC30A`이며 기존 설치본 위 업그레이드에서 사용자 데이터 40개 파일의 inventory digest를 보존하고 설치본 `1.4.0.13` 실행 응답을 확인했다.
 
+소스 커밋 `7e7f3d9`를 태그 `windows-v1.4.0-preview.1`의 GitHub Pre-release로 게시했다. 원격에서 다시 받은 설치기 크기와 SHA-256, `SHA256SUMS.txt` 내용이 로컬 최종 산출물과 일치한다. 혼합 DPI·Narrator·큰 이미지 반복 편집·Windows→macOS 왕복과 제거 QA는 후속 사용자 검증으로 계속 추적한다.
+
 Windows 기반부터 로컬 공유까지의 완료 기록은 `../../AGENTS/work_plans/INDEX.md`에서 확인한다. 이번 가져오기 검토·권장 설정·내보내기 구현은 `../../AGENTS/work_plans/tasks/2026-08-09-windows-local-sharing.md`에 정리했다. 다음 구현을 시작하기 전 이 디렉터리의 `AGENTS.md`와 새 작업 계획을 함께 확인한다.
 
 ## EXE 설치기 만들기
