@@ -27,17 +27,17 @@ Apple 공증과 티켓 부착이 모두 필요합니다.
 랜덤 행동·이동 전환 보정을 포함한 `1.4.0 (10)`입니다. 코드나 설정이 다시
 바뀌면 빌드 번호와 `MonglePetVersionTests` 기대값을 함께 올립니다.
 
-`macos-v1.3.2-preview.1` 게시 뒤 행동 중심 설정과 최종 몽글이를 반영해
-`macos-v1.4.0-preview.1` 새 Pre-release로 게시했습니다. 기존 GitHub
-Release 자산이나 태그는 덮어쓰지 않았습니다.
+`macos-v1.4.0-preview.1` 게시 뒤 펫 제작기·활성 인스턴스 후속 보정과
+앱 아이콘을 반영해 `macos-v1.4.0-preview.2` 새 Pre-release로
+게시했습니다. 기존 GitHub Release 자산이나 태그는 덮어쓰지 않았습니다.
 
 ## 현재 배포 상태
 
 - macOS `1.3.0 (5)`는 태그 `macos-v1.3.0-preview.1`의 GitHub Pre-release로 게시했으며 ZIP, SHA-256과 빌드 manifest를 함께 제공합니다.
 - macOS `1.3.1 (6)` 이미지 편집 UI 보정 Preview는 태그 [`macos-v1.3.1-preview.1`](https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.3.1-preview.1)로 보존합니다.
 - macOS `1.3.2 (7)` 이동 런타임 성능 보정 Preview는 태그 [`macos-v1.3.2-preview.1`](https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.3.2-preview.1)로 보존합니다.
-- 최신 macOS `1.4.0 (8)` 행동 중심 설정·최종 몽글이 Preview는 태그 [`macos-v1.4.0-preview.1`](https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.4.0-preview.1)로 게시했으며 ZIP·SHA-256·manifest의 원격 일치를 확인했습니다.
-- macOS `1.4.0 (10)` 펫 제작기·활성 인스턴스 후속 Preview는 `macos-v1.4.0-preview.2`로 게시할 후보입니다.
+- macOS `1.4.0 (8)` 행동 중심 설정·최종 몽글이 Preview는 태그 [`macos-v1.4.0-preview.1`](https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.4.0-preview.1)로 보존합니다.
+- 최신 macOS `1.4.0 (10)` 펫 제작기·활성 인스턴스 후속 Preview는 태그 [`macos-v1.4.0-preview.2`](https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.4.0-preview.2)로 게시했으며 앱 아이콘을 포함한 ZIP·SHA-256·manifest의 원격 일치를 확인했습니다.
 - 자체 웹사이트의 Windows·macOS 다운로드 화면 반영에는 `../../AGENTS/guides/PREVIEW_DOWNLOAD_HANDOFF.md`의 버전 고정 링크와 사용자 안내를 사용합니다.
 - 회사 Mac에서는 소스·문서·자동 검증까지만 완료합니다.
 - 실제 Preview ZIP 또는 Developer ID DMG 생성과 최종 설치 검증은 개인
@@ -47,7 +47,7 @@ Release 자산이나 태그는 덮어쓰지 않았습니다.
 - 일반 사용자 공개 배포는 Developer ID 서명·Apple 공증·티켓 부착을 마친
   DMG만 사용합니다.
 - Windows가 아직 macOS의 최신 기능을 반영하지 않았으므로 macOS 단독
-  Preview의 GitHub 태그는 `macos-v1.4.0-preview.1`처럼 플랫폼과 채널을
+  Preview의 GitHub 태그는 `macos-v1.4.0-preview.2`처럼 플랫폼과 채널을
   구분합니다. 플랫폼 동등성이 다시 확인되기 전에는 서로 다른 버전의
   산출물을 하나의 제품 Release로 합치지 않습니다.
 

@@ -2,7 +2,7 @@
 
 ## 상태
 
-- 상태: in_progress
+- 상태: completed
 - 생성일: 2026-08-29
 - 마지막 갱신: 2026-08-29
 
@@ -45,8 +45,8 @@
 
 - [x] 2단계: 앱 빌드 번호와 버전 테스트를 `1.4.0 (10)`으로 올린다.
 - [x] 3단계: 전체 단위 테스트와 코드 서명 없는 Debug 빌드를 통과한다.
-- [ ] 4단계: 깨끗한 원격 커밋에서 Universal Preview ZIP·체크섬·manifest를 생성하고 압축 해제본을 검증한다.
-- [ ] 5단계: GitHub Pre-release를 게시하고 원격 자산과 태그 대상을 다시 검증한다.
+- [x] 4단계: 깨끗한 원격 커밋에서 Universal Preview ZIP·체크섬·manifest를 생성하고 압축 해제본을 검증한다.
+- [x] 5단계: GitHub Pre-release를 게시하고 원격 자산과 태그 대상을 다시 검증한다.
 
 ### Windows
 
@@ -54,7 +54,7 @@
 
 ### 플랫폼 동등성
 
-- [ ] 7단계: 실제 macOS QA와 Windows 교차 왕복 미완료를 플랫폼 현황에 유지한다.
+- [x] 7단계: 실제 macOS QA와 Windows 교차 왕복 미완료를 플랫폼 현황에 유지한다.
 
 ## 검증 방법
 
@@ -70,10 +70,14 @@
 - 2026-08-29: 전체 `MonglePetTests` 514개 중 513개 성공·선택형 WebP fixture 1개 건너뜀·실패 0개와 코드 서명 없는 Debug 빌드를 통과했다.
 - 2026-08-29: 빌드 9 ZIP 독립 검증에서 비어 있는 `AppIcon.appiconset` 때문에 앱 아이콘이 포함되지 않는 기존 문제를 발견해 게시를 중단했다. Windows 공식 1,254px 원본으로 macOS 10개 rendition을 구성하고 회귀 테스트를 추가한 빌드 10을 최종 후보로 정했다.
 - 2026-08-29: 빌드 10 전체 `MonglePetTests` 515개 중 514개 성공·선택형 WebP fixture 1개 건너뜀·실패 0개와 별도 Debug 빌드를 통과했다. Debug 앱에 `AppIcon.icns`, `CFBundleIconFile`과 `CFBundleIconName`이 생성됨을 확인했다.
+- 2026-08-29: 소스 커밋 `1e142bb20dff2864917db2cbecd6c455944ede7c`에서 10,881,166 bytes Universal ZIP을 생성했다. 압축 무결성, `1.4.0 (10)`, Bundle ID, arm64/x86_64, `AppIcon.icns`와 SHA-256 `0243ab285aaa27d6d26effa4749e0e3724b80d1b4702576c474dda3d985d454b`을 확인했다.
+- 2026-08-29: 태그 `macos-v1.4.0-preview.2`의 GitHub Pre-release에 ZIP·SHA-256·manifest를 게시했다. 태그 대상이 위 소스 커밋임을 확인하고 세 원격 자산을 다시 내려받아 로컬 최종본과 바이트 단위로 일치함을 확인했다.
 
 ## 완료 결과
 
-- 진행 중.
+- [`MonglePet macOS 1.4.0 Preview 2`](https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.4.0-preview.2)를 미서명·미공증 Pre-release로 게시했다.
+- 앱 아이콘을 포함한 `MonglePet-1.4.0-build.10-preview.zip`, 체크섬과 manifest가 검증된 소스 커밋 및 원격 자산과 일치한다.
+- 실제 macOS 생성·사본 QA와 Windows 교차 왕복은 완료로 표시하지 않고 후속 위험으로 유지했다.
 
 ## 남은 위험 / 후속 작업
 
