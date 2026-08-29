@@ -8,12 +8,13 @@
 
 ## 목표
 
-- 펫 제작 버전 검증, 새 펫·사본의 독립 활성 인스턴스와 랜덤 행동·이동 전환 보정을 macOS `1.4.0 (9)` Preview로 게시한다.
+- 펫 제작 버전 검증, 새 펫·사본의 독립 활성 인스턴스와 랜덤 행동·이동 전환 보정을 macOS `1.4.0 (10)` Preview로 게시한다.
 - 검증된 소스 커밋과 미서명 Universal ZIP, SHA-256, manifest 및 GitHub Pre-release를 일치시킨다.
 
 ## 범위
 
-- 앱 빌드 번호 `9`와 버전 테스트
+- 앱 빌드 번호 `10`과 버전 테스트
+- macOS AppIcon 10개 rendition과 누락 회귀 테스트
 - 전체 macOS 단위 테스트와 Debug·Universal Release 빌드
 - 미서명·미공증 Preview ZIP, 체크섬과 manifest
 - `macos-v1.4.0-preview.2` GitHub Pre-release 게시와 원격 자산 재검증
@@ -30,7 +31,7 @@
 
 ## 결정사항
 
-- 마케팅 버전은 `1.4.0`을 유지하고 변경된 배포 후보를 구분하기 위해 빌드 번호를 `9`로 올린다.
+- 마케팅 버전은 `1.4.0`을 유지하고 최종 배포 후보를 구분하기 위해 빌드 번호를 `10`으로 올린다.
 - 기존 Preview 1을 보존하고 태그는 `macos-v1.4.0-preview.2`, 릴리스 이름은 `MonglePet macOS 1.4.0 Preview 2`로 한다.
 - UI 자동화 Runner bootstrap 실패와 실제 교차 왕복 미완료는 Pre-release 알려진 제한으로 공개한다.
 
@@ -42,7 +43,7 @@
 
 ### macOS
 
-- [x] 2단계: 앱 빌드 번호와 버전 테스트를 `1.4.0 (9)`로 올린다.
+- [x] 2단계: 앱 빌드 번호와 버전 테스트를 `1.4.0 (10)`으로 올린다.
 - [x] 3단계: 전체 단위 테스트와 코드 서명 없는 Debug 빌드를 통과한다.
 - [ ] 4단계: 깨끗한 원격 커밋에서 Universal Preview ZIP·체크섬·manifest를 생성하고 압축 해제본을 검증한다.
 - [ ] 5단계: GitHub Pre-release를 게시하고 원격 자산과 태그 대상을 다시 검증한다.
@@ -65,8 +66,10 @@
 ## 진행 로그
 
 - 2026-08-29: 원격 `main`과 로컬 기준이 일치하고 GitHub CLI 인증이 유효하며 `macos-v1.4.0-preview.2`가 아직 게시되지 않았음을 확인했다.
-- 2026-08-29: 마케팅 버전 `1.4.0`, 빌드 `9`, 태그 `macos-v1.4.0-preview.2`로 확정했다.
+- 2026-08-29: 마케팅 버전 `1.4.0`, 태그 `macos-v1.4.0-preview.2`로 확정했다.
 - 2026-08-29: 전체 `MonglePetTests` 514개 중 513개 성공·선택형 WebP fixture 1개 건너뜀·실패 0개와 코드 서명 없는 Debug 빌드를 통과했다.
+- 2026-08-29: 빌드 9 ZIP 독립 검증에서 비어 있는 `AppIcon.appiconset` 때문에 앱 아이콘이 포함되지 않는 기존 문제를 발견해 게시를 중단했다. Windows 공식 1,254px 원본으로 macOS 10개 rendition을 구성하고 회귀 테스트를 추가한 빌드 10을 최종 후보로 정했다.
+- 2026-08-29: 빌드 10 전체 `MonglePetTests` 515개 중 514개 성공·선택형 WebP fixture 1개 건너뜀·실패 0개와 별도 Debug 빌드를 통과했다. Debug 앱에 `AppIcon.icns`, `CFBundleIconFile`과 `CFBundleIconName`이 생성됨을 확인했다.
 
 ## 완료 결과
 

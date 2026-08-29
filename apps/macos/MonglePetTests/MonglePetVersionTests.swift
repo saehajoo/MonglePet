@@ -1,4 +1,5 @@
 import Foundation
+import ImageIO
 import XCTest
 @testable import MonglePet
 
@@ -88,7 +89,54 @@ final class MonglePetVersionTests: XCTestCase {
             version.semanticVersion,
             try XCTUnwrap(SemanticVersion("1.4.0"))
         )
-        XCTAssertEqual(version.buildNumber, "9")
-        XCTAssertEqual(version.displayText, "MonglePet 1.4.0 (9)")
+        XCTAssertEqual(version.buildNumber, "10")
+        XCTAssertEqual(version.displayText, "MonglePet 1.4.0 (10)")
+    }
+
+    func testAppIconCatalogContainsEveryMacRendition() throws {
+        let iconSetURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("MonglePet/Assets.xcassets/AppIcon.appiconset")
+        let contents = try String(
+            contentsOf: iconSetURL.appendingPathComponent("Contents.json"),
+            encoding: .utf8
+        )
+        let expectedPixelsByFilename = [
+            "icon_16x16.png": 16,
+            "icon_16x16@2x.png": 32,
+            "icon_32x32.png": 32,
+            "icon_32x32@2x.png": 64,
+            "icon_128x128.png": 128,
+            "icon_128x128@2x.png": 256,
+            "icon_256x256.png": 256,
+            "icon_256x256@2x.png": 512,
+            "icon_512x512.png": 512,
+            "icon_512x512@2x.png": 1_024
+        ]
+
+        for (filename, expectedPixels) in expectedPixelsByFilename {
+            XCTAssertTrue(contents.contains("\"\(filename)\""), filename)
+            let imageURL = iconSetURL.appendingPathComponent(filename)
+            let source = try XCTUnwrap(
+                CGImageSourceCreateWithURL(imageURL as CFURL, nil),
+                filename
+            )
+            let properties = try XCTUnwrap(
+                CGImageSourceCopyPropertiesAtIndex(source, 0, nil)
+                    as? [CFString: Any],
+                filename
+            )
+            XCTAssertEqual(
+                properties[kCGImagePropertyPixelWidth] as? Int,
+                expectedPixels,
+                filename
+            )
+            XCTAssertEqual(
+                properties[kCGImagePropertyPixelHeight] as? Int,
+                expectedPixels,
+                filename
+            )
+        }
     }
 }
