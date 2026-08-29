@@ -25,7 +25,6 @@ public sealed partial class PetAnimationEditorControl : UserControl
     private double _placementDisplayScale = 1;
     private double _placementDisplayX;
     private double _placementDisplayY;
-    private double _placementZoom = 1;
     private bool _isReady;
     private LoadedPetPackage? _sourcePackage;
 
@@ -50,9 +49,9 @@ public sealed partial class PetAnimationEditorControl : UserControl
         {
             return "펫 이름을 입력해 주세요.";
         }
-        if (requiresPetInformation && string.IsNullOrWhiteSpace(VersionTextBox.Text))
+        if (requiresPetInformation && !UserPetPackageEditor.IsValidEditableVersion(VersionTextBox.Text))
         {
-            return "펫 버전을 입력해 주세요.";
+            return "펫 버전은 1.0.0처럼 MAJOR.MINOR.PATCH 형식으로 입력해 주세요.";
         }
         if (requiresPetInformation && string.IsNullOrWhiteSpace(AuthorTextBox.Text))
         {
@@ -501,11 +500,26 @@ public sealed partial class PetAnimationEditorControl : UserControl
         object sender,
         RangeBaseValueChangedEventArgs e)
     {
-        if (!_isReady)
+        if (!_isReady || _isRefreshingPlacement ||
+            FramesList.SelectedItem is not FrameItem selected ||
+            selected.CanvasPlacement is not { } placement)
         {
             return;
         }
-        _placementZoom = Math.Clamp(e.NewValue, 1, 8);
+        double scalePercent = Math.Clamp(e.NewValue, 25, 400);
+        int width = Math.Max(1, (int)Math.Round(selected.BasePlacementWidth * scalePercent / 100));
+        int height = Math.Max(1, (int)Math.Round(selected.BasePlacementHeight * scalePercent / 100));
+        double centerX = placement.X + (placement.Width / 2.0);
+        int bottom = placement.Y + placement.Height;
+        selected.CanvasPlacement = placement with
+        {
+            X = (int)Math.Round(centerX - (width / 2.0)),
+            Y = bottom - height,
+            Width = width,
+            Height = height,
+        };
+        selected.ScalePercent = scalePercent;
+        PlacementScaleText.Text = $"{scalePercent:0}%";
         await RefreshPlacementEditorAsync();
     }
 
@@ -559,6 +573,8 @@ public sealed partial class PetAnimationEditorControl : UserControl
             PlacementYNumberBox.Value = placement.Y;
             PlacementWidthNumberBox.Value = placement.Width;
             PlacementHeightNumberBox.Value = placement.Height;
+            PlacementZoomSlider.Value = selected.ScalePercent;
+            PlacementScaleText.Text = $"{selected.ScalePercent:0}%";
         }
         finally
         {
@@ -639,11 +655,11 @@ public sealed partial class PetAnimationEditorControl : UserControl
         const double availableWidth = 260;
         const double availableHeight = 220;
         double fitScale = Math.Min(availableWidth / canvasWidth, availableHeight / canvasHeight);
-        FramePlacementCanvas.Width = availableWidth * _placementZoom;
-        FramePlacementCanvas.Height = availableHeight * _placementZoom;
-        _placementDisplayScale = fitScale * _placementZoom;
-        _placementDisplayX = ((availableWidth - (canvasWidth * fitScale)) / 2) * _placementZoom;
-        _placementDisplayY = ((availableHeight - (canvasHeight * fitScale)) / 2) * _placementZoom;
+        FramePlacementCanvas.Width = availableWidth;
+        FramePlacementCanvas.Height = availableHeight;
+        _placementDisplayScale = fitScale;
+        _placementDisplayX = (availableWidth - (canvasWidth * fitScale)) / 2;
+        _placementDisplayY = (availableHeight - (canvasHeight * fitScale)) / 2;
         FrameCheckerImage.Width = canvasWidth * _placementDisplayScale;
         FrameCheckerImage.Height = canvasHeight * _placementDisplayScale;
         Canvas.SetLeft(FrameCheckerImage, _placementDisplayX);
@@ -680,17 +696,18 @@ public sealed partial class PetAnimationEditorControl : UserControl
                 (canvasHeight - frame.IntrinsicHeight) / 2,
                 frame.IntrinsicWidth,
                 frame.IntrinsicHeight);
-            int width = Math.Clamp(current.Width, 1, canvasWidth);
-            int height = Math.Clamp(current.Height, 1, canvasHeight);
+            int width = Math.Clamp(current.Width, 1, 32_768);
+            int height = Math.Clamp(current.Height, 1, 32_768);
             frame.CanvasPlacement = current with
             {
                 CanvasWidth = canvasWidth,
                 CanvasHeight = canvasHeight,
-                X = Math.Clamp(current.X, 0, canvasWidth - width),
-                Y = Math.Clamp(current.Y, 0, canvasHeight - height),
+                X = Math.Clamp(current.X, -32_768, 32_768),
+                Y = Math.Clamp(current.Y, -32_768, 32_768),
                 Width = width,
                 Height = height,
             };
+            frame.EnsureScaleBaseline();
         }
     }
 
@@ -766,26 +783,25 @@ public sealed partial class PetAnimationEditorControl : UserControl
         }
         int canvasWidth = NumberValue(CanvasWidthNumberBox, selected.CanvasPlacement!.CanvasWidth);
         int canvasHeight = NumberValue(CanvasHeightNumberBox, selected.CanvasPlacement.CanvasHeight);
-        int width = Math.Clamp(NumberValue(PlacementWidthNumberBox, selected.CanvasPlacement.Width), 1, canvasWidth);
-        int height = Math.Clamp(NumberValue(PlacementHeightNumberBox, selected.CanvasPlacement.Height), 1, canvasHeight);
-        int x = Math.Clamp(NumberValue(PlacementXNumberBox, selected.CanvasPlacement.X), 0, canvasWidth - width);
-        int y = Math.Clamp(NumberValue(PlacementYNumberBox, selected.CanvasPlacement.Y), 0, canvasHeight - height);
+        int width = Math.Clamp(NumberValue(PlacementWidthNumberBox, selected.CanvasPlacement.Width), 1, 32_768);
+        int height = Math.Clamp(NumberValue(PlacementHeightNumberBox, selected.CanvasPlacement.Height), 1, 32_768);
+        int x = Math.Clamp(NumberValue(PlacementXNumberBox, selected.CanvasPlacement.X), -32_768, 32_768);
+        int y = Math.Clamp(NumberValue(PlacementYNumberBox, selected.CanvasPlacement.Y), -32_768, 32_768);
         foreach (FrameItem frame in _frames)
         {
             UserPetCanvasPlacement current = frame.CanvasPlacement!;
-            int frameWidth = Math.Min(current.Width, canvasWidth);
-            int frameHeight = Math.Min(current.Height, canvasHeight);
             frame.CanvasPlacement = current with
             {
                 CanvasWidth = canvasWidth,
                 CanvasHeight = canvasHeight,
-                X = Math.Clamp(current.X, 0, canvasWidth - frameWidth),
-                Y = Math.Clamp(current.Y, 0, canvasHeight - frameHeight),
-                Width = frameWidth,
-                Height = frameHeight,
             };
         }
         selected.CanvasPlacement = new UserPetCanvasPlacement(canvasWidth, canvasHeight, x, y, width, height);
+        if (ReferenceEquals(sender, PlacementWidthNumberBox) ||
+            ReferenceEquals(sender, PlacementHeightNumberBox))
+        {
+            selected.ResetScaleBaseline();
+        }
         _ = RefreshPlacementEditorAsync();
     }
 
@@ -846,14 +862,26 @@ public sealed partial class PetAnimationEditorControl : UserControl
         int deltaX = (int)Math.Round((point.X - _placementDragStart.X) / _placementDisplayScale);
         int deltaY = (int)Math.Round((point.Y - _placementDragStart.Y) / _placementDisplayScale);
         UserPetCanvasPlacement placement = selected.CanvasPlacement!;
-        UserPetPixelRect rect = UserPetImageEditingGeometry.DragCrop(
+        UserPetPixelRect rect = DragPlacement(
             _placementDragOriginal,
             _placementDragHandle,
             deltaX,
-            deltaY,
-            placement.CanvasWidth,
-            placement.CanvasHeight);
+            deltaY);
         selected.CanvasPlacement = placement with { X = rect.X, Y = rect.Y, Width = rect.Width, Height = rect.Height };
+        if (_placementDragHandle != UserPetCropHandle.Move)
+        {
+            selected.ResetScaleBaseline();
+            _isRefreshingPlacement = true;
+            try
+            {
+                PlacementZoomSlider.Value = selected.ScalePercent;
+                PlacementScaleText.Text = $"{selected.ScalePercent:0}%";
+            }
+            finally
+            {
+                _isRefreshingPlacement = false;
+            }
+        }
         LayoutPlacementElement(SelectedFramePlacementImage, selected.CanvasPlacement);
         LayoutPlacementElement(SelectedFramePlacementBorder, selected.CanvasPlacement);
         UpdatePlacementNumbers(selected.CanvasPlacement);
@@ -885,6 +913,48 @@ public sealed partial class PetAnimationEditorControl : UserControl
         {
             _isRefreshingPlacement = false;
         }
+    }
+
+    private static UserPetPixelRect DragPlacement(
+        UserPetPixelRect original,
+        UserPetCropHandle handle,
+        int deltaX,
+        int deltaY)
+    {
+        if (handle == UserPetCropHandle.Move)
+        {
+            return original with
+            {
+                X = Math.Clamp(original.X + deltaX, -32_768, 32_768),
+                Y = Math.Clamp(original.Y + deltaY, -32_768, 32_768),
+            };
+        }
+
+        int left = original.X;
+        int top = original.Y;
+        int right = original.X + original.Width;
+        int bottom = original.Y + original.Height;
+        if (handle is UserPetCropHandle.Left or UserPetCropHandle.TopLeft or UserPetCropHandle.BottomLeft)
+        {
+            left = Math.Min(right - 1, left + deltaX);
+        }
+        if (handle is UserPetCropHandle.Right or UserPetCropHandle.TopRight or UserPetCropHandle.BottomRight)
+        {
+            right = Math.Max(left + 1, right + deltaX);
+        }
+        if (handle is UserPetCropHandle.Top or UserPetCropHandle.TopLeft or UserPetCropHandle.TopRight)
+        {
+            top = Math.Min(bottom - 1, top + deltaY);
+        }
+        if (handle is UserPetCropHandle.Bottom or UserPetCropHandle.BottomLeft or UserPetCropHandle.BottomRight)
+        {
+            bottom = Math.Max(top + 1, bottom + deltaY);
+        }
+        left = Math.Clamp(left, -32_768, 32_768);
+        top = Math.Clamp(top, -32_768, 32_768);
+        right = Math.Clamp(right, left + 1, left + 32_768);
+        bottom = Math.Clamp(bottom, top + 1, top + 32_768);
+        return new UserPetPixelRect(left, top, right - left, bottom - top);
     }
 
     private async void CompareFirstFrameCheckBox_Changed(object sender, RoutedEventArgs e)
@@ -931,6 +1001,9 @@ public sealed partial class PetAnimationEditorControl : UserControl
         public bool FlipsHorizontally { get; set; }
         public bool FlipsVertically { get; set; }
         public UserPetCanvasPlacement? CanvasPlacement { get; set; }
+        public int BasePlacementWidth { get; private set; }
+        public int BasePlacementHeight { get; private set; }
+        public double ScalePercent { get; set; } = 100;
         public Guid FrameId { get; }
         public UserPetBackgroundRemoval? BackgroundRemoval { get; }
 
@@ -943,6 +1016,27 @@ public sealed partial class PetAnimationEditorControl : UserControl
         public int IntrinsicWidth => SourceFrame?.Width ?? CanvasPlacement?.Width ?? 1;
 
         public int IntrinsicHeight => SourceFrame?.Height ?? CanvasPlacement?.Height ?? 1;
+
+        public void EnsureScaleBaseline()
+        {
+            if (BasePlacementWidth > 0 || CanvasPlacement is not { } placement)
+            {
+                return;
+            }
+            BasePlacementWidth = placement.Width;
+            BasePlacementHeight = placement.Height;
+        }
+
+        public void ResetScaleBaseline()
+        {
+            if (CanvasPlacement is not { } placement)
+            {
+                return;
+            }
+            BasePlacementWidth = placement.Width;
+            BasePlacementHeight = placement.Height;
+            ScalePercent = 100;
+        }
 
         public FrameItem IndependentCopy()
         {

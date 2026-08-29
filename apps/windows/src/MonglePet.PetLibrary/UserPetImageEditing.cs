@@ -245,22 +245,32 @@ public static class UserPetPixelProcessor
         ValidatePlacement(canvasWidth, canvasHeight, targetX, targetY, targetWidth, targetHeight);
 
         var result = new byte[checked(canvasWidth * canvasHeight * 4)];
-        for (int y = 0; y < targetHeight; y++)
+        int destinationLeft = (int)Math.Max(0L, targetX);
+        int destinationTop = (int)Math.Max(0L, targetY);
+        int destinationRight = (int)Math.Min((long)canvasWidth, (long)targetX + targetWidth);
+        int destinationBottom = (int)Math.Min((long)canvasHeight, (long)targetY + targetHeight);
+        for (int destinationY = destinationTop; destinationY < destinationBottom; destinationY++)
         {
-            int sampledY = Math.Min(crop.Height - 1, (int)((long)y * crop.Height / targetHeight));
+            int targetLocalY = destinationY - targetY;
+            int sampledY = Math.Min(
+                crop.Height - 1,
+                (int)((long)targetLocalY * crop.Height / targetHeight));
             if (flipsVertically)
             {
                 sampledY = crop.Height - 1 - sampledY;
             }
-            for (int x = 0; x < targetWidth; x++)
+            for (int destinationX = destinationLeft; destinationX < destinationRight; destinationX++)
             {
-                int sampledX = Math.Min(crop.Width - 1, (int)((long)x * crop.Width / targetWidth));
+                int targetLocalX = destinationX - targetX;
+                int sampledX = Math.Min(
+                    crop.Width - 1,
+                    (int)((long)targetLocalX * crop.Width / targetWidth));
                 if (flipsHorizontally)
                 {
                     sampledX = crop.Width - 1 - sampledX;
                 }
                 int sourceOffset = (((crop.Y + sampledY) * sourceWidth) + crop.X + sampledX) * 4;
-                int targetOffset = ((((targetY + y) * canvasWidth) + targetX + x) * 4);
+                int targetOffset = (((destinationY * canvasWidth) + destinationX) * 4);
                 ReadOnlySpan<byte> pixel = sourceBgraPixels.Slice(sourceOffset, 4);
                 if (backgroundRemoval is not null && IsBackground(pixel, backgroundRemoval))
                 {
@@ -300,11 +310,16 @@ public static class UserPetPixelProcessor
         int width,
         int height)
     {
-        if (canvasWidth <= 0 || canvasHeight <= 0 || width <= 0 || height <= 0 ||
-            x < 0 || y < 0 || width > canvasWidth || height > canvasHeight ||
-            x > canvasWidth - width || y > canvasHeight - height)
+        const int maximumPlacementDimension = PetPackageManifestReader.MaximumImageDimension * 4;
+        if (canvasWidth <= 0 || canvasHeight <= 0 ||
+            canvasWidth > PetPackageManifestReader.MaximumImageDimension ||
+            canvasHeight > PetPackageManifestReader.MaximumImageDimension ||
+            width <= 0 || height <= 0 ||
+            width > maximumPlacementDimension || height > maximumPlacementDimension ||
+            x < -maximumPlacementDimension || x > maximumPlacementDimension ||
+            y < -maximumPlacementDimension || y > maximumPlacementDimension)
         {
-            throw new ArgumentOutOfRangeException(nameof(width), "공통 캔버스 배치가 캔버스를 벗어났습니다.");
+            throw new ArgumentOutOfRangeException(nameof(width), "공통 캔버스 배치 값이 허용 범위를 벗어났습니다.");
         }
     }
 }

@@ -179,11 +179,16 @@
                             Content="펫 추가"
                             Style="{StaticResource AccentButtonStyle}" />
                     </Grid>
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <Button Click="WakeAllPetsButton_Click" Content="모두 깨우기" />
-                        <Button Click="TuckAwayAllPetsButton_Click" Content="모두 재우기" />
-                        <Button x:Name="PauseAllPetsButton" Click="PauseAllPetsButton_Click" Content="모든 펫 일시정지/재개" />
-                    </StackPanel>
+                    <Grid ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Button HorizontalAlignment="Stretch" Click="WakeAllPetsButton_Click" Content="모두 깨우기" Style="{StaticResource SettingsActionButtonStyle}" />
+                        <Button Grid.Column="1" HorizontalAlignment="Stretch" Click="TuckAwayAllPetsButton_Click" Content="모두 재우기" Style="{StaticResource SettingsActionButtonStyle}" />
+                        <Button x:Name="PauseAllPetsButton" Grid.Column="2" HorizontalAlignment="Stretch" Click="PauseAllPetsButton_Click" Content="모든 펫 일시정지/재개" Style="{StaticResource SettingsActionButtonStyle}" />
+                    </Grid>
                     <ListView
                         x:Name="ActivePetsList"
                         Background="Transparent"
@@ -254,12 +259,20 @@
                                                 Text="{Binding Nickname, Mode=OneWay}" />
                                             <TextBlock Style="{StaticResource SettingsCaptionStyle}" Text="{Binding Detail}" />
                                         </StackPanel>
-                                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                                            <Button Click="MoveActivePetUpButton_Click" Content="↑" Tag="{Binding InstanceId}" ToolTipService.ToolTip="앞으로" />
-                                            <Button Click="MoveActivePetDownButton_Click" Content="↓" Tag="{Binding InstanceId}" ToolTipService.ToolTip="뒤로" />
-                                            <Button Click="ToggleActivePetButton_Click" Content="{Binding PresentationCommand}" Tag="{Binding InstanceId}" />
-                                            <Button Click="RemoveActivePetButton_Click" Content="제거" Tag="{Binding InstanceId}" />
-                                        </StackPanel>
+                                        <Grid Grid.Column="2" ColumnSpacing="6" RowSpacing="6" VerticalAlignment="Center">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                            </Grid.RowDefinitions>
+                                            <Button Width="38" AutomationProperties.Name="앞으로 이동" Click="MoveActivePetUpButton_Click" Content="↑" Tag="{Binding InstanceId}" ToolTipService.ToolTip="앞으로" />
+                                            <Button Width="38" Grid.Column="1" AutomationProperties.Name="뒤로 이동" Click="MoveActivePetDownButton_Click" Content="↓" Tag="{Binding InstanceId}" ToolTipService.ToolTip="뒤로" />
+                                            <Button Grid.Row="1" MinWidth="72" Click="ToggleActivePetButton_Click" Content="{Binding PresentationCommand}" Tag="{Binding InstanceId}" />
+                                            <Button Grid.Row="1" Grid.Column="1" MinWidth="58" Foreground="{ThemeResource MongleDangerForegroundBrush}" Click="RemoveActivePetButton_Click" Content="제거" Tag="{Binding InstanceId}" />
+                                        </Grid>
                                     </Grid>
                                     </Border>
                                     <Border
@@ -312,6 +325,8 @@
                             x:Name="ClickThroughToggle"
                             Header="클릭 통과"
                             IsOn="True"
+                            OffContent="펫 클릭 가능"
+                            OnContent="클릭 통과 중"
                             Toggled="ClickThroughToggle_Toggled" />
                         <ToggleSwitch
                             x:Name="PointerOverlapFadeToggle"
@@ -532,7 +547,7 @@
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <Button x:Name="AddBehaviorSpeechPhraseButton" Click="AddBehaviorSpeechPhraseButton_Click" Content="행동 대사 추가…" />
                                 <Button x:Name="EditBehaviorSpeechPhraseButton" Click="EditBehaviorSpeechPhraseButton_Click" Content="수정…" />
-                                <Button x:Name="DeleteBehaviorSpeechPhraseButton" Click="DeleteBehaviorSpeechPhraseButton_Click" Content="삭제" />
+                                <Button x:Name="DeleteBehaviorSpeechPhraseButton" Click="DeleteBehaviorSpeechPhraseButton_Click" Content="삭제" Foreground="{ThemeResource MongleDangerForegroundBrush}" />
                             </StackPanel>
                             <TextBlock
                                 Style="{StaticResource SettingsCaptionStyle}"
@@ -559,7 +574,7 @@
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <Button x:Name="AddPeriodicSpeechPhraseButton" Click="AddPeriodicSpeechPhraseButton_Click" Content="주기 대사 추가…" />
                                 <Button x:Name="EditPeriodicSpeechPhraseButton" Click="EditPeriodicSpeechPhraseButton_Click" Content="수정…" />
-                                <Button x:Name="DeletePeriodicSpeechPhraseButton" Click="DeletePeriodicSpeechPhraseButton_Click" Content="삭제" />
+                                <Button x:Name="DeletePeriodicSpeechPhraseButton" Click="DeletePeriodicSpeechPhraseButton_Click" Content="삭제" Foreground="{ThemeResource MongleDangerForegroundBrush}" />
                             </StackPanel>
                             <TextBlock
                                 Style="{StaticResource SettingsCaptionStyle}"
@@ -1165,24 +1180,41 @@
                                 </DataTemplate>
                             </ListView.ItemTemplate>
                         </ListView>
-                        <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Grid ColumnSpacing="8" RowSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
                             <Button
                                 x:Name="AddPetAnimationButton"
                                 Click="AddPetAnimationButton_Click"
-                                Content="애니메이션 추가…" />
+                                Content="애니메이션 추가…"
+                                Style="{StaticResource SettingsActionButtonStyle}" />
                             <Button
                                 x:Name="EditPetAnimationButton"
+                                Grid.Column="1"
                                 Click="EditPetAnimationButton_Click"
-                                Content="수정…" />
+                                Content="수정…"
+                                Style="{StaticResource SettingsActionButtonStyle}" />
                             <Button
                                 x:Name="DuplicatePetAnimationButton"
+                                Grid.Row="1"
                                 Click="DuplicatePetAnimationButton_Click"
-                                Content="애니메이션 복제…" />
+                                Content="애니메이션 복제…"
+                                Style="{StaticResource SettingsActionButtonStyle}" />
                             <Button
                                 x:Name="DeletePetAnimationButton"
+                                Grid.Row="1"
+                                Grid.Column="1"
                                 Click="DeletePetAnimationButton_Click"
-                                Content="삭제" />
-                        </StackPanel>
+                                Content="삭제"
+                                Foreground="{ThemeResource MongleDangerForegroundBrush}"
+                                Style="{StaticResource SettingsActionButtonStyle}" />
+                        </Grid>
                     </StackPanel>
 
                     <Border Style="{StaticResource SettingsDividerStyle}" />
@@ -1301,24 +1333,41 @@
                             x:Name="PetManagementCaptionText"
                             Style="{StaticResource SettingsCaptionStyle}"
                             TextWrapping="Wrap" />
-                        <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Grid ColumnSpacing="8" RowSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
                             <Button
                                 x:Name="CreatePetButton"
                                 Click="CreatePetButton_Click"
-                                Content="새 펫 만들기…" />
+                                Content="새 펫 만들기…"
+                                Style="{StaticResource SettingsActionButtonStyle}" />
                             <Button
                                 x:Name="EditPetDetailsButton"
+                                Grid.Column="1"
                                 Click="EditPetDetailsButton_Click"
-                                Content="펫 정보 수정…" />
+                                Content="펫 정보 수정…"
+                                Style="{StaticResource SettingsActionButtonStyle}" />
                             <Button
                                 x:Name="CreateEditablePetCopyButton"
+                                Grid.Row="1"
                                 Click="CreateEditablePetCopyButton_Click"
-                                Content="펫 사본 새로 만들기…" />
+                                Content="펫 사본 새로 만들기…"
+                                Style="{StaticResource SettingsActionButtonStyle}" />
                             <Button
                                 x:Name="DeleteCurrentPetButton"
+                                Grid.Row="1"
+                                Grid.Column="1"
                                 Click="DeleteCurrentPetButton_Click"
-                                Content="펫 삭제…" />
-                        </StackPanel>
+                                Content="펫 삭제…"
+                                Foreground="{ThemeResource MongleDangerForegroundBrush}"
+                                Style="{StaticResource SettingsActionButtonStyle}" />
+                        </Grid>
                         <Expander Header="다른 설치된 펫 선택" Visibility="Collapsed">
                             <ListView
                                 x:Name="InstalledPetsList"
@@ -1469,7 +1518,8 @@
                                     Grid.Column="2"
                                     Margin="0,24,0,0"
                                     Click="DeleteSequenceButton_Click"
-                                    Content="선택 삭제" />
+                                    Content="선택 삭제"
+                                    Foreground="{ThemeResource MongleDangerForegroundBrush}" />
                             </Grid>
                             <ToggleSwitch
                                 x:Name="SequenceRepeatsToggle"
@@ -1565,6 +1615,7 @@
                                                     <Button
                                                         Click="RemoveStepButton_Click"
                                                         Content="삭제"
+                                                        Foreground="{ThemeResource MongleDangerForegroundBrush}"
                                                         IsEnabled="{Binding CanDelete}"
                                                         Tag="{Binding Index}" />
                                                 </StackPanel>
@@ -1680,7 +1731,7 @@
                                     Content="앱 규칙 추가"
                                     Style="{StaticResource AccentButtonStyle}" />
                                 <Button x:Name="NewIdleRuleButton" Click="NewIdleRuleButton_Click" Content="입력 없음 규칙 추가" Visibility="Collapsed" />
-                                <Button x:Name="DeleteRuleButton" Click="DeleteRuleButton_Click" Content="선택 규칙 삭제" />
+                                <Button x:Name="DeleteRuleButton" Click="DeleteRuleButton_Click" Content="선택 규칙 삭제" Foreground="{ThemeResource MongleDangerForegroundBrush}" />
                             </StackPanel>
                             <ToggleSwitch x:Name="RuleEnabledToggle" Header="규칙 사용" IsOn="True" />
                             <NumberBox

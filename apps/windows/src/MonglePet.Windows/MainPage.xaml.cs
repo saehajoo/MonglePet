@@ -1274,8 +1274,8 @@ public sealed partial class MainPage : Page
         await RunPetEditAsync("새 펫 만들기", async () =>
         {
             InstalledPetPackage installed = await app.PetEditor.CreatePetAsync(editor.CreatePetRequest());
-            app.ActivateInstallation(installed.InstallationId);
-            return $"'{installed.Package.Manifest.DisplayName}' 펫을 만들었습니다.";
+            app.AddInstallationAsNewInstance(installed.InstallationId);
+            return $"'{installed.Package.Manifest.DisplayName}' 펫을 새 활성 펫으로 추가했습니다.";
         });
     }
 
@@ -1545,6 +1545,13 @@ public sealed partial class MainPage : Page
         var name = new TextBox { Header = "펫 이름", Text = manifest.DisplayName };
         var author = new TextBox { Header = "제작자", Text = manifest.Author };
         var version = new TextBox { Header = "버전", Text = manifest.Version };
+        var versionError = new TextBlock
+        {
+            Text = "버전은 1.0.0처럼 MAJOR.MINOR.PATCH 형식으로 입력해 주세요.",
+            Foreground = new SolidColorBrush(Microsoft.UI.Colors.IndianRed),
+            TextWrapping = TextWrapping.Wrap,
+            Visibility = Visibility.Collapsed,
+        };
         var description = new TextBox
         {
             Header = "설명",
@@ -1562,6 +1569,7 @@ public sealed partial class MainPage : Page
         content.Children.Add(name);
         content.Children.Add(author);
         content.Children.Add(version);
+        content.Children.Add(versionError);
         content.Children.Add(description);
         content.Children.Add(defaultMotion);
         var dialog = new ContentDialog
@@ -1572,6 +1580,18 @@ public sealed partial class MainPage : Page
             PrimaryButtonText = "저장",
             CloseButtonText = "취소",
             DefaultButton = ContentDialogButton.Primary,
+        };
+        dialog.Closing += (_, args) =>
+        {
+            if (args.Result != ContentDialogResult.Primary ||
+                UserPetPackageEditor.IsValidEditableVersion(version.Text))
+            {
+                return;
+            }
+            args.Cancel = true;
+            versionError.Visibility = Visibility.Visible;
+            version.Focus(FocusState.Programmatic);
+            version.SelectAll();
         };
         if (await dialog.ShowAsync() != ContentDialogResult.Primary)
         {
@@ -1648,16 +1668,19 @@ public sealed partial class MainPage : Page
         }
 
         BehaviorProfile sourceProfile = app.ActiveBehaviorProfile;
+        OverlaySettings sourceOverlay = app.CurrentSettings.SelectedPetInstance?.Overlay
+            ?? OverlaySettings.Default;
         await RunPetEditAsync("편집 가능한 사본", () =>
         {
             InstalledPetPackage copied = app.PetEditor.CreateEditableCopy(
                 package,
                 package.PackageRootPath,
                 name.Text);
-            app.ActivateInstallationCopyingSelectedProfile(
+            app.AddInstallationCopyAsNewInstance(
                 copied.InstallationId,
-                sourceProfile);
-            return Task.FromResult($"'{copied.Package.Manifest.DisplayName}' 사본을 만들었습니다.");
+                sourceProfile,
+                sourceOverlay);
+            return Task.FromResult($"'{copied.Package.Manifest.DisplayName}' 사본을 새 활성 펫으로 추가했습니다.");
         });
     }
 
@@ -2681,7 +2704,7 @@ public sealed partial class MainPage : Page
 
         bool clickThrough = Application.Current is App app && app.CurrentSettings.Overlay.ClickThrough;
         FixedMovementHelpText.Text = clickThrough
-            ? "클릭 통과가 켜져 있어 펫을 드래그할 수 없습니다. 일반 탭에서 클릭 통과를 끄면 위치를 옮길 수 있습니다."
+            ? "클릭 통과가 켜져 있어 펫을 드래그할 수 없습니다. 위 화면 표시에서 클릭 통과를 끄면 위치를 옮길 수 있습니다."
             : "펫을 직접 드래그한 위치에 그대로 둡니다.";
         PettingMotionComboBox.IsEnabled = canEdit && !isAvoiding;
         PettingDescriptionText.Text = isAvoiding

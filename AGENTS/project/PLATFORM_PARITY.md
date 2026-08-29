@@ -215,7 +215,17 @@ Windows 개발 환경을 확정한 뒤 다음 순서로 적용한다.
 - 각 플랫폼에서 기능별 자동 테스트, 실제 앱 QA와 성능 기준을 독립적으로 통과한다.
 - 의도적인 플랫폼 차이가 사용자 문서와 결정 기록에 설명되어 있다.
 
+## 2026-08-29 Windows 펫 제작기 UX 후속
+
+Windows는 스프라이트 이동·8방향 크기 조절의 명시적 입력 영역과 드래그 시작 배율 고정, 사용자가 적용할 때만 바뀌는 읽기 순서, 좁은 설정 열의 2열 뒤집기 버튼을 반영했다. 작은 경계에서는 조절점 입력 영역을 경계 크기에 맞춰 제한하고 모달 루트 좌표·실제 버튼 상태·취소 복원을 사용해 이동 의도가 상단/좌우 축소로 오인되는 튐을 막는다. 새 펫과 편집 가능한 사본은 현재 펫 키를 교체하지 않고 새 활성 인스턴스·프로필로 추가하며 사본은 현재 프로필·overlay를 복사한다. D-104에 따라 Windows 제작 UI의 신규·수정 버전은 숫자형 `MAJOR.MINOR.PATCH`로 제한하지만 외부 자유 문자열 패키지 로드는 보존한다.
+
+Windows 설정 컨트롤은 Default(Dark)·Light별 공통 버튼 fill·stroke와 pointer/pressed/disabled 상태를 사용한다. radio·slider·toggle은 테마 안에서 같은 활성·비활성 색상 체계를 공유한다. Dark의 slider 활성 값과 toggle 켜짐은 `#D0D0D0`, 비활성 track과 꺼짐은 `#858585`를 사용한다. Light는 활성 값·켜짐·선택을 더 어두운 `#5F5F5F`, 비활성 track·꺼짐을 더 밝은 `#D0D0D0`로 구분한다. ToggleSwitch는 현대 fill/stroke/knob와 구형 curtain/track의 normal·pointer·pressed·disabled 리소스를 모두 같은 팔레트로 덮어 시스템 강조색 복귀를 막는다. 라디오는 선택 테두리와 중앙점을 함께 표시하며 슬라이더는 선택 값 구간과 나머지 track을 분리해 색상에만 의존하지 않는다. 활성 펫 전체 작업과 인스턴스 작업은 별도 grid로 구분하고 제거 작업은 경고색으로 표시한다. 클릭 통과는 선택 인스턴스 overlay에 즉시 저장·동기화되며 토글 본문이 `클릭 통과 중`과 `펫 클릭 가능`으로 실제 결과를 설명한다.
+
+Windows 클릭 통과는 다른 프로세스의 뒤쪽 창이 실제 입력을 받는 것을 완료 기준으로 한다. 클릭 통과 중에는 최상위 펫 HWND의 `WS_EX_LAYERED | WS_EX_TRANSPARENT`와 `DesktopChildSiteBridge` 자식 HWND의 `WS_EX_TRANSPARENT`를 함께 사용한다. `DesktopChildSiteBridge.Show()`가 부모 Composition 스타일을 다시 적용할 수 있으므로 Show 완료와 부모의 이동·크기·z-order 변경 뒤에는 부모·현재 자식 HWND를 모두 확인하고 핸들 또는 스타일이 달라진 경우에만 투명 입력 스타일을 복구한다. 클릭 가능 모드에서는 최상위 창을 no-redirection Composition target으로 복구하고 프레임 알파 기반 `HTCAPTION` 드래그를 유지한다. 네 이동 방식의 최종 실제 교차 창 QA는 남아 있다.
+
+애니메이션 배율은 뷰포트가 아니라 실제 펫 배치를 25~400%로 바꾸고 캔버스 밖 배치는 최종 합성에서 clip한다. 제작기 투명 격자는 저대비 테마 색상, 버튼은 공통 높이·테두리 계층을 사용한다. Debug 빌드는 통과했지만 사용자가 직접 수행할 실제 UI QA와 `MACOS_PET_EDITOR_FOLLOWUP.md`의 macOS 반영 전까지 이 항목은 플랫폼 동등 완료가 아니다.
+
 ---
 
 문서 상태: active
-마지막 갱신: 2026-08-26
+마지막 갱신: 2026-08-29

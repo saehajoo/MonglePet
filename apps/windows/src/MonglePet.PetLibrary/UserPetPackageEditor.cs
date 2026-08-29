@@ -389,9 +389,27 @@ public sealed class UserPetPackageEditor
     private static ValidDetails ValidateDetails(string name, string version, string author, string? description) =>
         new(
             Required(name, UserPetEditingError.InvalidPetName, "펫 이름을 입력해 주세요."),
-            Required(version, UserPetEditingError.InvalidVersion, "펫 버전을 입력해 주세요."),
+            ValidateEditableVersion(version),
             Required(author, UserPetEditingError.InvalidAuthor, "제작자 이름을 입력해 주세요."),
             string.IsNullOrWhiteSpace(description) ? null : description.Trim());
+
+    public static bool IsValidEditableVersion(string? value) =>
+        RemotePetSemanticVersion.TryParse(value?.Trim(), out _);
+
+    private static string ValidateEditableVersion(string value)
+    {
+        string normalized = Required(
+            value,
+            UserPetEditingError.InvalidVersion,
+            "펫 버전을 입력해 주세요.");
+        if (!IsValidEditableVersion(normalized))
+        {
+            throw Error(
+                UserPetEditingError.InvalidVersion,
+                "펫 버전은 1.0.0처럼 MAJOR.MINOR.PATCH 형식으로 입력해 주세요.");
+        }
+        return normalized;
+    }
 
     private static string ValidateAnimationName(string value) =>
         Required(value, UserPetEditingError.InvalidAnimationName, "애니메이션 이름을 입력해 주세요.");

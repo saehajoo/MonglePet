@@ -498,6 +498,43 @@ public partial class App : Application
         return installed;
     }
 
+    public InstalledPetPackage AddInstallationAsNewInstance(Guid installationId)
+    {
+        EnsureSettingsWritingEnabled();
+        InstalledPetPackage installed = PetLibrary.GetInstallation(installationId);
+        AppSettings updatedSettings = ActivePetSettingsEditor.AddPetInstance(
+            CurrentSettings,
+            new PetBehaviorKey.Installed(installed.InstallationId));
+        SettingsStore.Save(updatedSettings);
+        CurrentSettings = updatedSettings;
+        SynchronizePetInstances();
+        SettingsStateChanged?.Invoke(this, EventArgs.Empty);
+        SelectedPetInstanceChanged?.Invoke(this, EventArgs.Empty);
+        return installed;
+    }
+
+    public InstalledPetPackage AddInstallationCopyAsNewInstance(
+        Guid installationId,
+        BehaviorProfile sourceProfile,
+        OverlaySettings sourceOverlay)
+    {
+        ArgumentNullException.ThrowIfNull(sourceProfile);
+        ArgumentNullException.ThrowIfNull(sourceOverlay);
+        EnsureSettingsWritingEnabled();
+        InstalledPetPackage installed = PetLibrary.GetInstallation(installationId);
+        AppSettings updatedSettings = ActivePetSettingsEditor.AddPetInstance(
+            CurrentSettings,
+            new PetBehaviorKey.Installed(installed.InstallationId),
+            sourceProfile,
+            sourceOverlay);
+        SettingsStore.Save(updatedSettings);
+        CurrentSettings = updatedSettings;
+        SynchronizePetInstances();
+        SettingsStateChanged?.Invoke(this, EventArgs.Empty);
+        SelectedPetInstanceChanged?.Invoke(this, EventArgs.Empty);
+        return installed;
+    }
+
     private static PetSpeechSettings WithoutBehaviorTriggeredSpeech(
         PetSpeechSettings source) => source with
     {

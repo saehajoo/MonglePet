@@ -43,6 +43,7 @@ public sealed unsafe class PetOverlayWindow : IDisposable
     private DesktopChildSiteBridge? _siteBridge;
     private ContentIsland? _contentIsland;
     private HWND _window;
+    private HWND _siteWindow;
     private bool _disposed;
     private bool _isVisible;
     private bool _isClickThrough = true;
@@ -180,6 +181,10 @@ public sealed unsafe class PetOverlayWindow : IDisposable
             SET_WINDOW_POS_FLAGS.SWP_NOSIZE |
             SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE |
             SET_WINDOW_POS_FLAGS.SWP_SHOWWINDOW);
+        if (_isClickThrough)
+        {
+            EnsureClickThroughWindowStyles();
+        }
         _isVisible = true;
         StateChanged?.Invoke(this, EventArgs.Empty);
     }
@@ -295,11 +300,24 @@ public sealed unsafe class PetOverlayWindow : IDisposable
 
         nint style = PInvoke.GetWindowLongPtr(_window, WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE);
         nint transparentStyle = (nint)WINDOW_EX_STYLE.WS_EX_TRANSPARENT;
-        nint nextStyle = enabled ? style | transparentStyle : style & ~transparentStyle;
+        nint layeredStyle = (nint)WINDOW_EX_STYLE.WS_EX_LAYERED;
+        nint noRedirectionStyle = (nint)WINDOW_EX_STYLE.WS_EX_NOREDIRECTIONBITMAP;
+        nint nextStyle = enabled
+            ? (style | transparentStyle | layeredStyle) & ~noRedirectionStyle
+            : (style & ~(transparentStyle | layeredStyle)) | noRedirectionStyle;
 
         if (nextStyle != style)
         {
             PInvoke.SetWindowLongPtr(_window, WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE, nextStyle);
+            if (enabled && !PInvoke.SetLayeredWindowAttributes(
+                    _window,
+                    default,
+                    byte.MaxValue,
+                    LAYERED_WINDOW_ATTRIBUTES_FLAGS.LWA_ALPHA))
+            {
+                PInvoke.SetWindowLongPtr(_window, WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE, style);
+                throw new InvalidOperationException("펫 오버레이의 클릭 통과 계층 창 속성을 설정하지 못했습니다.");
+            }
             PInvoke.SetWindowPos(
                 _window,
                 default,
@@ -316,11 +334,20 @@ public sealed unsafe class PetOverlayWindow : IDisposable
 
         _isClickThrough = enabled;
         // The ContentIsland is a composition surface only. Keeping its child
-        // site input-disabled lets the parent overlay HWND own hit testing in
-        // both modes: WS_EX_TRANSPARENT passes clicks through, while
-        // HTCAPTION moves the pet when interaction is enabled.
+        // site input-disabled lets the parent HWND own hit testing. The
+        // click-through mode uses WS_EX_LAYERED | WS_EX_TRANSPARENT for
+        // cross-process pass-through; the interactive mode restores the
+        // no-redirection composition target and uses HTCAPTION for dragging.
         _contentIsland!.IsIslandEnabled = false;
         _siteBridge!.Disable();
+        if (enabled)
+        {
+            EnsureClickThroughWindowStyles();
+        }
+        else
+        {
+            SetSiteWindowClickThrough(false);
+        }
         ApplyPointerOpacity();
     }
 
@@ -352,6 +379,13 @@ public sealed unsafe class PetOverlayWindow : IDisposable
         }
         if (moved)
         {
+            if (_isClickThrough)
+            {
+                // DesktopChildSiteBridge can refresh its child input HWND while
+                // the parent overlay is moving. Re-resolve both HWNDs and only
+                // restore click-through bits when a current style lost them.
+                EnsureClickThroughWindowStyles();
+            }
             _originX = x;
             _originY = y;
             PositionChanged?.Invoke(this, EventArgs.Empty);
@@ -363,7 +397,7 @@ public sealed unsafe class PetOverlayWindow : IDisposable
         ThrowIfDisposed();
         nint preceding = _speechBubbleWindow?.PlaceZOrderAfter(precedingWindow)
             ?? precedingWindow;
-        PInvoke.SetWindowPos(
+        bool reordered = PInvoke.SetWindowPos(
             _window,
             new HWND(preceding),
             0,
@@ -373,13 +407,17 @@ public sealed unsafe class PetOverlayWindow : IDisposable
             SET_WINDOW_POS_FLAGS.SWP_NOMOVE |
             SET_WINDOW_POS_FLAGS.SWP_NOSIZE |
             SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE);
+        if (reordered && _isClickThrough)
+        {
+            EnsureClickThroughWindowStyles();
+        }
         return Handle;
     }
 
     private void SetSize(double width)
     {
         (int pixelWidth, int pixelHeight) = CalculateWindowSize(width);
-        PInvoke.SetWindowPos(
+        bool resized = PInvoke.SetWindowPos(
             _window,
             default,
             0,
@@ -389,6 +427,10 @@ public sealed unsafe class PetOverlayWindow : IDisposable
             SET_WINDOW_POS_FLAGS.SWP_NOMOVE |
             SET_WINDOW_POS_FLAGS.SWP_NOZORDER |
             SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE);
+        if (resized && _isClickThrough)
+        {
+            EnsureClickThroughWindowStyles();
+        }
         _root.Size = new Vector2(pixelWidth, pixelHeight);
         _root.CenterPoint = new Vector3(pixelWidth / 2f, pixelHeight / 2f, 0);
         _framePlayer?.Resize(new Vector2(pixelWidth, pixelHeight), Vector3.Zero);
@@ -542,11 +584,98 @@ public sealed unsafe class PetOverlayWindow : IDisposable
     {
         Microsoft.UI.WindowId windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow((nint)_window.Value);
         _siteBridge = DesktopChildSiteBridge.Create(compositor, windowId);
+        _siteWindow = new HWND(Microsoft.UI.Win32Interop.GetWindowFromWindowId(_siteBridge.WindowId));
         _siteBridge.ResizePolicy = ContentSizePolicy.ResizeContentToParentWindow;
         _contentIsland = ContentIsland.Create(root);
         _contentIsland.IsHitTestVisibleWhenTransparent = false;
         _siteBridge.Connect(_contentIsland);
         _siteBridge.Show();
+    }
+
+    private void SetSiteWindowClickThrough(bool enabled)
+    {
+        if (_siteBridge is not null)
+        {
+            nint currentSiteWindow = Microsoft.UI.Win32Interop.GetWindowFromWindowId(
+                _siteBridge.WindowId);
+            if (currentSiteWindow != nint.Zero && currentSiteWindow != (nint)_siteWindow.Value)
+            {
+                _siteWindow = new HWND(currentSiteWindow);
+            }
+        }
+
+        if (_siteWindow.IsNull)
+        {
+            return;
+        }
+
+        nint style = PInvoke.GetWindowLongPtr(_siteWindow, WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE);
+        nint transparentStyle = (nint)WINDOW_EX_STYLE.WS_EX_TRANSPARENT;
+        nint nextStyle = enabled ? style | transparentStyle : style & ~transparentStyle;
+        if (nextStyle == style)
+        {
+            return;
+        }
+
+        PInvoke.SetWindowLongPtr(_siteWindow, WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE, nextStyle);
+        PInvoke.SetWindowPos(
+            _siteWindow,
+            default,
+            0,
+            0,
+            0,
+            0,
+            SET_WINDOW_POS_FLAGS.SWP_NOMOVE |
+            SET_WINDOW_POS_FLAGS.SWP_NOSIZE |
+            SET_WINDOW_POS_FLAGS.SWP_NOZORDER |
+            SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE |
+            SET_WINDOW_POS_FLAGS.SWP_FRAMECHANGED);
+    }
+
+    private void EnsureClickThroughWindowStyles()
+    {
+        nint style = PInvoke.GetWindowLongPtr(_window, WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE);
+        nint transparentStyle = (nint)WINDOW_EX_STYLE.WS_EX_TRANSPARENT;
+        nint layeredStyle = (nint)WINDOW_EX_STYLE.WS_EX_LAYERED;
+        nint noRedirectionStyle = (nint)WINDOW_EX_STYLE.WS_EX_NOREDIRECTIONBITMAP;
+        bool needsLayeredInitialization = (style & layeredStyle) == 0;
+        nint nextStyle = style | transparentStyle | layeredStyle;
+        if (needsLayeredInitialization)
+        {
+            // SetLayeredWindowAttributes needs the initial layered target
+            // without WS_EX_NOREDIRECTIONBITMAP. DesktopChildSiteBridge may
+            // restore no-redirection after Show(); that combination is kept
+            // because only WS_EX_TRANSPARENT is required for input pass-through.
+            nextStyle &= ~noRedirectionStyle;
+        }
+
+        if (nextStyle != style)
+        {
+            PInvoke.SetWindowLongPtr(_window, WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE, nextStyle);
+            if (needsLayeredInitialization && !PInvoke.SetLayeredWindowAttributes(
+                    _window,
+                    default,
+                    byte.MaxValue,
+                    LAYERED_WINDOW_ATTRIBUTES_FLAGS.LWA_ALPHA))
+            {
+                PInvoke.SetWindowLongPtr(_window, WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE, style);
+                throw new InvalidOperationException("펫 오버레이의 클릭 통과 계층 창 속성을 복구하지 못했습니다.");
+            }
+            PInvoke.SetWindowPos(
+                _window,
+                default,
+                0,
+                0,
+                0,
+                0,
+                SET_WINDOW_POS_FLAGS.SWP_NOMOVE |
+                SET_WINDOW_POS_FLAGS.SWP_NOSIZE |
+                SET_WINDOW_POS_FLAGS.SWP_NOZORDER |
+                SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE |
+                SET_WINDOW_POS_FLAGS.SWP_FRAMECHANGED);
+        }
+
+        SetSiteWindowClickThrough(true);
     }
 
     private void ThrowIfDisposed()

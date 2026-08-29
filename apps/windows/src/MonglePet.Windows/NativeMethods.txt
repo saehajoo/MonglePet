@@ -8,6 +8,7 @@ GetWindowLongPtr
 GetDpiForWindow
 RegisterClassEx
 SetWindowLongPtr
+SetLayeredWindowAttributes
 SetWindowPos
 ShowWindow
 WTSRegisterSessionNotification

@@ -27,6 +27,38 @@ public static class ActivePetSettingsEditor
             ?? throw new InvalidOperationException("A source pet instance is required.");
         BehaviorProfile selectedProfile = settings.SelectedBehaviorProfile
             ?? throw new InvalidOperationException("The source pet profile is missing.");
+        return AddPetInstanceCore(
+            settings,
+            selected.PetKey,
+            copiesSelectedSettings ? selectedProfile : null,
+            copiesSelectedSettings ? selected.Overlay : OverlaySettings.Default,
+            idGenerator);
+    }
+
+    public static AppSettings AddPetInstance(
+        AppSettings settings,
+        PetBehaviorKey petKey,
+        BehaviorProfile? sourceProfile = null,
+        OverlaySettings? sourceOverlay = null,
+        Func<Guid>? idGenerator = null)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(petKey);
+        return AddPetInstanceCore(
+            settings,
+            petKey,
+            sourceProfile,
+            sourceOverlay ?? OverlaySettings.Default,
+            idGenerator);
+    }
+
+    private static AppSettings AddPetInstanceCore(
+        AppSettings settings,
+        PetBehaviorKey petKey,
+        BehaviorProfile? sourceProfile,
+        OverlaySettings sourceOverlay,
+        Func<Guid>? idGenerator)
+    {
         idGenerator ??= Guid.NewGuid;
 
         Guid instanceId = NextUniqueId(
@@ -35,16 +67,14 @@ public static class ActivePetSettingsEditor
         Guid profileId = NextUniqueId(
             idGenerator,
             settings.BehaviorProfiles.Select(profile => profile.ProfileId));
-        BehaviorProfile profile = copiesSelectedSettings
-            ? selectedProfile with { ProfileId = profileId }
-            : BehaviorProfileDefaults.Create(selected.PetKey, profileId);
-        OverlaySettings overlay = copiesSelectedSettings
-            ? Offset(selected.Overlay)
-            : Offset(OverlaySettings.Default);
+        BehaviorProfile profile = sourceProfile is null
+            ? BehaviorProfileDefaults.Create(petKey, profileId)
+            : sourceProfile with { ProfileId = profileId, PetKey = petKey };
+        OverlaySettings overlay = Offset(sourceOverlay);
         var added = new ActivePetInstance(
             instanceId,
             profileId,
-            selected.PetKey,
+            petKey,
             null,
             PetPresentation.Awake,
             overlay,

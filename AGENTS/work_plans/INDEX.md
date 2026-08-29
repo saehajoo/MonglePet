@@ -9,7 +9,7 @@
 | 상태 | 작업명 | 파일 | 마지막 갱신 |
 | --- | --- | --- | --- |
 | in_progress | 행동 중심 실행 모델과 자동 동작 UI 재구성 | `tasks/2026-08-26-behavior-centric-runtime.md` | 2026-08-26 |
-| in_progress | Windows macOS 1.3.1 호환성·이미지 편집기·내장 몽글이 동등성 | `tasks/2026-08-24-windows-macos-1-3-parity.md` | 2026-08-24 |
+| in_progress | Windows macOS 1.3.1 호환성·이미지 편집기·내장 몽글이 동등성 | `tasks/2026-08-24-windows-macos-1-3-parity.md` | 2026-08-29 |
 | in_progress | 웹 펫 URL 가져오기 | `tasks/2026-08-23-web-pet-url-import.md` | 2026-08-24 |
 | in_progress | 스프라이트 시트 순서·격자·프레임 간격 개선 | `tasks/2026-08-23-sprite-sheet-ordering-and-duration.md` | 2026-08-23 |
 | in_progress | Windows 웹 배포와 자동 업데이트 준비 | `tasks/2026-08-09-windows-web-distribution.md` | 2026-08-16 |

@@ -6,6 +6,146 @@
     xmlns:local="using:MonglePet.Windows">
     <Application.Resources>
         <ResourceDictionary>
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Default">
+                    <SolidColorBrush x:Key="MongleButtonBackgroundBrush" Color="#FF474747" />
+                    <SolidColorBrush x:Key="MongleButtonBorderBrush" Color="#FF747474" />
+                    <SolidColorBrush x:Key="MongleButtonForegroundBrush" Color="#FFF7F7F7" />
+                    <SolidColorBrush x:Key="MongleControlAccentBrush" Color="#FFD0D0D0" />
+                    <SolidColorBrush x:Key="MongleControlAccentHoverBrush" Color="#FFE0E0E0" />
+                    <SolidColorBrush x:Key="MongleControlAccentGlyphBrush" Color="#FF303030" />
+                    <SolidColorBrush x:Key="MongleControlTrackBrush" Color="#FF858585" />
+                    <SolidColorBrush x:Key="MongleDangerForegroundBrush" Color="#FFFFB8BE" />
+                    <SolidColorBrush x:Key="ButtonBackground" Color="#FF474747" />
+                    <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#FF565656" />
+                    <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#FF393939" />
+                    <SolidColorBrush x:Key="ButtonBackgroundDisabled" Color="#FF383838" />
+                    <SolidColorBrush x:Key="ButtonForeground" Color="#FFF7F7F7" />
+                    <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="#FFFFFFFF" />
+                    <SolidColorBrush x:Key="ButtonForegroundPressed" Color="#FFE5E5E5" />
+                    <SolidColorBrush x:Key="ButtonForegroundDisabled" Color="#FF8A8A8A" />
+                    <SolidColorBrush x:Key="ButtonBorderBrush" Color="#FF747474" />
+                    <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="#FF989898" />
+                    <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="#FF626262" />
+                    <SolidColorBrush x:Key="ButtonBorderBrushDisabled" Color="#FF505050" />
+                    <SolidColorBrush x:Key="SliderThumbBackground" Color="#FFD0D0D0" />
+                    <SolidColorBrush x:Key="SliderThumbBackgroundPointerOver" Color="#FFE0E0E0" />
+                    <SolidColorBrush x:Key="SliderThumbBackgroundPressed" Color="#FFB8B8B8" />
+                    <SolidColorBrush x:Key="SliderTrackFill" Color="#FF858585" />
+                    <SolidColorBrush x:Key="SliderTrackFillPointerOver" Color="#FFA0A0A0" />
+                    <SolidColorBrush x:Key="SliderTrackFillPressed" Color="#FFA0A0A0" />
+                    <SolidColorBrush x:Key="SliderTrackValueFill" Color="#FFD0D0D0" />
+                    <SolidColorBrush x:Key="SliderTrackValueFillPointerOver" Color="#FFE0E0E0" />
+                    <SolidColorBrush x:Key="SliderTrackValueFillPressed" Color="#FFB8B8B8" />
+                    <SolidColorBrush x:Key="RadioButtonOuterEllipseStroke" Color="#FFD0D0D0" />
+                    <SolidColorBrush x:Key="RadioButtonOuterEllipseStrokePointerOver" Color="#FFFFFFFF" />
+                    <SolidColorBrush x:Key="RadioButtonOuterEllipseFill" Color="#FF363636" />
+                    <SolidColorBrush x:Key="RadioButtonOuterEllipseFillPointerOver" Color="#FF484848" />
+                    <SolidColorBrush x:Key="RadioButtonOuterEllipseCheckedStroke" Color="#FFD0D0D0" />
+                    <SolidColorBrush x:Key="RadioButtonOuterEllipseCheckedStrokePointerOver" Color="#FFE0E0E0" />
+                    <SolidColorBrush x:Key="RadioButtonOuterEllipseCheckedFill" Color="#FFD0D0D0" />
+                    <SolidColorBrush x:Key="RadioButtonOuterEllipseCheckedFillPointerOver" Color="#FFE0E0E0" />
+                    <SolidColorBrush x:Key="ToggleSwitchFillOff" Color="#FF858585" />
+                    <Color x:Key="ToggleSwitchFillOffPointerOver">#FFA0A0A0</Color>
+                    <Color x:Key="ToggleSwitchFillOffPressed">#FF707070</Color>
+                    <Color x:Key="ToggleSwitchFillOffDisabled">#FF505050</Color>
+                    <SolidColorBrush x:Key="ToggleSwitchStrokeOff" Color="#FFC6C6C6" />
+                    <Color x:Key="ToggleSwitchStrokeOffPointerOver">#FFFFFFFF</Color>
+                    <Color x:Key="ToggleSwitchStrokeOffPressed">#FFE0E0E0</Color>
+                    <Color x:Key="ToggleSwitchStrokeOffDisabled">#FF707070</Color>
+                    <SolidColorBrush x:Key="ToggleSwitchKnobFillOff" Color="#FF303030" />
+                    <SolidColorBrush x:Key="ToggleSwitchKnobFillOffPointerOver" Color="#FF303030" />
+                    <SolidColorBrush x:Key="ToggleSwitchKnobFillOffPressed" Color="#FF303030" />
+                    <SolidColorBrush x:Key="ToggleSwitchKnobFillOffDisabled" Color="#FF8A8A8A" />
+                    <SolidColorBrush x:Key="ToggleSwitchFillOn" Color="#FFD0D0D0" />
+                    <SolidColorBrush x:Key="ToggleSwitchFillOnPointerOver" Color="#FFE0E0E0" />
+                    <SolidColorBrush x:Key="ToggleSwitchFillOnPressed" Color="#FFB8B8B8" />
+                    <SolidColorBrush x:Key="ToggleSwitchFillOnDisabled" Color="#FF707070" />
+                    <SolidColorBrush x:Key="ToggleSwitchStrokeOn" Color="#FFD0D0D0" />
+                    <SolidColorBrush x:Key="ToggleSwitchStrokeOnPointerOver" Color="#FFE0E0E0" />
+                    <SolidColorBrush x:Key="ToggleSwitchStrokeOnPressed" Color="#FFB8B8B8" />
+                    <SolidColorBrush x:Key="ToggleSwitchStrokeOnDisabled" Color="#FF707070" />
+                    <SolidColorBrush x:Key="ToggleSwitchKnobFillOn" Color="#FF303030" />
+                    <SolidColorBrush x:Key="ToggleSwitchKnobFillOnPointerOver" Color="#FF303030" />
+                    <SolidColorBrush x:Key="ToggleSwitchKnobFillOnPressed" Color="#FF303030" />
+                    <SolidColorBrush x:Key="ToggleSwitchKnobFillOnDisabled" Color="#FFB0B0B0" />
+                    <SolidColorBrush x:Key="ToggleSwitchCurtainBackgroundThemeBrush" Color="#FFD0D0D0" />
+                    <SolidColorBrush x:Key="ToggleSwitchCurtainPointerOverBackgroundThemeBrush" Color="#FFE0E0E0" />
+                    <SolidColorBrush x:Key="ToggleSwitchCurtainPressedBackgroundThemeBrush" Color="#FFB8B8B8" />
+                    <SolidColorBrush x:Key="ToggleSwitchTrackBackgroundThemeBrush" Color="#FF858585" />
+                    <SolidColorBrush x:Key="ToggleSwitchTrackPointerOverBackgroundThemeBrush" Color="#FFA0A0A0" />
+                    <SolidColorBrush x:Key="ToggleSwitchTrackPressedBackgroundThemeBrush" Color="#FF707070" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="MongleButtonBackgroundBrush" Color="#FFF8F8F8" />
+                    <SolidColorBrush x:Key="MongleButtonBorderBrush" Color="#FF858585" />
+                    <SolidColorBrush x:Key="MongleButtonForegroundBrush" Color="#FF171717" />
+                    <SolidColorBrush x:Key="MongleControlAccentBrush" Color="#FF5F5F5F" />
+                    <SolidColorBrush x:Key="MongleControlAccentHoverBrush" Color="#FF4B4B4B" />
+                    <SolidColorBrush x:Key="MongleControlAccentGlyphBrush" Color="#FFF7F7F7" />
+                    <SolidColorBrush x:Key="MongleControlTrackBrush" Color="#FFD0D0D0" />
+                    <SolidColorBrush x:Key="MongleDangerForegroundBrush" Color="#FF9B2730" />
+                    <SolidColorBrush x:Key="ButtonBackground" Color="#FFF8F8F8" />
+                    <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#FFFFFFFF" />
+                    <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#FFE4E4E4" />
+                    <SolidColorBrush x:Key="ButtonBackgroundDisabled" Color="#FFF0F0F0" />
+                    <SolidColorBrush x:Key="ButtonForeground" Color="#FF171717" />
+                    <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="#FF000000" />
+                    <SolidColorBrush x:Key="ButtonForegroundPressed" Color="#FF2C2C2C" />
+                    <SolidColorBrush x:Key="ButtonForegroundDisabled" Color="#FF999999" />
+                    <SolidColorBrush x:Key="ButtonBorderBrush" Color="#FF858585" />
+                    <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="#FF595959" />
+                    <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="#FF707070" />
+                    <SolidColorBrush x:Key="ButtonBorderBrushDisabled" Color="#FFC8C8C8" />
+                    <SolidColorBrush x:Key="SliderThumbBackground" Color="#FF5F5F5F" />
+                    <SolidColorBrush x:Key="SliderThumbBackgroundPointerOver" Color="#FF4B4B4B" />
+                    <SolidColorBrush x:Key="SliderThumbBackgroundPressed" Color="#FF3E3E3E" />
+                    <SolidColorBrush x:Key="SliderTrackFill" Color="#FFD0D0D0" />
+                    <SolidColorBrush x:Key="SliderTrackFillPointerOver" Color="#FFBEBEBE" />
+                    <SolidColorBrush x:Key="SliderTrackFillPressed" Color="#FFACACAC" />
+                    <SolidColorBrush x:Key="SliderTrackValueFill" Color="#FF5F5F5F" />
+                    <SolidColorBrush x:Key="SliderTrackValueFillPointerOver" Color="#FF4B4B4B" />
+                    <SolidColorBrush x:Key="SliderTrackValueFillPressed" Color="#FF3E3E3E" />
+                    <SolidColorBrush x:Key="RadioButtonOuterEllipseStroke" Color="#FF5F5F5F" />
+                    <SolidColorBrush x:Key="RadioButtonOuterEllipseStrokePointerOver" Color="#FF242424" />
+                    <SolidColorBrush x:Key="RadioButtonOuterEllipseFill" Color="#FFFFFFFF" />
+                    <SolidColorBrush x:Key="RadioButtonOuterEllipseFillPointerOver" Color="#FFF0F0F0" />
+                    <SolidColorBrush x:Key="RadioButtonOuterEllipseCheckedStroke" Color="#FF5F5F5F" />
+                    <SolidColorBrush x:Key="RadioButtonOuterEllipseCheckedStrokePointerOver" Color="#FF4B4B4B" />
+                    <SolidColorBrush x:Key="RadioButtonOuterEllipseCheckedFill" Color="#FF5F5F5F" />
+                    <SolidColorBrush x:Key="RadioButtonOuterEllipseCheckedFillPointerOver" Color="#FF4B4B4B" />
+                    <SolidColorBrush x:Key="ToggleSwitchFillOff" Color="#FFD0D0D0" />
+                    <Color x:Key="ToggleSwitchFillOffPointerOver">#FFBEBEBE</Color>
+                    <Color x:Key="ToggleSwitchFillOffPressed">#FFACACAC</Color>
+                    <Color x:Key="ToggleSwitchFillOffDisabled">#FFE4E4E4</Color>
+                    <SolidColorBrush x:Key="ToggleSwitchStrokeOff" Color="#FF8A8A8A" />
+                    <Color x:Key="ToggleSwitchStrokeOffPointerOver">#FF707070</Color>
+                    <Color x:Key="ToggleSwitchStrokeOffPressed">#FF5F5F5F</Color>
+                    <Color x:Key="ToggleSwitchStrokeOffDisabled">#FFC8C8C8</Color>
+                    <SolidColorBrush x:Key="ToggleSwitchKnobFillOff" Color="#FF303030" />
+                    <SolidColorBrush x:Key="ToggleSwitchKnobFillOffPointerOver" Color="#FF303030" />
+                    <SolidColorBrush x:Key="ToggleSwitchKnobFillOffPressed" Color="#FF303030" />
+                    <SolidColorBrush x:Key="ToggleSwitchKnobFillOffDisabled" Color="#FF999999" />
+                    <SolidColorBrush x:Key="ToggleSwitchFillOn" Color="#FF5F5F5F" />
+                    <SolidColorBrush x:Key="ToggleSwitchFillOnPointerOver" Color="#FF4B4B4B" />
+                    <SolidColorBrush x:Key="ToggleSwitchFillOnPressed" Color="#FF3E3E3E" />
+                    <SolidColorBrush x:Key="ToggleSwitchFillOnDisabled" Color="#FFA8A8A8" />
+                    <SolidColorBrush x:Key="ToggleSwitchStrokeOn" Color="#FF5F5F5F" />
+                    <SolidColorBrush x:Key="ToggleSwitchStrokeOnPointerOver" Color="#FF4B4B4B" />
+                    <SolidColorBrush x:Key="ToggleSwitchStrokeOnPressed" Color="#FF3E3E3E" />
+                    <SolidColorBrush x:Key="ToggleSwitchStrokeOnDisabled" Color="#FFA8A8A8" />
+                    <SolidColorBrush x:Key="ToggleSwitchKnobFillOn" Color="#FFF7F7F7" />
+                    <SolidColorBrush x:Key="ToggleSwitchKnobFillOnPointerOver" Color="#FFF7F7F7" />
+                    <SolidColorBrush x:Key="ToggleSwitchKnobFillOnPressed" Color="#FFF7F7F7" />
+                    <SolidColorBrush x:Key="ToggleSwitchKnobFillOnDisabled" Color="#FFF0F0F0" />
+                    <SolidColorBrush x:Key="ToggleSwitchCurtainBackgroundThemeBrush" Color="#FF5F5F5F" />
+                    <SolidColorBrush x:Key="ToggleSwitchCurtainPointerOverBackgroundThemeBrush" Color="#FF4B4B4B" />
+                    <SolidColorBrush x:Key="ToggleSwitchCurtainPressedBackgroundThemeBrush" Color="#FF3E3E3E" />
+                    <SolidColorBrush x:Key="ToggleSwitchTrackBackgroundThemeBrush" Color="#FFD0D0D0" />
+                    <SolidColorBrush x:Key="ToggleSwitchTrackPointerOverBackgroundThemeBrush" Color="#FFBEBEBE" />
+                    <SolidColorBrush x:Key="ToggleSwitchTrackPressedBackgroundThemeBrush" Color="#FFACACAC" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
             <ResourceDictionary.MergedDictionaries>
                 <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
                 <!-- Other merged dictionaries here -->
@@ -20,6 +160,119 @@
             <Style x:Key="SettingsCaptionStyle" TargetType="TextBlock" BasedOn="{StaticResource CaptionTextBlockStyle}">
                 <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
                 <Setter Property="TextWrapping" Value="Wrap" />
+            </Style>
+            <Style x:Key="SettingsActionButtonStyle" TargetType="Button">
+                <Setter Property="MinWidth" Value="34" />
+                <Setter Property="MinHeight" Value="34" />
+                <Setter Property="Padding" Value="12,6" />
+                <Setter Property="HorizontalContentAlignment" Value="Center" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+                <Setter Property="Background" Value="{ThemeResource MongleButtonBackgroundBrush}" />
+                <Setter Property="Foreground" Value="{ThemeResource MongleButtonForegroundBrush}" />
+                <Setter Property="BorderBrush" Value="{ThemeResource MongleButtonBorderBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="6" />
+            </Style>
+            <Style TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+                <Setter Property="MinHeight" Value="34" />
+                <Setter Property="Padding" Value="12,6" />
+                <Setter Property="Background" Value="{ThemeResource MongleButtonBackgroundBrush}" />
+                <Setter Property="Foreground" Value="{ThemeResource MongleButtonForegroundBrush}" />
+                <Setter Property="BorderBrush" Value="{ThemeResource MongleButtonBorderBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="6" />
+            </Style>
+            <Style TargetType="RadioButton">
+                <Setter Property="MinHeight" Value="34" />
+                <Setter Property="MinWidth" Value="96" />
+                <Setter Property="Padding" Value="8,4" />
+                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+                <Setter Property="UseSystemFocusVisuals" Value="True" />
+                <Setter Property="FocusVisualMargin" Value="-3" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="RadioButton">
+                            <Grid
+                                x:Name="Root"
+                                Background="{TemplateBinding Background}"
+                                Control.IsTemplateFocusTarget="True"
+                                CornerRadius="{TemplateBinding CornerRadius}">
+                                <VisualStateManager.VisualStateGroups>
+                                    <VisualStateGroup x:Name="CommonStates">
+                                        <VisualState x:Name="Normal" />
+                                        <VisualState x:Name="PointerOver">
+                                            <VisualState.Setters>
+                                                <Setter Target="IndicatorBorder.BorderBrush" Value="{ThemeResource MongleControlAccentHoverBrush}" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                        <VisualState x:Name="Pressed">
+                                            <VisualState.Setters>
+                                                <Setter Target="Root.Opacity" Value="0.8" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                        <VisualState x:Name="Disabled">
+                                            <VisualState.Setters>
+                                                <Setter Target="Root.Opacity" Value="0.45" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                    </VisualStateGroup>
+                                    <VisualStateGroup x:Name="CheckStates">
+                                        <VisualState x:Name="Checked">
+                                            <VisualState.Setters>
+                                                <Setter Target="IndicatorBorder.Background" Value="{ThemeResource MongleControlAccentBrush}" />
+                                                <Setter Target="IndicatorBorder.BorderBrush" Value="{ThemeResource MongleControlAccentBrush}" />
+                                                <Setter Target="IndicatorDot.Opacity" Value="1" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                        <VisualState x:Name="Unchecked" />
+                                        <VisualState x:Name="Indeterminate" />
+                                    </VisualStateGroup>
+                                </VisualStateManager.VisualStateGroups>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="24" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Border
+                                    x:Name="IndicatorBorder"
+                                    Width="20"
+                                    Height="20"
+                                    HorizontalAlignment="Left"
+                                    VerticalAlignment="Center"
+                                    Background="Transparent"
+                                    BorderBrush="{ThemeResource MongleButtonBorderBrush}"
+                                    BorderThickness="2"
+                                    CornerRadius="10">
+                                    <Ellipse
+                                        x:Name="IndicatorDot"
+                                        Width="8"
+                                        Height="8"
+                                        Fill="{ThemeResource MongleControlAccentGlyphBrush}"
+                                        Opacity="0" />
+                                </Border>
+                                <ContentPresenter
+                                    Grid.Column="1"
+                                    Margin="{TemplateBinding Padding}"
+                                    HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                    VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                    Content="{TemplateBinding Content}"
+                                    ContentTemplate="{TemplateBinding ContentTemplate}"
+                                    ContentTransitions="{TemplateBinding ContentTransitions}"
+                                    Foreground="{TemplateBinding Foreground}"
+                                    TextWrapping="Wrap" />
+                            </Grid>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+            <Style TargetType="Slider" BasedOn="{StaticResource DefaultSliderStyle}">
+                <Setter Property="MinHeight" Value="36" />
+                <Setter Property="Background" Value="{ThemeResource MongleControlTrackBrush}" />
+                <Setter Property="Foreground" Value="{ThemeResource MongleControlAccentBrush}" />
+                <Setter Property="BorderBrush" Value="{ThemeResource MongleControlAccentBrush}" />
+            </Style>
+            <Style TargetType="ToggleSwitch" BasedOn="{StaticResource DefaultToggleSwitchStyle}">
+                <Setter Property="MinHeight" Value="38" />
             </Style>
             <Style x:Key="SpriteFrameBoundaryStyle" TargetType="ContentControl">
                 <Setter Property="Padding" Value="0" />

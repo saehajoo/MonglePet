@@ -96,6 +96,10 @@ internal static class WindowsImagePreviewFactory
         int height,
         int checkerSize)
     {
+        bool usesDarkBackground = Microsoft.UI.Xaml.Application.Current.RequestedTheme ==
+            Microsoft.UI.Xaml.ApplicationTheme.Dark;
+        byte lighter = usesDarkBackground ? (byte)54 : (byte)240;
+        byte darker = usesDarkBackground ? (byte)46 : (byte)230;
         var result = new byte[source.Length];
         for (int y = 0; y < height; y++)
         {
@@ -103,8 +107,8 @@ internal static class WindowsImagePreviewFactory
             {
                 int offset = ((y * width) + x) * 4;
                 byte background = ((x / checkerSize) + (y / checkerSize)) % 2 == 0
-                    ? (byte)238
-                    : (byte)210;
+                    ? lighter
+                    : darker;
                 int inverseAlpha = 255 - source[offset + 3];
                 result[offset + 0] = (byte)Math.Min(255, source[offset + 0] + ((background * inverseAlpha + 127) / 255));
                 result[offset + 1] = (byte)Math.Min(255, source[offset + 1] + ((background * inverseAlpha + 127) / 255));

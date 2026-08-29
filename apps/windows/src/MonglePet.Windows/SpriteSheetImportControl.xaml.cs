@@ -18,6 +18,7 @@ public sealed partial class SpriteSheetImportControl : UserControl
     private readonly UserPetSpriteBoundarySuggestion _suggestion;
     private readonly List<SpriteFrameDraft> _frames = [];
     private readonly List<Guid> _clickOrder = [];
+    private readonly List<Guid> _readingOrder = [];
     private SpriteFrameDraft? _rangeFrame;
     private SpriteFrameDraft? _previewFrame;
     private bool _isRefreshing;
@@ -25,11 +26,14 @@ public sealed partial class SpriteSheetImportControl : UserControl
     private UserPetCropHandle _dragHandle;
     private Point _dragStart;
     private UserPetPixelRect _dragOriginal;
+    private SpriteFrameDraft? _dragFrame;
     private FrameworkElement? _dragBorder;
+    private uint _dragPointerId;
     private bool _dragMoved;
     private bool _suppressNextTap;
     private double _zoom = 1;
     private double _baseScale = 1;
+    private double _dragDisplayScale = 1;
 
     private SpriteSheetImportControl(
         string path,
@@ -59,6 +63,10 @@ public sealed partial class SpriteSheetImportControl : UserControl
         SheetCanvas.AddHandler(
             UIElement.PointerCanceledEvent,
             new PointerEventHandler(FrameBorder_PointerCanceled),
+            handledEventsToo: true);
+        SheetCanvas.AddHandler(
+            UIElement.PointerCaptureLostEvent,
+            new PointerEventHandler(FrameBorder_PointerCaptureLost),
             handledEventsToo: true);
     }
 
@@ -137,6 +145,7 @@ public sealed partial class SpriteSheetImportControl : UserControl
     private void ResetFrameSelection()
     {
         _clickOrder.Clear();
+        CaptureReadingOrder();
         _rangeFrame = _frames.FirstOrDefault();
         _previewFrame = _rangeFrame;
         if (ReadingOrderRadio.IsChecked == true)
@@ -183,22 +192,25 @@ public sealed partial class SpriteSheetImportControl : UserControl
                     Text = order >= 0 ? (order + 1).ToString() : string.Empty,
                     Foreground = new SolidColorBrush(Microsoft.UI.Colors.White),
                     Margin = new Thickness(3, 0, 0, 0),
+                    IsHitTestVisible = false,
                 };
                 var frameContent = new Grid
                 {
-                    IsHitTestVisible = false,
+                    Background = new SolidColorBrush(global::Windows.UI.Color.FromArgb(1, 0, 0, 0)),
                 };
                 frameContent.Children.Add(label);
+                double frameDisplayWidth = frame.Rect.Width * displayScale;
+                double frameDisplayHeight = frame.Rect.Height * displayScale;
                 if (RangeModeRadio.IsChecked == true && frame == _rangeFrame)
                 {
-                    AddResizeHandles(frameContent);
+                    AddResizeHandles(frameContent, frameDisplayWidth, frameDisplayHeight);
                 }
                 var border = new ContentControl
                 {
                     Tag = frame,
                     Style = (Style)Application.Current.Resources["SpriteFrameBoundaryStyle"],
-                    Width = frame.Rect.Width * displayScale,
-                    Height = frame.Rect.Height * displayScale,
+                    Width = frameDisplayWidth,
+                    Height = frameDisplayHeight,
                     MinWidth = 0,
                     MinHeight = 0,
                     BorderBrush = new SolidColorBrush(
@@ -213,6 +225,7 @@ public sealed partial class SpriteSheetImportControl : UserControl
                     HorizontalContentAlignment = HorizontalAlignment.Stretch,
                     VerticalContentAlignment = VerticalAlignment.Stretch,
                     IsTabStop = true,
+                    AllowFocusOnInteraction = false,
                     UseSystemFocusVisuals = true,
                 };
                 AutomationProperties.SetName(
@@ -246,34 +259,53 @@ public sealed partial class SpriteSheetImportControl : UserControl
         }
     }
 
-    private static void AddResizeHandles(Grid content)
+    private static void AddResizeHandles(
+        Grid content,
+        double frameDisplayWidth,
+        double frameDisplayHeight)
     {
-        AddResizeHandle(content, HorizontalAlignment.Left, VerticalAlignment.Top);
-        AddResizeHandle(content, HorizontalAlignment.Center, VerticalAlignment.Top);
-        AddResizeHandle(content, HorizontalAlignment.Right, VerticalAlignment.Top);
-        AddResizeHandle(content, HorizontalAlignment.Left, VerticalAlignment.Center);
-        AddResizeHandle(content, HorizontalAlignment.Right, VerticalAlignment.Center);
-        AddResizeHandle(content, HorizontalAlignment.Left, VerticalAlignment.Bottom);
-        AddResizeHandle(content, HorizontalAlignment.Center, VerticalAlignment.Bottom);
-        AddResizeHandle(content, HorizontalAlignment.Right, VerticalAlignment.Bottom);
+        double minimumDisplayDimension = Math.Min(frameDisplayWidth, frameDisplayHeight);
+        if (!double.IsFinite(minimumDisplayDimension) || minimumDisplayDimension < 18)
+        {
+            return;
+        }
+
+        double hitTargetSize = Math.Clamp(Math.Floor(minimumDisplayDimension * 0.2), 6, 10);
+        double markerSize = Math.Clamp(hitTargetSize - 2, 4, 6);
+        AddResizeHandle(content, UserPetCropHandle.TopLeft, HorizontalAlignment.Left, VerticalAlignment.Top, hitTargetSize, markerSize);
+        AddResizeHandle(content, UserPetCropHandle.Top, HorizontalAlignment.Center, VerticalAlignment.Top, hitTargetSize, markerSize);
+        AddResizeHandle(content, UserPetCropHandle.TopRight, HorizontalAlignment.Right, VerticalAlignment.Top, hitTargetSize, markerSize);
+        AddResizeHandle(content, UserPetCropHandle.Left, HorizontalAlignment.Left, VerticalAlignment.Center, hitTargetSize, markerSize);
+        AddResizeHandle(content, UserPetCropHandle.Right, HorizontalAlignment.Right, VerticalAlignment.Center, hitTargetSize, markerSize);
+        AddResizeHandle(content, UserPetCropHandle.BottomLeft, HorizontalAlignment.Left, VerticalAlignment.Bottom, hitTargetSize, markerSize);
+        AddResizeHandle(content, UserPetCropHandle.Bottom, HorizontalAlignment.Center, VerticalAlignment.Bottom, hitTargetSize, markerSize);
+        AddResizeHandle(content, UserPetCropHandle.BottomRight, HorizontalAlignment.Right, VerticalAlignment.Bottom, hitTargetSize, markerSize);
     }
 
     private static void AddResizeHandle(
         Grid content,
+        UserPetCropHandle handle,
         HorizontalAlignment horizontalAlignment,
-        VerticalAlignment verticalAlignment)
+        VerticalAlignment verticalAlignment,
+        double hitTargetSize,
+        double markerSize)
     {
         content.Children.Add(new Border
         {
-            Width = 8,
-            Height = 8,
+            Tag = handle,
+            Width = hitTargetSize,
+            Height = hitTargetSize,
+            Padding = new Thickness((hitTargetSize - markerSize) / 2),
             HorizontalAlignment = horizontalAlignment,
             VerticalAlignment = verticalAlignment,
-            Background = new SolidColorBrush(Microsoft.UI.Colors.DeepSkyBlue),
-            BorderBrush = new SolidColorBrush(Microsoft.UI.Colors.White),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(2),
-            IsHitTestVisible = false,
+            Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
+            Child = new Border
+            {
+                Background = new SolidColorBrush(Microsoft.UI.Colors.DeepSkyBlue),
+                BorderBrush = new SolidColorBrush(Microsoft.UI.Colors.White),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(2),
+            },
         });
     }
 
@@ -281,13 +313,26 @@ public sealed partial class SpriteSheetImportControl : UserControl
     {
         if (ClickOrderRadio.IsChecked == true)
         {
-            var byId = _frames.ToDictionary(frame => frame.Id);
-            return _clickOrder.Where(byId.ContainsKey).Select(id => byId[id]).ToArray();
+            var clickFramesById = _frames.ToDictionary(frame => frame.Id);
+            return _clickOrder
+                .Where(clickFramesById.ContainsKey)
+                .Select(id => clickFramesById[id])
+                .ToArray();
         }
-        return UserPetSpriteSheetGeometry.ReadingOrder(
-                _frames.Where(frame => frame.IsIncluded),
-                frame => frame.Rect)
+        var readingFramesById = _frames.ToDictionary(frame => frame.Id);
+        return _readingOrder
+            .Where(readingFramesById.ContainsKey)
+            .Select(id => readingFramesById[id])
+            .Where(frame => frame.IsIncluded)
             .ToArray();
+    }
+
+    private void CaptureReadingOrder()
+    {
+        _readingOrder.Clear();
+        _readingOrder.AddRange(UserPetSpriteSheetGeometry
+            .ReadingOrder(_frames, frame => frame.Rect)
+            .Select(frame => frame.Id));
     }
 
     private async Task RefreshPreviewAsync(IReadOnlyList<SpriteFrameDraft>? final = null)
@@ -354,12 +399,15 @@ public sealed partial class SpriteSheetImportControl : UserControl
 
     private void SheetCanvas_PointerPressed(object sender, PointerRoutedEventArgs e)
     {
-        if (SelectionModeRadio.IsChecked == true)
+        var canvasPointer = e.GetCurrentPoint(SheetCanvas);
+        if (SelectionModeRadio.IsChecked == true ||
+            _isDragging ||
+            !canvasPointer.Properties.IsLeftButtonPressed)
         {
             return;
         }
         double scale = _baseScale * _zoom;
-        Point sheetPoint = e.GetCurrentPoint(SheetCanvas).Position;
+        Point sheetPoint = canvasPointer.Position;
         bool Contains(SpriteFrameDraft candidate) =>
             sheetPoint.X >= candidate.Rect.X * scale &&
             sheetPoint.X <= candidate.Rect.Right * scale &&
@@ -380,16 +428,23 @@ public sealed partial class SpriteSheetImportControl : UserControl
             return;
         }
         _rangeFrame = frame;
-        var point = new Point(
-            sheetPoint.X - frame.Rect.X * scale,
-            sheetPoint.Y - frame.Rect.Y * scale);
-        _dragHandle = HitHandle(point, border.ActualWidth, border.ActualHeight);
-        _dragStart = sheetPoint;
+        _dragHandle = FindExplicitHandle(e.OriginalSource) ?? UserPetCropHandle.Move;
+        _dragStart = e.GetCurrentPoint(this).Position;
         _dragOriginal = frame.Rect;
+        _dragFrame = frame;
+        _dragDisplayScale = Math.Max(0.000_1, scale);
         _dragBorder = border;
+        _dragPointerId = e.Pointer.PointerId;
         _dragMoved = false;
-        _isDragging = true;
-        SheetCanvas.CapturePointer(e.Pointer);
+        _isDragging = SheetCanvas.CapturePointer(e.Pointer);
+        if (!_isDragging)
+        {
+            _dragFrame = null;
+            _dragBorder = null;
+            return;
+        }
+        SheetScrollViewer.HorizontalScrollMode = ScrollMode.Disabled;
+        SheetScrollViewer.VerticalScrollMode = ScrollMode.Disabled;
         border.BorderThickness = new Thickness(3);
         RefreshNumberBoxes();
         e.Handled = true;
@@ -447,29 +502,38 @@ public sealed partial class SpriteSheetImportControl : UserControl
 
     private void FrameBorder_PointerMoved(object sender, PointerRoutedEventArgs e)
     {
-        if (!_isDragging || _rangeFrame is null)
+        if (!_isDragging ||
+            e.Pointer.PointerId != _dragPointerId ||
+            _dragFrame is null)
         {
             return;
         }
-        Point current = e.GetCurrentPoint(SheetCanvas).Position;
-        double scale = _baseScale * _zoom;
+        var currentPointer = e.GetCurrentPoint(this);
+        if (!currentPointer.Properties.IsLeftButtonPressed)
+        {
+            return;
+        }
+        Point current = currentPointer.Position;
+        if (!double.IsFinite(current.X) || !double.IsFinite(current.Y))
+        {
+            return;
+        }
         double displayDeltaX = current.X - _dragStart.X;
         double displayDeltaY = current.Y - _dragStart.Y;
         _dragMoved |= Math.Abs(displayDeltaX) >= 2 || Math.Abs(displayDeltaY) >= 2;
-        _rangeFrame.Rect = UserPetImageEditingGeometry.DragCrop(
+        _dragFrame.Rect = UserPetImageEditingGeometry.DragCrop(
             _dragOriginal,
             _dragHandle,
-            (int)Math.Round(displayDeltaX / scale),
-            (int)Math.Round(displayDeltaY / scale),
+            (int)Math.Round(displayDeltaX / _dragDisplayScale),
+            (int)Math.Round(displayDeltaY / _dragDisplayScale),
             _decoded.Width,
             _decoded.Height);
         if (_dragBorder is not null)
         {
-            double displayScale = _baseScale * _zoom;
-            _dragBorder.Width = _rangeFrame.Rect.Width * displayScale;
-            _dragBorder.Height = _rangeFrame.Rect.Height * displayScale;
-            Canvas.SetLeft(_dragBorder, _rangeFrame.Rect.X * displayScale);
-            Canvas.SetTop(_dragBorder, _rangeFrame.Rect.Y * displayScale);
+            _dragBorder.Width = _dragFrame.Rect.Width * _dragDisplayScale;
+            _dragBorder.Height = _dragFrame.Rect.Height * _dragDisplayScale;
+            Canvas.SetLeft(_dragBorder, _dragFrame.Rect.X * _dragDisplayScale);
+            Canvas.SetTop(_dragBorder, _dragFrame.Rect.Y * _dragDisplayScale);
         }
         RefreshNumberBoxes();
         e.Handled = true;
@@ -477,43 +541,62 @@ public sealed partial class SpriteSheetImportControl : UserControl
 
     private async void FrameBorder_PointerReleased(object sender, PointerRoutedEventArgs e)
     {
-        if (!_isDragging)
+        if (!_isDragging || e.Pointer.PointerId != _dragPointerId)
         {
             return;
         }
         _isDragging = false;
-        if (sender is UIElement element)
-        {
-            element.ReleasePointerCapture(e.Pointer);
-        }
+        SheetCanvas.ReleasePointerCapture(e.Pointer);
         _suppressNextTap = _dragMoved;
+        _dragFrame = null;
         _dragBorder = null;
         await RenderAsync();
         e.Handled = true;
     }
 
-    private void FrameBorder_PointerCanceled(object sender, PointerRoutedEventArgs e)
+    private async void FrameBorder_PointerCanceled(object sender, PointerRoutedEventArgs e)
     {
+        SpriteFrameDraft? dragFrame = _dragFrame;
+        if (!_isDragging || e.Pointer.PointerId != _dragPointerId || dragFrame is null)
+        {
+            return;
+        }
+        dragFrame.Rect = _dragOriginal;
         _isDragging = false;
+        SheetCanvas.ReleasePointerCapture(e.Pointer);
+        _dragFrame = null;
         _dragBorder = null;
+        await RenderAsync();
+        e.Handled = true;
     }
 
-    private static UserPetCropHandle HitHandle(Point point, double width, double height)
+    private async void FrameBorder_PointerCaptureLost(object sender, PointerRoutedEventArgs e)
     {
-        const double tolerance = 10;
-        bool left = point.X <= tolerance;
-        bool right = point.X >= width - tolerance;
-        bool top = point.Y <= tolerance;
-        bool bottom = point.Y >= height - tolerance;
-        if (left && top) return UserPetCropHandle.TopLeft;
-        if (right && top) return UserPetCropHandle.TopRight;
-        if (right && bottom) return UserPetCropHandle.BottomRight;
-        if (left && bottom) return UserPetCropHandle.BottomLeft;
-        if (top) return UserPetCropHandle.Top;
-        if (right) return UserPetCropHandle.Right;
-        if (bottom) return UserPetCropHandle.Bottom;
-        if (left) return UserPetCropHandle.Left;
-        return UserPetCropHandle.Move;
+        SpriteFrameDraft? dragFrame = _dragFrame;
+        if (!_isDragging || e.Pointer.PointerId != _dragPointerId || dragFrame is null)
+        {
+            return;
+        }
+        dragFrame.Rect = _dragOriginal;
+        _isDragging = false;
+        _dragFrame = null;
+        _dragBorder = null;
+        await RenderAsync();
+        e.Handled = true;
+    }
+
+    private static UserPetCropHandle? FindExplicitHandle(object source)
+    {
+        DependencyObject? current = source as DependencyObject;
+        while (current is not null)
+        {
+            if (current is FrameworkElement { Tag: UserPetCropHandle handle })
+            {
+                return handle;
+            }
+            current = VisualTreeHelper.GetParent(current);
+        }
+        return null;
     }
 
     private async void ApplyGridButton_Click(object sender, RoutedEventArgs e)
@@ -576,6 +659,13 @@ public sealed partial class SpriteSheetImportControl : UserControl
         {
             foreach (SpriteFrameDraft frame in _frames) frame.IsIncluded = true;
         }
+        ApplyReadingOrderButton.IsEnabled = ReadingOrderRadio.IsChecked == true;
+        await RenderAsync();
+    }
+
+    private async void ApplyReadingOrderButton_Click(object sender, RoutedEventArgs e)
+    {
+        CaptureReadingOrder();
         await RenderAsync();
     }
 
@@ -592,7 +682,8 @@ public sealed partial class SpriteSheetImportControl : UserControl
     private async void SelectAllButton_Click(object sender, RoutedEventArgs e)
     {
         _clickOrder.Clear();
-        foreach (SpriteFrameDraft frame in UserPetSpriteSheetGeometry.ReadingOrder(_frames, value => value.Rect))
+        var byId = _frames.ToDictionary(frame => frame.Id);
+        foreach (SpriteFrameDraft frame in _readingOrder.Where(byId.ContainsKey).Select(id => byId[id]))
         {
             frame.IsIncluded = true;
             if (ClickOrderRadio.IsChecked == true) _clickOrder.Add(frame.Id);
