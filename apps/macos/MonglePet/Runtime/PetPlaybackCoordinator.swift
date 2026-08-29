@@ -35,14 +35,22 @@ nonisolated struct MovementPlaybackPriorityResolver: Sendable {
     }
 }
 
+nonisolated enum PetPlaybackLayer: Equatable, Sendable {
+    case behavior
+    case movement
+}
+
 @MainActor
 final class PetPlaybackCoordinator {
     private var behaviorPlayback: ScheduledMotion?
     private var movementPlayback: ScheduledMotion?
     private var movementTakesPriority = true
     private let onPlaybackChange: (ScheduledMotion?) -> Void
+    private var onMovementPresentationChange: (Bool) -> Void = { _ in }
+    private var isMovementPresentationActive = false
     private var hasEmittedPlayback = false
     private(set) var currentPlayback: ScheduledMotion?
+    private(set) var currentPlaybackLayer: PetPlaybackLayer?
 
     init(
         petDefinition: PetDefinition,
@@ -55,7 +63,15 @@ final class PetPlaybackCoordinator {
         behaviorPlayback = nil
         movementPlayback = nil
         currentPlayback = nil
+        currentPlaybackLayer = nil
+        isMovementPresentationActive = false
         hasEmittedPlayback = false
+    }
+
+    func setMovementPresentationChangeHandler(
+        _ handler: @escaping (Bool) -> Void
+    ) {
+        onMovementPresentationChange = handler
     }
 
     func setBehaviorPlayback(_ playback: ScheduledMotion?) {
@@ -77,24 +93,47 @@ final class PetPlaybackCoordinator {
     }
 
     private func refresh() {
-        emit(effectivePlayback)
-    }
-
-    private var effectivePlayback: ScheduledMotion? {
-        if behaviorPlayback?.isInteraction == true {
-            return behaviorPlayback
+        let movementPresentationActive = movementTakesPriority
+            && movementPlayback != nil
+        if movementPresentationActive != isMovementPresentationActive {
+            isMovementPresentationActive = movementPresentationActive
+            onMovementPresentationChange(movementPresentationActive)
         }
-        return movementTakesPriority
-            ? movementPlayback ?? behaviorPlayback
-            : behaviorPlayback ?? movementPlayback
+        let selection = effectivePlaybackSelection
+        emit(selection.playback, layer: selection.layer)
     }
 
-    private func emit(_ playback: ScheduledMotion?) {
-        guard !hasEmittedPlayback || playback != currentPlayback else {
+    private var effectivePlaybackSelection: (
+        playback: ScheduledMotion?,
+        layer: PetPlaybackLayer?
+    ) {
+        if behaviorPlayback?.isInteraction == true {
+            return (behaviorPlayback, .behavior)
+        }
+        if movementTakesPriority, let movementPlayback {
+            return (movementPlayback, .movement)
+        }
+        if let behaviorPlayback {
+            return (behaviorPlayback, .behavior)
+        }
+        if let movementPlayback {
+            return (movementPlayback, .movement)
+        }
+        return (nil, nil)
+    }
+
+    private func emit(
+        _ playback: ScheduledMotion?,
+        layer: PetPlaybackLayer?
+    ) {
+        guard !hasEmittedPlayback
+                || playback != currentPlayback
+                || layer != currentPlaybackLayer else {
             return
         }
         hasEmittedPlayback = true
         currentPlayback = playback
+        currentPlaybackLayer = layer
         onPlaybackChange(playback)
     }
 }

@@ -85,6 +85,11 @@ nonisolated enum PetAnimationReferenceChange: Equatable, Sendable {
     case removed(String)
 }
 
+nonisolated enum NewUserPetInstallationPurpose: Equatable, Sendable {
+    case newPet
+    case editableCopy(sourcePetKey: PetBehaviorKey)
+}
+
 @MainActor
 final class PetLibrarySession: ObservableObject {
     @Published private(set) var items: [PetLibraryItem]
@@ -98,6 +103,9 @@ final class PetLibrarySession: ObservableObject {
     var onInstallationRemoved: ((UUID) -> Void)?
     var onAnimationReferenceChange: ((PetAnimationReferenceChange) -> Void)?
     var onRecommendedProfileApplied: ((UUID, RecommendedPetProfile) -> Void)?
+    var onNewUserPetInstallation: (
+        (InstalledPetPackage, NewUserPetInstallationPurpose) throws -> Void
+    )?
 
     private let builtInItem: PetLibraryItem
     private var itemsBySelection: [PetLibrarySelection: PetLibraryItem]
@@ -614,7 +622,7 @@ final class PetLibrarySession: ObservableObject {
 
     @discardableResult
     func createUserPet(_ request: UserPetCreationRequest) -> Bool {
-        performUserPetChange {
+        performNewUserPetInstallation(purpose: .newPet) {
             try userPetCreator(request)
         }
     }
@@ -622,14 +630,20 @@ final class PetLibrarySession: ObservableObject {
     @discardableResult
     func createEditableCopyOfSelectedPet(displayName: String) -> Bool {
         if selectedItem.isBuiltIn {
-            return performUserPetChange {
+            return performNewUserPetInstallation(
+                purpose: .editableCopy(sourcePetKey: .builtIn)
+            ) {
                 try builtInEditableCopyCreator(displayName)
             }
         }
         guard let installedPackage = selectedItem.installedPackage else {
             return false
         }
-        return performUserPetChange {
+        return performNewUserPetInstallation(
+            purpose: .editableCopy(
+                sourcePetKey: .installed(installedPackage.installationID)
+            )
+        ) {
             try editableCopyCreator(installedPackage, displayName)
         }
     }
@@ -737,6 +751,50 @@ final class PetLibrarySession: ObservableObject {
             let installed = try operation()
             errorMessage = nil
             _ = reload(preferredInstallationID: installed.installationID)
+            onSelectionChange?(selectedItem)
+            return true
+        } catch {
+            errorMessage = error.localizedDescription
+            return false
+        }
+    }
+
+    private func performNewUserPetInstallation(
+        purpose: NewUserPetInstallationPurpose,
+        _ operation: () throws -> InstalledPetPackage
+    ) -> Bool {
+        guard !isImporting, !isExporting else {
+            return false
+        }
+        isImporting = true
+        defer { isImporting = false }
+
+        let previousSelection = selection
+        do {
+            let installed = try operation()
+            _ = reload(preferredInstallationID: installed.installationID)
+            do {
+                try onNewUserPetInstallation?(installed, purpose)
+            } catch {
+                let settingsError = error.localizedDescription
+                var cleanupError: String?
+                do {
+                    try installationRemover(installed.installationID)
+                } catch {
+                    cleanupError = error.localizedDescription
+                }
+                _ = reload(
+                    preferredInstallationID: previousSelection.installationID
+                )
+                if let cleanupError {
+                    errorMessage = "\(settingsError) 새 펫 설치를 정리하지 못했습니다: \(cleanupError) 펫 보관함에서 비활성 설치 항목을 확인해 주세요."
+                } else {
+                    errorMessage = "\(settingsError) 새 펫 설치는 되돌렸습니다."
+                }
+                return false
+            }
+
+            errorMessage = nil
             onSelectionChange?(selectedItem)
             return true
         } catch {

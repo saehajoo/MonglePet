@@ -94,6 +94,101 @@ final class AppSettingsMultiPetEditingTests: XCTestCase {
         )
     }
 
+    func testAddingCopiedPetAcrossKeysClonesIndependentProfileAndOverlay() throws {
+        let sourceKey = PetBehaviorKey.builtIn
+        let copyKey = PetBehaviorKey.installed(
+            UUID(uuidString: "76000000-0000-0000-0000-000000000001")!
+        )
+        let sourceProfile = BehaviorProfile(
+            petKey: sourceKey,
+            mode: .random,
+            manualSequenceID: "manual",
+            randomSequenceIDs: ["happy", "rest"],
+            sequences: [
+                BehaviorSequence(
+                    id: "happy",
+                    steps: [BehaviorStep(motionID: "happy", repeatCount: 2)],
+                    repeats: true
+                )
+            ],
+            automaticRules: [],
+            movement: PetMovementSettings(
+                mode: .freeRoaming,
+                speed: 234,
+                cursorDistance: 88,
+                stopRadius: 17,
+                freeRoamingDwellMilliseconds: 4_500,
+                prefersFrontmostWindow: false,
+                cursorFollowingMotionID: "walk",
+                freeRoamingMotionID: "walk"
+            ),
+            pettingMotionID: "happy",
+            speech: .default
+        )
+        let source = AppSettings.default
+            .replacingActiveBehaviorProfile(sourceProfile)
+            .replacingSelectedOverlay(
+                OverlaySettings(
+                    screenIdentifier: "display-A",
+                    originX: 120,
+                    originY: 240,
+                    width: 321,
+                    clickThrough: true,
+                    opacity: 0.72,
+                    pointerOverlapFadeEnabled: true,
+                    pointerOverlapOpacity: 0.18,
+                    pixelArtRendering: true,
+                    movementBoundary: .default
+                )
+            )
+        let sourceInstance = try XCTUnwrap(source.selectedPetInstance)
+        let copyInstanceID = UUID(
+            uuidString: "77000000-0000-0000-0000-000000000001"
+        )!
+        let copyProfileID = UUID(
+            uuidString: "78000000-0000-0000-0000-000000000001"
+        )!
+
+        let copied = source.addingPetInstance(
+            for: copyKey,
+            copyingSettingsFrom: sourceInstance.instanceID,
+            allowsCopyingAcrossPetKeys: true,
+            usesSelectedOverlayFallback: false,
+            instanceID: copyInstanceID,
+            profileID: copyProfileID
+        )
+
+        let copyInstance = try XCTUnwrap(copied.selectedPetInstance)
+        let copyProfile = try XCTUnwrap(copied.activeBehaviorProfile)
+        XCTAssertEqual(copyInstance.petKey, copyKey)
+        XCTAssertNotEqual(copyInstance.behaviorProfileID, sourceInstance.behaviorProfileID)
+        XCTAssertEqual(copyProfile.petKey, copyKey)
+        XCTAssertEqual(copyProfile.mode, sourceProfile.mode)
+        XCTAssertEqual(copyProfile.randomSequenceIDs, sourceProfile.randomSequenceIDs)
+        XCTAssertEqual(copyProfile.sequences, sourceProfile.sequences)
+        XCTAssertEqual(copyProfile.movement, sourceProfile.movement)
+        XCTAssertEqual(copyProfile.pettingMotionID, sourceProfile.pettingMotionID)
+        XCTAssertEqual(copyInstance.overlay.width, sourceInstance.overlay.width)
+        XCTAssertEqual(copyInstance.overlay.opacity, sourceInstance.overlay.opacity)
+        XCTAssertEqual(copyInstance.overlay.originX, sourceInstance.overlay.originX + 28)
+        XCTAssertEqual(copyInstance.overlay.originY, sourceInstance.overlay.originY - 28)
+
+        let changedCopy = copied.replacingActiveBehaviorProfile(
+            BehaviorProfile(
+                petKey: copyKey,
+                mode: .manual,
+                manualSequenceID: nil,
+                sequences: [],
+                automaticRules: []
+            )
+        )
+        XCTAssertEqual(
+            changedCopy.runtimeSettings(for: sourceInstance.instanceID)?
+                .activeBehaviorProfile,
+            sourceProfile
+        )
+    }
+
     func testNicknameSelectionAndReorderingPreserveInstanceIdentity() throws {
         let first = AppSettings.default
         let firstID = first.selectedPetInstanceID

@@ -238,7 +238,10 @@ final class MonglePetUITests: XCTestCase {
                 .waitForExistence(timeout: 5)
         )
         XCTAssertTrue(app.descendants(matching: .any)["monglepet.userPet.author"].exists)
-        XCTAssertTrue(app.descendants(matching: .any)["monglepet.userPet.version"].exists)
+        let versionField = app.descendants(matching: .any)[
+            "monglepet.userPet.version"
+        ]
+        XCTAssertTrue(versionField.exists)
         XCTAssertTrue(app.descendants(matching: .any)["monglepet.userPet.description"].exists)
         let frameDuration = app.descendants(matching: .any)[
             "monglepet.userPet.frameDuration"
@@ -257,6 +260,14 @@ final class MonglePetUITests: XCTestCase {
         XCTAssertTrue(choosePNGsMenuItem.isHittable)
         XCTAssertFalse(app.menuItems["AI 제작 프롬프트 복사"].exists)
         app.typeKey(.escape, modifierFlags: [])
+
+        versionField.click()
+        versionField.typeKey("a", modifierFlags: .command)
+        versionField.typeText("01.0.0")
+        XCTAssertTrue(
+            app.staticTexts["monglepet.userPet.versionError"]
+                .waitForExistence(timeout: 2)
+        )
         XCTAssertTrue(app.buttons["monglepet.userPet.save"].exists)
     }
 

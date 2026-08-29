@@ -1,6 +1,23 @@
 import Combine
 import Foundation
 
+nonisolated enum AppSettingsMutationError: LocalizedError, Equatable, Sendable {
+    case writingDisabled
+    case noChange
+    case saveFailed(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .writingDisabled:
+            "현재 설정 형식은 이 앱보다 새로워서 안전하게 저장할 수 없습니다."
+        case .noChange:
+            "새 펫 설정을 만들지 못했습니다."
+        case let .saveFailed(message):
+            "새 펫 설정을 저장하지 못했습니다: \(message)"
+        }
+    }
+}
+
 @MainActor
 final class AppSettingsSession: ObservableObject {
     @Published private(set) var settings: AppSettings = .default
@@ -131,24 +148,6 @@ final class AppSettingsSession: ObservableObject {
         )
     }
 
-    func copyActiveBehaviorProfile(from source: BehaviorProfile) {
-        updateActiveProfile(
-            BehaviorProfile(
-                petKey: settings.selectedPetKey,
-                mode: source.mode,
-                manualSequenceID: source.manualSequenceID,
-                randomSequenceIDs: source.randomSequenceIDs,
-                sequences: source.sequences,
-                automaticRules: source.automaticRules,
-                automaticRulePriorityOrder:
-                    source.automaticRulePriorityOrder,
-                movement: source.movement,
-                pettingMotionID: source.pettingMotionID,
-                speech: source.speech
-            )
-        )
-    }
-
     func selectPetInstance(_ instanceID: UUID) {
         update(settings.selectingPetInstance(instanceID))
     }
@@ -173,6 +172,46 @@ final class AppSettingsSession: ObservableObject {
             return nil
         }
         update(BuiltInBehaviorPresets.normalizedDefaults(in: updated))
+        return instanceID
+    }
+
+    @discardableResult
+    func addNewlyInstalledPetInstance(
+        for petKey: PetBehaviorKey,
+        copyingSettingsFrom sourceInstanceID: UUID?
+    ) throws -> UUID {
+        guard isWritingEnabled else {
+            throw AppSettingsMutationError.writingDisabled
+        }
+
+        let instanceID = UUID()
+        let profileID = UUID()
+        let updated = settings.addingPetInstance(
+            for: petKey,
+            copyingSettingsFrom: sourceInstanceID,
+            allowsCopyingAcrossPetKeys: true,
+            usesSelectedOverlayFallback: false,
+            instanceID: instanceID,
+            profileID: profileID
+        )
+        let normalized = BuiltInBehaviorPresets.normalizedDefaults(in: updated)
+        guard normalized != settings else {
+            throw AppSettingsMutationError.noChange
+        }
+
+        do {
+            try store.save(normalized)
+        } catch {
+            let mutationError = AppSettingsMutationError.saveFailed(
+                error.localizedDescription
+            )
+            saveErrorMessage = mutationError.localizedDescription
+            throw mutationError
+        }
+
+        settings = normalized
+        saveErrorMessage = nil
+        onChange?(normalized)
         return instanceID
     }
 

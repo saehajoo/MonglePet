@@ -45,6 +45,7 @@ final class FramePlayer {
     private let scheduler: any FrameScheduling
     private let onFrameChange: (MotionFrame) -> Void
     private var motion: PetMotion?
+    private var currentFrameRemainingDuration: Duration?
     private(set) var currentFrameIndex = 0
     private(set) var isPlaying = false
     private(set) var playbackSpeed = 1.0
@@ -57,21 +58,30 @@ final class FramePlayer {
         self.onFrameChange = onFrameChange
     }
 
-    func play(_ motion: PetMotion, playbackSpeed: Double = 1) {
+    func play(
+        _ motion: PetMotion,
+        playbackSpeed: Double = 1,
+        cycleElapsedDuration: Duration = .zero
+    ) {
         scheduler.cancel()
         self.motion = motion
         self.playbackSpeed = playbackSpeed.isFinite && playbackSpeed > 0
             ? playbackSpeed
             : 1
-        currentFrameIndex = 0
+        let position = framePosition(
+            in: motion,
+            at: max(cycleElapsedDuration, .zero)
+        )
+        currentFrameIndex = position.index
+        currentFrameRemainingDuration = position.remainingDuration
 
-        guard let firstFrame = motion.frames.first else {
+        guard motion.frames.indices.contains(currentFrameIndex) else {
             isPlaying = false
             return
         }
 
         isPlaying = true
-        onFrameChange(firstFrame)
+        onFrameChange(motion.frames[currentFrameIndex])
         scheduleCurrentFrameIfNeeded()
     }
 
@@ -97,6 +107,7 @@ final class FramePlayer {
         scheduler.cancel()
         motion = nil
         currentFrameIndex = 0
+        currentFrameRemainingDuration = nil
         isPlaying = false
         playbackSpeed = 1
     }
@@ -110,7 +121,9 @@ final class FramePlayer {
             return
         }
 
-        let adjustedDuration = motion.frames[currentFrameIndex].duration / playbackSpeed
+        let adjustedDuration = currentFrameRemainingDuration
+            ?? motion.frames[currentFrameIndex].duration / playbackSpeed
+        currentFrameRemainingDuration = nil
         scheduler.schedule(after: adjustedDuration) { [weak self] in
             self?.advanceFrame()
         }
@@ -133,6 +146,30 @@ final class FramePlayer {
 
         onFrameChange(motion.frames[currentFrameIndex])
         scheduleCurrentFrameIfNeeded()
+    }
+
+    private func framePosition(
+        in motion: PetMotion,
+        at elapsedDuration: Duration
+    ) -> (index: Int, remainingDuration: Duration?) {
+        guard !motion.frames.isEmpty else {
+            return (0, nil)
+        }
+
+        var remainingElapsed = elapsedDuration
+        for (index, frame) in motion.frames.enumerated() {
+            let frameDuration = frame.duration / playbackSpeed
+            if remainingElapsed < frameDuration {
+                return (index, frameDuration - remainingElapsed)
+            }
+            remainingElapsed -= frameDuration
+        }
+
+        let lastIndex = motion.frames.index(before: motion.frames.endIndex)
+        return (
+            lastIndex,
+            motion.frames[lastIndex].duration / playbackSpeed
+        )
     }
 }
 

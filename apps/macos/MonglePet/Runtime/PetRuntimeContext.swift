@@ -125,6 +125,12 @@ final class PetRuntimeContext: PetRuntimeContextType {
                 )
             }
         }
+        playbackCoordinator.setMovementPresentationChangeHandler {
+            [weak behaviorRuntime] isActive in
+            behaviorRuntime?.setMovementPlaybackObscuresBehavior(
+                isActive
+            )
+        }
 
         let movementBehaviorRuntime = PetMovementBehaviorRuntime(
             petDefinition: petWindowController.petDefinition

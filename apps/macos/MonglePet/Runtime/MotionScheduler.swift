@@ -4,11 +4,21 @@ nonisolated struct ScheduledMotion: Equatable, Sendable {
     let requestedMotionID: String
     let motion: PetMotion
     let playbackSpeed: Double
+    let cycleElapsedDuration: Duration
     let isInteraction: Bool
 
     var usesFallback: Bool {
         requestedMotionID != PetMotionReference.currentPetDefault
             && requestedMotionID != motion.id
+    }
+
+    func hasSamePlaybackIdentity(as other: ScheduledMotion) -> Bool {
+        sequenceID == other.sequenceID
+            && stepIndex == other.stepIndex
+            && requestedMotionID == other.requestedMotionID
+            && motion == other.motion
+            && playbackSpeed == other.playbackSpeed
+            && isInteraction == other.isInteraction
     }
 }
 
@@ -83,6 +93,18 @@ nonisolated struct MotionScheduler: Sendable {
             ?? baseCursor?.remainingCycleDuration
     }
 
+    var activeCycleElapsedDuration: Duration? {
+        guard let cursor = interactionCursor ?? baseCursor,
+              cursor.steps.indices.contains(cursor.stepIndex) else {
+            return nil
+        }
+        return max(
+            cursor.steps[cursor.stepIndex].cycleDuration
+                - cursor.remainingCycleDuration,
+            .zero
+        )
+    }
+
     var isInteractionPlaying: Bool {
         interactionCursor != nil
     }
@@ -109,6 +131,16 @@ nonisolated struct MotionScheduler: Sendable {
         }
 
         self.baseCursor = requestedCursor
+        pendingSequence = nil
+        return true
+    }
+
+    @discardableResult
+    mutating func restart(_ sequence: BehaviorSequence) -> Bool {
+        guard let requestedCursor = makeCursor(for: sequence) else {
+            return false
+        }
+        baseCursor = requestedCursor
         pendingSequence = nil
         return true
     }
@@ -176,6 +208,10 @@ nonisolated struct MotionScheduler: Sendable {
                 requestedMotionID: step.source.motionID,
                 motion: step.motion,
                 playbackSpeed: step.playbackSpeed,
+                cycleElapsedDuration: max(
+                    step.cycleDuration - cursor.remainingCycleDuration,
+                    .zero
+                ),
                 isInteraction: isInteraction
             )
         )

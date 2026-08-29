@@ -6,6 +6,24 @@ import XCTest
 @testable import MonglePet
 
 final class UserPetPackageEditorTests: XCTestCase {
+    func testUserPetContentVersionRequiresStrictASCIISemanticShape() {
+        for version in ["0.0.0", "1.0.0", "2.3.4", "10.20.300"] {
+            XCTAssertTrue(UserPetContentVersion.isValid(version), version)
+        }
+        for version in [
+            "01.0.0",
+            "1.00.0",
+            "v1.0.0",
+            "1.0.0-beta",
+            "1.0",
+            "1..0",
+            "１.0.0",
+            "١.0.0"
+        ] {
+            XCTAssertFalse(UserPetContentVersion.isValid(version), version)
+        }
+    }
+
     func testCreatesEditablePetFromInMemorySpriteFrames() throws {
         let environment = try makeEnvironment()
         let store = PetLibraryStore(libraryRootURL: environment.libraryURL)

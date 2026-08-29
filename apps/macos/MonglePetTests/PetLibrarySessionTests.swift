@@ -490,12 +490,18 @@ final class PetLibrarySessionTests: XCTestCase {
             }
         )
         var selections: [PetLibrarySelection] = []
+        var purposes: [NewUserPetInstallationPurpose] = []
         session.onSelectionChange = { selections.append($0.selection) }
+        session.onNewUserPetInstallation = { received, purpose in
+            XCTAssertEqual(received, installed)
+            purposes.append(purpose)
+        }
 
         XCTAssertTrue(session.createUserPet(request))
         XCTAssertEqual(session.selection, .installed(firstID))
         XCTAssertTrue(session.selectedItem.isEditable)
         XCTAssertEqual(selections, [.installed(firstID)])
+        XCTAssertEqual(purposes, [.newPet])
     }
 
     func testCreatingEditableCopyReloadsSelectsAndNotifiesRuntime() {
@@ -516,7 +522,12 @@ final class PetLibrarySessionTests: XCTestCase {
         )
         _ = session.reload(preferredInstallationID: firstID)
         var selections: [PetLibrarySelection] = []
+        var purposes: [NewUserPetInstallationPurpose] = []
         session.onSelectionChange = { selections.append($0.selection) }
+        session.onNewUserPetInstallation = { received, purpose in
+            XCTAssertEqual(received, copy)
+            purposes.append(purpose)
+        }
 
         XCTAssertTrue(
             session.createEditableCopyOfSelectedPet(displayName: "편집용 펫")
@@ -529,7 +540,86 @@ final class PetLibrarySessionTests: XCTestCase {
             .installed(secondID)
         ])
         XCTAssertEqual(selections, [.installed(secondID)])
+        XCTAssertEqual(
+            purposes,
+            [.editableCopy(sourcePetKey: .installed(firstID))]
+        )
         XCTAssertNil(session.errorMessage)
+    }
+
+    func testNewPetInstallationRollsBackWhenSettingsSaveFails() {
+        let original = makeInstalled(id: firstID, name: "기존 펫")
+        let created = makeInstalled(id: secondID, name: "새 펫")
+        var packages = [original]
+        var removedIDs: [UUID] = []
+        let request = UserPetCreationRequest(
+            displayName: "새 펫",
+            animationName: "기본",
+            frameDurationMilliseconds: 120,
+            loops: true,
+            sourceURLs: [URL(fileURLWithPath: "/tmp/frame.png")]
+        )
+        let session = PetLibrarySession(
+            builtInDefinition: builtInDefinition,
+            installedPackagesProvider: { packages },
+            installationRemover: { installationID in
+                removedIDs.append(installationID)
+                packages.removeAll { $0.installationID == installationID }
+            },
+            userPetCreator: { _ in
+                packages.append(created)
+                return created
+            }
+        )
+        _ = session.reload(preferredInstallationID: firstID)
+        var selections: [PetLibrarySelection] = []
+        session.onSelectionChange = { selections.append($0.selection) }
+        session.onNewUserPetInstallation = { _, _ in
+            throw AppSettingsMutationError.saveFailed("테스트 실패")
+        }
+
+        XCTAssertFalse(session.createUserPet(request))
+        XCTAssertEqual(removedIDs, [secondID])
+        XCTAssertEqual(packages.map(\.installationID), [firstID])
+        XCTAssertEqual(session.selection, .installed(firstID))
+        XCTAssertTrue(selections.isEmpty)
+        XCTAssertTrue(session.errorMessage?.contains("되돌렸습니다") == true)
+    }
+
+    func testFailedRollbackLeavesInstallationInactiveWithRecoveryMessage() {
+        let original = makeInstalled(id: firstID, name: "기존 펫")
+        let created = makeInstalled(id: secondID, name: "정리 실패 펫")
+        var packages = [original]
+        let request = UserPetCreationRequest(
+            displayName: "정리 실패 펫",
+            animationName: "기본",
+            frameDurationMilliseconds: 120,
+            loops: true,
+            sourceURLs: [URL(fileURLWithPath: "/tmp/frame.png")]
+        )
+        let session = PetLibrarySession(
+            builtInDefinition: builtInDefinition,
+            installedPackagesProvider: { packages },
+            installationRemover: { _ in
+                throw PetLibraryError.fileOperationFailed
+            },
+            userPetCreator: { _ in
+                packages.append(created)
+                return created
+            }
+        )
+        _ = session.reload(preferredInstallationID: firstID)
+        session.onNewUserPetInstallation = { _, _ in
+            throw AppSettingsMutationError.saveFailed("테스트 실패")
+        }
+
+        XCTAssertFalse(session.createUserPet(request))
+        XCTAssertEqual(session.selection, .installed(firstID))
+        XCTAssertEqual(
+            Set(session.items.compactMap { $0.selection.installationID }),
+            Set([firstID, secondID])
+        )
+        XCTAssertTrue(session.errorMessage?.contains("비활성 설치 항목") == true)
     }
 
     func testCreatingEditableCopyFromEditablePetKeepsOriginal() {

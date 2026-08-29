@@ -191,6 +191,31 @@ nonisolated enum UserPetAnimationFrameSource: Equatable, Sendable {
     case image(UserPetSourceImage)
 }
 
+nonisolated enum UserPetContentVersion {
+    static let guidance =
+        "버전은 1.0.0처럼 MAJOR.MINOR.PATCH 형식으로 입력해 주세요."
+
+    static func isValid(_ value: String) -> Bool {
+        let value = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        let components = value.split(
+            separator: ".",
+            omittingEmptySubsequences: false
+        )
+        guard components.count == 3 else {
+            return false
+        }
+        return components.allSatisfy { component in
+            guard !component.isEmpty else {
+                return false
+            }
+            if component.count > 1, component.first == "0" {
+                return false
+            }
+            return component.utf8.allSatisfy { 48...57 ~= $0 }
+        }
+    }
+}
+
 nonisolated enum UserPetEditingError: Error, Equatable, Sendable {
     case invalidPetName
     case invalidVersion
@@ -217,7 +242,7 @@ extension UserPetEditingError: LocalizedError {
         case .invalidPetName:
             "펫 이름을 입력해 주세요."
         case .invalidVersion:
-            "펫 버전을 입력해 주세요."
+            UserPetContentVersion.guidance
         case .invalidAuthor:
             "제작자 이름을 입력해 주세요."
         case .invalidAnimationName:
@@ -997,7 +1022,7 @@ nonisolated struct UserPetPackageEditor {
             throw UserPetEditingError.invalidPetName
         }
         let version = version.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !version.isEmpty else {
+        guard UserPetContentVersion.isValid(version) else {
             throw UserPetEditingError.invalidVersion
         }
         let author = author.trimmingCharacters(in: .whitespacesAndNewlines)

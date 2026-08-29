@@ -308,6 +308,28 @@ final class MotionRuntimeTests: XCTestCase {
     }
 
     @MainActor
+    func testFramePlayerRestoresFrameAndRemainingDelayFromCyclePosition() {
+        let scheduler = ManualFrameScheduler()
+        let motion = makeMotion(
+            id: "focus",
+            durations: [.milliseconds(100), .milliseconds(200)]
+        )
+        var publishedFrames: [MotionFrame] = []
+        let player = FramePlayer(scheduler: scheduler) {
+            publishedFrames.append($0)
+        }
+
+        player.play(
+            motion,
+            cycleElapsedDuration: .milliseconds(150)
+        )
+
+        XCTAssertEqual(player.currentFrameIndex, 1)
+        XCTAssertEqual(publishedFrames, [motion.frames[1]])
+        XCTAssertEqual(scheduler.scheduledDelay, .milliseconds(150))
+    }
+
+    @MainActor
     func testNonLoopingFramePlayerStopsAfterLastFrameDuration() {
         let scheduler = ManualFrameScheduler()
         let motion = makeMotion(

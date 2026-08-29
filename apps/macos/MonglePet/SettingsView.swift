@@ -578,8 +578,7 @@ private struct PetSettingsView: View {
         .sheet(isPresented: $isCreatingEditableCopy) {
             ReadOnlyPetCopyEditorView(
                 item: petLibrarySession.selectedItem,
-                petLibrarySession: petLibrarySession,
-                settingsSession: settingsSession
+                petLibrarySession: petLibrarySession
             )
         }
         .sheet(
@@ -3036,8 +3035,18 @@ private struct UserPetAnimationEditorView: View {
 
                 GridRow {
                     fieldLabel("버전")
-                    TextField("버전", text: $version)
-                        .accessibilityIdentifier("monglepet.userPet.version")
+                    VStack(alignment: .leading, spacing: 4) {
+                        TextField("버전", text: $version)
+                            .accessibilityIdentifier("monglepet.userPet.version")
+                        if !UserPetContentVersion.isValid(version) {
+                            Text(UserPetContentVersion.guidance)
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                                .accessibilityIdentifier(
+                                    "monglepet.userPet.versionError"
+                                )
+                        }
+                    }
                 }
 
                 GridRow {
@@ -3277,6 +3286,7 @@ private struct UserPetAnimationEditorView: View {
             && (mode != .create
                 || (!petName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                     && !version.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    && UserPetContentVersion.isValid(version)
                     && !author.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
     }
 
@@ -3561,18 +3571,15 @@ private struct ReadOnlyPetCopyEditorView: View {
     @Environment(\.dismiss) private var dismiss
     let item: PetLibraryItem
     @ObservedObject var petLibrarySession: PetLibrarySession
-    @ObservedObject var settingsSession: AppSettingsSession
 
     @State private var displayName: String
 
     init(
         item: PetLibraryItem,
-        petLibrarySession: PetLibrarySession,
-        settingsSession: AppSettingsSession
+        petLibrarySession: PetLibrarySession
     ) {
         self.item = item
         self.petLibrarySession = petLibrarySession
-        self.settingsSession = settingsSession
         _displayName = State(initialValue: "\(item.metadata.displayName) 사본")
     }
 
@@ -3628,11 +3635,7 @@ private struct ReadOnlyPetCopyEditorView: View {
     }
 
     private func createCopy() {
-        let sourceProfile = settingsSession.settings.activeBehaviorProfile
         if petLibrarySession.createEditableCopyOfSelectedPet(displayName: displayName) {
-            if let sourceProfile {
-                settingsSession.copyActiveBehaviorProfile(from: sourceProfile)
-            }
             dismiss()
         }
     }
@@ -3674,8 +3677,18 @@ private struct UserPetDetailsEditorView: View {
                 TextField("제작자", text: $author)
                     .accessibilityIdentifier("monglepet.petDetails.author")
 
-                TextField("버전", text: $version)
-                    .accessibilityIdentifier("monglepet.petDetails.version")
+                VStack(alignment: .leading, spacing: 4) {
+                    TextField("버전", text: $version)
+                        .accessibilityIdentifier("monglepet.petDetails.version")
+                    if !UserPetContentVersion.isValid(version) {
+                        Text(UserPetContentVersion.guidance)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                            .accessibilityIdentifier(
+                                "monglepet.petDetails.versionError"
+                            )
+                    }
+                }
 
                 TextField("설명", text: $petDescription, axis: .vertical)
                     .lineLimit(2...5)
@@ -3719,7 +3732,7 @@ private struct UserPetDetailsEditorView: View {
 
     private var canSave: Bool {
         !displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && !version.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && UserPetContentVersion.isValid(version)
             && !author.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && item.definition.motion(id: defaultMotionID) != nil
     }

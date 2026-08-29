@@ -240,6 +240,112 @@ final class PetBehaviorRuntimeTests: XCTestCase {
         XCTAssertEqual(runtime.currentPlayback?.motion.id, "focus")
     }
 
+    func testMovementInterruptsRandomBehaviorAndStartsNextAtFirstFrame() {
+        let clock = ManualBehaviorRuntimeClock()
+        let tickScheduler = ManualBehaviorTickScheduler()
+        var receivedPlaybacks: [ScheduledMotion?] = []
+        let pet = makePet()
+        let coordinator = PetPlaybackCoordinator(
+            petDefinition: pet
+        ) { _ in }
+        let runtime = PetBehaviorRuntime(
+            petDefinition: pet,
+            clock: clock,
+            tickScheduler: tickScheduler,
+            randomIndex: { _ in 0 }
+        ) { playback in
+            receivedPlaybacks.append(playback)
+            coordinator.setBehaviorPlayback(playback)
+        }
+        coordinator.setMovementPresentationChangeHandler {
+            [weak runtime] isActive in
+            runtime?.setMovementPlaybackObscuresBehavior(isActive)
+        }
+        let focus = BehaviorSequence(
+            id: "focus",
+            steps: [BehaviorStep(motionID: "focus", repeatCount: 1)],
+            repeats: true
+        )
+        let rest = BehaviorSequence(
+            id: "rest",
+            steps: [BehaviorStep(motionID: "rest", repeatCount: 1)],
+            repeats: true
+        )
+        let settings = AppSettings(
+            selectedPetInstallationID: nil,
+            lastUserPresentation: .awake,
+            behaviorMode: .random,
+            overlay: .default,
+            manualSequenceID: nil,
+            randomSequenceIDs: [focus.id, rest.id],
+            sequences: [focus, rest],
+            automaticRules: []
+        )
+
+        runtime.update(settings: settings, snapshot: snapshot())
+        clock.advance(by: .milliseconds(40))
+        coordinator.setMovementPlayback(
+            ScheduledMotion(
+                sequenceID: "movement",
+                stepIndex: 0,
+                requestedMotionID: "sleep",
+                motion: pet.motion(id: "sleep")!,
+                playbackSpeed: 1,
+                cycleElapsedDuration: .zero,
+                isInteraction: false
+            )
+        )
+
+        XCTAssertTrue(runtime.isPaused)
+        XCTAssertNil(tickScheduler.scheduledDelay)
+        XCTAssertEqual(runtime.currentPlayback?.motion.id, "rest")
+        XCTAssertEqual(
+            runtime.currentPlayback?.cycleElapsedDuration,
+            .zero
+        )
+
+        clock.advance(by: .seconds(10))
+        runtime.update(settings: settings, snapshot: snapshot())
+
+        XCTAssertEqual(runtime.currentPlayback?.motion.id, "rest")
+        XCTAssertEqual(
+            runtime.currentPlayback?.cycleElapsedDuration,
+            .zero
+        )
+        XCTAssertNil(tickScheduler.scheduledDelay)
+
+        coordinator.setMovementPlayback(nil)
+
+        XCTAssertFalse(runtime.isPaused)
+        XCTAssertEqual(coordinator.currentPlayback?.motion.id, "rest")
+        XCTAssertEqual(
+            coordinator.currentPlayback?.cycleElapsedDuration,
+            .zero
+        )
+        XCTAssertEqual(tickScheduler.scheduledDelay, .milliseconds(100))
+
+        clock.advance(by: .milliseconds(100))
+        tickScheduler.fire()
+
+        XCTAssertEqual(runtime.currentPlayback?.motion.id, "focus")
+        XCTAssertEqual(
+            receivedPlaybacks.compactMap { $0 }.map(\.motion.id),
+            ["focus", "rest", "focus"]
+        )
+    }
+
+    func testMovementPreservesAutomaticBehaviorCyclePosition() throws {
+        try assertMovementPreservesCyclePosition(
+            settings: makeSettings(mode: .automatic)
+        )
+    }
+
+    func testMovementPreservesManualBehaviorCyclePosition() throws {
+        try assertMovementPreservesCyclePosition(
+            settings: makeSettings(mode: .manual, manualSequenceID: "focus")
+        )
+    }
+
     func testReplacingPetDefinitionRestartsDecisionWithIdleFallback() {
         let clock = ManualBehaviorRuntimeClock()
         let tickScheduler = ManualBehaviorTickScheduler()
@@ -304,6 +410,45 @@ final class PetBehaviorRuntimeTests: XCTestCase {
         XCTAssertFalse(runtime.currentPlayback?.isInteraction == true)
         XCTAssertEqual(tickScheduler.scheduledDelay, .milliseconds(60))
         XCTAssertEqual(receivedMotionIDs, ["idle", "petting", "idle"])
+    }
+
+    private func assertMovementPreservesCyclePosition(
+        settings: AppSettings
+    ) throws {
+        let clock = ManualBehaviorRuntimeClock()
+        let tickScheduler = ManualBehaviorTickScheduler()
+        let runtime = PetBehaviorRuntime(
+            petDefinition: makePet(),
+            clock: clock,
+            tickScheduler: tickScheduler
+        ) { _ in }
+
+        runtime.update(settings: settings, snapshot: snapshot())
+        let initialDelay = try XCTUnwrap(tickScheduler.scheduledDelay)
+        let initialMotionID = try XCTUnwrap(runtime.currentPlayback?.motion.id)
+        clock.advance(by: .milliseconds(40))
+
+        runtime.setMovementPlaybackObscuresBehavior(true)
+        XCTAssertTrue(runtime.isPaused)
+        XCTAssertEqual(
+            runtime.currentPlayback?.cycleElapsedDuration,
+            .milliseconds(40)
+        )
+
+        clock.advance(by: .seconds(10))
+        runtime.update(settings: settings, snapshot: snapshot())
+        XCTAssertEqual(runtime.currentPlayback?.motion.id, initialMotionID)
+        XCTAssertEqual(
+            runtime.currentPlayback?.cycleElapsedDuration,
+            .milliseconds(40)
+        )
+
+        runtime.setMovementPlaybackObscuresBehavior(false)
+        XCTAssertFalse(runtime.isPaused)
+        XCTAssertEqual(
+            tickScheduler.scheduledDelay,
+            initialDelay - .milliseconds(40)
+        )
     }
 
     private func makeSettings(

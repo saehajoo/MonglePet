@@ -162,6 +162,37 @@ final class AppCoordinator: NSObject {
                 to: installationID
             )
         }
+        petLibrarySession.onNewUserPetInstallation = {
+            [weak settingsSession] installed, purpose in
+            guard let settingsSession else {
+                throw AppSettingsMutationError.noChange
+            }
+            let sourceInstanceID: UUID?
+            switch purpose {
+            case .newPet:
+                sourceInstanceID = nil
+            case let .editableCopy(sourcePetKey):
+                let settings = settingsSession.settings
+                if settings.selectedPetInstance?.petKey == sourcePetKey {
+                    sourceInstanceID = settings.selectedPetInstanceID
+                } else {
+                    sourceInstanceID = settings.activePetInstances
+                        .filter { $0.petKey == sourcePetKey }
+                        .sorted {
+                            if $0.displayOrder != $1.displayOrder {
+                                return $0.displayOrder < $1.displayOrder
+                            }
+                            return $0.instanceID.uuidString
+                                < $1.instanceID.uuidString
+                        }
+                        .first?.instanceID
+                }
+            }
+            try settingsSession.addNewlyInstalledPetInstance(
+                for: .installed(installed.installationID),
+                copyingSettingsFrom: sourceInstanceID
+            )
+        }
         effectiveRuntimeControlSession.onSetAllPaused = {
             [weak self] isPaused in
             self?.setAllPetsPaused(isPaused)

@@ -23,6 +23,26 @@ final class PetPlaybackCoordinatorTests: XCTestCase {
         XCTAssertEqual(receivedMotionIDs, ["idle", "run", "rest"])
     }
 
+    func testMovementPresentationChangesIgnoreInteractionOverlay() {
+        var receivedStates: [Bool] = []
+        let coordinator = PetPlaybackCoordinator(
+            petDefinition: makePet()
+        ) { _ in }
+        coordinator.setMovementPresentationChangeHandler {
+            receivedStates.append($0)
+        }
+
+        coordinator.setBehaviorPlayback(playback(motionID: "idle"))
+        coordinator.setMovementPlayback(playback(motionID: "run"))
+        coordinator.setBehaviorPlayback(
+            playback(motionID: "petting", isInteraction: true)
+        )
+        coordinator.setBehaviorPlayback(playback(motionID: "rest"))
+        coordinator.setMovementPlayback(nil)
+
+        XCTAssertEqual(receivedStates, [true, false])
+    }
+
     func testMissingMovementMotionKeepsBehaviorPlayback() {
         var receivedMotionIDs: [String?] = []
         let coordinator = PetPlaybackCoordinator(
@@ -140,6 +160,7 @@ final class PetPlaybackCoordinatorTests: XCTestCase {
             requestedMotionID: motionID,
             motion: makePet().motion(id: motionID)!,
             playbackSpeed: 1,
+            cycleElapsedDuration: .zero,
             isInteraction: isInteraction
         )
     }

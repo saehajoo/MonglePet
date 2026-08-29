@@ -67,6 +67,8 @@ final class PetBehaviorRuntime {
     private var previousMode: BehaviorMode?
     private var latestConfiguration: BehaviorConfiguration?
     private var latestPresentation: PetPresentation = .awake
+    private var isDecisionPaused = false
+    private var isMovementPlaybackObscuringBehavior = false
     private var lastAdvancedAt: ContinuousClock.Instant?
     private var hasEmittedPlayback = false
     private(set) var currentPlayback: ScheduledMotion?
@@ -107,7 +109,7 @@ final class PetBehaviorRuntime {
     @discardableResult
     func triggerInteraction(sequence: BehaviorSequence) -> Bool {
         guard
-            !motionScheduler.isPaused,
+            !isDecisionPaused,
             !sequence.steps.isEmpty
         else {
             return false
@@ -118,6 +120,10 @@ final class PetBehaviorRuntime {
 
         let now = clock.now
         advance(to: now)
+        let shouldRestoreMovementPause = isMovementPlaybackObscuringBehavior
+        if shouldRestoreMovementPause {
+            motionScheduler.resume()
+        }
         let onePassSequence = BehaviorSequence(
             id: sequence.id,
             displayName: sequence.displayName,
@@ -125,6 +131,9 @@ final class PetBehaviorRuntime {
             repeats: false
         )
         guard motionScheduler.triggerInteraction(onePassSequence) else {
+            if shouldRestoreMovementPause {
+                motionScheduler.pause()
+            }
             return false
         }
 
@@ -132,6 +141,39 @@ final class PetBehaviorRuntime {
         emitCurrentPlaybackIfNeeded()
         scheduleNextBoundary()
         return true
+    }
+
+    func setMovementPlaybackObscuresBehavior(_ obscuresBehavior: Bool) {
+        guard isMovementPlaybackObscuringBehavior != obscuresBehavior else {
+            return
+        }
+
+        let now = clock.now
+        advance(to: now)
+        isMovementPlaybackObscuringBehavior = obscuresBehavior
+        lastAdvancedAt = now
+
+        if obscuresBehavior {
+            let isRandomMode = latestConfiguration?.mode == .random
+            if isRandomMode {
+                restartRandomSelectionForMovement(at: now)
+            }
+            guard !motionScheduler.isInteractionPlaying else {
+                return
+            }
+            tickScheduler.cancel()
+            motionScheduler.pause()
+            if !isRandomMode {
+                emitCurrentPlaybackIfNeeded(force: true)
+            }
+            return
+        }
+
+        guard !isDecisionPaused else {
+            return
+        }
+        motionScheduler.resume()
+        scheduleNextBoundary()
     }
 
     func replacePetDefinition(_ petDefinition: PetDefinition) {
@@ -143,6 +185,8 @@ final class PetBehaviorRuntime {
         latestDecision = nil
         currentPlayback = nil
         hasEmittedPlayback = false
+        isDecisionPaused = false
+        isMovementPlaybackObscuringBehavior = false
         resetRandomSelection()
         latestConfiguration = nil
         previousMode = nil
@@ -187,20 +231,25 @@ final class PetBehaviorRuntime {
         latestDecision = nil
         latestConfiguration = nil
         previousMode = nil
+        isDecisionPaused = false
+        isMovementPlaybackObscuringBehavior = false
         resetRandomSelection()
         emit(playback: nil)
     }
 
     private func apply(
         _ decision: BehaviorDecision,
-        at now: ContinuousClock.Instant
+        at now: ContinuousClock.Instant,
+        restartBaseSequence: Bool = false
     ) {
         switch decision {
         case .tuckedAway, .suspended:
+            isDecisionPaused = true
             tickScheduler.cancel()
             motionScheduler.pause()
             lastAdvancedAt = now
         case let .sequence(sequence, source):
+            isDecisionPaused = false
             motionScheduler.resume()
             let scheduledSequence = source == .random
                 ? BehaviorSequence(
@@ -210,11 +259,20 @@ final class PetBehaviorRuntime {
                     repeats: false
                 )
                 : sequence
-            _ = motionScheduler.request(scheduledSequence)
+            if restartBaseSequence {
+                _ = motionScheduler.restart(scheduledSequence)
+            } else {
+                _ = motionScheduler.request(scheduledSequence)
+            }
+            if isMovementPlaybackObscuringBehavior,
+               !motionScheduler.isInteractionPlaying {
+                motionScheduler.pause()
+            }
             lastAdvancedAt = now
             emitCurrentPlaybackIfNeeded()
             scheduleNextBoundary()
         case .unavailable:
+            isDecisionPaused = false
             tickScheduler.cancel()
             motionScheduler.stop()
             lastAdvancedAt = now
@@ -251,38 +309,95 @@ final class PetBehaviorRuntime {
     }
 
     private func boundaryTimerDidFire() {
-        advance(to: clock.now)
-        if !motionScheduler.isInteractionPlaying,
-           motionScheduler.isBaseSequenceComplete,
-           let configuration = latestConfiguration,
-           configuration.mode == .random {
-            currentRandomSequenceID = nextRandomSequenceID(
-                from: configuration.randomSequenceIDs.filter { sequenceID in
-                    configuration.sequences.contains(where: {
-                        $0.id == sequenceID
-                    })
-                }
-            )
-            let decision = resolver.resolve(
-                configuration: configuration,
-                snapshot: ActivitySnapshot(
-                    capturedAt: clock.now,
-                    idleDuration: .zero,
-                    frontmostApplicationID: nil,
-                    isScreenLocked: false,
-                    isSystemSleeping: false
-                ),
-                runtimeState: BehaviorRuntimeState(
-                    presentation: latestPresentation,
-                    randomSequenceID: currentRandomSequenceID
-                )
-            )
-            latestDecision = decision
-            apply(decision, at: clock.now)
+        let now = clock.now
+        advance(to: now)
+        if isMovementPlaybackObscuringBehavior,
+           !motionScheduler.isInteractionPlaying {
+            tickScheduler.cancel()
+            motionScheduler.pause()
+            emitCurrentPlaybackIfNeeded(force: true)
+            return
+        }
+        if advanceRandomSelectionIfNeeded(at: now) {
             return
         }
         emitCurrentPlaybackIfNeeded()
         scheduleNextBoundary()
+    }
+
+    private func restartRandomSelectionForMovement(
+        at now: ContinuousClock.Instant
+    ) {
+        guard let configuration = latestConfiguration,
+              configuration.mode == .random else {
+            return
+        }
+        let validIDs = configuration.randomSequenceIDs.filter { sequenceID in
+            configuration.sequences.contains(where: { $0.id == sequenceID })
+        }
+        let previousPlayback = currentPlayback
+        currentRandomSequenceID = nextRandomSequenceID(from: validIDs)
+        let decision = resolver.resolve(
+            configuration: configuration,
+            snapshot: ActivitySnapshot(
+                capturedAt: now,
+                idleDuration: .zero,
+                frontmostApplicationID: nil,
+                isScreenLocked: false,
+                isSystemSleeping: false
+            ),
+            runtimeState: BehaviorRuntimeState(
+                presentation: latestPresentation,
+                randomSequenceID: currentRandomSequenceID
+            )
+        )
+        latestDecision = decision
+        apply(decision, at: now, restartBaseSequence: true)
+        if !motionScheduler.isInteractionPlaying,
+           let previousPlayback,
+           let currentPlayback,
+           previousPlayback.hasSamePlaybackIdentity(as: currentPlayback) {
+            emitCurrentPlaybackIfNeeded(force: true)
+        }
+    }
+
+    @discardableResult
+    private func advanceRandomSelectionIfNeeded(
+        at now: ContinuousClock.Instant
+    ) -> Bool {
+        guard
+            !motionScheduler.isInteractionPlaying,
+            motionScheduler.isBaseSequenceComplete,
+            let configuration = latestConfiguration,
+            configuration.mode == .random
+        else {
+            return false
+        }
+
+        currentRandomSequenceID = nextRandomSequenceID(
+            from: configuration.randomSequenceIDs.filter { sequenceID in
+                configuration.sequences.contains(where: {
+                    $0.id == sequenceID
+                })
+            }
+        )
+        let decision = resolver.resolve(
+            configuration: configuration,
+            snapshot: ActivitySnapshot(
+                capturedAt: now,
+                idleDuration: .zero,
+                frontmostApplicationID: nil,
+                isScreenLocked: false,
+                isSystemSleeping: false
+            ),
+            runtimeState: BehaviorRuntimeState(
+                presentation: latestPresentation,
+                randomSequenceID: currentRandomSequenceID
+            )
+        )
+        latestDecision = decision
+        apply(decision, at: now)
+        return true
     }
 
     private func prepareRandomSelectionIfNeeded(
@@ -337,18 +452,29 @@ final class PetBehaviorRuntime {
         currentRandomSequenceID = nil
     }
 
-    private func emitCurrentPlaybackIfNeeded() {
+    private func emitCurrentPlaybackIfNeeded(force: Bool = false) {
         switch motionScheduler.status {
         case let .playing(playback):
-            emit(playback: playback)
+            emit(playback: playback, force: force)
         case .stopped, .unavailable:
-            emit(playback: nil)
+            emit(playback: nil, force: force)
         }
     }
 
-    private func emit(playback: ScheduledMotion?) {
-        guard !hasEmittedPlayback || playback != currentPlayback else {
-            return
+    private func emit(
+        playback: ScheduledMotion?,
+        force: Bool = false
+    ) {
+        if hasEmittedPlayback, !force {
+            switch (currentPlayback, playback) {
+            case (nil, nil):
+                return
+            case let (current?, next?)
+                where current.hasSamePlaybackIdentity(as: next):
+                return
+            default:
+                break
+            }
         }
 
         hasEmittedPlayback = true

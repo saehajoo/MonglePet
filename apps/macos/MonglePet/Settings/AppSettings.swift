@@ -1103,6 +1103,8 @@ nonisolated struct AppSettings: Equatable, Sendable {
     func addingPetInstance(
         for petKey: PetBehaviorKey,
         copyingSettingsFrom sourceInstanceID: UUID? = nil,
+        allowsCopyingAcrossPetKeys: Bool = false,
+        usesSelectedOverlayFallback: Bool = true,
         instanceID: UUID = UUID(),
         profileID: UUID = UUID()
     ) -> AppSettings {
@@ -1120,7 +1122,8 @@ nonisolated struct AppSettings: Equatable, Sendable {
         let sourceInstance = sourceInstanceID.flatMap { sourceID in
             activePetInstances.first { instance in
                 instance.instanceID == sourceID
-                    && instance.petKey == petKey
+                    && (instance.petKey == petKey
+                        || allowsCopyingAcrossPetKeys)
             }
         }
         let sourceProfile = sourceInstance.flatMap { source in
@@ -1128,8 +1131,11 @@ nonisolated struct AppSettings: Equatable, Sendable {
                 $0.profileID == source.behaviorProfileID
             }?.profile
         }
-        let profile = sourceProfile ?? Self.defaultProfile(for: petKey)
-        let sourceOverlay = sourceInstance?.overlay ?? selectedPetInstance?.overlay
+        let profile = sourceProfile.map {
+            Self.copying($0, for: petKey)
+        } ?? Self.defaultProfile(for: petKey)
+        let sourceOverlay = sourceInstance?.overlay
+            ?? (usesSelectedOverlayFallback ? selectedPetInstance?.overlay : nil)
         let overlay = sourceOverlay.map(Self.offsetOverlay) ?? .default
         let newInstance = PetInstanceSettings(
             instanceID: instanceID,
@@ -1519,6 +1525,24 @@ nonisolated struct AppSettings: Equatable, Sendable {
             pointerOverlapOpacity: overlay.pointerOverlapOpacity,
             pixelArtRendering: overlay.pixelArtRendering,
             movementBoundary: overlay.movementBoundary
+        )
+    }
+
+    private static func copying(
+        _ profile: BehaviorProfile,
+        for petKey: PetBehaviorKey
+    ) -> BehaviorProfile {
+        BehaviorProfile(
+            petKey: petKey,
+            mode: profile.mode,
+            manualSequenceID: profile.manualSequenceID,
+            randomSequenceIDs: profile.randomSequenceIDs,
+            sequences: profile.sequences,
+            automaticRules: profile.automaticRules,
+            automaticRulePriorityOrder: profile.automaticRulePriorityOrder,
+            movement: profile.movement,
+            pettingMotionID: profile.pettingMotionID,
+            speech: profile.speech
         )
     }
 

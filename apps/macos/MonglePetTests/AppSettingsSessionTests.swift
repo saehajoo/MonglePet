@@ -61,6 +61,79 @@ final class AppSettingsSessionTests: XCTestCase {
     }
 
     @MainActor
+    func testNewInstallationTransactionPersistsIndependentCopyBeforePublishing() throws {
+        let store = AppSettingsStore(settingsURL: settingsURL)
+        let session = AppSettingsSession(store: store)
+        _ = session.load()
+        let sourceID = session.settings.selectedPetInstanceID
+        var published: [AppSettings] = []
+        session.onChange = { published.append($0) }
+        let installationID = UUID(
+            uuidString: "79000000-0000-0000-0000-000000000001"
+        )!
+
+        let newInstanceID = try session.addNewlyInstalledPetInstance(
+            for: .installed(installationID),
+            copyingSettingsFrom: sourceID
+        )
+
+        XCTAssertEqual(published.count, 1)
+        XCTAssertEqual(session.settings.selectedPetInstanceID, newInstanceID)
+        XCTAssertEqual(session.settings.activePetInstances.count, 2)
+        XCTAssertEqual(session.settings.petBehaviorProfiles.count, 2)
+        let reloaded = AppSettingsSession(store: store)
+        XCTAssertEqual(reloaded.load().source, .file)
+        XCTAssertEqual(reloaded.settings, session.settings)
+
+        reloaded.setBehaviorMode(.manual)
+        XCTAssertEqual(
+            reloaded.settings.runtimeSettings(for: sourceID)?.behaviorMode,
+            .automatic
+        )
+        XCTAssertEqual(reloaded.settings.behaviorMode, .manual)
+        let reloadedAgain = AppSettingsSession(store: store)
+        XCTAssertEqual(reloadedAgain.load().source, .file)
+        XCTAssertEqual(
+            reloadedAgain.settings.runtimeSettings(for: sourceID)?.behaviorMode,
+            .automatic
+        )
+        XCTAssertEqual(reloadedAgain.settings.behaviorMode, .manual)
+    }
+
+    @MainActor
+    func testNewInstallationTransactionDoesNotPublishWhenSaveFails() throws {
+        let blockedParentURL = temporaryDirectoryURL.appendingPathComponent(
+            "not-a-directory"
+        )
+        XCTAssertTrue(
+            FileManager.default.createFile(
+                atPath: blockedParentURL.path,
+                contents: Data("blocked".utf8)
+            )
+        )
+        let session = AppSettingsSession(
+            store: AppSettingsStore(
+                settingsURL: blockedParentURL.appendingPathComponent(
+                    "settings.json"
+                )
+            )
+        )
+        let original = session.settings
+        var publishCount = 0
+        session.onChange = { _ in publishCount += 1 }
+
+        XCTAssertThrowsError(
+            try session.addNewlyInstalledPetInstance(
+                for: .installed(UUID()),
+                copyingSettingsFrom: nil
+            )
+        )
+        XCTAssertEqual(session.settings, original)
+        XCTAssertEqual(publishCount, 0)
+        XCTAssertNotNil(session.saveErrorMessage)
+    }
+
+    @MainActor
     func testOverlayOpacitySettingsClampApplyAndPersist() {
         let session = AppSettingsSession(
             store: AppSettingsStore(settingsURL: settingsURL)
