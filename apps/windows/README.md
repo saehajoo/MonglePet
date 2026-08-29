@@ -124,6 +124,8 @@ SDK는 루트 `global.json`의 .NET 10.0.302로 고정한다. .NET 10이 제공�
 
 소스 커밋 `7e7f3d9`를 태그 `windows-v1.4.0-preview.1`의 GitHub Pre-release로 게시했다. 원격에서 다시 받은 설치기 크기와 SHA-256, `SHA256SUMS.txt` 내용이 로컬 최종 산출물과 일치한다. 혼합 DPI·Narrator·큰 이미지 반복 편집·Windows→macOS 왕복과 제거 QA는 후속 사용자 검증으로 계속 추적한다.
 
+2026-08-29 후속 `1.4.0.14`는 스프라이트 경계 이동·8방향 크기 조절과 작은 프레임 포인터 판정을 안정화하고, 애니메이션 content 배율·캔버스 밖 배치, 새 펫·사본의 독립 활성 인스턴스, 앱 제작 버전의 숫자형 `MAJOR.MINOR.PATCH` 검증을 반영했다. 다크·라이트 테마의 버튼·slider·radio·toggle 상태 대비를 통일하고 실제 최상위 overlay와 composition bridge child에 클릭 통과 스타일을 함께 복구한다. 사용자 요청에 따라 전체 자동 테스트는 재실행하지 않았으며 Debug 빌드와 Release unpackaged publish는 경고·오류 없이 통과했고 물리 포인터로 펫 뒤 별도 프로세스 버튼 클릭을 확인했다. 소스 커밋 `682acfa50b8a48ca6c2ce6531c4dd0be673ab082`를 태그 `windows-v1.4.0-preview.2`의 GitHub Pre-release로 게시했다. 원격 설치기 65,270,050 bytes와 SHA-256 `C1B8066BFF2BCB1840E594AF668A6E3EF0226FAB5590804594AF3A2E05D64678`, `SHA256SUMS.txt`를 다시 내려받아 일치를 확인했다.
+
 Windows 기반부터 로컬 공유까지의 완료 기록은 `../../AGENTS/work_plans/INDEX.md`에서 확인한다. 이번 가져오기 검토·권장 설정·내보내기 구현은 `../../AGENTS/work_plans/tasks/2026-08-09-windows-local-sharing.md`에 정리했다. 다음 구현을 시작하기 전 이 디렉터리의 `AGENTS.md`와 새 작업 계획을 함께 확인한다.
 
 ## EXE 설치기 만들기
