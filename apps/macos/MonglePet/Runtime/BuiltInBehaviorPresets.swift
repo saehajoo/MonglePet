@@ -344,10 +344,11 @@ nonisolated enum BuiltInBehaviorPresets {
         }) ? normalizedSettings.sequences : sequences + normalizedSettings.sequences
 
         return BehaviorConfiguration(
-            mode: normalizedSettings.behaviorMode,
+            stationaryBehaviorMode:
+                normalizedSettings.stationaryBehaviorMode,
             defaultSequenceID: defaultSequenceID,
-            manualSequenceID: normalizedSettings.manualSequenceID
-                ?? defaultManualSequenceID,
+            stationarySequenceID:
+                normalizedSettings.stationarySequenceID,
             randomSequenceIDs: normalizedSettings.randomSequenceIDs,
             sequences: configuredSequences,
             automaticRules: normalizedSettings.automaticRules,
@@ -371,7 +372,6 @@ nonisolated enum BuiltInBehaviorPresets {
             return replacingDefaults(
                 in: settings,
                 sequences: sequences,
-                manualSequenceID: defaultManualSequenceID,
                 automaticRules: []
             )
         }
@@ -382,16 +382,14 @@ nonisolated enum BuiltInBehaviorPresets {
             normalizedSequences.insert(sequences[0], at: 0)
         }
         let availableIDs = Set(normalizedSequences.map(\.id))
-        let normalizedManualSequenceID = settings.manualSequenceID.flatMap {
+        let normalizedStationarySequenceID = settings.stationarySequenceID.flatMap {
             availableIDs.contains($0) ? $0 : nil
-        } ?? (availableIDs.contains(defaultManualSequenceID)
-            ? defaultManualSequenceID
-            : normalizedSequences.first?.id)
+        }
 
         return replacingDefaults(
             in: settings,
             sequences: normalizedSequences,
-            manualSequenceID: normalizedManualSequenceID,
+            stationarySequenceID: normalizedStationarySequenceID,
             automaticRules: settings.automaticRules
         )
     }
@@ -458,8 +456,8 @@ nonisolated enum BuiltInBehaviorPresets {
         }
         return BehaviorProfile(
             petKey: profile.petKey,
-            mode: profile.mode,
-            manualSequenceID: profile.manualSequenceID,
+            stationaryBehaviorMode: profile.stationaryBehaviorMode,
+            stationarySequenceID: profile.stationarySequenceID,
             randomSequenceIDs: profile.randomSequenceIDs,
             sequences: sequences,
             automaticRules: profile.automaticRules,
@@ -544,8 +542,8 @@ nonisolated enum BuiltInBehaviorPresets {
         if petKey == .builtIn {
             return BehaviorProfile(
                 petKey: petKey,
-                mode: .automatic,
-                manualSequenceID: defaultManualSequenceID,
+                stationaryBehaviorMode: .fixed,
+                stationarySequenceID: nil,
                 sequences: mongleSequences,
                 automaticRules: mongleAutomaticRules,
                 automaticRulePriorityOrder: [.idle, .application, .movement],
@@ -556,8 +554,8 @@ nonisolated enum BuiltInBehaviorPresets {
         }
         return BehaviorProfile(
             petKey: petKey,
-            mode: .automatic,
-            manualSequenceID: defaultManualSequenceID,
+            stationaryBehaviorMode: .fixed,
+            stationarySequenceID: nil,
             sequences: sequences,
             automaticRules: automaticRules,
             automaticRulePriorityOrder:
@@ -631,12 +629,12 @@ nonisolated enum BuiltInBehaviorPresets {
         let isUninitialized = profile.manualSequenceID == nil
             && profile.sequences.isEmpty
             && profile.automaticRules.isEmpty
-        let usesPreviousDefaults = profile.manualSequenceID
-                == defaultManualSequenceID
+        let usesPreviousDefaults = profile.stationaryBehaviorMode == .fixed
+            && profile.stationarySequenceID == nil
             && profile.sequences == sequences
             && profile.automaticRules == automaticRules
-        let usesLegacyDefaults = profile.manualSequenceID
-                == legacySequences.first?.id
+        let usesLegacyDefaults = profile.stationaryBehaviorMode == .fixed
+            && profile.stationarySequenceID == nil
             && profile.sequences == legacySequences
             && profile.automaticRules == legacyAutomaticRules
         return isUninitialized || usesPreviousDefaults || usesLegacyDefaults
@@ -658,14 +656,14 @@ nonisolated enum BuiltInBehaviorPresets {
     private static func replacingDefaults(
         in settings: AppSettings,
         sequences: [BehaviorSequence],
-        manualSequenceID: String?,
+        stationarySequenceID: String? = nil,
         automaticRules: [AutomaticRule]
     ) -> AppSettings {
         settings.replacingActiveBehaviorProfile(
             BehaviorProfile(
                 petKey: settings.selectedPetKey,
-                mode: settings.behaviorMode,
-                manualSequenceID: manualSequenceID,
+                stationaryBehaviorMode: settings.stationaryBehaviorMode,
+                stationarySequenceID: stationarySequenceID,
                 randomSequenceIDs: settings.randomSequenceIDs.filter {
                     Set(sequences.map(\.id)).contains($0)
                 },

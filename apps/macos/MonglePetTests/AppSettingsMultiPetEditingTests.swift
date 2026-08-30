@@ -78,8 +78,19 @@ final class AppSettingsMultiPetEditingTests: XCTestCase {
             BehaviorProfile(
                 petKey: added.petKey,
                 mode: .manual,
-                manualSequenceID: nil,
-                sequences: [],
+                manualSequenceID: "changed",
+                sequences: [
+                    BehaviorSequence(
+                        id: "changed",
+                        steps: [
+                            BehaviorStep(
+                                motionID: "changed",
+                                repeatCount: 1
+                            )
+                        ],
+                        repeats: true
+                    )
+                ],
                 automaticRules: []
             )
         )

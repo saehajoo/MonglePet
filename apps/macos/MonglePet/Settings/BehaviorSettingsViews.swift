@@ -426,7 +426,7 @@ struct BehaviorSequencesSettingsView: View {
                     .accessibilityIdentifier("monglepet.settings.addSequence")
                 }
 
-                Text("행동은 하나 이상의 애니메이션 단계로 구성됩니다. 자동 동작, 표시 및 이동, 쓰다듬기에서 같은 행동을 선택할 수 있습니다.")
+                Text("행동은 하나 이상의 애니메이션 단계로 구성됩니다. 규칙 설정, 표시 및 이동, 쓰다듬기에서 같은 행동을 선택할 수 있습니다.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -760,58 +760,7 @@ struct AutomaticRulesSettingsView: View {
                         "monglepet.settings.automaticRulesPetName"
                     )
             }
-
-
-            Section("행동 모드") {
-                Picker("행동 모드", selection: behaviorModeBinding) {
-                    Text("자동 규칙").tag(BehaviorMode.automatic.rawValue)
-                    Text("직접 선택").tag(BehaviorMode.manual.rawValue)
-                    Text("랜덤 선택").tag(BehaviorMode.random.rawValue)
-                }
-                .pickerStyle(.segmented)
-
-                if settingsSession.settings.behaviorMode == .manual {
-                    sequencePicker("직접 재생할 행동", selection: manualSequenceBinding)
-                }
-
-                if settingsSession.settings.behaviorMode == .random {
-                    VStack(alignment: .leading, spacing: 6) {
-                        ForEach(settingsSession.settings.sequences) { sequence in
-                            Button {
-                                toggleRandomSequence(sequence.id)
-                            } label: {
-                                HStack {
-                                    Image(
-                                        systemName: randomSequenceIDs.contains(
-                                            sequence.id
-                                        ) ? "checkmark.circle.fill" : "circle"
-                                    )
-                                    .foregroundStyle(
-                                        randomSequenceIDs.contains(sequence.id)
-                                            ? Color.accentColor : .secondary
-                                    )
-                                    Text(sequence.displayName)
-                                        .foregroundStyle(.primary)
-                                    Spacer()
-                                }
-                                .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityIdentifier(
-                                "monglepet.settings.randomSequence.\(sequence.id)"
-                            )
-                        }
-                    }
-                    .padding(.vertical, 4)
-                }
-
-                Text(behaviorModeDescription)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            }
-
-            if settingsSession.settings.behaviorMode == .automatic {
-            Section("자동 규칙 우선순위") {
+            Section("규칙 및 이동 우선순위") {
                 ForEach(priorityOrder.indices, id: \.self) { index in
                     let category = priorityOrder[index]
                     HStack(spacing: 12) {
@@ -859,7 +808,7 @@ struct AutomaticRulesSettingsView: View {
                     .padding(.vertical, 4)
                 }
 
-                Text("위에 있는 항목부터 적용합니다. 규칙이 표시 및 이동보다 앞에 있으면 펫이 현재 위치에서 멈추고 해당 규칙의 행동을 표시합니다.")
+                Text("위에 있는 항목부터 적용합니다. 규칙이 이동보다 앞에 있으면 펫이 현재 위치에서 멈추고 해당 규칙의 행동을 표시합니다.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -912,7 +861,6 @@ struct AutomaticRulesSettingsView: View {
                     }
                 }
             }
-            }
 
         }
         .formStyle(.grouped)
@@ -941,33 +889,6 @@ struct AutomaticRulesSettingsView: View {
         }
     }
 
-    private var randomSequenceIDs: [String] {
-        settingsSession.settings.randomSequenceIDs
-    }
-
-    private var behaviorModeDescription: String {
-        switch settingsSession.settings.behaviorMode {
-        case .automatic:
-            "이동 상태, 현재 사용 중인 앱과 입력 없음 상태에 따라 표시할 행동을 자동으로 선택합니다."
-        case .manual:
-            "선택한 행동을 반복해서 재생합니다."
-        case .random:
-            randomSequenceIDs.isEmpty
-                ? "행동을 하나 이상 선택해 주세요. 선택 전에는 기본 행동을 표시합니다."
-                : "선택한 행동을 모두 한 번씩 섞어 재생한 뒤 새 순서로 반복합니다. 같은 행동은 연속해서 나오지 않습니다."
-        }
-    }
-
-    private func toggleRandomSequence(_ sequenceID: String) {
-        var ids = randomSequenceIDs
-        if let index = ids.firstIndex(of: sequenceID) {
-            ids.remove(at: index)
-        } else {
-            ids.append(sequenceID)
-        }
-        settingsSession.setRandomSequenceIDs(ids)
-    }
-
     private var idleRule: AutomaticRule? {
         settingsSession.settings.automaticRules.first {
             if case .idleAtLeast = $0.condition { return true }
@@ -985,27 +906,6 @@ struct AutomaticRulesSettingsView: View {
                     isEnabled: isEnabled
                 )
             }
-        )
-    }
-
-    private var behaviorModeBinding: Binding<String> {
-        Binding(
-            get: { settingsSession.settings.behaviorMode.rawValue },
-            set: { rawValue in
-                guard let mode = BehaviorMode(rawValue: rawValue) else { return }
-                settingsSession.setBehaviorMode(mode)
-            }
-        )
-    }
-
-    private var manualSequenceBinding: Binding<String> {
-        Binding(
-            get: {
-                settingsSession.settings.manualSequenceID
-                    ?? settingsSession.settings.sequences.first?.id
-                    ?? ""
-            },
-            set: { settingsSession.setManualSequenceID($0) }
         )
     }
 
@@ -1029,7 +929,7 @@ struct AutomaticRulesSettingsView: View {
     ) -> String {
         switch category {
         case .movement:
-            "표시 및 이동"
+            "이동"
         case .idle:
             "입력 없음 규칙"
         case .application:

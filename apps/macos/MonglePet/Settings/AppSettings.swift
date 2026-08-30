@@ -1,7 +1,7 @@
 import Foundation
 
 nonisolated enum AppSettingsLimits {
-    static let schemaVersion = 14
+    static let schemaVersion = 15
     static let maximumFileSize = 5 * 1_024 * 1_024
     /// Corrupt-file defense only; this is not a product-facing pet limit.
     static let maximumStoredPetInstances = 10_000
@@ -806,8 +806,8 @@ nonisolated struct BehaviorProfile: Equatable, Identifiable, Sendable {
     var id: PetBehaviorKey { petKey }
 
     let petKey: PetBehaviorKey
-    let mode: BehaviorMode
-    let manualSequenceID: String?
+    let stationaryBehaviorMode: StationaryBehaviorMode
+    let stationarySequenceID: String?
     let randomSequenceIDs: [String]
     let sequences: [BehaviorSequence]
     let automaticRules: [AutomaticRule]
@@ -815,6 +815,31 @@ nonisolated struct BehaviorProfile: Equatable, Identifiable, Sendable {
     let movement: PetMovementSettings
     let pettingMotionID: String?
     let speech: PetSpeechSettings
+
+    init(
+        petKey: PetBehaviorKey,
+        stationaryBehaviorMode: StationaryBehaviorMode,
+        stationarySequenceID: String?,
+        randomSequenceIDs: [String] = [],
+        sequences: [BehaviorSequence],
+        automaticRules: [AutomaticRule],
+        automaticRulePriorityOrder: [AutomaticRuleCategory] =
+            AutomaticRuleCategory.defaultPriorityOrder,
+        movement: PetMovementSettings = .default,
+        pettingMotionID: String? = nil,
+        speech: PetSpeechSettings = .default
+    ) {
+        self.petKey = petKey
+        self.stationaryBehaviorMode = stationaryBehaviorMode
+        self.stationarySequenceID = stationarySequenceID
+        self.randomSequenceIDs = randomSequenceIDs
+        self.sequences = sequences
+        self.automaticRules = automaticRules
+        self.automaticRulePriorityOrder = automaticRulePriorityOrder
+        self.movement = movement
+        self.pettingMotionID = pettingMotionID
+        self.speech = speech
+    }
 
     init(
         petKey: PetBehaviorKey,
@@ -829,16 +854,31 @@ nonisolated struct BehaviorProfile: Equatable, Identifiable, Sendable {
         pettingMotionID: String? = nil,
         speech: PetSpeechSettings = .default
     ) {
-        self.petKey = petKey
-        self.mode = mode
-        self.manualSequenceID = manualSequenceID
-        self.randomSequenceIDs = randomSequenceIDs
-        self.sequences = sequences
-        self.automaticRules = automaticRules
-        self.automaticRulePriorityOrder = automaticRulePriorityOrder
-        self.movement = movement
-        self.pettingMotionID = pettingMotionID
-        self.speech = speech
+        self.init(
+            petKey: petKey,
+            stationaryBehaviorMode: mode == .random ? .random : .fixed,
+            stationarySequenceID: mode == .manual ? manualSequenceID : nil,
+            randomSequenceIDs: randomSequenceIDs,
+            sequences: sequences,
+            automaticRules: automaticRules,
+            automaticRulePriorityOrder: automaticRulePriorityOrder,
+            movement: movement,
+            pettingMotionID: pettingMotionID,
+            speech: speech
+        )
+    }
+
+    var mode: BehaviorMode {
+        switch stationaryBehaviorMode {
+        case .fixed:
+            stationarySequenceID == nil ? .automatic : .manual
+        case .random:
+            .random
+        }
+    }
+
+    var manualSequenceID: String? {
+        stationarySequenceID
     }
 }
 
@@ -1040,6 +1080,14 @@ nonisolated struct AppSettings: Equatable, Sendable {
 
     var behaviorMode: BehaviorMode {
         activeBehaviorProfile?.mode ?? .automatic
+    }
+
+    var stationaryBehaviorMode: StationaryBehaviorMode {
+        activeBehaviorProfile?.stationaryBehaviorMode ?? .fixed
+    }
+
+    var stationarySequenceID: String? {
+        activeBehaviorProfile?.stationarySequenceID
     }
 
     var manualSequenceID: String? {

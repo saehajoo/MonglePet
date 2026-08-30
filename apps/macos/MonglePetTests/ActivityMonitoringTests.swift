@@ -343,8 +343,19 @@ final class ActivityMonitoringTests: XCTestCase {
                 overlay: .default,
                 movement: .default,
                 pettingMotionID: nil,
-                manualSequenceID: nil,
-                sequences: [],
+                manualSequenceID: "fixed",
+                sequences: [
+                    BehaviorSequence(
+                        id: "fixed",
+                        steps: [
+                            BehaviorStep(
+                                motionID: "idle",
+                                repeatCount: 1
+                            )
+                        ],
+                        repeats: true
+                    )
+                ],
                 automaticRules: []
             )
         )

@@ -7,13 +7,12 @@ nonisolated struct MovementPriorityResolution: Equatable, Sendable {
 
 nonisolated struct MovementPlaybackPriorityResolver: Sendable {
     func resolve(
-        mode: BehaviorMode,
+        mode _: BehaviorMode,
         decision: BehaviorDecision?,
         rules: [AutomaticRule],
         order: [AutomaticRuleCategory]
     ) -> MovementPriorityResolution {
         guard
-            mode == .automatic,
             case let .sequence(_, source) = decision,
             case let .automaticRule(ruleID) = source,
             let rule = rules.first(where: { $0.id == ruleID }),

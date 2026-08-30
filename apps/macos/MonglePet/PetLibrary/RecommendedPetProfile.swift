@@ -71,8 +71,8 @@ nonisolated struct PortablePetDisplaySettings: Equatable, Sendable {
 }
 
 nonisolated struct RecommendedPetProfile: Equatable, Sendable {
-    let mode: BehaviorMode
-    let manualSequenceID: String?
+    let stationaryBehaviorMode: StationaryBehaviorMode
+    let stationarySequenceID: String?
     let randomSequenceIDs: [String]
     let sequences: [BehaviorSequence]
     let automaticRules: [AutomaticRule]
@@ -88,6 +88,33 @@ nonisolated struct RecommendedPetProfile: Equatable, Sendable {
     let includesDisplaySettings: Bool
 
     init(
+        stationaryBehaviorMode: StationaryBehaviorMode,
+        stationarySequenceID: String?,
+        randomSequenceIDs: [String] = [],
+        sequences: [BehaviorSequence],
+        automaticRules: [AutomaticRule],
+        automaticRulePriorityOrder: [AutomaticRuleCategory] =
+            AutomaticRuleCategory.defaultPriorityOrder,
+        movement: PetMovementSettings,
+        pettingMotionID: String?,
+        speech: PetSpeechSettings = .default,
+        display: PortablePetDisplaySettings = .default,
+        includesDisplaySettings: Bool = true
+    ) {
+        self.stationaryBehaviorMode = stationaryBehaviorMode
+        self.stationarySequenceID = stationarySequenceID
+        self.randomSequenceIDs = randomSequenceIDs
+        self.sequences = sequences
+        self.automaticRules = automaticRules
+        self.automaticRulePriorityOrder = automaticRulePriorityOrder
+        self.movement = movement
+        self.pettingMotionID = pettingMotionID
+        self.speech = speech
+        self.display = display
+        self.includesDisplaySettings = includesDisplaySettings
+    }
+
+    init(
         mode: BehaviorMode,
         manualSequenceID: String?,
         randomSequenceIDs: [String] = [],
@@ -101,24 +128,39 @@ nonisolated struct RecommendedPetProfile: Equatable, Sendable {
         display: PortablePetDisplaySettings = .default,
         includesDisplaySettings: Bool = true
     ) {
-        self.mode = mode
-        self.manualSequenceID = manualSequenceID
-        self.randomSequenceIDs = randomSequenceIDs
-        self.sequences = sequences
-        self.automaticRules = automaticRules
-        self.automaticRulePriorityOrder = automaticRulePriorityOrder
-        self.movement = movement
-        self.pettingMotionID = pettingMotionID
-        self.speech = speech
-        self.display = display
-        self.includesDisplaySettings = includesDisplaySettings
+        self.init(
+            stationaryBehaviorMode: mode == .random ? .random : .fixed,
+            stationarySequenceID: mode == .manual ? manualSequenceID : nil,
+            randomSequenceIDs: randomSequenceIDs,
+            sequences: sequences,
+            automaticRules: automaticRules,
+            automaticRulePriorityOrder: automaticRulePriorityOrder,
+            movement: movement,
+            pettingMotionID: pettingMotionID,
+            speech: speech,
+            display: display,
+            includesDisplaySettings: includesDisplaySettings
+        )
+    }
+
+    var mode: BehaviorMode {
+        switch stationaryBehaviorMode {
+        case .fixed:
+            stationarySequenceID == nil ? .automatic : .manual
+        case .random:
+            .random
+        }
+    }
+
+    var manualSequenceID: String? {
+        stationarySequenceID
     }
 
     func behaviorProfile(for petKey: PetBehaviorKey) -> BehaviorProfile {
         BehaviorProfile(
             petKey: petKey,
-            mode: mode,
-            manualSequenceID: manualSequenceID,
+            stationaryBehaviorMode: stationaryBehaviorMode,
+            stationarySequenceID: stationarySequenceID,
             randomSequenceIDs: randomSequenceIDs,
             sequences: sequences,
             automaticRules: automaticRules,
@@ -153,7 +195,7 @@ extension RecommendedPetProfileError: LocalizedError {
 }
 
 nonisolated enum RecommendedPetProfileCodec {
-    static let schemaVersion = 10
+    static let schemaVersion = 11
     static let maximumFileSize = 1 * 1_024 * 1_024
 
     static func encode(
@@ -162,11 +204,12 @@ nonisolated enum RecommendedPetProfileCodec {
     ) throws -> Data {
         let profile = normalizingCurrentProfile(profile)
         try validate(profile, for: definition)
-        let stored = StoredRecommendedPetProfileV10(
+        let stored = StoredRecommendedPetProfileV11(
             schemaVersion: schemaVersion,
-            behavior: StoredRecommendedBehaviorV9(
-                mode: storedMode(profile.mode),
-                manualSequenceID: profile.manualSequenceID,
+            behavior: StoredRecommendedBehaviorV11(
+                stationaryBehaviorMode:
+                    profile.stationaryBehaviorMode.rawValue,
+                stationarySequenceID: profile.stationarySequenceID,
                 randomSequenceIDs: profile.randomSequenceIDs,
                 sequences: profile.sequences.map { sequence in
                     StoredBehaviorSequenceV12(
@@ -378,11 +421,24 @@ nonisolated enum RecommendedPetProfileCodec {
             } catch {
                 throw RecommendedPetProfileError.unreadable
             }
-        case schemaVersion:
+        case 10:
             do {
                 profile = try domainProfile(
                     from: decoder.decode(
                         StoredRecommendedPetProfileV10.self,
+                        from: data
+                    )
+                )
+            } catch let error as RecommendedPetProfileError {
+                throw error
+            } catch {
+                throw RecommendedPetProfileError.unreadable
+            }
+        case schemaVersion:
+            do {
+                profile = try domainProfile(
+                    from: decoder.decode(
+                        StoredRecommendedPetProfileV11.self,
                         from: data
                     )
                 )
@@ -396,10 +452,15 @@ nonisolated enum RecommendedPetProfileCodec {
                 envelope.schemaVersion
             )
         }
-        var normalizedProfile = envelope.schemaVersion < schemaVersion
+        var normalizedProfile = envelope.schemaVersion < 10
             ? promotingContextMotionReferences(in: profile)
             : profile
-        if envelope.schemaVersion < schemaVersion {
+        if envelope.schemaVersion < 11 {
+            normalizedProfile = migratingLegacyRuleActivation(
+                in: normalizedProfile
+            )
+        }
+        if envelope.schemaVersion < 10 {
             normalizedProfile = replacingDisplayApplication(
                 in: normalizedProfile,
                 includesDisplaySettings: false
@@ -414,8 +475,8 @@ nonisolated enum RecommendedPetProfileCodec {
         includesDisplaySettings: Bool
     ) -> RecommendedPetProfile {
         RecommendedPetProfile(
-            mode: profile.mode,
-            manualSequenceID: profile.manualSequenceID,
+            stationaryBehaviorMode: profile.stationaryBehaviorMode,
+            stationarySequenceID: profile.stationarySequenceID,
             randomSequenceIDs: profile.randomSequenceIDs,
             sequences: profile.sequences,
             automaticRules: profile.automaticRules,
@@ -425,6 +486,35 @@ nonisolated enum RecommendedPetProfileCodec {
             speech: profile.speech,
             display: profile.display,
             includesDisplaySettings: includesDisplaySettings
+        )
+    }
+
+    private static func migratingLegacyRuleActivation(
+        in profile: RecommendedPetProfile
+    ) -> RecommendedPetProfile {
+        let rules = profile.mode == .automatic
+            ? profile.automaticRules
+            : profile.automaticRules.map { rule in
+                AutomaticRule(
+                    id: rule.id,
+                    isEnabled: false,
+                    priority: rule.priority,
+                    condition: rule.condition,
+                    sequenceID: rule.sequenceID
+                )
+            }
+        return RecommendedPetProfile(
+            stationaryBehaviorMode: profile.stationaryBehaviorMode,
+            stationarySequenceID: profile.stationarySequenceID,
+            randomSequenceIDs: profile.randomSequenceIDs,
+            sequences: profile.sequences,
+            automaticRules: rules,
+            automaticRulePriorityOrder: profile.automaticRulePriorityOrder,
+            movement: profile.movement,
+            pettingMotionID: profile.pettingMotionID,
+            speech: profile.speech,
+            display: profile.display,
+            includesDisplaySettings: profile.includesDisplaySettings
         )
     }
 
@@ -1125,6 +1215,60 @@ nonisolated enum RecommendedPetProfileCodec {
             pettingMotionID: base.pettingMotionID,
             speech: base.speech,
             display: display
+        )
+    }
+
+    private static func domainProfile(
+        from stored: StoredRecommendedPetProfileV11
+    ) throws -> RecommendedPetProfile {
+        let legacyMode: String
+        switch stored.behavior.stationaryBehaviorMode {
+        case StationaryBehaviorMode.fixed.rawValue:
+            legacyMode = stored.behavior.stationarySequenceID == nil
+                ? BehaviorMode.automatic.rawValue
+                : BehaviorMode.manual.rawValue
+        case StationaryBehaviorMode.random.rawValue:
+            legacyMode = BehaviorMode.random.rawValue
+        default:
+            throw RecommendedPetProfileError.invalidField(
+                "behavior.stationaryBehaviorMode"
+            )
+        }
+        let base = try domainProfile(
+            from: StoredRecommendedPetProfileV10(
+                schemaVersion: 10,
+                behavior: StoredRecommendedBehaviorV9(
+                    mode: legacyMode,
+                    manualSequenceID:
+                        stored.behavior.stationarySequenceID,
+                    randomSequenceIDs:
+                        stored.behavior.randomSequenceIDs,
+                    sequences: stored.behavior.sequences
+                ),
+                movement: stored.movement,
+                pettingBehaviorID: stored.pettingBehaviorID,
+                automaticRules: stored.automaticRules,
+                automaticRulePriorityOrder:
+                    stored.automaticRulePriorityOrder,
+                speech: stored.speech,
+                display: stored.display
+            )
+        )
+        return RecommendedPetProfile(
+            stationaryBehaviorMode:
+                stored.behavior.stationaryBehaviorMode == "random"
+                    ? .random : .fixed,
+            stationarySequenceID: stored.behavior.stationarySequenceID,
+            randomSequenceIDs: base.randomSequenceIDs,
+            sequences: base.sequences,
+            automaticRules: base.automaticRules,
+            automaticRulePriorityOrder:
+                base.automaticRulePriorityOrder,
+            movement: base.movement,
+            pettingMotionID: base.pettingMotionID,
+            speech: base.speech,
+            display: base.display,
+            includesDisplaySettings: true
         )
     }
 
@@ -2042,6 +2186,24 @@ private nonisolated struct StoredRecommendedPetProfileV10: Codable {
     let automaticRulePriorityOrder: [String]
     let speech: StoredRecommendedSpeechV7
     let display: StoredPortablePetDisplayV10
+}
+
+private nonisolated struct StoredRecommendedPetProfileV11: Codable {
+    let schemaVersion: Int
+    let behavior: StoredRecommendedBehaviorV11
+    let movement: StoredPetMovementSettingsV14
+    let pettingBehaviorID: String?
+    let automaticRules: [StoredRecommendedAutomaticRuleV1]
+    let automaticRulePriorityOrder: [String]
+    let speech: StoredRecommendedSpeechV7
+    let display: StoredPortablePetDisplayV10
+}
+
+private nonisolated struct StoredRecommendedBehaviorV11: Codable {
+    let stationaryBehaviorMode: String
+    let stationarySequenceID: String?
+    let randomSequenceIDs: [String]
+    let sequences: [StoredBehaviorSequenceV12]
 }
 
 private nonisolated struct StoredPortablePetDisplayV10: Codable {

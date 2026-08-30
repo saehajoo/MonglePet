@@ -67,7 +67,7 @@ nonisolated enum AppSettingsV14Mapper {
             }
         )
         return StoredAppSettingsV14(
-            schemaVersion: AppSettingsLimits.schemaVersion,
+            schemaVersion: 14,
             selectedPetInstanceID: legacy.selectedPetInstanceID,
             activePetInstances: legacy.activePetInstances,
             behaviorProfiles: legacy.behaviorProfiles.compactMap {

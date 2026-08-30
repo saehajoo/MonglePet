@@ -133,10 +133,7 @@ final class AppSettingsV11MigrationTests: XCTestCase {
             defaultProfile.petKey,
             .installed(installationID: installationID.uuidString)
         )
-        XCTAssertEqual(
-            defaultProfile.manualSequenceID,
-            BuiltInBehaviorPresets.defaultSequenceID
-        )
+        XCTAssertNil(defaultProfile.manualSequenceID)
         XCTAssertEqual(defaultProfile.sequences.count, 1)
     }
 

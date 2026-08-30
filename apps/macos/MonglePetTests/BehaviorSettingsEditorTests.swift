@@ -256,10 +256,7 @@ final class BehaviorSettingsEditorTests: XCTestCase {
             from: settings
         )
 
-        XCTAssertEqual(
-            settings.manualSequenceID,
-            BuiltInBehaviorPresets.defaultSequenceID
-        )
+        XCTAssertNil(settings.manualSequenceID)
         XCTAssertFalse(settings.sequences.contains { $0.id == customID })
         XCTAssertFalse(settings.automaticRules.contains { $0.sequenceID == customID })
         XCTAssertEqual(

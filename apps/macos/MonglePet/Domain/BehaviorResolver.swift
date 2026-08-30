@@ -28,13 +28,22 @@ nonisolated struct BehaviorResolver: Sendable {
             return .sequence(interactionSequence, source: .interaction)
         }
 
-        switch configuration.mode {
-        case .manual:
+        if let matchingRule = matchingRule(
+            configuration: configuration,
+            snapshot: snapshot
+        ) {
+            return decision(for: matchingRule, configuration: configuration)
+        }
+
+        switch configuration.stationaryBehaviorMode {
+        case .fixed:
             if
-                let manualSequenceID = configuration.manualSequenceID,
-                let manualSequence = configuration.sequence(id: manualSequenceID)
+                let stationarySequenceID = configuration.stationarySequenceID,
+                let stationarySequence = configuration.sequence(
+                    id: stationarySequenceID
+                )
             {
-                return .sequence(manualSequence, source: .manual)
+                return .sequence(stationarySequence, source: .manual)
             }
 
             return defaultDecision(configuration: configuration)
@@ -50,15 +59,13 @@ nonisolated struct BehaviorResolver: Sendable {
             }
 
             return defaultDecision(configuration: configuration)
-        case .automatic:
-            return resolveAutomatic(configuration: configuration, snapshot: snapshot)
         }
     }
 
-    private func resolveAutomatic(
+    private func matchingRule(
         configuration: BehaviorConfiguration,
         snapshot: ActivitySnapshot
-    ) -> BehaviorDecision {
+    ) -> AutomaticRule? {
         let orderedRules = configuration.automaticRules
             .enumerated()
             .filter { $0.element.isEnabled }
@@ -82,16 +89,7 @@ nonisolated struct BehaviorResolver: Sendable {
             }
             .map(\.element)
 
-        guard
-            let matchingRule = firstMatchingRule(
-                in: orderedRules,
-                snapshot: snapshot
-            )
-        else {
-            return defaultDecision(configuration: configuration)
-        }
-
-        return decision(for: matchingRule, configuration: configuration)
+        return firstMatchingRule(in: orderedRules, snapshot: snapshot)
     }
 
     private func categoryPriority(

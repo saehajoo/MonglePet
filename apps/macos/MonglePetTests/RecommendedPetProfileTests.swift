@@ -36,7 +36,7 @@ final class RecommendedPetProfileTests: XCTestCase {
         let object = try XCTUnwrap(
             JSONSerialization.jsonObject(with: data) as? [String: Any]
         )
-        XCTAssertEqual(object["schemaVersion"] as? Int, 10)
+        XCTAssertEqual(object["schemaVersion"] as? Int, 11)
         XCTAssertNotNil(object["behavior"])
         XCTAssertNotNil(object["movement"])
         XCTAssertNotNil(object["automaticRules"])
@@ -209,6 +209,33 @@ final class RecommendedPetProfileTests: XCTestCase {
         XCTAssertTrue(decoded.display.pixelArtRendering)
     }
 
+    func testSchemaV10ManualProfileKeepsSelectionButDisablesDormantRules() throws {
+        let encoded = try RecommendedPetProfileCodec.encode(
+            makeProfile(),
+            for: petDefinition
+        )
+        var object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: encoded) as? [String: Any]
+        )
+        object["schemaVersion"] = 10
+        var behavior = try XCTUnwrap(object["behavior"] as? [String: Any])
+        behavior["mode"] = "manual"
+        behavior["manualSequenceID"] = behavior["stationarySequenceID"]
+        behavior.removeValue(forKey: "stationaryBehaviorMode")
+        behavior.removeValue(forKey: "stationarySequenceID")
+        object["behavior"] = behavior
+        let legacyData = try JSONSerialization.data(withJSONObject: object)
+
+        let decoded = try RecommendedPetProfileCodec.decode(
+            legacyData,
+            for: petDefinition
+        )
+
+        XCTAssertEqual(decoded.stationaryBehaviorMode, .fixed)
+        XCTAssertEqual(decoded.stationarySequenceID, "default")
+        XCTAssertTrue(decoded.automaticRules.allSatisfy { !$0.isEnabled })
+    }
+
     func testCodecKeepsMovementFirstForEarlySchemaV8PriorityLists() throws {
         let encoded = try RecommendedPetProfileCodec.encode(
             makeProfile(),
@@ -284,7 +311,7 @@ final class RecommendedPetProfileTests: XCTestCase {
         }
     }
 
-    func testCodecRejectsManualModeWithoutSelection() {
+    func testCodecAllowsFixedModeWithoutSelectionAsDefaultFallback() throws {
         let profile = RecommendedPetProfile(
             mode: .manual,
             manualSequenceID: nil,
@@ -300,14 +327,16 @@ final class RecommendedPetProfileTests: XCTestCase {
             pettingMotionID: nil
         )
 
-        XCTAssertThrowsError(
-            try RecommendedPetProfileCodec.encode(profile, for: petDefinition)
-        ) { error in
-            XCTAssertEqual(
-                error as? RecommendedPetProfileError,
-                .invalidField("behavior.manualSequenceID")
-            )
-        }
+        let data = try RecommendedPetProfileCodec.encode(
+            profile,
+            for: petDefinition
+        )
+        let decoded = try RecommendedPetProfileCodec.decode(
+            data,
+            for: petDefinition
+        )
+        XCTAssertEqual(decoded.stationaryBehaviorMode, .fixed)
+        XCTAssertNil(decoded.stationarySequenceID)
     }
 
     func testCodecRejectsInvalidMovementRangeAndMotionReferences() {
@@ -437,7 +466,7 @@ final class RecommendedPetProfileTests: XCTestCase {
         var object = try XCTUnwrap(
             JSONSerialization.jsonObject(with: data) as? [String: Any]
         )
-        object["schemaVersion"] = 11
+        object["schemaVersion"] = 12
         let futureData = try JSONSerialization.data(withJSONObject: object)
 
         XCTAssertThrowsError(
@@ -448,7 +477,7 @@ final class RecommendedPetProfileTests: XCTestCase {
         ) { error in
             XCTAssertEqual(
                 error as? RecommendedPetProfileError,
-                .unsupportedSchemaVersion(11)
+                .unsupportedSchemaVersion(12)
             )
         }
         XCTAssertThrowsError(
@@ -646,8 +675,12 @@ final class RecommendedPetProfileTests: XCTestCase {
             "찾을 수 없는 행동"
         )
         XCTAssertEqual(
+            summary.conditionRuleDescription,
+            "2개 · 사용 2개"
+        )
+        XCTAssertEqual(
             summary.automaticRulePriorityDescription,
-            "표시 및 이동 → 입력 없음 → 앱 사용"
+            "이동 → 입력 없음 → 앱 사용"
         )
     }
 
@@ -839,6 +872,16 @@ final class RecommendedPetProfileTests: XCTestCase {
         )
 
         var behavior = try XCTUnwrap(object["behavior"] as? [String: Any])
+        let stationaryMode = behavior["stationaryBehaviorMode"] as? String
+        let stationaryID = behavior["stationarySequenceID"] as? String
+        behavior["mode"] = stationaryMode == "random"
+            ? "random"
+            : (stationaryID == nil ? "automatic" : "manual")
+        if let stationaryID {
+            behavior["manualSequenceID"] = stationaryID
+        }
+        behavior.removeValue(forKey: "stationaryBehaviorMode")
+        behavior.removeValue(forKey: "stationarySequenceID")
         var sequences = try XCTUnwrap(
             behavior["sequences"] as? [[String: Any]]
         )

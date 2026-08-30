@@ -64,8 +64,9 @@ final class PetBehaviorRuntime {
     private let randomIndex: (Int) -> Int
     private var randomSequenceBag: [String] = []
     private var currentRandomSequenceID: String?
-    private var previousMode: BehaviorMode?
+    private var previousMode: StationaryBehaviorMode?
     private var latestConfiguration: BehaviorConfiguration?
+    private var latestSnapshot: ActivitySnapshot?
     private var latestPresentation: PetPresentation = .awake
     private var isDecisionPaused = false
     private var isMovementPlaybackObscuringBehavior = false
@@ -189,6 +190,7 @@ final class PetBehaviorRuntime {
         isMovementPlaybackObscuringBehavior = false
         resetRandomSelection()
         latestConfiguration = nil
+        latestSnapshot = nil
         previousMode = nil
     }
 
@@ -203,14 +205,16 @@ final class PetBehaviorRuntime {
             isScreenLocked: snapshot.isScreenLocked,
             isSystemSleeping: snapshot.isSystemSleeping
         )
+        latestSnapshot = effectiveSnapshot
         let configuration = BuiltInBehaviorPresets.configuration(for: settings)
         latestConfiguration = configuration
         latestPresentation = settings.lastUserPresentation
-        if previousMode != configuration.mode {
+        if previousMode != configuration.stationaryBehaviorMode {
             resetRandomSelection()
-            previousMode = configuration.mode
+            previousMode = configuration.stationaryBehaviorMode
         }
         prepareRandomSelectionIfNeeded(configuration: configuration)
+        let previousDecision = latestDecision
         let decision = resolver.resolve(
             configuration: configuration,
             snapshot: effectiveSnapshot,
@@ -219,6 +223,11 @@ final class PetBehaviorRuntime {
                 randomSequenceID: currentRandomSequenceID
             )
         )
+        if configuration.stationaryBehaviorMode == .random,
+           case .sequence(_, source: .random) = previousDecision,
+           case .sequence(_, source: .automaticRule) = decision {
+            prepareNextRandomSelection(configuration: configuration)
+        }
         latestDecision = decision
         apply(decision, at: now)
     }
@@ -230,6 +239,7 @@ final class PetBehaviorRuntime {
         lastAdvancedAt = nil
         latestDecision = nil
         latestConfiguration = nil
+        latestSnapshot = nil
         previousMode = nil
         isDecisionPaused = false
         isMovementPlaybackObscuringBehavior = false
@@ -329,7 +339,7 @@ final class PetBehaviorRuntime {
         at now: ContinuousClock.Instant
     ) {
         guard let configuration = latestConfiguration,
-              configuration.mode == .random else {
+              configuration.stationaryBehaviorMode == .random else {
             return
         }
         let validIDs = configuration.randomSequenceIDs.filter { sequenceID in
@@ -337,22 +347,29 @@ final class PetBehaviorRuntime {
         }
         let previousPlayback = currentPlayback
         currentRandomSequenceID = nextRandomSequenceID(from: validIDs)
+        let snapshot = latestSnapshot ?? ActivitySnapshot(
+            capturedAt: now,
+            idleDuration: .zero,
+            frontmostApplicationID: nil,
+            isScreenLocked: false,
+            isSystemSleeping: false
+        )
         let decision = resolver.resolve(
             configuration: configuration,
-            snapshot: ActivitySnapshot(
-                capturedAt: now,
-                idleDuration: .zero,
-                frontmostApplicationID: nil,
-                isScreenLocked: false,
-                isSystemSleeping: false
-            ),
+            snapshot: snapshot,
             runtimeState: BehaviorRuntimeState(
                 presentation: latestPresentation,
                 randomSequenceID: currentRandomSequenceID
             )
         )
         latestDecision = decision
-        apply(decision, at: now, restartBaseSequence: true)
+        let restartsRandomBase: Bool
+        if case .sequence(_, source: .random) = decision {
+            restartsRandomBase = true
+        } else {
+            restartsRandomBase = false
+        }
+        apply(decision, at: now, restartBaseSequence: restartsRandomBase)
         if !motionScheduler.isInteractionPlaying,
            let previousPlayback,
            let currentPlayback,
@@ -369,7 +386,8 @@ final class PetBehaviorRuntime {
             !motionScheduler.isInteractionPlaying,
             motionScheduler.isBaseSequenceComplete,
             let configuration = latestConfiguration,
-            configuration.mode == .random
+            configuration.stationaryBehaviorMode == .random,
+            case .sequence(_, source: .random) = latestDecision
         else {
             return false
         }
@@ -381,15 +399,16 @@ final class PetBehaviorRuntime {
                 })
             }
         )
+        let snapshot = latestSnapshot ?? ActivitySnapshot(
+            capturedAt: now,
+            idleDuration: .zero,
+            frontmostApplicationID: nil,
+            isScreenLocked: false,
+            isSystemSleeping: false
+        )
         let decision = resolver.resolve(
             configuration: configuration,
-            snapshot: ActivitySnapshot(
-                capturedAt: now,
-                idleDuration: .zero,
-                frontmostApplicationID: nil,
-                isScreenLocked: false,
-                isSystemSleeping: false
-            ),
+            snapshot: snapshot,
             runtimeState: BehaviorRuntimeState(
                 presentation: latestPresentation,
                 randomSequenceID: currentRandomSequenceID
@@ -403,7 +422,7 @@ final class PetBehaviorRuntime {
     private func prepareRandomSelectionIfNeeded(
         configuration: BehaviorConfiguration
     ) {
-        guard configuration.mode == .random else {
+        guard configuration.stationaryBehaviorMode == .random else {
             return
         }
         let validIDs = configuration.randomSequenceIDs.filter { sequenceID in
@@ -419,7 +438,14 @@ final class PetBehaviorRuntime {
             randomSequenceBag = []
         }
         randomSequenceBag.removeAll { !validIDs.contains($0) }
-        if currentRandomSequenceID == nil || motionScheduler.isBaseSequenceComplete {
+        let completedCurrentRandomSequence: Bool
+        if motionScheduler.isBaseSequenceComplete,
+           case .sequence(_, source: .random) = latestDecision {
+            completedCurrentRandomSequence = true
+        } else {
+            completedCurrentRandomSequence = false
+        }
+        if currentRandomSequenceID == nil || completedCurrentRandomSequence {
             currentRandomSequenceID = nextRandomSequenceID(from: validIDs)
         }
     }
@@ -445,6 +471,18 @@ final class PetBehaviorRuntime {
         let rawIndex = randomIndex(candidates.count)
         let candidateIndex = candidates[min(max(rawIndex, 0), candidates.count - 1)]
         return randomSequenceBag.remove(at: candidateIndex)
+    }
+
+    private func prepareNextRandomSelection(
+        configuration: BehaviorConfiguration
+    ) {
+        currentRandomSequenceID = nextRandomSequenceID(
+            from: configuration.randomSequenceIDs.filter { sequenceID in
+                configuration.sequences.contains(where: {
+                    $0.id == sequenceID
+                })
+            }
+        )
     }
 
     private func resetRandomSelection() {

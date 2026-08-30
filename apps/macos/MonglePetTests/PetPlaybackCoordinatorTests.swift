@@ -144,8 +144,8 @@ final class PetPlaybackCoordinatorTests: XCTestCase {
                 order: [.application, .movement, .idle]
             ),
             MovementPriorityResolution(
-                movementTakesPriority: true,
-                blocksMovement: false
+                movementTakesPriority: false,
+                blocksMovement: true
             )
         )
     }

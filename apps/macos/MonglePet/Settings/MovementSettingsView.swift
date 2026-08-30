@@ -31,6 +31,8 @@ struct MovementSettingsView: View {
                 petDisplayName: petDisplayName
             )
 
+            stationaryBehaviorSection
+
             Section("이동 방식") {
                 LazyVGrid(
                     columns: [
@@ -265,6 +267,65 @@ struct MovementSettingsView: View {
         }
     }
 
+    private var stationaryBehaviorSection: some View {
+        Section("평상시 행동") {
+            Picker("선택 방식", selection: stationaryBehaviorModeBinding) {
+                Text("하나 선택")
+                    .tag(StationaryBehaviorMode.fixed.rawValue)
+                Text("랜덤 선택")
+                    .tag(StationaryBehaviorMode.random.rawValue)
+            }
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier(
+                "monglepet.settings.stationaryBehaviorMode"
+            )
+
+            if settingsSession.settings.stationaryBehaviorMode == .fixed {
+                Picker("멈춰 있을 때 행동", selection: stationarySequenceBinding) {
+                    ForEach(settingsSession.settings.sequences) { sequence in
+                        Text(sequence.displayName).tag(sequence.id)
+                    }
+                }
+                .accessibilityIdentifier(
+                    "monglepet.settings.stationaryBehavior"
+                )
+            } else {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(settingsSession.settings.sequences) { sequence in
+                        Button {
+                            toggleRandomSequence(sequence.id)
+                        } label: {
+                            HStack {
+                                Image(
+                                    systemName: randomSequenceIDs.contains(
+                                        sequence.id
+                                    ) ? "checkmark.circle.fill" : "circle"
+                                )
+                                .foregroundStyle(
+                                    randomSequenceIDs.contains(sequence.id)
+                                        ? Color.accentColor : .secondary
+                                )
+                                Text(sequence.displayName)
+                                    .foregroundStyle(.primary)
+                                Spacer()
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier(
+                            "monglepet.settings.stationaryRandom.\(sequence.id)"
+                        )
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+
+            Text(stationaryBehaviorDescription)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
     private var movement: PetMovementSettings {
         settingsSession.settings.movementSettings
     }
@@ -362,6 +423,59 @@ struct MovementSettingsView: View {
             get: { movement.mode },
             set: { apply(.mode($0)) }
         )
+    }
+
+    private var stationaryBehaviorModeBinding: Binding<String> {
+        Binding(
+            get: {
+                settingsSession.settings.stationaryBehaviorMode.rawValue
+            },
+            set: { rawValue in
+                guard let mode = StationaryBehaviorMode(rawValue: rawValue)
+                else { return }
+                settingsSession.setStationaryBehaviorMode(mode)
+            }
+        )
+    }
+
+    private var stationarySequenceBinding: Binding<String> {
+        Binding(
+            get: {
+                settingsSession.settings.stationarySequenceID
+                    ?? BuiltInBehaviorPresets.defaultSequenceID
+            },
+            set: { sequenceID in
+                settingsSession.setStationarySequenceID(
+                    sequenceID == BuiltInBehaviorPresets.defaultSequenceID
+                        ? nil : sequenceID
+                )
+            }
+        )
+    }
+
+    private var randomSequenceIDs: [String] {
+        settingsSession.settings.randomSequenceIDs
+    }
+
+    private func toggleRandomSequence(_ sequenceID: String) {
+        var ids = randomSequenceIDs
+        if let index = ids.firstIndex(of: sequenceID) {
+            ids.remove(at: index)
+        } else {
+            ids.append(sequenceID)
+        }
+        settingsSession.setRandomSequenceIDs(ids)
+    }
+
+    private var stationaryBehaviorDescription: String {
+        switch settingsSession.settings.stationaryBehaviorMode {
+        case .fixed:
+            "펫이 이동하지 않고 적용할 규칙도 없을 때 선택한 행동을 반복합니다."
+        case .random:
+            randomSequenceIDs.isEmpty
+                ? "행동을 하나 이상 선택해 주세요. 선택 전에는 기본 행동을 표시합니다."
+                : "선택한 행동을 모두 한 번씩 섞어 재생합니다. 입력 없음과 앱 사용 규칙도 함께 적용됩니다."
+        }
     }
 
     private var cursorAvoidingIdleBehaviorBinding:

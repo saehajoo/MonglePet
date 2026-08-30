@@ -1,8 +1,8 @@
 import Foundation
 
 nonisolated struct RecommendedProfileSummary: Equatable, Sendable {
-    let mode: BehaviorMode
-    let manualSequenceID: String?
+    let stationaryBehaviorMode: StationaryBehaviorMode
+    let stationarySequenceID: String?
     let randomSequenceIDs: [String]
     let sequences: [BehaviorSequence]
     let automaticRules: [AutomaticRule]
@@ -14,8 +14,8 @@ nonisolated struct RecommendedProfileSummary: Equatable, Sendable {
     let includesDisplaySettings: Bool
 
     init(profile: RecommendedPetProfile) {
-        mode = profile.mode
-        manualSequenceID = profile.manualSequenceID
+        stationaryBehaviorMode = profile.stationaryBehaviorMode
+        stationarySequenceID = profile.stationarySequenceID
         randomSequenceIDs = profile.randomSequenceIDs
         sequences = profile.sequences
         automaticRules = profile.automaticRules
@@ -26,6 +26,17 @@ nonisolated struct RecommendedProfileSummary: Equatable, Sendable {
         display = profile.display
         includesDisplaySettings = profile.includesDisplaySettings
     }
+
+    var mode: BehaviorMode {
+        switch stationaryBehaviorMode {
+        case .fixed:
+            stationarySequenceID == nil ? .automatic : .manual
+        case .random:
+            .random
+        }
+    }
+
+    var manualSequenceID: String? { stationarySequenceID }
 
     func behaviorDisplayName(for behaviorID: String) -> String {
         sequences.first(where: { $0.id == behaviorID })?.displayName
@@ -40,12 +51,20 @@ nonisolated struct RecommendedProfileSummary: Equatable, Sendable {
             .joined(separator: " → ")
     }
 
+    var conditionRuleDescription: String {
+        guard !automaticRules.isEmpty else {
+            return "없음"
+        }
+        let enabledCount = automaticRules.count(where: \.isEnabled)
+        return "\(automaticRules.count)개 · 사용 \(enabledCount)개"
+    }
+
     private static func automaticRuleCategoryName(
         _ category: AutomaticRuleCategory
     ) -> String {
         switch category {
         case .movement:
-            "표시 및 이동"
+            "이동"
         case .idle:
             "입력 없음"
         case .application:

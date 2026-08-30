@@ -146,6 +146,18 @@ final class MonglePetUITests: XCTestCase {
             app.descendants(matching: .any)["monglepet.settings.overlayWidth"]
                 .exists
         )
+        XCTAssertTrue(
+            app.descendants(matching: .any)[
+                "monglepet.settings.stationaryBehaviorMode"
+            ]
+            .exists
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)[
+                "monglepet.settings.stationaryBehavior"
+            ]
+            .exists
+        )
         let tenPercentButton =
             app.descendants(matching: .any)[
                 "monglepet.settings.quickScale.10"
@@ -180,6 +192,16 @@ final class MonglePetUITests: XCTestCase {
             in: app
         )
 
+        XCTAssertTrue(
+            app.staticTexts["규칙 및 이동 우선순위"]
+                .waitForExistence(timeout: 5)
+        )
+        XCTAssertFalse(
+            app.descendants(matching: .any)[
+                "monglepet.settings.stationaryBehaviorMode"
+            ]
+            .exists
+        )
         XCTAssertTrue(
             app.descendants(matching: .any)[
                 "monglepet.settings.newApplicationRule.selectionMenu"

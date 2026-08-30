@@ -44,7 +44,7 @@ struct SettingsView: View {
                         destination: .speech
                     )
                     navigationRow(
-                        "자동 동작",
+                        "규칙 설정",
                         systemImage: "bolt.badge.clock",
                         destination: .automaticRules
                     )
@@ -532,7 +532,7 @@ private struct PetSettingsView: View {
             Button("취소", role: .cancel) {}
         } message: {
             Text(
-                "라이브러리의 패키지 파일과 이 펫의 행동 루틴·자동 규칙 설정을 "
+                "라이브러리의 패키지 파일과 이 펫의 행동 루틴·규칙 설정을 "
                     + "함께 삭제하고 내장 몽글이로 전환합니다."
             )
         }
@@ -1483,7 +1483,7 @@ private struct PetPackageImportReviewView: View {
                     recommendedProfileSection
 
                     Text(
-                        "권장 설정을 적용해도 설치 후 행동 루틴, 자동 규칙과 이동 설정을 자유롭게 수정할 수 있습니다."
+                        "권장 설정을 적용해도 설치 후 평상시 행동, 행동 루틴, 조건 규칙과 이동 설정을 자유롭게 수정할 수 있습니다."
                     )
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -1607,7 +1607,7 @@ private struct PetPackageImportReviewView: View {
     @ViewBuilder
     private var recommendedProfileSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("펫별 표시·행동·이동·말풍선 설정")
+            Text("펫별 표시·평상시 행동·규칙·이동·말풍선 설정")
                 .font(.headline)
 
             if let profile = review.recommendedProfile {
@@ -1866,7 +1866,7 @@ private struct DuplicatePetInstallView: View {
     private var replacementProfileChoiceDescription: String {
         switch replacementProfileChoice {
         case .preserveLocal:
-            "현재 설치의 행동 모드, 루틴, 자동 규칙, 이동과 쓰다듬기 설정을 그대로 유지합니다."
+            "현재 설치의 평상시 행동, 루틴, 조건 규칙, 이동과 쓰다듬기 설정을 그대로 유지합니다."
         case .applyRecommended:
             "현재 펫별 표시·행동·이동·말풍선 설정 전체를 패키지 설정으로 바꿉니다. 화면 위치와 기기 공통 이동 범위는 유지합니다. 부분 병합은 제공하지 않습니다."
         }
@@ -2070,7 +2070,7 @@ private struct PetPackageShareReviewView: View {
                 Divider()
 
                 Label(
-                    "펫별 표시·행동·이동·말풍선 설정 전체",
+                    "펫별 표시·평상시 행동·규칙·이동·말풍선 설정 전체",
                     systemImage: "checkmark.circle.fill"
                 )
                 .accessibilityIdentifier(
@@ -2085,7 +2085,7 @@ private struct PetPackageShareReviewView: View {
                     .font(.caption)
                     .foregroundStyle(.orange)
                 } else if review.recommendedProfile == nil {
-                    Text("현재 펫에 공유할 행동·이동·말풍선 권장 설정이 없습니다.")
+                    Text("현재 펫에 공유할 평상시 행동·규칙·이동·말풍선 권장 설정이 없습니다.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {
@@ -2116,7 +2116,7 @@ private struct PetPackageShareReviewView: View {
             Divider()
 
             Toggle(
-                "앱별 자동 규칙 \(review.applicationRuleCount)개 포함",
+                "앱 사용 규칙 \(review.applicationRuleCount)개 포함",
                 isOn: $includesApplicationRules
             )
             .disabled(review.recommendedProfileWithApplicationRules == nil)
@@ -2126,7 +2126,7 @@ private struct PetPackageShareReviewView: View {
 
             if let issue = review.applicationRulesIssue {
                 Label(
-                    "앱별 자동 규칙은 포함할 수 없습니다: \(issue)",
+                    "앱 사용 규칙은 포함할 수 없습니다: \(issue)",
                     systemImage: "exclamationmark.triangle"
                 )
                 .font(.caption)
@@ -2138,7 +2138,7 @@ private struct PetPackageShareReviewView: View {
                             + review.applicationBundleIdentifiers.joined(
                                 separator: ", "
                             )
-                        : "앱별 자동 규칙은 기본적으로 포함하지 않습니다."
+                        : "앱 사용 규칙은 기본적으로 포함하지 않습니다."
                 )
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -2171,8 +2171,8 @@ private struct RecommendedProfileSummaryView: View {
                 verticalSpacing: 6
             ) {
                 informationRow(
-                    "행동 모드",
-                    value: behaviorModeName
+                    "평상시 행동 방식",
+                    value: stationaryBehaviorModeName
                 )
                 informationRow(
                     behaviorSelectionLabel,
@@ -2183,11 +2183,11 @@ private struct RecommendedProfileSummaryView: View {
                     value: "\(summary.sequences.count)개"
                 )
                 informationRow(
-                    "자동 규칙",
-                    value: "\(summary.automaticRules.count)개"
+                    "조건 규칙",
+                    value: summary.conditionRuleDescription
                 )
                 informationRow(
-                    "자동 규칙 우선순위",
+                    "규칙 우선순위",
                     value: summary.automaticRulePriorityDescription
                 )
                 informationRow(
@@ -2289,10 +2289,10 @@ private struct RecommendedProfileSummaryView: View {
                 .padding(.top, 6)
             }
 
-            DisclosureGroup("자동 규칙 상세") {
+            DisclosureGroup("조건 규칙 상세") {
                 VStack(alignment: .leading, spacing: 8) {
                     if summary.automaticRules.isEmpty {
-                        Text("포함된 자동 규칙이 없습니다.")
+                        Text("포함된 조건 규칙이 없습니다.")
                             .foregroundStyle(.secondary)
                     } else {
                         ForEach(summary.automaticRules, id: \.id) { rule in
@@ -2544,27 +2544,25 @@ private struct RecommendedProfileSummaryView: View {
         return "\(seconds)초 간격"
     }
 
-    private var behaviorModeName: String {
-        switch summary.mode {
-        case .automatic:
-            "자동 규칙"
-        case .manual:
-            "직접 선택"
+    private var stationaryBehaviorModeName: String {
+        switch summary.stationaryBehaviorMode {
+        case .fixed:
+            "하나 선택"
         case .random:
             "랜덤 선택"
         }
     }
 
     private var behaviorSelectionLabel: String {
-        summary.mode == .random ? "랜덤 행동" : "선택 행동"
+        summary.stationaryBehaviorMode == .random
+            ? "랜덤 행동"
+            : "평상시 행동"
     }
 
     private var behaviorSelectionDescription: String {
-        switch summary.mode {
-        case .automatic:
-            "자동 규칙으로 결정"
-        case .manual:
-            summary.manualSequenceID.map(
+        switch summary.stationaryBehaviorMode {
+        case .fixed:
+            summary.stationarySequenceID.map(
                 summary.behaviorDisplayName(for:)
             ) ?? "기본 행동"
         case .random:
@@ -2694,8 +2692,8 @@ private struct RecommendedProfileSummaryView: View {
             "앱: \(bundleIdentifier)"
         case let .idleAtLeast(milliseconds):
             "입력 없음: \(dwellText(milliseconds)) 이상"
-        case let .unsupported(type):
-            "지원하지 않는 규칙: \(type)"
+        case .unsupported:
+            "지원하지 않는 조건"
         }
     }
 
@@ -3603,7 +3601,7 @@ private struct ReadOnlyPetCopyEditorView: View {
             }
             .formStyle(.grouped)
 
-            Text("애니메이션과 미리보기 자산을 복사하고, 현재 행동·자동 동작·이동·쓰다듬기·말풍선 설정도 새 펫에 복사합니다.")
+            Text("애니메이션과 미리보기 자산을 복사하고, 현재 행동·규칙 설정·이동·쓰다듬기·말풍선 설정도 새 펫에 복사합니다.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 

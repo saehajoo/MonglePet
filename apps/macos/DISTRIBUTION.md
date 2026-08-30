@@ -23,13 +23,15 @@ Apple 공증과 티켓 부착이 모두 필요합니다.
 - 두 값이 바뀌면 `MonglePetVersionTests`의 기대값도 같은 커밋에서 갱신합니다.
 - `.monglepet` 패키지 스키마 버전은 앱 마케팅 버전과 별도로 관리합니다.
 
-현재 배포 후보는 펫 제작 버전 검증, 새 펫·사본의 독립 활성 인스턴스와
-랜덤 행동·이동 전환 보정을 포함한 `1.4.0 (10)`입니다. 코드나 설정이 다시
-바뀌면 빌드 번호와 `MonglePetVersionTests` 기대값을 함께 올립니다.
+현재 배포 후보는 평상시 행동 선택과 조건 규칙 분리, schema-v15 설정 이관,
+권장 프로필 v11과 가져오기·내보내기 내용 확인 정리를 포함한
+`1.5.0 (11)`입니다. 코드나 설정이 다시 바뀌면 빌드 번호와
+`MonglePetVersionTests` 기대값을 함께 올립니다.
 
 `macos-v1.4.0-preview.1` 게시 뒤 펫 제작기·활성 인스턴스 후속 보정과
 앱 아이콘을 반영해 `macos-v1.4.0-preview.2` 새 Pre-release로
 게시했습니다. 기존 GitHub Release 자산이나 태그는 덮어쓰지 않았습니다.
+다음 배포 후보는 새 기능선을 구분하는 `macos-v1.5.0-preview.1`입니다.
 
 ## 현재 배포 상태
 
@@ -83,9 +85,9 @@ apps/macos/Scripts/build-preview-zip.zsh
 
 개인 Mac에서 검증을 마치면 GitHub Release에 다음 세 파일을 함께 올립니다.
 
-- `MonglePet-1.4.0-build.10-preview.zip`
-- `MonglePet-1.4.0-build.10-preview.zip.sha256`
-- `MonglePet-1.4.0-build.10-preview.manifest.txt`
+- `MonglePet-1.5.0-build.11-preview.zip`
+- `MonglePet-1.5.0-build.11-preview.zip.sha256`
+- `MonglePet-1.5.0-build.11-preview.manifest.txt`
 
 Release 설명에는 미서명·미공증 Preview라는 점, 지원 macOS 버전, 설치 후
 첫 실행 확인 방법과 알려진 제한을 명시합니다.

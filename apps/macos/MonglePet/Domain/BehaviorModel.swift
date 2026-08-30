@@ -12,6 +12,11 @@ nonisolated enum BehaviorMode: String, Equatable, Sendable {
     case random
 }
 
+nonisolated enum StationaryBehaviorMode: String, Equatable, Sendable {
+    case fixed
+    case random
+}
+
 nonisolated struct BehaviorStep: Equatable, Sendable {
     let motionID: String
     let repeatCount: Int
@@ -121,13 +126,32 @@ nonisolated struct ActivitySnapshot: Equatable, Sendable {
 }
 
 nonisolated struct BehaviorConfiguration: Equatable, Sendable {
-    let mode: BehaviorMode
+    let stationaryBehaviorMode: StationaryBehaviorMode
     let defaultSequenceID: String
-    let manualSequenceID: String?
+    let stationarySequenceID: String?
     let randomSequenceIDs: [String]
     let sequences: [BehaviorSequence]
     let automaticRules: [AutomaticRule]
     let automaticRulePriorityOrder: [AutomaticRuleCategory]
+
+    init(
+        stationaryBehaviorMode: StationaryBehaviorMode,
+        defaultSequenceID: String,
+        stationarySequenceID: String? = nil,
+        randomSequenceIDs: [String] = [],
+        sequences: [BehaviorSequence],
+        automaticRules: [AutomaticRule] = [],
+        automaticRulePriorityOrder: [AutomaticRuleCategory] =
+            AutomaticRuleCategory.defaultPriorityOrder
+    ) {
+        self.stationaryBehaviorMode = stationaryBehaviorMode
+        self.defaultSequenceID = defaultSequenceID
+        self.stationarySequenceID = stationarySequenceID
+        self.randomSequenceIDs = randomSequenceIDs
+        self.sequences = sequences
+        self.automaticRules = automaticRules
+        self.automaticRulePriorityOrder = automaticRulePriorityOrder
+    }
 
     init(
         mode: BehaviorMode,
@@ -139,13 +163,28 @@ nonisolated struct BehaviorConfiguration: Equatable, Sendable {
         automaticRulePriorityOrder: [AutomaticRuleCategory] =
             AutomaticRuleCategory.defaultPriorityOrder
     ) {
-        self.mode = mode
-        self.defaultSequenceID = defaultSequenceID
-        self.manualSequenceID = manualSequenceID
-        self.randomSequenceIDs = randomSequenceIDs
-        self.sequences = sequences
-        self.automaticRules = automaticRules
-        self.automaticRulePriorityOrder = automaticRulePriorityOrder
+        self.init(
+            stationaryBehaviorMode: mode == .random ? .random : .fixed,
+            defaultSequenceID: defaultSequenceID,
+            stationarySequenceID: mode == .manual ? manualSequenceID : nil,
+            randomSequenceIDs: randomSequenceIDs,
+            sequences: sequences,
+            automaticRules: automaticRules,
+            automaticRulePriorityOrder: automaticRulePriorityOrder
+        )
+    }
+
+    var mode: BehaviorMode {
+        switch stationaryBehaviorMode {
+        case .fixed:
+            stationarySequenceID == nil ? .automatic : .manual
+        case .random:
+            .random
+        }
+    }
+
+    var manualSequenceID: String? {
+        stationarySequenceID
     }
 
     func sequence(id: String) -> BehaviorSequence? {

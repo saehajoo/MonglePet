@@ -73,11 +73,63 @@ final class AppSettingsSession: ObservableObject {
     }
 
     func setBehaviorMode(_ mode: BehaviorMode) {
+        let stationaryMode: StationaryBehaviorMode = mode == .random
+            ? .random
+            : .fixed
+        let stationarySequenceID: String? = switch mode {
+        case .automatic, .random:
+            nil
+        case .manual:
+            settings.stationarySequenceID
+                ?? settings.sequences.first?.id
+        }
         updateActiveProfile(
             BehaviorProfile(
                 petKey: settings.selectedPetKey,
-                mode: mode,
-                manualSequenceID: settings.manualSequenceID,
+                stationaryBehaviorMode: stationaryMode,
+                stationarySequenceID: stationarySequenceID,
+                randomSequenceIDs: settings.randomSequenceIDs,
+                sequences: settings.sequences,
+                automaticRules: settings.automaticRules,
+                automaticRulePriorityOrder:
+                    settings.automaticRulePriorityOrder,
+                movement: settings.movementSettings,
+                pettingMotionID: settings.pettingMotionID,
+                speech: settings.speechSettings
+            )
+        )
+    }
+
+    func setStationaryBehaviorMode(_ mode: StationaryBehaviorMode) {
+        updateActiveProfile(
+            BehaviorProfile(
+                petKey: settings.selectedPetKey,
+                stationaryBehaviorMode: mode,
+                stationarySequenceID: mode == .fixed
+                    ? settings.stationarySequenceID
+                    : nil,
+                randomSequenceIDs: settings.randomSequenceIDs,
+                sequences: settings.sequences,
+                automaticRules: settings.automaticRules,
+                automaticRulePriorityOrder:
+                    settings.automaticRulePriorityOrder,
+                movement: settings.movementSettings,
+                pettingMotionID: settings.pettingMotionID,
+                speech: settings.speechSettings
+            )
+        )
+    }
+
+    func setStationarySequenceID(_ sequenceID: String?) {
+        if let sequenceID,
+           !settings.sequences.contains(where: { $0.id == sequenceID }) {
+            return
+        }
+        updateActiveProfile(
+            BehaviorProfile(
+                petKey: settings.selectedPetKey,
+                stationaryBehaviorMode: settings.stationaryBehaviorMode,
+                stationarySequenceID: sequenceID,
                 randomSequenceIDs: settings.randomSequenceIDs,
                 sequences: settings.sequences,
                 automaticRules: settings.automaticRules,
@@ -300,25 +352,7 @@ final class AppSettingsSession: ObservableObject {
     }
 
     func setManualSequenceID(_ sequenceID: String) {
-        guard settings.sequences.contains(where: { $0.id == sequenceID }) else {
-            return
-        }
-
-        updateActiveProfile(
-            BehaviorProfile(
-                petKey: settings.selectedPetKey,
-                mode: settings.behaviorMode,
-                manualSequenceID: sequenceID,
-                randomSequenceIDs: settings.randomSequenceIDs,
-                sequences: settings.sequences,
-                automaticRules: settings.automaticRules,
-                automaticRulePriorityOrder:
-                    settings.automaticRulePriorityOrder,
-                movement: settings.movementSettings,
-                pettingMotionID: settings.pettingMotionID,
-                speech: settings.speechSettings
-            )
-        )
+        setStationarySequenceID(sequenceID)
     }
 
     func setRandomSequenceIDs(_ sequenceIDs: [String]) {

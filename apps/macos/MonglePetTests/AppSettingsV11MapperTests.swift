@@ -81,8 +81,19 @@ final class AppSettingsV11MapperTests: XCTestCase {
         let selectedProfile = BehaviorProfile(
             petKey: firstRecord.profile.petKey,
             mode: .manual,
-            manualSequenceID: firstRecord.profile.sequences.first?.id,
-            sequences: firstRecord.profile.sequences,
+            manualSequenceID: "selected",
+            sequences: firstRecord.profile.sequences + [
+                BehaviorSequence(
+                    id: "selected",
+                    steps: [
+                        BehaviorStep(
+                            motionID: "selected",
+                            repeatCount: 1
+                        )
+                    ],
+                    repeats: true
+                )
+            ],
             automaticRules: firstRecord.profile.automaticRules,
             movement: firstRecord.profile.movement,
             pettingMotionID: firstRecord.profile.pettingMotionID,
@@ -226,7 +237,7 @@ final class AppSettingsV11MapperTests: XCTestCase {
             from: Data(contentsOf: settingsURL)
         )
 
-        XCTAssertEqual(envelope.schemaVersion, 14)
+        XCTAssertEqual(envelope.schemaVersion, 15)
         XCTAssertEqual(migrated.source, .file)
         XCTAssertEqual(reloaded.source, .file)
         XCTAssertEqual(reloaded.settings, migrated.settings)

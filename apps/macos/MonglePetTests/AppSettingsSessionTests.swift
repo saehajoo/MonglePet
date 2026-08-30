@@ -35,7 +35,7 @@ final class AppSettingsSessionTests: XCTestCase {
         XCTAssertEqual(session.load().source, .defaults)
 
         session.setUserPresentation(.tuckedAway)
-        session.setBehaviorMode(.manual)
+        session.setStationaryBehaviorMode(.random)
         session.setOverlayWidth(280)
         session.setClickThrough(true)
         session.setOverlayGeometry(
@@ -50,7 +50,7 @@ final class AppSettingsSessionTests: XCTestCase {
 
         XCTAssertEqual(changedSettings.count, 5)
         XCTAssertEqual(session.settings.lastUserPresentation, .tuckedAway)
-        XCTAssertEqual(session.settings.behaviorMode, .manual)
+        XCTAssertEqual(session.settings.stationaryBehaviorMode, .random)
         XCTAssertNil(session.saveErrorMessage)
 
         let reloaded = AppSettingsSession(
@@ -743,10 +743,10 @@ final class AppSettingsSessionTests: XCTestCase {
             .defaults
         )
 
-        session.setBehaviorMode(.manual)
+        session.setStationaryBehaviorMode(.random)
         let reloaded = AppSettingsStore(settingsURL: settingsURL).load()
         XCTAssertEqual(reloaded.settings.overlay, runtimeOverlay)
-        XCTAssertEqual(reloaded.settings.behaviorMode, .manual)
+        XCTAssertEqual(reloaded.settings.stationaryBehaviorMode, .random)
     }
 
     @MainActor
@@ -1008,7 +1008,7 @@ final class AppSettingsSessionTests: XCTestCase {
         )
         XCTAssertEqual(
             session.settings.manualSequenceID,
-            BuiltInBehaviorPresets.defaultSequenceID
+            nil
         )
         XCTAssertEqual(
             session.settings.automaticRules,
@@ -1218,7 +1218,7 @@ final class AppSettingsSessionTests: XCTestCase {
         )
         XCTAssertEqual(
             session.settings.manualSequenceID,
-            BuiltInBehaviorPresets.defaultSequenceID
+            nil
         )
         XCTAssertEqual(
             session.settings.automaticRules,
@@ -1241,7 +1241,7 @@ final class AppSettingsSessionTests: XCTestCase {
         XCTAssertEqual(normalized.behaviorMode, .automatic)
         XCTAssertEqual(
             normalized.manualSequenceID,
-            BuiltInBehaviorPresets.defaultSequenceID
+            nil
         )
         XCTAssertEqual(
             normalized.sequences,
@@ -1384,7 +1384,7 @@ final class AppSettingsSessionTests: XCTestCase {
         let modified = BehaviorProfile(
             petKey: published.petKey,
             mode: .manual,
-            manualSequenceID: published.manualSequenceID,
+            manualSequenceID: published.sequences.first?.id,
             randomSequenceIDs: published.randomSequenceIDs,
             sequences: published.sequences,
             automaticRules: published.automaticRules,
@@ -1661,7 +1661,7 @@ final class AppSettingsSessionTests: XCTestCase {
 
         XCTAssertEqual(normalized.sequences.first, BuiltInBehaviorPresets.sequences[0])
         XCTAssertEqual(Array(normalized.sequences.dropFirst()), modifiedSequences)
-        XCTAssertEqual(normalized.manualSequenceID, "idle")
+        XCTAssertNil(normalized.manualSequenceID)
         XCTAssertEqual(
             normalized.automaticRules,
             BuiltInBehaviorPresets.legacyAutomaticRules
@@ -1670,7 +1670,7 @@ final class AppSettingsSessionTests: XCTestCase {
 
     @MainActor
     func testNewerSchemaPreservesFileWhileAllowingRuntimePresentationChange() throws {
-        let originalData = Data(#"{"schemaVersion":15,"future":true}"#.utf8)
+        let originalData = Data(#"{"schemaVersion":16,"future":true}"#.utf8)
         try originalData.write(to: settingsURL)
         let session = AppSettingsSession(
             store: AppSettingsStore(settingsURL: settingsURL)
@@ -1679,7 +1679,7 @@ final class AppSettingsSessionTests: XCTestCase {
         let result = session.load()
         session.setUserPresentation(.tuckedAway)
 
-        XCTAssertEqual(result.source, .newerSchema(15))
+        XCTAssertEqual(result.source, .newerSchema(16))
         XCTAssertFalse(session.isWritingEnabled)
         XCTAssertNotNil(session.loadNotice)
         XCTAssertEqual(session.settings.lastUserPresentation, .tuckedAway)

@@ -192,10 +192,8 @@ final class PetBehaviorRuntimeTests: XCTestCase {
             configuration.automaticRules,
             BuiltInBehaviorPresets.mongleAutomaticRules
         )
-        XCTAssertEqual(
-            configuration.manualSequenceID,
-            BuiltInBehaviorPresets.defaultSequenceID
-        )
+        XCTAssertEqual(configuration.stationaryBehaviorMode, .fixed)
+        XCTAssertNil(configuration.stationarySequenceID)
     }
 
     func testRandomModeUsesEverySelectedBehaviorBeforeRefillingBag() {
@@ -332,6 +330,67 @@ final class PetBehaviorRuntimeTests: XCTestCase {
             receivedPlaybacks.compactMap { $0 }.map(\.motion.id),
             ["focus", "rest", "focus"]
         )
+    }
+
+    func testRuleInterruptsRandomBehaviorAndReturnsToNextBagItemAtFirstFrame() {
+        let clock = ManualBehaviorRuntimeClock()
+        let tickScheduler = ManualBehaviorTickScheduler()
+        let runtime = PetBehaviorRuntime(
+            petDefinition: makePet(),
+            clock: clock,
+            tickScheduler: tickScheduler,
+            randomIndex: { _ in 0 }
+        ) { _ in }
+        let focus = BehaviorSequence(
+            id: "focus",
+            steps: [BehaviorStep(motionID: "focus", repeatCount: 1)],
+            repeats: true
+        )
+        let rest = BehaviorSequence(
+            id: "rest",
+            steps: [BehaviorStep(motionID: "rest", repeatCount: 1)],
+            repeats: true
+        )
+        let ruleSequence = BehaviorSequence(
+            id: "idle-rule",
+            steps: [BehaviorStep(motionID: "sleep", repeatCount: 10)],
+            repeats: true
+        )
+        let settings = AppSettings(
+            selectedPetInstallationID: nil,
+            lastUserPresentation: .awake,
+            behaviorMode: .random,
+            overlay: .default,
+            manualSequenceID: nil,
+            randomSequenceIDs: [focus.id, rest.id],
+            sequences: [focus, rest, ruleSequence],
+            automaticRules: [
+                AutomaticRule(
+                    id: UUID(),
+                    isEnabled: true,
+                    priority: 10,
+                    condition: .idleAtLeast(milliseconds: 1_000),
+                    sequenceID: ruleSequence.id
+                )
+            ]
+        )
+
+        runtime.update(settings: settings, snapshot: snapshot())
+        XCTAssertEqual(runtime.currentPlayback?.motion.id, "focus")
+
+        clock.advance(by: .milliseconds(40))
+        runtime.update(
+            settings: settings,
+            snapshot: snapshot(idle: .seconds(2))
+        )
+        XCTAssertEqual(runtime.currentPlayback?.motion.id, "sleep")
+
+        clock.advance(by: .milliseconds(40))
+        runtime.update(settings: settings, snapshot: snapshot())
+
+        XCTAssertEqual(runtime.currentPlayback?.motion.id, "rest")
+        XCTAssertEqual(runtime.currentPlayback?.cycleElapsedDuration, .zero)
+        XCTAssertEqual(tickScheduler.scheduledDelay, .milliseconds(100))
     }
 
     func testMovementPreservesAutomaticBehaviorCyclePosition() throws {

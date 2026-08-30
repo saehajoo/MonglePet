@@ -90,7 +90,7 @@ extension PetPackageSharingError: LocalizedError {
         case .recommendedProfileUnavailable:
             "현재 펫 설정은 공유 가능한 권장 설정으로 만들 수 없습니다."
         case .applicationRulesUnavailable:
-            "현재 앱별 자동 규칙은 공유 가능한 형식으로 만들 수 없습니다."
+            "현재 앱 사용 규칙은 공유 가능한 형식으로 만들 수 없습니다."
         }
     }
 }
@@ -270,8 +270,8 @@ nonisolated struct PetPackageSharingService {
         automaticRules: [AutomaticRule]
     ) -> RecommendedPetProfile {
         RecommendedPetProfile(
-            mode: profile.mode,
-            manualSequenceID: profile.manualSequenceID,
+            stationaryBehaviorMode: profile.stationaryBehaviorMode,
+            stationarySequenceID: profile.stationarySequenceID,
             randomSequenceIDs: profile.randomSequenceIDs,
             sequences: profile.sequences,
             automaticRules: automaticRules,

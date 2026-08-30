@@ -45,7 +45,7 @@ final class AppSettingsStoreTests: XCTestCase {
             JSONSerialization.jsonObject(with: Data(contentsOf: settingsURL))
                 as? [String: Any]
         )
-        XCTAssertEqual(json["schemaVersion"] as? Int, 14)
+        XCTAssertEqual(json["schemaVersion"] as? Int, 15)
         XCTAssertNil(json["behaviorMode"])
         let instances = try XCTUnwrap(
             json["activePetInstances"] as? [[String: Any]]
@@ -66,7 +66,14 @@ final class AppSettingsStoreTests: XCTestCase {
         XCTAssertEqual(overlay["pointerOverlapOpacity"] as? Double, 0.2)
 
         let profiles = try XCTUnwrap(json["behaviorProfiles"] as? [[String: Any]])
-        XCTAssertEqual(profiles.first?["mode"] as? String, "manual")
+        XCTAssertEqual(
+            profiles.first?["stationaryBehaviorMode"] as? String,
+            "fixed"
+        )
+        XCTAssertEqual(
+            profiles.first?["stationarySequenceID"] as? String,
+            "focus-sequence"
+        )
         let movement = try XCTUnwrap(profiles.first?["movement"] as? [String: Any])
         XCTAssertEqual(movement["mode"] as? String, "cursorFollowing")
         let following = try XCTUnwrap(
@@ -299,14 +306,14 @@ final class AppSettingsStoreTests: XCTestCase {
     }
 
     func testNewerSchemaIsPreservedAndDisablesWriting() throws {
-        let originalData = Data(#"{"schemaVersion":15,"futureValue":true}"#.utf8)
+        let originalData = Data(#"{"schemaVersion":16,"futureValue":true}"#.utf8)
         try originalData.write(to: settingsURL)
         let store = AppSettingsStore(settingsURL: settingsURL)
 
         let loaded = store.load()
 
-        XCTAssertEqual(loaded.source, .newerSchema(15))
-        XCTAssertEqual(loaded.issues, [.newerSchemaVersion(15)])
+        XCTAssertEqual(loaded.source, .newerSchema(16))
+        XCTAssertEqual(loaded.issues, [.newerSchemaVersion(16)])
         XCTAssertFalse(loaded.isWritingEnabled)
         XCTAssertEqual(try Data(contentsOf: settingsURL), originalData)
         XCTAssertThrowsError(try store.save(.default)) { error in
@@ -401,10 +408,10 @@ final class AppSettingsStoreTests: XCTestCase {
             StoredSchemaEnvelope.self,
             from: migratedData
         )
-        XCTAssertEqual(envelope.schemaVersion, 14)
+        XCTAssertEqual(envelope.schemaVersion, 15)
         XCTAssertNoThrow(
             try JSONDecoder().decode(
-                StoredAppSettingsV14.self,
+                StoredAppSettingsV15.self,
                 from: migratedData
             )
         )
@@ -450,10 +457,10 @@ final class AppSettingsStoreTests: XCTestCase {
         XCTAssertEqual(loaded.source, .file)
         XCTAssertEqual(loaded.settings.movementSettings, .default)
         let migrated = try JSONDecoder().decode(
-            StoredAppSettingsV14.self,
+            StoredAppSettingsV15.self,
             from: Data(contentsOf: settingsURL)
         )
-        XCTAssertEqual(migrated.schemaVersion, 14)
+        XCTAssertEqual(migrated.schemaVersion, 15)
         XCTAssertEqual(migrated.behaviorProfiles.first?.movement.mode, "fixed")
         XCTAssertEqual(
             migrated.behaviorProfiles.first?.movement.cursorAvoiding.idleBehavior,
@@ -480,10 +487,10 @@ final class AppSettingsStoreTests: XCTestCase {
         XCTAssertEqual(loaded.source, .file)
         assertLegacySettings(loaded.settings, equals: originalSettings)
         let migrated = try JSONDecoder().decode(
-            StoredAppSettingsV14.self,
+            StoredAppSettingsV15.self,
             from: Data(contentsOf: settingsURL)
         )
-        XCTAssertEqual(migrated.schemaVersion, 14)
+        XCTAssertEqual(migrated.schemaVersion, 15)
         let overlay = try XCTUnwrap(
             migrated.activePetInstances.first?.overlay
         )
@@ -508,10 +515,10 @@ final class AppSettingsStoreTests: XCTestCase {
         XCTAssertEqual(loaded.source, .file)
         assertLegacySettings(loaded.settings, equals: originalSettings)
         let migrated = try JSONDecoder().decode(
-            StoredAppSettingsV14.self,
+            StoredAppSettingsV15.self,
             from: Data(contentsOf: settingsURL)
         )
-        XCTAssertEqual(migrated.schemaVersion, 14)
+        XCTAssertEqual(migrated.schemaVersion, 15)
         let runBehaviorID = try XCTUnwrap(
             migrated.behaviorProfiles.first?.movement
                 .cursorFollowing.behavior.fallbackBehaviorID
@@ -734,9 +741,34 @@ final class AppSettingsStoreTests: XCTestCase {
             line: line
         )
         XCTAssertEqual(actual.overlay, expected.overlay, file: file, line: line)
+        let expectedProfiles = expected.behaviorProfiles.map { profile in
+            BehaviorProfile(
+                petKey: profile.petKey,
+                stationaryBehaviorMode: profile.stationaryBehaviorMode,
+                stationarySequenceID: profile.stationarySequenceID,
+                randomSequenceIDs: profile.randomSequenceIDs,
+                sequences: profile.sequences,
+                automaticRules: profile.mode == .automatic
+                    ? profile.automaticRules
+                    : profile.automaticRules.map { rule in
+                        AutomaticRule(
+                            id: rule.id,
+                            isEnabled: false,
+                            priority: rule.priority,
+                            condition: rule.condition,
+                            sequenceID: rule.sequenceID
+                        )
+                    },
+                automaticRulePriorityOrder:
+                    profile.automaticRulePriorityOrder,
+                movement: profile.movement,
+                pettingMotionID: profile.pettingMotionID,
+                speech: profile.speech
+            )
+        }
         XCTAssertEqual(
             actual.behaviorProfiles,
-            expected.behaviorProfiles,
+            expectedProfiles,
             file: file,
             line: line
         )

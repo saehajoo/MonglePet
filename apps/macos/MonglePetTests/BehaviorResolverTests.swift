@@ -55,7 +55,7 @@ final class BehaviorResolverTests: XCTestCase {
         XCTAssertEqual(source(from: decision), .interaction)
     }
 
-    func testManualModeIgnoresApplicationAndIdleRules() throws {
+    func testFixedStationarySelectionStillAllowsRulesToOverride() throws {
         let configuration = makeConfiguration(mode: .manual, manualSequenceID: "manual")
         var resolver = BehaviorResolver()
 
@@ -69,8 +69,10 @@ final class BehaviorResolverTests: XCTestCase {
             runtimeState: BehaviorRuntimeState(presentation: .awake)
         )
 
-        XCTAssertEqual(try sequence(from: decision).id, "manual")
-        XCTAssertEqual(source(from: decision), .manual)
+        XCTAssertEqual(try sequence(from: decision).id, "sleep")
+        guard case .automaticRule = source(from: decision) else {
+            return XCTFail("고정 평상시 행동에서도 일치하는 규칙이 우선해야 합니다.")
+        }
     }
 
     func testAutomaticRulesUseConfiguredPriorityAcrossConditionTypes() throws {

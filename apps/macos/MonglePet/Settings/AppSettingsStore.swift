@@ -583,16 +583,36 @@ nonisolated final class AppSettingsStore {
             }
         }
 
+        if envelope.schemaVersion == 14 {
+            guard let storedSettings = try? decoder.decode(
+                StoredAppSettingsV14.self,
+                from: data
+            ) else {
+                return recoverCorruptFile()
+            }
+            do {
+                return try loadMigratingV14(storedSettings)
+            } catch {
+                isWritingEnabled = false
+                return AppSettingsLoadResult(
+                    settings: .default,
+                    issues: [.invalidField("settingsMigration")],
+                    source: .recovered,
+                    isWritingEnabled: false
+                )
+            }
+        }
+
         guard envelope.schemaVersion == AppSettingsLimits.schemaVersion,
               let storedSettings = try? decoder.decode(
-                  StoredAppSettingsV14.self,
+                  StoredAppSettingsV15.self,
                   from: data
               )
         else {
             return recoverCorruptFile()
         }
 
-        let mapped = AppSettingsV14Mapper.domainSettings(from: storedSettings)
+        let mapped = AppSettingsV15Mapper.domainSettings(from: storedSettings)
         isWritingEnabled = true
         return AppSettingsLoadResult(
             settings: mapped.settings,
@@ -607,9 +627,9 @@ nonisolated final class AppSettingsStore {
             throw AppSettingsStoreError.writingDisabledForNewerSchema
         }
 
-        let storedSettings: StoredAppSettingsV14
+        let storedSettings: StoredAppSettingsV15
         do {
-            storedSettings = try AppSettingsV14Mapper.storedSettings(
+            storedSettings = try AppSettingsV15Mapper.storedSettings(
                 from: settings
             )
         } catch let error as AppSettingsMappingError {
@@ -666,8 +686,19 @@ nonisolated final class AppSettingsStore {
         let migrated = try AppSettingsV13ToV14Migrator.migrate(
             storedSettings
         )
-        let mapped = AppSettingsV14Mapper.domainSettings(from: migrated)
-        let normalized = try AppSettingsV14Mapper.storedSettings(
+        return try loadMigratingV14(
+            migrated,
+            precedingIssues: precedingIssues
+        )
+    }
+
+    private func loadMigratingV14(
+        _ storedSettings: StoredAppSettingsV14,
+        precedingIssues: [SettingsRecoveryIssue] = []
+    ) throws -> AppSettingsLoadResult {
+        let migrated = try AppSettingsV14ToV15Migrator.migrate(storedSettings)
+        let mapped = AppSettingsV15Mapper.domainSettings(from: migrated)
+        let normalized = try AppSettingsV15Mapper.storedSettings(
             from: mapped.settings
         )
         try write(normalized)
