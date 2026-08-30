@@ -231,7 +231,7 @@ public sealed partial class MainPage : Page
             ? Visibility.Visible
             : Visibility.Collapsed;
         PetPresentationPanel.Visibility = isMovement ? Visibility.Visible : Visibility.Collapsed;
-        BehaviorOverviewPanel.Visibility = isAutomaticRules
+        BehaviorOverviewPanel.Visibility = isMovement
             ? Visibility.Visible
             : Visibility.Collapsed;
 
@@ -250,10 +250,9 @@ public sealed partial class MainPage : Page
             ? Visibility.Visible
             : Visibility.Collapsed;
         RoutineEditorCard.Visibility = isRoutines ? Visibility.Visible : Visibility.Collapsed;
-        AutomaticRulesCard.Visibility = isAutomaticRules &&
-            (Application.Current as App)?.ActiveBehaviorProfile.Mode == BehaviorMode.Automatic
-                ? Visibility.Visible
-                : Visibility.Collapsed;
+        AutomaticRulesCard.Visibility = isAutomaticRules
+            ? Visibility.Visible
+            : Visibility.Collapsed;
 
         (SettingsSectionTitle.Text, SettingsSectionDescription.Text) = section switch
         {
@@ -270,8 +269,8 @@ public sealed partial class MainPage : Page
                 "말풍선",
                 "행동 대사와 주기 대사, 말풍선 모양 및 표시 위치를 설정합니다."),
             "automaticRules" => (
-                "자동 규칙",
-                "자동 규칙·직접 선택·랜덤 선택 모드를 고르고 조건별로 실행할 행동을 정합니다."),
+                "규칙 설정",
+                "이동·입력 없음·앱 사용 규칙의 우선순위와 조건별 행동을 설정합니다."),
             "pet" => (
                 "펫 보관함",
                 "펫 패키지를 가져오거나 내보내고 원본 정보와 애니메이션을 관리합니다."),
@@ -467,7 +466,7 @@ public sealed partial class MainPage : Page
         SelectionChangedEventArgs e)
     {
         if (!_isLoaded || _isRefreshingBehaviorControls ||
-            BehaviorModeComboBox.SelectedIndex != 1)
+            BehaviorModeComboBox.SelectedIndex != 0)
         {
             return;
         }
@@ -480,7 +479,7 @@ public sealed partial class MainPage : Page
         SelectionChangedEventArgs e)
     {
         if (!_isLoaded || _isRefreshingBehaviorControls ||
-            BehaviorModeComboBox.SelectedIndex != 2)
+            BehaviorModeComboBox.SelectedIndex != 1)
         {
             return;
         }
@@ -825,8 +824,8 @@ public sealed partial class MainPage : Page
             IsEnabled = false,
             Margin = new Thickness(20, 0, 0, 0),
         };
-        CheckBox behavior = Option("행동과 자동 규칙");
-        CheckBox applicationRules = Option("앱별 자동 규칙", defaultValue: false);
+        CheckBox behavior = Option("평상시 행동과 조건 규칙");
+        CheckBox applicationRules = Option("앱 사용 규칙", defaultValue: false);
         CheckBox movement = Option("이동 설정");
         CheckBox petting = Option("쓰다듬기 행동");
         CheckBox speech = Option("말풍선 설정");
@@ -967,7 +966,7 @@ public sealed partial class MainPage : Page
         };
         var includeApplicationRules = new CheckBox
         {
-            Content = "앱별 자동 규칙도 포함",
+            Content = "앱 사용 규칙도 포함",
             IsChecked = false,
             IsEnabled = hasApplicationRules,
             Visibility = hasApplicationRules ? Visibility.Visible : Visibility.Collapsed,
@@ -979,7 +978,7 @@ public sealed partial class MainPage : Page
             IsEnabled = false,
             Margin = new Thickness(20, 0, 0, 0),
         };
-        CheckBox includeBehavior = Option("행동과 자동 규칙");
+        CheckBox includeBehavior = Option("평상시 행동과 조건 규칙");
         CheckBox includeMovement = Option("이동 설정");
         CheckBox includePetting = Option("쓰다듬기 행동");
         CheckBox includeSpeech = Option("말풍선 설정");
@@ -1022,7 +1021,7 @@ public sealed partial class MainPage : Page
         var content = new StackPanel { Spacing = 10, MaxWidth = 520 };
         content.Children.Add(new TextBlock
         {
-            Text = "펫의 행동, 랜덤 선택, 자동 규칙 순서, 각 이동 방식, 쓰다듬기, 말풍선과 휴대 가능한 표시 설정을 함께 저장합니다. 화면 위치·모니터·활성 인스턴스 같은 기기 전용 값은 제외됩니다.",
+            Text = "평상시 행동, 조건 규칙 순서, 각 이동 방식, 쓰다듬기, 말풍선과 휴대 가능한 표시 설정을 함께 저장합니다. 화면 위치·모니터·활성 인스턴스 같은 기기 전용 값은 제외됩니다.",
             TextWrapping = TextWrapping.Wrap,
         });
         content.Children.Add(includeApplicationRules);
@@ -1061,16 +1060,13 @@ public sealed partial class MainPage : Page
     private static string RecommendedProfileSummary(BehaviorProfile profile)
     {
         int stepCount = profile.Sequences.Sum(sequence => sequence.Steps.Count);
-        int applicationRules = profile.AutomaticRules.Count(
-            rule => rule.Condition is RuleCondition.Application);
+        int enabledRules = profile.AutomaticRules.Count(rule => rule.IsEnabled);
         int periodicPhrases = profile.Speech.Phrases.Count(
             phrase => phrase.Trigger is PetSpeechTrigger.Periodic);
-        string mode = profile.Mode switch
+        string mode = profile.StationaryBehaviorMode switch
         {
-            BehaviorMode.Automatic => "자동 규칙",
-            BehaviorMode.Manual => "직접 선택",
-            BehaviorMode.Random => "랜덤 선택",
-            _ => "자동 규칙",
+            StationaryBehaviorMode.Random => "랜덤 선택",
+            _ => "하나 선택",
         };
         string movement = profile.Movement.Mode switch
         {
@@ -1082,16 +1078,27 @@ public sealed partial class MainPage : Page
         };
         IReadOnlyDictionary<string, string> names = profile.Sequences
             .ToDictionary(sequence => sequence.Id, sequence => sequence.DisplayName, StringComparer.Ordinal);
-        IEnumerable<string> selectedIds = profile.Mode == BehaviorMode.Random
+        IEnumerable<string> selectedIds = profile.StationaryBehaviorMode == StationaryBehaviorMode.Random
             ? profile.RandomSequences
-            : profile.ManualSequenceId is { } manual ? [manual] : [];
+            : profile.StationarySequenceId is { } stationary ? [stationary] : [];
         string selected = string.Join(", ", selectedIds
             .Select(id => names.GetValueOrDefault(id))
             .Where(name => !string.IsNullOrWhiteSpace(name))
             .Take(3));
-        string selectedDetail = selected.Length == 0 ? string.Empty : $" · 선택 {selected}";
+        string selectedDetail = selected.Length == 0
+            ? profile.StationaryBehaviorMode == StationaryBehaviorMode.Fixed
+                ? " · 선택 기본 행동"
+                : string.Empty
+            : $" · 선택 {selected}";
+        string priority = string.Join(" → ", profile.RulePriorityOrder.Select(kind => kind switch
+        {
+            AutomaticRuleKind.Movement => "이동",
+            AutomaticRuleKind.Idle => "입력 없음",
+            AutomaticRuleKind.Application => "앱 사용",
+            _ => "알 수 없음",
+        }));
         return $"권장 설정: {mode}{selectedDetail} · 행동 {profile.Sequences.Count}개/단계 {stepCount}개 · " +
-               $"자동 규칙 {profile.AutomaticRules.Count}개(앱 {applicationRules}개) · 이동 {movement} · " +
+               $"조건 규칙 {profile.AutomaticRules.Count}개/사용 {enabledRules}개 · 우선순위 {priority} · 이동 {movement} · " +
                $"말풍선 {(profile.Speech.IsEnabled ? "사용" : "사용 안 함")}, 주기 대사 {periodicPhrases}개";
     }
 
@@ -2427,7 +2434,7 @@ public sealed partial class MainPage : Page
     {
         Version? version = Assembly.GetEntryAssembly()?.GetName().Version;
         return version is null
-            ? new RemotePetSemanticVersion(1, 4, 0)
+            ? new RemotePetSemanticVersion(1, 5, 0)
             : new RemotePetSemanticVersion(
                 Math.Max(version.Major, 0),
                 Math.Max(version.Minor, 0),
@@ -2464,13 +2471,13 @@ public sealed partial class MainPage : Page
                     sequence.DisplayName));
             }
 
-            BehaviorModeComboBox.SelectedIndex = profile.Mode switch
+            BehaviorModeComboBox.SelectedIndex = profile.StationaryBehaviorMode switch
             {
-                BehaviorMode.Manual => 1,
-                BehaviorMode.Random => 2,
+                StationaryBehaviorMode.Random => 1,
                 _ => 0,
             };
-            string? selectedId = profile.ManualSequenceId ?? profile.Sequences.FirstOrDefault()?.Id;
+            string? selectedId = profile.StationarySequenceId ??
+                profile.Sequences.FirstOrDefault()?.Id;
             ManualSequenceComboBox.SelectedItem = _behaviorSequences.FirstOrDefault(item =>
                 string.Equals(item.Id, selectedId, StringComparison.Ordinal));
             RandomSequencesList.SelectedItems.Clear();
@@ -2481,26 +2488,28 @@ public sealed partial class MainPage : Page
             }
             BehaviorModeComboBox.IsEnabled = canEdit;
             ManualSequenceComboBox.IsEnabled =
-                canEdit && profile.Mode == BehaviorMode.Manual && _behaviorSequences.Count > 0;
-            ManualSequenceComboBox.Visibility = profile.Mode == BehaviorMode.Manual
+                canEdit && profile.StationaryBehaviorMode == StationaryBehaviorMode.Fixed &&
+                _behaviorSequences.Count > 0;
+            ManualSequenceComboBox.Visibility =
+                profile.StationaryBehaviorMode == StationaryBehaviorMode.Fixed
                 ? Visibility.Visible
                 : Visibility.Collapsed;
-            RandomSequencesList.IsEnabled = canEdit && profile.Mode == BehaviorMode.Random;
-            RandomSequencesList.Visibility = profile.Mode == BehaviorMode.Random
+            RandomSequencesList.IsEnabled = canEdit &&
+                profile.StationaryBehaviorMode == StationaryBehaviorMode.Random;
+            RandomSequencesList.Visibility =
+                profile.StationaryBehaviorMode == StationaryBehaviorMode.Random
                 ? Visibility.Visible
                 : Visibility.Collapsed;
-            BehaviorDescriptionText.Text = profile.Mode switch
+            BehaviorDescriptionText.Text = profile.StationaryBehaviorMode switch
             {
-                BehaviorMode.Manual => "선택한 행동을 반복해서 재생합니다.",
-                BehaviorMode.Random when profile.RandomSequences.Count == 0 =>
+                StationaryBehaviorMode.Random when profile.RandomSequences.Count == 0 =>
                     "행동을 하나 이상 선택해 주세요. 선택 전에는 기본 행동을 표시합니다.",
-                BehaviorMode.Random =>
+                StationaryBehaviorMode.Random =>
                     "선택한 행동을 모두 한 번씩 섞어 재생한 뒤 새 순서로 반복합니다. 같은 행동은 연속해서 나오지 않습니다.",
-                _ => "이동 상태, 현재 사용 중인 앱과 입력 없음 상태에 따라 표시할 행동을 자동으로 선택합니다.",
+                _ => "선택한 행동을 평상시에 반복해서 재생합니다. 선택하지 않으면 현재 펫의 기본 행동을 사용합니다.",
             };
             AutomaticRulesCard.Visibility =
-                _currentSettingsSection == "automaticRules" &&
-                profile.Mode == BehaviorMode.Automatic
+                _currentSettingsSection == "automaticRules"
                     ? Visibility.Visible
                     : Visibility.Collapsed;
             RefreshMotionOptions(app);
@@ -4066,7 +4075,7 @@ public sealed partial class MainPage : Page
         var dialog = new ContentDialog
         {
             XamlRoot = XamlRoot,
-            Title = "자동 규칙 대상 앱 선택",
+            Title = "앱 사용 규칙 대상 앱 선택",
             Content = panel,
             PrimaryButtonText = "선택",
             CloseButtonText = "취소",
@@ -4373,7 +4382,7 @@ public sealed partial class MainPage : Page
 
     private string RequiredRuleTargetId() =>
         (RuleTargetSequenceComboBox.SelectedItem as BehaviorSequenceItem)?.Id
-        ?? throw new InvalidOperationException("자동 규칙이 실행할 루틴을 선택해 주세요.");
+        ?? throw new InvalidOperationException("조건 규칙이 실행할 행동을 선택해 주세요.");
 
     private string RequiredWindowsApplicationId()
     {
@@ -4433,11 +4442,10 @@ public sealed partial class MainPage : Page
             return;
         }
 
-        BehaviorMode mode = BehaviorModeComboBox.SelectedIndex switch
+        StationaryBehaviorMode mode = BehaviorModeComboBox.SelectedIndex switch
         {
-            1 => BehaviorMode.Manual,
-            2 => BehaviorMode.Random,
-            _ => BehaviorMode.Automatic,
+            1 => StationaryBehaviorMode.Random,
+            _ => StationaryBehaviorMode.Fixed,
         };
         string? sequenceId =
             (ManualSequenceComboBox.SelectedItem as BehaviorSequenceItem)?.Id;

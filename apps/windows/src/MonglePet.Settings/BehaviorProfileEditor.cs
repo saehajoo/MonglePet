@@ -64,7 +64,6 @@ public static class BehaviorProfileEditor
         return profile with
         {
             Sequences = [.. profile.Sequences, sequence],
-            ManualSequenceId = profile.ManualSequenceId ?? sequenceId,
         };
     }
 
@@ -141,11 +140,6 @@ public static class BehaviorProfileEditor
         IReadOnlyList<BehaviorSequence> sequences = profile.Sequences
             .Where(sequence => !string.Equals(sequence.Id, sequenceId, StringComparison.Ordinal))
             .ToList();
-        string? fallback = sequences.FirstOrDefault(sequence => string.Equals(
-                sequence.Id,
-                BehaviorMotionReferences.DefaultSequence,
-                StringComparison.Ordinal))?.Id
-            ?? sequences.FirstOrDefault()?.Id;
         PetSpeechSettings speech = profile.Speech with
         {
             Phrases = profile.Speech.Phrases.Where(phrase =>
@@ -158,12 +152,12 @@ public static class BehaviorProfileEditor
         return profile with
         {
             Sequences = sequences,
-            ManualSequenceId = string.Equals(
-                profile.ManualSequenceId,
+            StationarySequenceId = string.Equals(
+                profile.StationarySequenceId,
                 sequenceId,
                 StringComparison.Ordinal)
-                ? fallback
-                : profile.ManualSequenceId,
+                ? null
+                : profile.StationarySequenceId,
             AutomaticRules = profile.AutomaticRules.Where(rule =>
                 !string.Equals(rule.SequenceId, sequenceId, StringComparison.Ordinal)).ToList(),
             RandomSequenceIds = profile.RandomSequences.Where(id =>
@@ -354,7 +348,7 @@ public static class BehaviorProfileEditor
         int index = profile.AutomaticRules.ToList().FindIndex(value => value.Id == rule.Id);
         if (index < 0)
         {
-            throw Error(BehaviorProfileEditError.RuleNotFound, "자동 규칙을 찾을 수 없습니다.");
+            throw Error(BehaviorProfileEditError.RuleNotFound, "조건 규칙을 찾을 수 없습니다.");
         }
         ValidateRule(rule, profile.Sequences);
         var rules = profile.AutomaticRules.ToList();
@@ -368,7 +362,7 @@ public static class BehaviorProfileEditor
         ArgumentNullException.ThrowIfNull(profile);
         if (!profile.AutomaticRules.Any(rule => rule.Id == ruleId))
         {
-            throw Error(BehaviorProfileEditError.RuleNotFound, "자동 규칙을 찾을 수 없습니다.");
+            throw Error(BehaviorProfileEditError.RuleNotFound, "조건 규칙을 찾을 수 없습니다.");
         }
         return profile with
         {
@@ -385,12 +379,12 @@ public static class BehaviorProfileEditor
         ArgumentNullException.ThrowIfNull(profile);
         if (profile.AutomaticRules.Count >= AppSettingsLimits.MaximumAutomaticRules)
         {
-            throw Error(BehaviorProfileEditError.RuleLimitReached, "자동 규칙은 최대 100개까지 만들 수 있습니다.");
+            throw Error(BehaviorProfileEditError.RuleLimitReached, "조건 규칙은 최대 100개까지 만들 수 있습니다.");
         }
         Guid ruleId = id ?? Guid.NewGuid();
         if (profile.AutomaticRules.Any(rule => rule.Id == ruleId))
         {
-            throw Error(BehaviorProfileEditError.InvalidRule, "같은 ID의 자동 규칙이 이미 있습니다.");
+            throw Error(BehaviorProfileEditError.InvalidRule, "같은 ID의 조건 규칙이 이미 있습니다.");
         }
         int maximumPriority = profile.AutomaticRules.Count == 0
             ? -1
@@ -422,7 +416,7 @@ public static class BehaviorProfileEditor
         {
             throw Error(
                 BehaviorProfileEditError.InvalidRule,
-                "같은 종류와 대상의 자동 규칙이 이미 있습니다.");
+                "같은 종류와 대상의 조건 규칙이 이미 있습니다.");
         }
     }
 
@@ -495,7 +489,7 @@ public static class BehaviorProfileEditor
             rule.SequenceId,
             StringComparison.Ordinal)))
         {
-            throw Error(BehaviorProfileEditError.InvalidRule, "자동 규칙의 대상 루틴을 찾을 수 없습니다.");
+            throw Error(BehaviorProfileEditError.InvalidRule, "조건 규칙의 대상 행동을 찾을 수 없습니다.");
         }
 
         bool valid = rule.Condition switch
@@ -511,7 +505,7 @@ public static class BehaviorProfileEditor
         };
         if (!valid)
         {
-            throw Error(BehaviorProfileEditError.InvalidRule, "자동 규칙의 조건이 올바르지 않습니다.");
+            throw Error(BehaviorProfileEditError.InvalidRule, "조건 규칙의 조건이 올바르지 않습니다.");
         }
     }
 

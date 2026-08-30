@@ -363,8 +363,8 @@ public abstract record PetBehaviorKey
 public sealed record BehaviorProfile(
     Guid ProfileId,
     PetBehaviorKey PetKey,
-    BehaviorMode Mode,
-    string? ManualSequenceId,
+    StationaryBehaviorMode StationaryBehaviorMode,
+    string? StationarySequenceId,
     IReadOnlyList<BehaviorSequence> Sequences,
     IReadOnlyList<AutomaticRule> AutomaticRules,
     PetMovementSettings Movement,
@@ -570,8 +570,8 @@ public sealed record SettingsRecoveryIssue(
     {
         SettingsRecoveryKind.InvalidField => $"올바르지 않은 설정을 복구했습니다: {Field}",
         SettingsRecoveryKind.DroppedSequence => $"올바르지 않은 행동 루틴을 제외했습니다: {Field}",
-        SettingsRecoveryKind.DroppedRule => $"올바르지 않은 자동 규칙을 제외했습니다: {Field}",
-        SettingsRecoveryKind.DisabledRule => $"실행할 수 없는 자동 규칙을 비활성화했습니다: {Field}",
+        SettingsRecoveryKind.DroppedRule => $"올바르지 않은 조건 규칙을 제외했습니다: {Field}",
+        SettingsRecoveryKind.DisabledRule => $"실행할 수 없는 조건 규칙을 비활성화했습니다: {Field}",
         SettingsRecoveryKind.TruncatedCollection => $"설정 항목 수를 허용 범위로 줄였습니다: {Field}",
         _ => Field,
     };

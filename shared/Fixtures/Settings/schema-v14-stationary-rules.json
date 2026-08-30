@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 14,
+  "behaviorProfiles": [
+    {
+      "mode": "automatic",
+      "manualSequenceID": "selected",
+      "randomSequenceIDs": ["selected", "other"],
+      "automaticRules": [
+        {
+          "id": "11111111-1111-1111-1111-111111111111",
+          "isEnabled": true,
+          "priority": 7,
+          "condition": {"type": "idleAtLeast", "milliseconds": 30000},
+          "sequenceID": "selected"
+        }
+      ],
+      "extension": "keep-automatic"
+    },
+    {
+      "mode": "manual",
+      "manualSequenceID": "selected",
+      "randomSequenceIDs": ["selected", "other"],
+      "automaticRules": [
+        {
+          "id": "22222222-2222-2222-2222-222222222222",
+          "isEnabled": true,
+          "priority": 7,
+          "condition": {"type": "idleAtLeast", "milliseconds": 30000},
+          "sequenceID": "selected"
+        }
+      ],
+      "extension": "keep-manual"
+    },
+    {
+      "mode": "random",
+      "manualSequenceID": "selected",
+      "randomSequenceIDs": ["selected", "other"],
+      "automaticRules": [
+        {
+          "id": "33333333-3333-3333-3333-333333333333",
+          "isEnabled": true,
+          "priority": 7,
+          "condition": {"type": "idleAtLeast", "milliseconds": 30000},
+          "sequenceID": "selected"
+        }
+      ],
+      "extension": "keep-random"
+    }
+  ]
+}

@@ -853,3 +853,11 @@
 - 결정: 평상시 고정·랜덤 행동 선택과 조건 규칙을 분리한 schema-v15, 권장 프로필 v11, 패키지 내용 확인 정리를 포함한 macOS Preview를 `1.5.0 (11)`, 태그 `macos-v1.5.0-preview.1`로 게시한다.
 - 이유: 사용자에게 보이는 행동 설정 책임과 저장 구조가 `1.4.0`에서 달라졌으므로 기존 Preview를 덮어쓰지 않고 새 minor 기능선으로 구분한다.
 - 비고: `.monglepet` formatVersion은 변경하지 않으며 외부·레거시 패키지 호환을 유지한다. Windows는 현재 공개 버전을 유지하고 후속 네이티브 구현·실제 QA 뒤 별도 버전으로 게시한다. macOS 산출물은 Developer ID 미서명·Apple 미공증 ZIP으로 제한된 테스터에게만 제공한다.
+
+## D-109 Windows 1.5.0 평상시 행동·조건 규칙 Preview
+
+- 상태: accepted
+- 날짜: 2026-08-30
+- 결정: 평상시 고정·랜덤 행동 선택과 조건 규칙을 분리한 로컬 schema-v15, 권장 프로필 v11, 전용 규칙 scheduler와 마우스 도망가기 목표 수명 보정을 포함한 Windows Preview를 `1.5.0.15`, 태그 `windows-v1.5.0-preview.1`로 게시한다.
+- 이유: 사용자에게 보이는 행동 설정 책임과 저장 구조가 기존 Windows `1.4.0.14`에서 달라졌으므로 기존 Preview를 덮어쓰지 않고 새 minor 기능선과 더 높은 설치 버전으로 구분해야 한다.
+- 비고: 기존 schema-v1~v14 설정과 권장 프로필 v1~v10은 순차 이관하며 `.monglepet` formatVersion과 외부·레거시 펫 콘텐츠 버전 호환은 바꾸지 않는다. 코드 서명 자격 증명이 없는 동안 미서명 x64 EXE와 `SHA256SUMS.txt`를 GitHub Pre-release로 제공하고 SmartScreen 제한을 명시한다. 실제 DPI·Narrator와 macOS 교차 왕복은 플랫폼 동등성 후속 QA로 유지한다.

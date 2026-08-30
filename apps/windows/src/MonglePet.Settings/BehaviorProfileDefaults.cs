@@ -28,8 +28,8 @@ public static class BehaviorProfileDefaults
         return new BehaviorProfile(
             profileId is { } id && id != Guid.Empty ? id : Guid.NewGuid(),
             petKey,
-            BehaviorMode.Automatic,
-            defaultSequence.Id,
+            StationaryBehaviorMode.Fixed,
+            null,
             [defaultSequence],
             [],
             PetMovementSettings.Default,
@@ -105,8 +105,8 @@ public static class BuiltInBehaviorProfileDefaults
     public static bool IsLegacyNeutral(BehaviorProfile profile)
     {
         if (profile.PetKey is not PetBehaviorKey.BuiltIn ||
-            profile.Mode != BehaviorMode.Automatic ||
-            profile.ManualSequenceId != BehaviorMotionReferences.DefaultSequence ||
+            profile.StationaryBehaviorMode != StationaryBehaviorMode.Fixed ||
+            profile.StationarySequenceId is not null ||
             profile.Sequences.Count != 1 ||
             profile.AutomaticRules.Count != 0 ||
             profile.Movement != PetMovementSettings.Default ||
@@ -167,8 +167,8 @@ public static class BuiltInBehaviorProfileDefaults
 
     private static bool IsPreviousBuiltInDefault(BehaviorProfile profile)
     {
-        if (profile.Mode != BehaviorMode.Automatic ||
-            profile.ManualSequenceId != BehaviorMotionReferences.DefaultSequence ||
+        if (profile.StationaryBehaviorMode != StationaryBehaviorMode.Fixed ||
+            profile.StationarySequenceId is not null ||
             profile.RandomSequences.Count != 0 ||
             !IsDefaultSpeech(profile.Speech) ||
             profile.Movement.Mode != PetMovementMode.CursorAvoiding ||

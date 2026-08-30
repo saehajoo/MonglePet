@@ -296,8 +296,8 @@ public sealed class PetLibraryStoreTests
             entries);
         PetPackageImportReview review = new PetPackageImporter(store).Review(destination);
         Assert.False(review.ContainsRecommendedProfile);
-        Assert.Equal("1.4.0", review.Manifest.Compatibility?.CreatedWithMonglePetVersion);
-        Assert.Equal("1.4.0", review.Manifest.Compatibility?.MinimumMonglePetVersion);
+        Assert.Equal("1.5.0", review.Manifest.Compatibility?.CreatedWithMonglePetVersion);
+        Assert.Equal("1.5.0", review.Manifest.Compatibility?.MinimumMonglePetVersion);
     }
 
     [Fact]

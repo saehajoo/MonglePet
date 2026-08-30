@@ -33,7 +33,7 @@ internal sealed class PetMovementRuntime : IDisposable
     private bool _isSystemSuspended = true;
     private bool _isUserDragging;
     private bool _isBehaviorPaused;
-    private bool _isEscaping;
+    private readonly CursorAvoidingPhaseState _cursorAvoidingPhase = new();
     private MovementPoint? _target;
     private MovementPoint? _cursorAvoidingPointerAnchor;
     private MovementPositionAccumulator? _positionAccumulator;
@@ -231,7 +231,7 @@ internal sealed class PetMovementRuntime : IDisposable
                 ReportMotion(null);
             }
             Status = _isBehaviorPaused
-                ? "자동 규칙 우선순위로 이동을 잠시 멈췄습니다"
+                ? "조건 규칙 우선순위로 이동을 잠시 멈췄습니다"
                 : _presentation == PetPresentation.TuckedAway
                 ? "펫이 숨겨져 이동을 멈췄습니다"
                 : _isSystemSuspended
@@ -500,10 +500,12 @@ internal sealed class PetMovementRuntime : IDisposable
         CursorAvoidingMovementSettings avoiding = _settings.CursorAvoiding;
         double releaseDistance = avoiding.DetectionDistance +
             Math.Max(64, avoiding.StopRadius * 2);
-        if (distance <= avoiding.DetectionDistance ||
-            (_isEscaping && distance < releaseDistance))
+        bool shouldEscape = distance <= avoiding.DetectionDistance ||
+            (_cursorAvoidingPhase.IsEscaping && distance < releaseDistance);
+        CursorAvoidingPhaseChange phaseChange =
+            _cursorAvoidingPhase.Update(shouldEscape);
+        if (shouldEscape)
         {
-            _isEscaping = true;
             _dwellUntil = null;
             if (PetMovementGeometry.ShouldRefreshCursorAvoidingTarget(
                     pointer,
@@ -536,8 +538,7 @@ internal sealed class PetMovementRuntime : IDisposable
             return;
         }
 
-        bool escapedThisTick = _isEscaping;
-        _isEscaping = false;
+        bool escapedThisTick = phaseChange.EnteredIdle;
         _cursorAvoidingPointerAnchor = null;
         if (escapedThisTick)
         {
@@ -804,7 +805,7 @@ internal sealed class PetMovementRuntime : IDisposable
         _cursorAvoidingPointerAnchor = null;
         _positionAccumulator = null;
         _dwellUntil = null;
-        _isEscaping = false;
+        _cursorAvoidingPhase.Reset();
         _lastMovementDirection = null;
     }
 

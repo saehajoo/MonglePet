@@ -39,7 +39,7 @@ public sealed class BehaviorProfileMotionReferencesTests
     private static BehaviorProfile Profile(string motionId) => new(
         Guid.Parse("11111111-1111-1111-1111-111111111111"),
         PetBehaviorKey.BuiltInKey,
-        BehaviorMode.Manual,
+        StationaryBehaviorMode.Fixed,
         "default",
         [new BehaviorSequence("default", [new BehaviorStep(motionId, 1)], true)],
         [],

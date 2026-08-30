@@ -27,44 +27,10 @@ public sealed class BehaviorResolver
                 new BehaviorSource.Interaction());
         }
 
-        if (configuration.Mode == BehaviorMode.Manual)
-        {
-            if (MovementDecision(configuration, runtimeState) is { } movement)
-            {
-                return movement;
-            }
-            if (configuration.ManualSequenceId is { } manualId &&
-                configuration.FindSequence(manualId) is { } manual)
-            {
-                return new BehaviorDecision.Sequence(
-                    manual,
-                    new BehaviorSource.Manual());
-            }
-
-            return DefaultDecision(configuration);
-        }
-
-        if (configuration.Mode == BehaviorMode.Random)
-        {
-            if (MovementDecision(configuration, runtimeState) is { } movement)
-            {
-                return movement;
-            }
-            if (runtimeState.RandomSequenceId is { } randomId &&
-                configuration.RandomSequences.Contains(randomId, StringComparer.Ordinal) &&
-                configuration.FindSequence(randomId) is { } random)
-            {
-                return new BehaviorDecision.Sequence(
-                    random with { Repeats = false },
-                    new BehaviorSource.Random());
-            }
-            return DefaultDecision(configuration);
-        }
-
-        return ResolveAutomatic(configuration, snapshot, runtimeState);
+        return ResolveRulesAndMovement(configuration, snapshot, runtimeState);
     }
 
-    private static BehaviorDecision ResolveAutomatic(
+    private static BehaviorDecision ResolveRulesAndMovement(
         BehaviorConfiguration configuration,
         ActivitySnapshot snapshot,
         BehaviorRuntimeState runtimeState)
@@ -95,7 +61,7 @@ public sealed class BehaviorResolver
                     new BehaviorSource.AutomaticRule(matchingRule.Id));
             }
         }
-        return DefaultDecision(configuration);
+        return StationaryDecision(configuration, runtimeState);
     }
 
     private static BehaviorDecision.Sequence? MovementDecision(
@@ -137,4 +103,28 @@ public sealed class BehaviorResolver
                 sequence,
                 new BehaviorSource.DefaultBehavior())
             : new BehaviorDecision.Unavailable();
+
+    private static BehaviorDecision StationaryDecision(
+        BehaviorConfiguration configuration,
+        BehaviorRuntimeState runtimeState)
+    {
+        if (configuration.StationaryBehaviorMode == StationaryBehaviorMode.Random &&
+            runtimeState.RandomSequenceId is { } randomId &&
+            configuration.RandomSequences.Contains(randomId, StringComparer.Ordinal) &&
+            configuration.FindSequence(randomId) is { } random)
+        {
+            return new BehaviorDecision.Sequence(
+                random with { Repeats = false },
+                new BehaviorSource.Random());
+        }
+        if (configuration.StationaryBehaviorMode == StationaryBehaviorMode.Fixed &&
+            configuration.StationarySequenceId is { } fixedId &&
+            configuration.FindSequence(fixedId) is { } fixedSequence)
+        {
+            return new BehaviorDecision.Sequence(
+                fixedSequence,
+                new BehaviorSource.Fixed());
+        }
+        return DefaultDecision(configuration);
+    }
 }

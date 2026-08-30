@@ -7,10 +7,9 @@ public enum PetPresentation
     Suspended,
 }
 
-public enum BehaviorMode
+public enum StationaryBehaviorMode
 {
-    Automatic,
-    Manual,
+    Fixed,
     Random,
 }
 
@@ -57,10 +56,10 @@ public sealed record ActivitySnapshot(
     bool IsSystemSleeping);
 
 public sealed record BehaviorConfiguration(
-    BehaviorMode Mode,
+    StationaryBehaviorMode StationaryBehaviorMode,
     string DefaultSequenceId,
     IReadOnlyList<BehaviorSequence> Sequences,
-    string? ManualSequenceId = null,
+    string? StationarySequenceId = null,
     IReadOnlyList<AutomaticRule>? AutomaticRules = null,
     IReadOnlyList<string>? RandomSequenceIds = null,
     IReadOnlyList<AutomaticRuleKind>? AutomaticRulePriorityOrder = null)
@@ -94,7 +93,7 @@ public abstract record BehaviorSource
 
     public sealed record Interaction : BehaviorSource;
 
-    public sealed record Manual : BehaviorSource;
+    public sealed record Fixed : BehaviorSource;
 
     public sealed record Random : BehaviorSource;
 

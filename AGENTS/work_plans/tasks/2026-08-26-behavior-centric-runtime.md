@@ -96,9 +96,15 @@
 ### Windows
 
 - [x] 9단계: 공통 계약·fixture·macOS 기준 동작과 Windows 네이티브 구현 지침을 인계 문서에 기록한다.
-- [ ] 10단계: Windows 환경에서 schema·Domain·런타임·WinUI를 구현하고 검증한다.
+- [x] 10단계: Windows 환경에서 schema·Domain·런타임·WinUI를 구현하고 검증한다.
+  - [x] 10-1: C# Domain을 `fixed`·`random` 평상시 행동과 독립 조건 규칙 구조로 전환한다.
+  - [x] 10-2: Windows 로컬 설정 schema-v15와 v14→v15 순차 마이그레이션·항목 복구를 구현한다.
+  - [x] 10-3: 권장 프로필 schema-v11 encode/decode와 v1~v10 호환·요약을 구현한다.
+  - [x] 10-4: 고정·랜덤 모두에 규칙·이동 우선순위를 적용하고 랜덤 중단 시 다음 bag 행동을 첫 프레임부터 시작한다.
+  - [x] 10-5: WinUI에서 평상시 행동을 `표시 및 이동`으로 옮기고 종전 `자동 규칙`을 행동 모드 없는 `규칙 설정`으로 재구성한다.
+  - [x] 10-6: schema·codec·resolver·runtime 대상 테스트와 x64 Debug·Release 전체 빌드·테스트를 통과한다.
 - [ ] 10A단계: macOS 정보 구조·시각 위계와 최신 편집 UI를 WinUI 네이티브 컨트롤로 가깝게 재현하고 DPI·테마·접근성을 검증한다.
-- [ ] 10B단계: 마우스 도망가기의 평상시 자유 이동에서 매 tick 목표가 초기화되는 회귀를 수정하고 목표 수명 테스트와 실제 이동 QA를 수행한다.
+- [x] 10B단계: 마우스 도망가기의 평상시 자유 이동에서 매 tick 목표가 초기화되는 회귀를 수정하고 목표 수명 테스트와 실제 이동 QA를 수행한다.
 
 ### 플랫폼 동등성
 
@@ -108,6 +114,7 @@
 
 - [x] 12단계: 새 기본 펫 파일을 받은 뒤 최종 행동·이동·쓰다듬기 권장 설정을 적용한다.
 - [x] 13단계: 새 macOS Preview 버전과 GitHub Release를 검증·게시한다.
+- [ ] 14단계: Windows `1.5.0.15` 빌드·설치·데이터 보존과 원격 산출물을 검증하고 `windows-v1.5.0-preview.1` GitHub Pre-release를 게시한다.
 
 ## 검증 방법
 
@@ -132,6 +139,11 @@
 - 전체 `MonglePetTests`, 코드서명 없는 Debug 빌드, 실제 설정 UI와 오버레이 수동 QA
 
 ## 진행 로그
+
+- 2026-08-30: 사용자 최종 확인에 따라 Windows 새 기능선을 `1.5.0.15`, 태그 `windows-v1.5.0-preview.1`, 릴리스 이름 `MonglePet Windows 1.5.0 Preview 1`로 확정하고 14단계를 시작했다. 앱 마케팅·Assembly·File·MSIX 버전과 앱 호환성 판정, 새 내보내기 패키지의 앱 버전을 함께 승격한다.
+- 2026-08-30: Windows 마우스 도망가기의 escape/idle 전환을 Core `CursorAvoidingPhaseState`로 분리하고 실제 `PetMovementRuntime`이 이 경계만 사용하도록 연결했다. 도망 상태를 벗어나는 한 번의 tick에서만 도망 목표를 지우며, 이미 평상시 자유 이동 중인 100회 반복 tick은 같은 목표를 보존하는 회귀 테스트 2개를 추가했다. 설치한 최신 Release 테스트본의 사용자 확인을 반영하고 Debug·Release 각 Activity 27개, Core 59개, Packages 28개, PetLibrary 88개, Settings 79개, Shell 20개로 총 301개 테스트와 두 구성 빌드를 통과해 10B를 완료했다. Debug·Release 테스트를 동시에 실행했을 때만 고정 operation ID를 쓰는 PetLibrary 내보내기 테스트의 임시 경로가 충돌했으며, 문서 순서대로 각 구성을 독립 재실행해 실패 0개를 확인했다. 버전·커밋·푸시·Release는 변경하지 않았다.
+- 2026-08-30: Windows C# Domain을 `StationaryBehaviorMode.fixed/random`과 `StationarySequenceId`로 전환하고 조건 규칙을 두 선택 방식에 공통 적용했다. 로컬 schema-v15와 v14→v15 공통 fixture, 권장 프로필 v11 encode/decode 및 v10 휴면 규칙 이관을 구현했다. 평상시·이동·조건 규칙 scheduler를 분리해 고정 행동은 진행 위치를 보존하고 랜덤은 override 시작 한 번에만 다음 bag 행동을 첫 프레임으로 준비한다. WinUI는 평상시 선택을 `표시 및 이동`, 조건과 우선순위를 `규칙 설정`으로 옮기고 가져오기·내보내기 요약에 평상시 선택, 조건 규칙 전체/사용 수와 종류 순서를 표시한다. Debug·Release 각 Activity 27개, Core 57개, Packages 28개, PetLibrary 88개, Settings 79개, Shell 20개로 총 299개 테스트와 두 구성 빌드를 통과했다. 실제 UI·오버레이 QA와 macOS 교차 왕복은 사용자 확인 단계로 남겼고 버전·커밋·푸시·Release는 변경하지 않았다.
+- 2026-08-30: Windows `626b3c3` 기준 작업 트리와 원격 동기화를 확인했다. 현재 Windows는 로컬 schema-v14·권장 프로필 v10·`automatic/manual/random` Domain과 모드별 조기 분기 resolver를 사용하고 있어, schema-v15·권장 프로필 v11·독립 규칙 평가·WinUI 정보 구조를 10-1~10-6으로 나눠 구현하기 시작했다. 사용자 요청에 따라 실제 UI QA와 macOS 교차 왕복은 구현 후 별도 확인 목록으로 남기며, 사용자 확인 전 버전 증가·커밋·푸시·Release 게시를 하지 않는다.
 
 - 2026-08-26: 현재 행동·이동·쓰다듬기 런타임, schema-v11, 권장 프로필 v7과 설정 UI를 검토하고 작업 계획을 시작했다.
 - 2026-08-26: schema-v12·권장 프로필 v8, 행동 중심 이동·쓰다듬기 runtime, 자동 동작 UI, 모든 펫 사본 생성과 Windows 인계 문서를 구현했다.
@@ -180,5 +192,5 @@
 
 - 새 기본 펫 자산·애니메이션·행동 매핑은 macOS와 공통 패키지에 확정됐으며 Windows 네이티브 반영은 인계 문서를 따른다.
 - 행동·규칙 설정·표시 및 이동 화면, 고정/랜덤 선택과 규칙·이동·쓰다듬기 표시 우선순위는 실제 앱에서 최종 확인한다.
-- Windows의 현재 `마우스 도망가기 + 평상시 자유 이동`은 목표 수명 회귀가 확인됐으므로 10B 수정과 실제 Release QA 전에는 완료로 판단하지 않는다.
+- Windows의 `마우스 도망가기 + 평상시 자유 이동` 목표 수명 회귀는 상태 전환 1회 초기화와 100회 반복 tick 테스트, 설치 Release 사용자 확인으로 10B를 완료했다. 혼합 DPI 다중 모니터의 물리 횡단은 10A·11단계에서 계속 확인한다.
 - Windows 구현과 실기기 QA가 끝나기 전에는 플랫폼 동등 완료로 표시하지 않는다.

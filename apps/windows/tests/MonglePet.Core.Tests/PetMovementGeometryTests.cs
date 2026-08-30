@@ -207,6 +207,43 @@ public sealed class PetMovementGeometryTests
             hasTarget: false));
     }
 
+    [Fact]
+    public void CursorAvoidingIdlePhaseKeepsFreeRoamingTargetAcrossRepeatedTicks()
+    {
+        var phase = new CursorAvoidingPhaseState();
+        MovementPoint? target = new MovementPoint(640, 320);
+
+        for (int tick = 0; tick < 100; tick++)
+        {
+            CursorAvoidingPhaseChange change = phase.Update(shouldEscape: false);
+            if (change.EnteredIdle)
+            {
+                target = null;
+            }
+        }
+
+        Assert.False(phase.IsEscaping);
+        Assert.Equal(new MovementPoint(640, 320), target);
+    }
+
+    [Fact]
+    public void CursorAvoidingEscapeTargetIsClearedOnlyOnIdleTransition()
+    {
+        var phase = new CursorAvoidingPhaseState();
+
+        CursorAvoidingPhaseChange enteredEscape = phase.Update(shouldEscape: true);
+        CursorAvoidingPhaseChange enteredIdle = phase.Update(shouldEscape: false);
+
+        Assert.True(enteredEscape.EnteredEscaping);
+        Assert.True(enteredIdle.EnteredIdle);
+        for (int tick = 0; tick < 100; tick++)
+        {
+            CursorAvoidingPhaseChange repeatedIdle = phase.Update(shouldEscape: false);
+            Assert.False(repeatedIdle.EnteredIdle);
+            Assert.False(repeatedIdle.EnteredEscaping);
+        }
+    }
+
     [Theory]
     [InlineData(-10, 0, false, MovementDirection.Left)]
     [InlineData(10, 0, false, MovementDirection.Right)]

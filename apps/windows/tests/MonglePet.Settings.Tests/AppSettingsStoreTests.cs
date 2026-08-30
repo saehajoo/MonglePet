@@ -7,6 +7,24 @@ namespace MonglePet.Settings.Tests;
 public sealed class AppSettingsStoreTests
 {
     [Fact]
+    public void SchemaV14BehaviorModesMigrateToIndependentStationarySelectionAndRules()
+    {
+        JsonObject source = JsonNode.Parse(File.ReadAllText(Path.Combine(
+            AppContext.BaseDirectory,
+            "Fixtures",
+            "schema-v14-stationary-rules.json")))!.AsObject();
+        JsonNode expected = JsonNode.Parse(File.ReadAllText(Path.Combine(
+            AppContext.BaseDirectory,
+            "Fixtures",
+            "schema-v15-stationary-rules.expected.json")))!;
+
+        JsonObject migrated = AppSettingsMigrator.Migrate(
+            source, 14, legacyMotionCycleMillisecondsResolver: null).Document;
+
+        Assert.True(JsonNode.DeepEquals(expected, migrated));
+    }
+
+    [Fact]
     public void BuildsSettingsPathFromInjectedApplicationLocalDataRoot()
     {
         string root = Path.Combine("C:\\", "PackageLocalState");
@@ -17,7 +35,7 @@ public sealed class AppSettingsStoreTests
     }
 
     [Fact]
-    public void MissingFileUsesDefaultsThenWritesCompleteSchemaV14Document()
+    public void MissingFileUsesDefaultsThenWritesCompleteSchemaV15Document()
     {
         using var workspace = new TemporaryDirectory();
         Guid selectedId = Guid.Parse("10000000-0000-0000-0000-000000000001");
@@ -31,7 +49,7 @@ public sealed class AppSettingsStoreTests
         Assert.Equal(AppSettingsLoadSource.Defaults, initial.Source);
         Assert.Null(initial.SelectedPetInstallationId);
         Assert.Equal(selectedId, reloaded.SelectedPetInstallationId);
-        Assert.Equal(14, document["schemaVersion"]!.GetValue<int>());
+        Assert.Equal(15, document["schemaVersion"]!.GetValue<int>());
         Assert.Equal("awake", document["activePetInstances"]?[0]?["presentation"]!.GetValue<string>());
         Assert.NotNull(document["activePetInstances"]?[0]?["overlay"]?["movementBoundary"]);
         Assert.NotNull(document["behaviorProfiles"]?[0]?["movement"]);
@@ -116,7 +134,7 @@ public sealed class AppSettingsStoreTests
     }
 
     [Fact]
-    public void SharedSchemaV13RandomFixtureMigratesToIndependentSchemaV14AndRoundTrips()
+    public void SharedSchemaV13RandomFixtureMigratesThroughSchemaV15AndRoundTrips()
     {
         using var workspace = new TemporaryDirectory();
         File.Copy(Path.Combine(
@@ -128,8 +146,8 @@ public sealed class AppSettingsStoreTests
         BehaviorProfile profile = Assert.IsType<BehaviorProfile>(loaded.Settings!.SelectedBehaviorProfile);
 
         Assert.Equal(AppSettingsLoadSource.Migrated, loaded.Source);
-        Assert.Equal(14, ReadDocument(workspace.SettingsPath)["schemaVersion"]!.GetValue<int>());
-        Assert.Equal(BehaviorMode.Random, profile.Mode);
+        Assert.Equal(15, ReadDocument(workspace.SettingsPath)["schemaVersion"]!.GetValue<int>());
+        Assert.Equal(StationaryBehaviorMode.Random, profile.StationaryBehaviorMode);
         Assert.Equal(["__monglepet_default_behavior__", "walk"], profile.RandomSequences);
         Assert.True(profile.Movement.FreeRoaming.RandomizesDwell);
         Assert.Equal(2_000, profile.Movement.FreeRoaming.DwellMinimumMilliseconds);
@@ -137,7 +155,7 @@ public sealed class AppSettingsStoreTests
 
         workspace.CreateStore().Save(loaded.Settings!);
         BehaviorProfile reloaded = workspace.CreateStore().Load().Settings!.SelectedBehaviorProfile!;
-        Assert.Equal(profile.Mode, reloaded.Mode);
+        Assert.Equal(profile.StationaryBehaviorMode, reloaded.StationaryBehaviorMode);
         Assert.Equal(profile.RandomSequences.ToArray(), reloaded.RandomSequences.ToArray());
         Assert.Equal(profile.RulePriorityOrder.ToArray(), reloaded.RulePriorityOrder.ToArray());
         Assert.Equal(profile.Movement.FreeRoaming, reloaded.Movement.FreeRoaming);
@@ -306,8 +324,8 @@ public sealed class AppSettingsStoreTests
         BehaviorStep step = Assert.Single(sequence.Steps);
 
         Assert.Equal(new PetBehaviorKey.Installed(installationId), profile.PetKey);
-        Assert.Equal(BehaviorMode.Automatic, profile.Mode);
-        Assert.Equal(BehaviorMotionReferences.DefaultSequence, profile.ManualSequenceId);
+        Assert.Equal(StationaryBehaviorMode.Fixed, profile.StationaryBehaviorMode);
+        Assert.Null(profile.StationarySequenceId);
         Assert.Equal(BehaviorMotionReferences.DefaultSequence, sequence.Id);
         Assert.True(sequence.Repeats);
         Assert.Equal(BehaviorMotionReferences.CurrentPetDefault, step.MotionId);
@@ -415,7 +433,7 @@ public sealed class AppSettingsStoreTests
     {
         using var workspace = new TemporaryDirectory();
         byte[] original = Encoding.UTF8.GetBytes(
-            "{\"schemaVersion\":15,\"futureValue\":true}");
+            "{\"schemaVersion\":16,\"futureValue\":true}");
         File.WriteAllBytes(workspace.SettingsPath, original);
         var store = workspace.CreateStore();
 
@@ -424,7 +442,7 @@ public sealed class AppSettingsStoreTests
             () => store.SaveSelectedPetInstallationId(Guid.NewGuid()));
 
         Assert.Equal(AppSettingsLoadSource.NewerSchema, loaded.Source);
-        Assert.Equal(15, loaded.PreservedSchemaVersion);
+        Assert.Equal(16, loaded.PreservedSchemaVersion);
         Assert.False(loaded.IsWritingEnabled);
         Assert.Equal(AppSettingsError.WritingDisabled, exception.Error);
         Assert.Equal(original, File.ReadAllBytes(workspace.SettingsPath));
@@ -452,7 +470,7 @@ public sealed class AppSettingsStoreTests
         Assert.Equal(AppSettingsLoadSource.Migrated, loaded.Source);
         Assert.Equal(1, loaded.MigratedFromSchemaVersion);
         Assert.True(loaded.IsWritingEnabled);
-        Assert.Equal(14, migrated["schemaVersion"]!.GetValue<int>());
+        Assert.Equal(15, migrated["schemaVersion"]!.GetValue<int>());
         Assert.Equal("installed", profile["petKey"]?["type"]?.GetValue<string>());
         Assert.Equal(3, steps[0]?["repeatCount"]?.GetValue<int>());
         Assert.Equal(2, steps[1]?["repeatCount"]?.GetValue<int>());
@@ -519,7 +537,7 @@ public sealed class AppSettingsStoreTests
         Assert.Equal(AppSettingsLoadSource.Migrated, loaded.Source);
         Assert.Equal(schema, loaded.MigratedFromSchemaVersion);
         Assert.True(loaded.IsWritingEnabled);
-        Assert.Equal(14, migrated["schemaVersion"]!.GetValue<int>());
+        Assert.Equal(15, migrated["schemaVersion"]!.GetValue<int>());
         Assert.Equal("preserve", overlay["qaMarker"]!.GetValue<string>());
         Assert.Equal(schema >= 3 ? 240 : 160, movement["freeRoaming"]?["speed"]!.GetValue<double>());
         string? roamingBehaviorId = movement["freeRoaming"]?["behavior"]?["fallbackBehaviorID"]?.GetValue<string?>();
@@ -573,7 +591,8 @@ public sealed class AppSettingsStoreTests
         Assert.Equal(PetPresentation.TuckedAway, settings.LastUserPresentation);
         Assert.Equal(240, settings.Overlay.Width);
         Assert.Equal(MovementBoundaryMode.SelectedDisplay, settings.Overlay.MovementBoundary.Mode);
-        Assert.Equal(BehaviorMode.Manual, profile.Mode);
+        Assert.Equal(StationaryBehaviorMode.Fixed, profile.StationaryBehaviorMode);
+        Assert.NotNull(profile.StationarySequenceId);
         Assert.Equal(PetMovementMode.FreeRoaming, profile.Movement.Mode);
         Assert.True(profile.Movement.FreeRoaming.Behavior.UsesDirectionalBehaviors);
         string leftBehaviorId = Assert.IsType<string>(
@@ -630,13 +649,14 @@ public sealed class AppSettingsStoreTests
             },
         };
         JsonObject profile = source["behaviorProfiles"]![0]!.AsObject();
-        profile["mode"] = "unexpected";
-        profile["manualSequenceID"] = "missing";
+        profile["stationaryBehaviorMode"] = "unexpected";
+        profile["stationarySequenceID"] = "missing";
         profile["sequences"]![0]!["steps"]!.AsArray().Add(new JsonObject
         {
             ["motionID"] = " bad ",
             ["repeatCount"] = 0,
         });
+        profile["automaticRules"]![0]!["isEnabled"] = true;
         profile["automaticRules"]![0]!["sequenceID"] = "missing";
         profile["automaticRules"]!.AsArray().Add(new JsonObject
         {
@@ -684,8 +704,8 @@ public sealed class AppSettingsStoreTests
         Assert.Equal(PetPresentation.Awake, settings.LastUserPresentation);
         Assert.Equal(384, settings.Overlay.Width);
         Assert.Equal(MovementBoundaryMode.AllDisplays, settings.Overlay.MovementBoundary.Mode);
-        Assert.Equal(BehaviorMode.Automatic, recovered.Mode);
-        Assert.Null(recovered.ManualSequenceId);
+        Assert.Equal(StationaryBehaviorMode.Fixed, recovered.StationaryBehaviorMode);
+        Assert.Null(recovered.StationarySequenceId);
         Assert.Single(recovered.Sequences.Single(sequence => sequence.Id == "routine").Steps);
         Assert.False(Assert.Single(recovered.AutomaticRules).IsEnabled);
         Assert.Equal(160, recovered.Movement.FreeRoaming.Speed);

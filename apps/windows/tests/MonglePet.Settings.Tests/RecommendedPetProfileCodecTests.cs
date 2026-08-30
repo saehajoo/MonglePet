@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json.Nodes;
 using MonglePet.Core.Behavior;
 
 namespace MonglePet.Settings.Tests;
@@ -44,7 +45,8 @@ public sealed class RecommendedPetProfileCodecTests
             ["idle", "walk"]);
 
         Assert.Equal(TargetKey, profile.PetKey);
-        Assert.Equal(BehaviorMode.Manual, profile.Mode);
+        Assert.Equal(StationaryBehaviorMode.Fixed, profile.StationaryBehaviorMode);
+        Assert.Equal("default", profile.StationarySequenceId);
         string followingBehavior = Assert.IsType<string>(
             profile.Movement.CursorFollowing.Behavior.FallbackBehaviorId);
         string roamingBehavior = Assert.IsType<string>(
@@ -97,7 +99,7 @@ public sealed class RecommendedPetProfileCodecTests
     }
 
     [Fact]
-    public void VersionTenRoundTripsAndCanExcludeApplicationRules()
+    public void VersionElevenRoundTripsAndCanExcludeApplicationRules()
     {
         BehaviorProfile profile = BehaviorProfileDefaults.Create(TargetKey) with
         {
@@ -131,6 +133,42 @@ public sealed class RecommendedPetProfileCodecTests
         Assert.Equal(50, package.Display.ScalePercent);
         Assert.Equal(overlay.Width, package.Display.ApplyTo(OverlaySettings.Default).Width);
         Assert.True(package.Display.ClickThrough);
+        Assert.Equal(StationaryBehaviorMode.Fixed, decoded.StationaryBehaviorMode);
+        JsonObject stored = JsonNode.Parse(data)!.AsObject();
+        Assert.Equal(11, stored["schemaVersion"]!.GetValue<int>());
+        Assert.NotNull(stored["behavior"]?["stationaryBehaviorMode"]);
+        Assert.Null(stored["behavior"]?["mode"]);
+        Assert.Null(stored["behavior"]?["manualSequenceID"]);
+    }
+
+    [Fact]
+    public void VersionTenManualSelectionMigratesAndDisablesDormantRules()
+    {
+        BehaviorProfile profile = BehaviorProfileDefaults.Create(TargetKey) with
+        {
+            AutomaticRules =
+            [
+                new(Guid.Parse("55555555-5555-5555-5555-555555555555"), true, 3,
+                    new RuleCondition.IdleAtLeast(15_000), BehaviorMotionReferences.DefaultSequence),
+            ],
+        };
+        JsonObject source = JsonNode.Parse(RecommendedPetProfileCodec.Encode(
+            profile, ["idle"], true))!.AsObject();
+        source["schemaVersion"] = 10;
+        JsonObject behavior = source["behavior"]!.AsObject();
+        behavior["mode"] = "manual";
+        behavior["manualSequenceID"] = BehaviorMotionReferences.DefaultSequence;
+        behavior.Remove("stationaryBehaviorMode");
+        behavior.Remove("stationarySequenceID");
+
+        BehaviorProfile decoded = RecommendedPetProfileCodec.Decode(
+            Encoding.UTF8.GetBytes(source.ToJsonString()), TargetKey, ["idle"]);
+
+        Assert.Equal(StationaryBehaviorMode.Fixed, decoded.StationaryBehaviorMode);
+        Assert.Equal(BehaviorMotionReferences.DefaultSequence, decoded.StationarySequenceId);
+        AutomaticRule rule = Assert.Single(decoded.AutomaticRules);
+        Assert.False(rule.IsEnabled);
+        Assert.Equal(15_000, Assert.IsType<RuleCondition.IdleAtLeast>(rule.Condition).Milliseconds);
     }
 
     [Fact]

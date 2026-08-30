@@ -109,7 +109,7 @@ public sealed class WindowsApplicationCatalog : IWindowsApplicationCatalog
         {
             throw new WindowsApplicationCatalogException(
                 WindowsApplicationCatalogError.MonglePetCannotBeSelected,
-                "MonglePet 자체는 앱 자동 규칙 대상으로 선택할 수 없습니다.");
+                "MonglePet 자체는 앱 사용 규칙 대상으로 선택할 수 없습니다.");
         }
 
         return new WindowsApplicationChoice(

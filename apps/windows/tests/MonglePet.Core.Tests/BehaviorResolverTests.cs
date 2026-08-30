@@ -9,7 +9,7 @@ public sealed class BehaviorResolverTests
     [Fact]
     public void TuckedAwayAndScreenLockTakePriorityOverInteraction()
     {
-        var configuration = MakeConfiguration(BehaviorMode.Manual, "manual");
+        var configuration = MakeConfiguration(StationaryBehaviorMode.Fixed, "manual");
         var locked = Snapshot(
             idle: TimeSpan.FromMinutes(15),
             applicationId: "com.example.Editor",
@@ -28,11 +28,11 @@ public sealed class BehaviorResolverTests
     }
 
     [Fact]
-    public void InteractionTakesPriorityOverManualMode()
+    public void InteractionTakesPriorityOverFixedStationaryBehavior()
     {
         var decision = Assert.IsType<BehaviorDecision.Sequence>(
             _resolver.Resolve(
-                MakeConfiguration(BehaviorMode.Manual, "manual"),
+                MakeConfiguration(StationaryBehaviorMode.Fixed, "manual"),
                 Snapshot(),
                 new(PetPresentation.Awake, "petting")));
 
@@ -41,18 +41,18 @@ public sealed class BehaviorResolverTests
     }
 
     [Fact]
-    public void ManualModeIgnoresAutomaticRules()
+    public void FixedStationaryBehaviorStillAppliesConditionRules()
     {
         var decision = Assert.IsType<BehaviorDecision.Sequence>(
             _resolver.Resolve(
-                MakeConfiguration(BehaviorMode.Manual, "manual"),
+                MakeConfiguration(StationaryBehaviorMode.Fixed, "manual"),
                 Snapshot(
                     idle: TimeSpan.FromMinutes(15),
                     applicationId: "com.example.Editor"),
                 new(PetPresentation.Awake)));
 
-        Assert.Equal("manual", decision.Value.Id);
-        Assert.IsType<BehaviorSource.Manual>(decision.Source);
+        Assert.Equal("sleep", decision.Value.Id);
+        Assert.IsType<BehaviorSource.AutomaticRule>(decision.Source);
     }
 
     [Fact]
@@ -70,7 +70,7 @@ public sealed class BehaviorResolverTests
             10,
             new RuleCondition.IdleAtLeast(600_000),
             "sleep");
-        var basis = MakeConfiguration(BehaviorMode.Automatic);
+        var basis = MakeConfiguration(StationaryBehaviorMode.Fixed);
         var configuration = basis with
         {
             AutomaticRules = [idleRule, applicationRule],
@@ -97,7 +97,7 @@ public sealed class BehaviorResolverTests
     {
         AutomaticRule idleRule = new(
             Guid.NewGuid(), true, 1, new RuleCondition.IdleAtLeast(1_000), "sleep");
-        BehaviorConfiguration automatic = MakeConfiguration(BehaviorMode.Automatic) with
+        BehaviorConfiguration automatic = MakeConfiguration(StationaryBehaviorMode.Fixed) with
         {
             AutomaticRules = [idleRule],
             AutomaticRulePriorityOrder =
@@ -108,7 +108,7 @@ public sealed class BehaviorResolverTests
             Snapshot(idle: TimeSpan.FromSeconds(2)),
             new(PetPresentation.Awake, MovementSequenceId: "focus")));
         var manualDecision = Assert.IsType<BehaviorDecision.Sequence>(_resolver.Resolve(
-            MakeConfiguration(BehaviorMode.Manual, "manual"),
+            MakeConfiguration(StationaryBehaviorMode.Fixed, "manual"),
             Snapshot(),
             new(PetPresentation.Awake, MovementSequenceId: "focus")));
 
@@ -120,7 +120,7 @@ public sealed class BehaviorResolverTests
     [Fact]
     public void RandomModeUsesSelectedBagEntryOnceAndFallsBackWhenMissing()
     {
-        BehaviorConfiguration configuration = MakeConfiguration(BehaviorMode.Random) with
+        BehaviorConfiguration configuration = MakeConfiguration(StationaryBehaviorMode.Random) with
         {
             RandomSequenceIds = ["focus", "rest"],
         };
@@ -140,12 +140,29 @@ public sealed class BehaviorResolverTests
     }
 
     [Fact]
+    public void RandomStationaryBehaviorStillAppliesConditionRules()
+    {
+        BehaviorConfiguration configuration = MakeConfiguration(StationaryBehaviorMode.Random) with
+        {
+            RandomSequenceIds = ["focus", "rest"],
+        };
+
+        var decision = Assert.IsType<BehaviorDecision.Sequence>(_resolver.Resolve(
+            configuration,
+            Snapshot(idle: TimeSpan.FromMinutes(15)),
+            new(PetPresentation.Awake, RandomSequenceId: "focus")));
+
+        Assert.Equal("sleep", decision.Value.Id);
+        Assert.IsType<BehaviorSource.AutomaticRule>(decision.Source);
+    }
+
+    [Fact]
     public void EqualPriorityUsesStableConfigurationOrder()
     {
         var first = ApplicationRule(priority: 10, sequenceId: "focus");
         var second = ApplicationRule(priority: 10, sequenceId: "manual");
         var lower = ApplicationRule(priority: 1, sequenceId: "rest");
-        var basis = MakeConfiguration(BehaviorMode.Automatic);
+        var basis = MakeConfiguration(StationaryBehaviorMode.Fixed);
         var configuration = basis with
         {
             AutomaticRules = [first, second, lower],
@@ -164,7 +181,7 @@ public sealed class BehaviorResolverTests
     [Fact]
     public void IdleRuleExitsImmediatelyWhenInputResumes()
     {
-        var configuration = MakeConfiguration(BehaviorMode.Automatic);
+        var configuration = MakeConfiguration(StationaryBehaviorMode.Fixed);
 
         var entered = Assert.IsType<BehaviorDecision.Sequence>(
             _resolver.Resolve(
@@ -188,7 +205,7 @@ public sealed class BehaviorResolverTests
         var missingRule = ApplicationRule(priority: 1, sequenceId: "missing");
         var idle = Sequence("idle");
         var configuration = new BehaviorConfiguration(
-            BehaviorMode.Automatic,
+            StationaryBehaviorMode.Fixed,
             idle.Id,
             [idle],
             AutomaticRules: [missingRule]);
@@ -199,7 +216,7 @@ public sealed class BehaviorResolverTests
                 Snapshot(applicationId: "com.example.Editor"),
                 new(PetPresentation.Awake)));
         var unavailable = _resolver.Resolve(
-            new(BehaviorMode.Automatic, "missing", []),
+            new(StationaryBehaviorMode.Fixed, "missing", []),
             Snapshot(),
             new(PetPresentation.Awake));
 
@@ -213,7 +230,7 @@ public sealed class BehaviorResolverTests
     {
         var idle = Sequence("idle");
         var configuration = new BehaviorConfiguration(
-            BehaviorMode.Automatic,
+            StationaryBehaviorMode.Fixed,
             idle.Id,
             [idle],
             AutomaticRules:
@@ -237,8 +254,8 @@ public sealed class BehaviorResolverTests
     }
 
     private static BehaviorConfiguration MakeConfiguration(
-        BehaviorMode mode,
-        string? manualSequenceId = null)
+        StationaryBehaviorMode mode,
+        string? stationarySequenceId = null)
     {
         var rules = new AutomaticRule[]
         {
@@ -273,7 +290,7 @@ public sealed class BehaviorResolverTests
                 Sequence("sleep"),
                 Sequence("petting", repeats: false),
             ],
-            manualSequenceId,
+            stationarySequenceId,
             rules);
     }
 

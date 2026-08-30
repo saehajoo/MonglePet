@@ -69,6 +69,9 @@ internal static class AppSettingsMigrator
                 case 13:
                     MigrateV13ToV14(document);
                     break;
+                case 14:
+                    MigrateV14ToV15(document);
+                    break;
                 default:
                     throw new InvalidOperationException($"Unsupported settings schema: {schema}.");
             }
@@ -483,6 +486,28 @@ internal static class AppSettingsMigrator
             };
         }
         document["schemaVersion"] = 14;
+    }
+
+    private static void MigrateV14ToV15(JsonObject document)
+    {
+        foreach (JsonObject profile in Profiles(document))
+        {
+            string mode = profile["mode"]?.GetValue<string?>() ?? "automatic";
+            profile["stationaryBehaviorMode"] = mode == "random" ? "random" : "fixed";
+            profile["stationarySequenceID"] = mode == "manual"
+                ? profile["manualSequenceID"]?.DeepClone()
+                : null;
+            if (mode is "manual" or "random" && profile["automaticRules"] is JsonArray rules)
+            {
+                foreach (JsonObject rule in rules.OfType<JsonObject>())
+                {
+                    rule["isEnabled"] = false;
+                }
+            }
+            profile.Remove("mode");
+            profile.Remove("manualSequenceID");
+        }
+        document["schemaVersion"] = 15;
     }
 
     private static void PromoteAnimation(

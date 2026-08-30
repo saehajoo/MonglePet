@@ -308,33 +308,32 @@ internal static class AppSettingsDocumentMapper
             {
                 profileId = storedProfileId;
             }
-            BehaviorMode mode = ReadEnum(
+            StationaryBehaviorMode stationaryMode = ReadEnum(
                 value,
-                "mode",
-                new Dictionary<string, BehaviorMode>(StringComparer.Ordinal)
+                "stationaryBehaviorMode",
+                new Dictionary<string, StationaryBehaviorMode>(StringComparer.Ordinal)
                 {
-                    ["automatic"] = BehaviorMode.Automatic,
-                    ["manual"] = BehaviorMode.Manual,
-                    ["random"] = BehaviorMode.Random,
+                    ["fixed"] = StationaryBehaviorMode.Fixed,
+                    ["random"] = StationaryBehaviorMode.Random,
                 },
-                BehaviorMode.Automatic,
-                $"{field}.mode",
+                StationaryBehaviorMode.Fixed,
+                $"{field}.stationaryBehaviorMode",
                 issues);
             IReadOnlyList<BehaviorSequence> sequences = ReadSequences(
                 value["sequences"],
                 $"{field}.sequences",
                 issues);
             var sequenceIds = sequences.Select(sequence => sequence.Id).ToHashSet(StringComparer.Ordinal);
-            string? manual = ReadOptionalIdentifier(
+            string? stationary = ReadOptionalIdentifier(
                 value,
-                "manualSequenceID",
-                $"{field}.manualSequenceID",
+                "stationarySequenceID",
+                $"{field}.stationarySequenceID",
                 issues,
                 requireUnmodified: false);
-            if (manual is not null && !sequenceIds.Contains(manual))
+            if (stationary is not null && !sequenceIds.Contains(stationary))
             {
-                Invalid($"{field}.manualSequenceID", issues);
-                manual = null;
+                Invalid($"{field}.stationarySequenceID", issues);
+                stationary = null;
             }
             IReadOnlyList<string> randomSequenceIds = ReadSequenceReferences(
                 value["randomSequenceIDs"],
@@ -344,8 +343,8 @@ internal static class AppSettingsDocumentMapper
             profiles.Add(new BehaviorProfile(
                 profileId,
                 key,
-                mode,
-                manual,
+                stationaryMode,
+                stationary,
                 sequences,
                 ReadRules(value["automaticRules"], sequenceIds, $"{field}.automaticRules", issues),
                 ReadMovement(value["movement"], sequenceIds, $"{field}.movement", issues),
@@ -1311,13 +1310,14 @@ internal static class AppSettingsDocumentMapper
         JsonObject result = template?.DeepClone().AsObject() ?? new JsonObject();
         result["profileID"] = value.ProfileId.ToString("D");
         result["petKey"] = WritePetKey(value.PetKey, template?["petKey"] as JsonObject);
-        result["mode"] = value.Mode switch
+        result.Remove("mode");
+        result.Remove("manualSequenceID");
+        result["stationaryBehaviorMode"] = value.StationaryBehaviorMode switch
         {
-            BehaviorMode.Automatic => "automatic",
-            BehaviorMode.Manual => "manual",
+            StationaryBehaviorMode.Fixed => "fixed",
             _ => "random",
         };
-        result["manualSequenceID"] = value.ManualSequenceId;
+        result["stationarySequenceID"] = value.StationarySequenceId;
         result["randomSequenceIDs"] = new JsonArray(value.RandomSequences
             .Select(id => (JsonNode?)JsonValue.Create(id))
             .ToArray());
@@ -1664,7 +1664,7 @@ internal static class AppSettingsDocumentMapper
 
     private static void ValidateProfile(BehaviorProfile value, string field)
     {
-        if (!Enum.IsDefined(value.Mode) ||
+        if (!Enum.IsDefined(value.StationaryBehaviorMode) ||
             value.Sequences.Count > 100 || value.AutomaticRules.Count > 100)
         {
             throw InvalidSettings(field);
@@ -1682,9 +1682,9 @@ internal static class AppSettingsDocumentMapper
                 throw InvalidSettings($"{field}.sequences");
             }
         }
-        if (value.ManualSequenceId is not null && !sequenceIds.Contains(value.ManualSequenceId))
+        if (value.StationarySequenceId is not null && !sequenceIds.Contains(value.StationarySequenceId))
         {
-            throw InvalidSettings($"{field}.manualSequenceID");
+            throw InvalidSettings($"{field}.stationarySequenceID");
         }
         if (value.RandomSequences.Count != value.RandomSequences.Distinct(StringComparer.Ordinal).Count() ||
             value.RandomSequences.Any(id => !sequenceIds.Contains(id)) ||

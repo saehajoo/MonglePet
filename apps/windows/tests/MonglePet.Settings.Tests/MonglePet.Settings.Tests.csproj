@@ -39,5 +39,11 @@
     <None Include="..\..\..\..\shared\Fixtures\Settings\schema-v13-random-behaviors.json"
           Link="Fixtures\schema-v13-random-behaviors.json"
           CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\..\..\shared\Fixtures\Settings\schema-v14-stationary-rules.json"
+          Link="Fixtures\schema-v14-stationary-rules.json"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\..\..\shared\Fixtures\Settings\schema-v15-stationary-rules.expected.json"
+          Link="Fixtures\schema-v15-stationary-rules.expected.json"
+          CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

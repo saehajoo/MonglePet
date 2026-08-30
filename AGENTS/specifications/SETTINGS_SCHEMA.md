@@ -570,7 +570,7 @@ schema-v10에서 v11으로 마이그레이션할 때 현재 선택 펫을 새 `i
 8. 현재 앱보다 새로운 버전은 원본을 이동하거나 덮어쓰지 않고 기본값으로 실행하며 저장을 거부한다.
 9. 향후 마이그레이션은 버전별 순차 변환과 fixture 기반 단위 테스트를 함께 추가한다.
 
-Windows는 기존 플랫폼 스키마 이력을 유지하면서 macOS schema-v15와 같은 평상시 행동·독립 규칙 결과를 후속 구현한다. 구체적인 변환 순서와 교차 검증은 `AGENTS/guides/WINDOWS_BEHAVIOR_CENTRIC_HANDOFF.md`를 따른다.
+Windows도 기존 플랫폼 스키마 이력을 이어 schema-v15의 같은 평상시 행동·독립 규칙 결과와 v14→v15 공통 fixture를 구현했다. 실제 양 플랫폼 설정·권장 프로필 교차 검증은 `AGENTS/guides/WINDOWS_BEHAVIOR_CENTRIC_HANDOFF.md`를 따른다.
 
 ---
 

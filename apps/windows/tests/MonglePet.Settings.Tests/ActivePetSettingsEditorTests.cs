@@ -12,7 +12,7 @@ public sealed class ActivePetSettingsEditorTests
         ActivePetInstance source = original.SelectedPetInstance!;
         BehaviorProfile sourceProfile = original.SelectedBehaviorProfile! with
         {
-            Mode = BehaviorMode.Manual,
+            StationaryBehaviorMode = StationaryBehaviorMode.Random,
         };
         original = original.WithSelectedBehaviorProfile(sourceProfile);
         Guid newInstanceId = Guid.NewGuid();
@@ -32,7 +32,7 @@ public sealed class ActivePetSettingsEditorTests
         Assert.Equal(source.Overlay.OriginX + 24, instance.Overlay.OriginX);
         Assert.Equal(0, instance.DisplayOrder);
         Assert.Equal(1, added.ActivePetInstances.Single(value => value.InstanceId == source.InstanceId).DisplayOrder);
-        Assert.Equal(BehaviorMode.Manual, added.SelectedBehaviorProfile!.Mode);
+        Assert.Equal(StationaryBehaviorMode.Random, added.SelectedBehaviorProfile!.StationaryBehaviorMode);
         Assert.NotEqual(sourceProfile.ProfileId, added.SelectedBehaviorProfile.ProfileId);
     }
 
@@ -45,7 +45,7 @@ public sealed class ActivePetSettingsEditorTests
         Guid addedId = added.SelectedPetInstanceId;
         BehaviorProfile updatedProfile = added.SelectedBehaviorProfile! with
         {
-            Mode = BehaviorMode.Manual,
+            StationaryBehaviorMode = StationaryBehaviorMode.Random,
         };
         added = ActivePetSettingsEditor.SetBehaviorProfile(added, addedId, updatedProfile);
         added = ActivePetSettingsEditor.SetOverlay(
@@ -55,9 +55,9 @@ public sealed class ActivePetSettingsEditorTests
 
         ActivePetInstance source = added.ActivePetInstances.Single(value => value.InstanceId == sourceId);
         BehaviorProfile sourceProfile = added.BehaviorProfiles.Single(value => value.ProfileId == source.BehaviorProfileId);
-        Assert.Equal(BehaviorMode.Automatic, sourceProfile.Mode);
+        Assert.Equal(StationaryBehaviorMode.Fixed, sourceProfile.StationaryBehaviorMode);
         Assert.Equal(AppSettingsLimits.DefaultOverlayWidth, source.Overlay.Width);
-        Assert.Equal(BehaviorMode.Manual, added.SelectedBehaviorProfile!.Mode);
+        Assert.Equal(StationaryBehaviorMode.Random, added.SelectedBehaviorProfile!.StationaryBehaviorMode);
         Assert.Equal(320, added.SelectedPetInstance!.Overlay.Width);
     }
 
@@ -128,8 +128,8 @@ public sealed class ActivePetSettingsEditorTests
         ActivePetInstance sourceInstance = settings.SelectedPetInstance!;
         BehaviorProfile source = settings.SelectedBehaviorProfile! with
         {
-            Mode = BehaviorMode.Random,
-            ManualSequenceId = BuiltInBehaviorProfileDefaults.SleepSequenceId,
+            StationaryBehaviorMode = StationaryBehaviorMode.Random,
+            StationarySequenceId = BuiltInBehaviorProfileDefaults.SleepSequenceId,
             RandomSequenceIds =
             [
                 BuiltInBehaviorProfileDefaults.SleepSequenceId,

@@ -15,7 +15,7 @@ public sealed class PetPackageExporter
         PetPackageLoader? loader = null,
         PetPackageArchiveExtractor? archiveExtractor = null,
         Func<Guid>? operationIdGenerator = null,
-        string appVersion = "1.4.0")
+        string appVersion = "1.5.0")
     {
         _loader = loader ?? new PetPackageLoader();
         _archiveExtractor = archiveExtractor ?? new PetPackageArchiveExtractor();

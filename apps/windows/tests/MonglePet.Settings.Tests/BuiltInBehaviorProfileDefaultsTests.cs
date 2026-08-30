@@ -19,7 +19,7 @@ public sealed class BuiltInBehaviorProfileDefaultsTests
             () => ids.Dequeue());
 
         Assert.Equal(profileId, profile.ProfileId);
-        Assert.Equal(BehaviorMode.Automatic, profile.Mode);
+        Assert.Equal(StationaryBehaviorMode.Fixed, profile.StationaryBehaviorMode);
         Assert.Equal(12, profile.Sequences.Count);
         BehaviorSequence defaultSequence = profile.Sequences.Single(
             sequence => sequence.Id == BehaviorMotionReferences.DefaultSequence);

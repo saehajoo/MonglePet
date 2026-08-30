@@ -333,7 +333,7 @@ public partial class App : Application
     {
         Version? version = System.Reflection.Assembly.GetEntryAssembly()?.GetName().Version;
         return version is null
-            ? new RemotePetSemanticVersion(1, 4, 0)
+            ? new RemotePetSemanticVersion(1, 5, 0)
             : new RemotePetSemanticVersion(
                 Math.Max(version.Major, 0),
                 Math.Max(version.Minor, 0),
@@ -373,8 +373,8 @@ public partial class App : Application
                             rule.Condition is not RuleCondition.Application).ToArray();
                     applied = applied with
                     {
-                        Mode = recommended.Mode,
-                        ManualSequenceId = recommended.ManualSequenceId,
+                        StationaryBehaviorMode = recommended.StationaryBehaviorMode,
+                        StationarySequenceId = recommended.StationarySequenceId,
                         RandomSequenceIds = recommended.RandomSequences,
                         Sequences = recommended.Sequences,
                         AutomaticRules = rules,
@@ -447,8 +447,8 @@ public partial class App : Application
             {
                 portable = portable with
                 {
-                    Mode = source.Mode,
-                    ManualSequenceId = source.ManualSequenceId,
+                    StationaryBehaviorMode = source.StationaryBehaviorMode,
+                    StationarySequenceId = source.StationarySequenceId,
                     RandomSequenceIds = source.RandomSequences,
                     Sequences = source.Sequences,
                     AutomaticRules = source.AutomaticRules,
@@ -804,24 +804,25 @@ public partial class App : Application
     }
 
     public void SaveBehaviorSelection(
-        BehaviorMode mode,
-        string? manualSequenceId,
+        StationaryBehaviorMode mode,
+        string? stationarySequenceId,
         IReadOnlyList<string>? randomSequenceIds = null)
     {
         EnsureSettingsWritingEnabled();
         BehaviorProfile current = ActiveBehaviorProfile;
-        string? resolvedManual = manualSequenceId;
-        if (mode == BehaviorMode.Manual &&
-            (resolvedManual is null || !current.Sequences.Any(sequence =>
-                string.Equals(sequence.Id, resolvedManual, StringComparison.Ordinal))))
+        string? resolvedStationary = stationarySequenceId;
+        if (mode == StationaryBehaviorMode.Fixed &&
+            resolvedStationary is not null &&
+            !current.Sequences.Any(sequence =>
+                string.Equals(sequence.Id, resolvedStationary, StringComparison.Ordinal)))
         {
-            resolvedManual = current.Sequences.FirstOrDefault()?.Id;
+            resolvedStationary = null;
         }
 
         BehaviorProfile updated = current with
         {
-            Mode = mode,
-            ManualSequenceId = resolvedManual,
+            StationaryBehaviorMode = mode,
+            StationarySequenceId = resolvedStationary,
             RandomSequenceIds = (randomSequenceIds ?? current.RandomSequences)
                 .Where(id => current.Sequences.Any(sequence => string.Equals(
                     sequence.Id,

@@ -63,7 +63,7 @@ Windows의 고빈도 포인터·이동 tick마다 행동 scheduler·timer·Compo
 
 ### 마우스 도망가기의 평상시 자유 이동 회귀 수정
 
-현재 Windows `PetMovementRuntime.TickCursorAvoiding`은 포인터가 감지·해제 거리 밖에 있는 평상시에도 `_target = null`을 매 tick 실행한 뒤 `TickFreeRoaming`을 호출한다. 그 결과 자유 이동 목표가 약 60Hz로 다시 추첨되어 펫이 한 목표로 이동하지 못하고 방향과 좌표를 빠르게 바꾸는 현상이 발생한다. macOS 기준 동작은 다음과 같다.
+과거 Windows `PetMovementRuntime.TickCursorAvoiding`은 포인터가 감지·해제 거리 밖에 있는 평상시에도 `_target = null`을 매 tick 실행한 뒤 `TickFreeRoaming`을 호출해 자유 이동 목표가 약 60Hz로 다시 추첨되는 회귀가 있었다. 현재 구현은 Core `CursorAvoidingPhaseState`를 런타임의 전환 단일 원본으로 사용해 도망 상태를 벗어나는 한 번의 tick에서만 도망 목표를 지우고 이후 평상시 자유 이동 목표와 dwell을 유지한다. 100회 반복 idle tick과 escape→idle 전환 회귀 테스트 및 설치 Release 사용자 확인을 통과했다. 기준 동작은 다음과 같다.
 
 - 도망 중에는 포인터 위치에 맞춰 도망 목표를 갱신한다.
 - 포인터가 해제 거리 밖으로 나가 `도망 중 → 평상시`로 전환되는 한 번에만 도망 목표를 버린다.
@@ -71,7 +71,7 @@ Windows의 고빈도 포인터·이동 tick마다 행동 scheduler·timer·Compo
 - 도착하면 고정 모드에서는 `freeRoamingDwellMilliseconds`, 랜덤 모드에서는 `freeRoamingDwellMinimumMilliseconds...freeRoamingDwellMilliseconds`에서 도착 시 한 번 뽑은 시간 동안 머문 뒤 다음 목표를 한 번만 만든다.
 - 평상시 정지를 선택한 경우에만 목표·대기 상태와 이동 행동을 정리한다.
 
-Windows 수정 시 `_isEscaping`의 이전 값을 보존해 전환 순간과 이미 평상시인 tick을 구분한다. 이미 평상시 자유 이동 중이면 `_target`, `_dwellUntil`과 논리 좌표 누적기를 초기화하지 않는다. 도망 상태를 빠져나오는 첫 tick에는 도망 목표만 지우고 현재 실제 위치를 기준으로 자유 이동 목표를 한 번 만든다. 기존 60Hz 논리 좌표 누적, 이동 속도, 정지 반경과 방향 행동 전환은 유지한다.
+Windows 구현은 `CursorAvoidingPhaseState.IsEscaping`과 `EnteredIdle` 전환값으로 전환 순간과 이미 평상시인 tick을 구분한다. 이미 평상시 자유 이동 중이면 `_target`, `_dwellUntil`과 논리 좌표 누적기를 초기화하지 않는다. 도망 상태를 빠져나오는 첫 tick에는 도망 목표만 지우고 현재 실제 위치를 기준으로 자유 이동 목표를 한 번 만든다. 기존 60Hz 논리 좌표 누적, 이동 속도, 정지 반경과 방향 행동 전환은 유지한다.
 
 ## 구현 순서
 
@@ -118,6 +118,12 @@ Windows 수정 시 `_isEscaping`의 이전 값을 보존해 전환 순간과 이
 - 기존 schema-v11~v13 의미의 사용자 데이터와 보관함을 보존한 업데이트·재실행을 확인하고 세 이동 방식의 값이 최초에는 종전 동작과 같다가 이후 독립 편집되는지 확인한다.
 - Release에서 이동 프레임 부드러움을 유지하며 CPU, private memory, timer 수와 장시간 증가량을 비교한다.
 - Windows 구현과 실기기 QA 전에는 `PLATFORM_PARITY.md`에서 동등 완료로 표시하지 않는다.
+
+## Windows 구현 체크포인트
+
+- 2026-08-30: Windows C# Domain·로컬 schema-v15·권장 프로필 v11·resolver/runtime·WinUI 정보 구조와 패키지 요약을 구현했다.
+- v14 automatic/manual/random 이관과 휴면 규칙 비활성화는 공통 fixture로, v10→v11 권장 프로필과 고정·랜덤 공통 규칙 평가는 단위 테스트로 검증했다.
+- Debug·Release 각 301개 테스트와 두 구성 빌드는 통과했다. 마우스 도망가기 평상시 자유 이동의 100회 목표 수명 테스트와 설치 Release 사용자 확인도 완료했다. DPI·테마·접근성과 macOS 교차 왕복은 남아 있으므로 플랫폼 동등 완료로 표시하지 않는다.
 
 ---
 

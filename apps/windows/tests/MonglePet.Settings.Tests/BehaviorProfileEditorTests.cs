@@ -65,7 +65,7 @@ public sealed class BehaviorProfileEditorTests
         string focusId = added.Sequences.Single(sequence => sequence.DisplayName == "focus").Id;
         BehaviorProfile profile = added with
         {
-            ManualSequenceId = focusId,
+            StationarySequenceId = focusId,
             AutomaticRules =
             [
                 new(Guid.NewGuid(), true, 1, new RuleCondition.IdleAtLeast(60_000), focusId),
@@ -81,7 +81,7 @@ public sealed class BehaviorProfileEditorTests
         };
 
         BehaviorProfile result = BehaviorProfileEditor.RemoveSequence(profile, focusId);
-        Assert.Equal(BehaviorMotionReferences.DefaultSequence, result.ManualSequenceId);
+        Assert.Null(result.StationarySequenceId);
         Assert.Empty(result.AutomaticRules);
         Assert.Equal(keptPhraseId, Assert.Single(result.Speech.Phrases).Id);
     }
