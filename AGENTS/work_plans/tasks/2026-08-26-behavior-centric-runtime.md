@@ -114,7 +114,7 @@
 
 - [x] 12단계: 새 기본 펫 파일을 받은 뒤 최종 행동·이동·쓰다듬기 권장 설정을 적용한다.
 - [x] 13단계: 새 macOS Preview 버전과 GitHub Release를 검증·게시한다.
-- [ ] 14단계: Windows `1.5.0.15` 빌드·설치·데이터 보존과 원격 산출물을 검증하고 `windows-v1.5.0-preview.1` GitHub Pre-release를 게시한다.
+- [x] 14단계: Windows `1.5.0.15` 빌드·설치·데이터 보존과 원격 산출물을 검증하고 `windows-v1.5.0-preview.1` GitHub Pre-release를 게시한다.
 
 ## 검증 방법
 
@@ -140,6 +140,7 @@
 
 ## 진행 로그
 
+- 2026-08-30: Windows 소스 커밋 `f60738bd957d6bfb0cc1ccb401ebd5044254a317`을 `origin/main`에 푸시하고 태그 `windows-v1.5.0-preview.1`, 제목 `MonglePet Windows 1.5.0 Preview 1`의 GitHub Pre-release를 게시했다. Debug·Release 각 301개 테스트와 경고·오류 없는 두 구성 빌드를 통과했다. 65,264,291 bytes 미서명 x64 설치기의 SHA-256은 `A3BA47C263047640E2A3EC9281BE6DD33A0615D02618205E011F9D0809FC0ECE`다. 기존 `1.4.0.14` 위 설치에서 사용자 데이터 48개 파일·5,806,677 bytes의 inventory digest `33AA28EAF51622E96E4DEDE8332ADBF8BFCD896F50A55DB376FF3830801AD9B3`를 보존했고 설치 DLL과 publish DLL 일치, schema-v15·4개 활성 인스턴스·5개 프로필, 앱 응답을 확인했다. 원격 설치기와 107 bytes `SHA256SUMS.txt`를 다시 내려받아 크기·digest·태그 대상을 확인해 14단계를 완료했다.
 - 2026-08-30: 사용자 최종 확인에 따라 Windows 새 기능선을 `1.5.0.15`, 태그 `windows-v1.5.0-preview.1`, 릴리스 이름 `MonglePet Windows 1.5.0 Preview 1`로 확정하고 14단계를 시작했다. 앱 마케팅·Assembly·File·MSIX 버전과 앱 호환성 판정, 새 내보내기 패키지의 앱 버전을 함께 승격한다.
 - 2026-08-30: Windows 마우스 도망가기의 escape/idle 전환을 Core `CursorAvoidingPhaseState`로 분리하고 실제 `PetMovementRuntime`이 이 경계만 사용하도록 연결했다. 도망 상태를 벗어나는 한 번의 tick에서만 도망 목표를 지우며, 이미 평상시 자유 이동 중인 100회 반복 tick은 같은 목표를 보존하는 회귀 테스트 2개를 추가했다. 설치한 최신 Release 테스트본의 사용자 확인을 반영하고 Debug·Release 각 Activity 27개, Core 59개, Packages 28개, PetLibrary 88개, Settings 79개, Shell 20개로 총 301개 테스트와 두 구성 빌드를 통과해 10B를 완료했다. Debug·Release 테스트를 동시에 실행했을 때만 고정 operation ID를 쓰는 PetLibrary 내보내기 테스트의 임시 경로가 충돌했으며, 문서 순서대로 각 구성을 독립 재실행해 실패 0개를 확인했다. 버전·커밋·푸시·Release는 변경하지 않았다.
 - 2026-08-30: Windows C# Domain을 `StationaryBehaviorMode.fixed/random`과 `StationarySequenceId`로 전환하고 조건 규칙을 두 선택 방식에 공통 적용했다. 로컬 schema-v15와 v14→v15 공통 fixture, 권장 프로필 v11 encode/decode 및 v10 휴면 규칙 이관을 구현했다. 평상시·이동·조건 규칙 scheduler를 분리해 고정 행동은 진행 위치를 보존하고 랜덤은 override 시작 한 번에만 다음 bag 행동을 첫 프레임으로 준비한다. WinUI는 평상시 선택을 `표시 및 이동`, 조건과 우선순위를 `규칙 설정`으로 옮기고 가져오기·내보내기 요약에 평상시 선택, 조건 규칙 전체/사용 수와 종류 순서를 표시한다. Debug·Release 각 Activity 27개, Core 57개, Packages 28개, PetLibrary 88개, Settings 79개, Shell 20개로 총 299개 테스트와 두 구성 빌드를 통과했다. 실제 UI·오버레이 QA와 macOS 교차 왕복은 사용자 확인 단계로 남겼고 버전·커밋·푸시·Release는 변경하지 않았다.
@@ -186,7 +187,7 @@
 
 ## 완료 결과
 
-- macOS 코드와 자동 검증은 완료했다. 실제 설정 화면과 오버레이 전환 QA, Windows 구현·교차 왕복과 후속 릴리스는 진행 중이다.
+- macOS·Windows 코드와 자동 검증, 두 플랫폼의 `1.5.0` Preview 게시를 완료했다. 실제 DPI·접근성 QA와 권장 프로필 v11 교차 왕복은 진행 중이다.
 
 ## 남은 위험 / 후속 작업
 

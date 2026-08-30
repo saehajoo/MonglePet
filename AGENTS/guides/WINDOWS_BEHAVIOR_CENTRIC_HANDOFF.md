@@ -124,6 +124,7 @@ Windows 구현은 `CursorAvoidingPhaseState.IsEscaping`과 `EnteredIdle` 전환�
 - 2026-08-30: Windows C# Domain·로컬 schema-v15·권장 프로필 v11·resolver/runtime·WinUI 정보 구조와 패키지 요약을 구현했다.
 - v14 automatic/manual/random 이관과 휴면 규칙 비활성화는 공통 fixture로, v10→v11 권장 프로필과 고정·랜덤 공통 규칙 평가는 단위 테스트로 검증했다.
 - Debug·Release 각 301개 테스트와 두 구성 빌드는 통과했다. 마우스 도망가기 평상시 자유 이동의 100회 목표 수명 테스트와 설치 Release 사용자 확인도 완료했다. DPI·테마·접근성과 macOS 교차 왕복은 남아 있으므로 플랫폼 동등 완료로 표시하지 않는다.
+- 소스 커밋 `f60738bd957d6bfb0cc1ccb401ebd5044254a317`을 Windows `1.5.0.15`, 태그 `windows-v1.5.0-preview.1`로 게시했다. 기존 설치 위 사용자 데이터 inventory digest, schema-v15 시작과 원격 설치기 SHA-256을 검증했다.
 
 ---
 

@@ -126,6 +126,8 @@ SDK는 루트 `global.json`의 .NET 10.0.302로 고정한다. .NET 10이 제공�
 
 2026-08-29 후속 `1.4.0.14`는 스프라이트 경계 이동·8방향 크기 조절과 작은 프레임 포인터 판정을 안정화하고, 애니메이션 content 배율·캔버스 밖 배치, 새 펫·사본의 독립 활성 인스턴스, 앱 제작 버전의 숫자형 `MAJOR.MINOR.PATCH` 검증을 반영했다. 다크·라이트 테마의 버튼·slider·radio·toggle 상태 대비를 통일하고 실제 최상위 overlay와 composition bridge child에 클릭 통과 스타일을 함께 복구한다. 사용자 요청에 따라 전체 자동 테스트는 재실행하지 않았으며 Debug 빌드와 Release unpackaged publish는 경고·오류 없이 통과했고 물리 포인터로 펫 뒤 별도 프로세스 버튼 클릭을 확인했다. 소스 커밋 `682acfa50b8a48ca6c2ce6531c4dd0be673ab082`를 태그 `windows-v1.4.0-preview.2`의 GitHub Pre-release로 게시했다. 원격 설치기 65,270,050 bytes와 SHA-256 `C1B8066BFF2BCB1840E594AF668A6E3EF0226FAB5590804594AF3A2E05D64678`, `SHA256SUMS.txt`를 다시 내려받아 일치를 확인했다.
 
+2026-08-30 Windows `1.5.0.15`는 평상시 하나 선택·랜덤 선택과 독립 조건 규칙, 로컬 schema-v15·권장 프로필 v11, 규칙 전용 scheduler와 랜덤 중단 시 다음 shuffle bag 첫 프레임 전환을 반영했다. 마우스 도망가기의 평상시 자유 이동은 escape/idle 전환 한 번에만 목표를 초기화하며 100회 반복 tick 회귀 테스트를 포함한다. Debug·Release 각 Activity 27개·Core 59개·Packages 28개·PetLibrary 88개·Settings 79개·Shell 20개로 총 301개 테스트와 두 구성 빌드가 통과했다. 기존 `1.4.0.14` 위 설치에서 사용자 데이터 48개 파일의 inventory digest를 보존하고 schema-v15·4개 인스턴스·5개 프로필과 설치본 응답을 확인했다. 소스 커밋 `f60738bd957d6bfb0cc1ccb401ebd5044254a317`을 태그 `windows-v1.5.0-preview.1`로 게시했으며 원격 설치기 65,264,291 bytes, SHA-256 `A3BA47C263047640E2A3EC9281BE6DD33A0615D02618205E011F9D0809FC0ECE`와 107 bytes 체크섬 파일을 다시 내려받아 일치를 확인했다. DPI·Narrator와 macOS 권장 프로필 v11 교차 왕복은 후속 플랫폼 QA로 남아 있다.
+
 Windows 기반부터 로컬 공유까지의 완료 기록은 `../../AGENTS/work_plans/INDEX.md`에서 확인한다. 이번 가져오기 검토·권장 설정·내보내기 구현은 `../../AGENTS/work_plans/tasks/2026-08-09-windows-local-sharing.md`에 정리했다. 다음 구현을 시작하기 전 이 디렉터리의 `AGENTS.md`와 새 작업 계획을 함께 확인한다.
 
 ## EXE 설치기 만들기
