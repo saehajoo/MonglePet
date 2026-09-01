@@ -893,3 +893,11 @@
 - 결정: 사용자 화면에서 `사용 중`과 `보관 중` 상태를 모두 제거하고 모든 설치 펫을 독립 설정을 가진 `내 펫`으로만 표시한다. 펫을 잠시 숨길 때는 재우기를 사용해 instance·profile·installation을 모두 보존한다. `완전히 삭제`는 해당 instance와 전용 profile을 제거하고, 같은 installation을 참조하는 다른 instance가 없으면 installation 콘텐츠도 함께 제거한다. 내장 펫은 최소 한 instance를 유지한다. 과거 데이터에서 active instance가 없는 installation은 시작 시 기존 미참조 profile을 우선 연결한 잠든 instance로 복구한다.
 - 이유: 보관과 사용 상태를 별도 콘텐츠 생명주기로 노출하면 재우기와의 차이, 개인 설정 보존 여부와 재사용 절차를 다시 이해해야 한다. 모든 펫을 한 목록에서 깨우기·재우기·삭제로 관리하면 가져오기, 사본과 삭제 결과를 예측하기 쉽다.
 - 비고: installation·instance·profile 내부 분리와 일반 가져오기의 새 installation·instance·profile 생성은 유지한다. 삭제는 settings 저장과 마지막 installation 정리를 한 사용자 transaction으로 처리하고 파일 삭제 실패 시 이전 settings를 복원한다. 복구된 legacy orphan은 갑자기 데스크톱에 나타나지 않도록 `tuckedAway`로 시작한다. schema-v15, 권장 프로필 v11과 `.monglepet` formatVersion은 올리지 않는다. D-112의 보관 카드와 active 제거 후 콘텐츠 유지 UI는 이 결정이 대체한다.
+
+## D-114 Windows 1.6.0 내 펫·행동 1회 재생 Preview
+
+- 상태: accepted
+- 날짜: 2026-09-02
+- 결정: D-111~D-113의 단일 `내 펫` 생명주기, 행동 1회 재생·랜덤 새 cursor, 프레임 알파 기준 말풍선과 Windows 설정 UX·테마 후속 보정을 포함한 Windows Preview를 `1.6.0.15`, 태그 `windows-v1.6.0-preview.1`로 게시한다.
+- 이유: 설치 콘텐츠와 실행 펫을 분리해 노출하던 기존 Windows `1.5.0.15`의 정보 구조와 행동·말풍선 결과가 macOS 1.6 기준에서 달라졌으므로 기존 릴리스를 덮어쓰지 않는 새 minor 기능선과 더 높은 설치 버전으로 구분해야 한다.
+- 비고: schema-v15, 권장 프로필 v11과 `.monglepet` formatVersion은 유지한다. 미서명 x64 EXE와 `SHA256SUMS.txt`를 GitHub Pre-release로 제공하며 기존 설치 위 수동 업데이트에서 `%LOCALAPPDATA%\MonglePet` 데이터를 보존한다. 실제 혼합 DPI·Narrator와 macOS 교차 왕복은 플랫폼 동등성 후속 QA로 유지한다.

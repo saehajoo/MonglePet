@@ -140,6 +140,7 @@
 - 2026-09-02: 실제 다크 모드 QA에서 slider 값 구간이 primary button과 같은 주황색으로 보이고 switch의 켜짐·꺼짐 대비가 의도와 반대인 문제를 수정했다. 다크 slider 값 구간은 밝은 중립색, 나머지 track은 중간 회색으로 분리하고 switch는 `켜짐=밝은 track+어두운 knob`, `꺼짐=어두운 track+밝은 knob`로 정확히 반전했다. 라이트 모드는 `켜짐=진한 track`, `꺼짐=밝은 track`의 기존 의미를 유지한다. `내 펫` 카드의 상태 문구와 switch는 상단 이름 행에서 카드 중앙 상태 행으로 옮겼으며 Debug 빌드가 경고·오류 없이 통과했다.
 - 2026-09-02: 설치본 후속 QA에서 WinUI 기본 `ToggleSwitch` 템플릿의 라이브러리 리소스가 앱 전역 override보다 우선되어 `내 펫` switch가 이전 회색을 유지하는 것을 확인했다. 카드 switch의 로컬 Default/Light theme resource에 fill·stroke·knob의 모든 상태를 직접 지정해 실제 template lookup 경계에서 색상을 고정하고, 상태 문구에는 20px 고정 line box와 2px 시각 보정을 적용해 switch track과의 광학 중심을 맞췄다. Debug 빌드가 경고·오류 없이 통과했다.
 - 2026-09-02: 사용자 최종 확인과 릴리스 요청에 따라 Windows 새 기능선을 `1.6.0.15`, 태그 `windows-v1.6.0-preview.1`, 릴리스 이름 `MonglePet Windows 1.6.0 Preview 1`로 확정했다. 마케팅·Assembly·File·MSIX 버전과 배포 계약 테스트를 함께 승격했고 Debug·Release 각 Activity 27, Core 62, Packages 28, PetLibrary 89, Settings 82, Shell 20으로 총 308개 테스트와 두 구성 빌드가 경고·오류 없이 통과했다.
+- 2026-09-02: 소스 커밋 `507400b`를 `origin/main`에 푸시하고 태그 `windows-v1.6.0-preview.1`, 제목 `MonglePet Windows 1.6.0 Preview 1`의 GitHub Pre-release를 게시했다. 65,284,653 bytes 미서명 x64 설치기의 SHA-256은 `30F0BA24866AA3970842EF037715DCED54788971A12A692F6DAEF45FC1E883EC`다. 기존 설치 위 업그레이드 종료 코드 0, 사용자 데이터 48개·5,826,673 bytes의 inventory digest `934FDC9C8AF2E5959E2A80F69A8B4A54E58C7BE2A4D32FE7B2B4F9ED8C38D049` 보존, 설치본 `1.6.0.15`·게시 DLL 일치와 실행 응답을 확인했다. 원격 설치기와 `SHA256SUMS.txt`를 다시 내려받아 크기·digest·체크섬과 Pre-release 상태를 검증했다.
 
 ## 남은 위험
 
