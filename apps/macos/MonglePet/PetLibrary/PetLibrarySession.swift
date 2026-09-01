@@ -48,37 +48,6 @@ nonisolated struct PetLibraryItem: Equatable, Identifiable, Sendable {
     }
 }
 
-nonisolated struct DuplicatePetInstallationCandidate: Equatable, Identifiable, Sendable {
-    let installationID: UUID
-    let metadata: PetPackageMetadata
-    let isEditable: Bool
-    let isCurrentlySelected: Bool
-
-    var id: UUID {
-        installationID
-    }
-}
-
-nonisolated struct DuplicatePetInstallRequest: Equatable, Identifiable, Sendable {
-    let sourceURL: URL
-    let incomingMetadata: PetPackageMetadata
-    let candidates: [DuplicatePetInstallationCandidate]
-    let importReview: PetPackageImportReview?
-    let appliesRecommendedProfileToNewInstallation: Bool
-
-    var id: URL {
-        sourceURL
-    }
-
-    var packageID: String {
-        incomingMetadata.id
-    }
-
-    var preferredReplacementInstallationID: UUID? {
-        candidates.first(where: \.isCurrentlySelected)?.installationID
-            ?? candidates.first?.installationID
-    }
-}
 
 nonisolated enum PetAnimationReferenceChange: Equatable, Sendable {
     case renamed(from: String, to: String)
@@ -88,6 +57,11 @@ nonisolated enum PetAnimationReferenceChange: Equatable, Sendable {
 nonisolated enum NewUserPetInstallationPurpose: Equatable, Sendable {
     case newPet
     case editableCopy(sourcePetKey: PetBehaviorKey)
+    case editableReplacement(
+        sourcePetKey: PetBehaviorKey,
+        instanceID: UUID
+    )
+    case imported(recommendedProfile: RecommendedPetProfile?)
 }
 
 @MainActor
@@ -95,14 +69,13 @@ final class PetLibrarySession: ObservableObject {
     @Published private(set) var items: [PetLibraryItem]
     @Published private(set) var selection: PetLibrarySelection = .builtIn
     @Published private(set) var errorMessage: String?
-    @Published private(set) var duplicateInstallRequest: DuplicatePetInstallRequest?
     @Published private(set) var isImporting = false
     @Published private(set) var isExporting = false
 
-    var onSelectionChange: ((PetLibraryItem) -> Void)?
+    var onInstalledContentChange: ((PetLibraryItem) -> Void)?
+    var onInstallationContentRemoved: ((UUID) -> Void)?
     var onInstallationRemoved: ((UUID) -> Void)?
     var onAnimationReferenceChange: ((PetAnimationReferenceChange) -> Void)?
-    var onRecommendedProfileApplied: ((UUID, RecommendedPetProfile) -> Void)?
     var onNewUserPetInstallation: (
         (InstalledPetPackage, NewUserPetInstallationPurpose) throws -> Void
     )?
@@ -120,6 +93,8 @@ final class PetLibrarySession: ObservableObject {
         PetPackageImportReview?
     ) throws -> PetPackageInstallationResult
     private let editablePackageProvider: (InstalledPetPackage) -> Bool
+    private let editablePackageConverter: (InstalledPetPackage) throws
+        -> InstalledPetPackage
     private let userPetCreator: (UserPetCreationRequest) throws -> InstalledPetPackage
     private let editableCopyCreator: (
         InstalledPetPackage,
@@ -176,6 +151,7 @@ final class PetLibrarySession: ObservableObject {
             packageImportReviewer: packageInstaller.review,
             reviewedPackageInstaller: packageInstaller.installReviewed,
             editablePackageProvider: editor.isEditable,
+            editablePackageConverter: editor.makeEditable,
             userPetCreator: editor.createPet,
             editableCopyCreator: editor.createEditableCopy,
             builtInEditableCopyCreator: { displayName in
@@ -225,6 +201,10 @@ final class PetLibrarySession: ObservableObject {
             throw PetLibraryError.fileOperationFailed
         },
         editablePackageProvider: @escaping (InstalledPetPackage) -> Bool = { _ in false },
+        editablePackageConverter: @escaping (InstalledPetPackage) throws
+            -> InstalledPetPackage = { _ in
+                throw PetLibraryError.fileOperationFailed
+            },
         userPetCreator: @escaping (UserPetCreationRequest) throws
             -> InstalledPetPackage = { _ in
                 throw PetLibraryError.fileOperationFailed
@@ -307,6 +287,7 @@ final class PetLibrarySession: ObservableObject {
         self.packageImportReviewer = packageImportReviewer
         self.reviewedPackageInstaller = reviewedPackageInstaller
         self.editablePackageProvider = editablePackageProvider
+        self.editablePackageConverter = editablePackageConverter
         self.userPetCreator = userPetCreator
         self.editableCopyCreator = editableCopyCreator
         self.builtInEditableCopyCreator = builtInEditableCopyCreator
@@ -338,6 +319,20 @@ final class PetLibrarySession: ObservableObject {
         }
     }
 
+    func libraryDisplayLabel(for item: PetLibraryItem) -> String {
+        guard !item.isBuiltIn else { return item.metadata.displayName }
+        let matchingItems = items.filter {
+            !$0.isBuiltIn && $0.metadata.id == item.metadata.id
+        }
+        guard matchingItems.count > 1,
+              let index = matchingItems.firstIndex(where: {
+                  $0.selection == item.selection
+              }) else {
+            return item.metadata.displayName
+        }
+        return "\(item.metadata.displayName) · \(item.metadata.version) · 설치 \(index + 1)"
+    }
+
     @discardableResult
     func reload(preferredInstallationID: UUID?) -> UUID? {
         let installedItems = installedPackagesProvider()
@@ -362,7 +357,7 @@ final class PetLibrarySession: ObservableObject {
 
     @discardableResult
     func select(_ requestedSelection: PetLibrarySelection) -> Bool {
-        guard let item = itemsBySelection[requestedSelection] else {
+        guard itemsBySelection[requestedSelection] != nil else {
             return false
         }
         guard selection != requestedSelection else {
@@ -371,20 +366,16 @@ final class PetLibrarySession: ObservableObject {
 
         selection = requestedSelection
         errorMessage = nil
-        onSelectionChange?(item)
         return true
     }
 
     @discardableResult
-    func installPackage(
-        from sourceURL: URL,
-        mode: PetPackageInstallationMode = .rejectDuplicate
-    ) -> Bool {
+    func installPackage(from sourceURL: URL) -> Bool {
         performPackageInstallation(
             from: sourceURL,
-            mode: mode,
+            mode: .installSeparately,
             reviewedImport: nil,
-            appliesRecommendedProfile: false
+            purpose: .imported(recommendedProfile: nil)
         )
     }
 
@@ -408,7 +399,7 @@ final class PetLibrarySession: ObservableObject {
     @discardableResult
     func installReviewedPackage(
         _ review: PetPackageImportReview,
-        appliesRecommendedProfile: Bool
+        appliesRecommendedProfile: Bool = false
     ) -> Bool {
         if appliesRecommendedProfile, review.recommendedProfile == nil {
             errorMessage = PetPackageImportError
@@ -416,11 +407,16 @@ final class PetLibrarySession: ObservableObject {
                 .localizedDescription
             return false
         }
+
         return performPackageInstallation(
             from: review.sourceURL,
-            mode: .rejectDuplicate,
+            mode: .installSeparately,
             reviewedImport: review,
-            appliesRecommendedProfile: appliesRecommendedProfile
+            purpose: .imported(
+                recommendedProfile: appliesRecommendedProfile
+                    ? review.recommendedProfile
+                    : nil
+            )
         )
     }
 
@@ -429,7 +425,7 @@ final class PetLibrarySession: ObservableObject {
         from sourceURL: URL,
         mode: PetPackageInstallationMode,
         reviewedImport: PetPackageImportReview?,
-        appliesRecommendedProfile: Bool
+        purpose: NewUserPetInstallationPurpose
     ) -> Bool {
         guard !isImporting else {
             return false
@@ -437,8 +433,8 @@ final class PetLibrarySession: ObservableObject {
         isImporting = true
         defer { isImporting = false }
 
+        let previousSelection = selection
         do {
-            let result: PetPackageInstallationResult?
             let installed: InstalledPetPackage
             if let reviewedImport {
                 let reviewedResult = try reviewedPackageInstaller(
@@ -446,104 +442,40 @@ final class PetLibrarySession: ObservableObject {
                     mode,
                     reviewedImport
                 )
-                result = reviewedResult
                 installed = reviewedResult.installedPackage
             } else {
-                result = nil
                 installed = try packageInstaller(sourceURL, mode)
             }
-            duplicateInstallRequest = nil
-            errorMessage = nil
             _ = reload(preferredInstallationID: installed.installationID)
-            onSelectionChange?(selectedItem)
-            if appliesRecommendedProfile,
-               let profile = result?.importReview.recommendedProfile {
-                onRecommendedProfileApplied?(installed.installationID, profile)
+            do {
+                try onNewUserPetInstallation?(installed, purpose)
+            } catch {
+                let settingsError = error.localizedDescription
+                var cleanupError: String?
+                do {
+                    try installationRemover(installed.installationID)
+                } catch {
+                    cleanupError = error.localizedDescription
+                }
+                _ = reload(
+                    preferredInstallationID: previousSelection.installationID
+                )
+                if let cleanupError {
+                    errorMessage = "\(settingsError) 가져온 펫 설치를 정리하지 못했습니다: \(cleanupError) 앱을 다시 시작한 뒤 내 펫에서 확인해 주세요."
+                } else {
+                    errorMessage = "\(settingsError) 가져온 펫 추가는 되돌렸습니다."
+                }
+                return false
             }
+            errorMessage = nil
+            onInstalledContentChange?(selectedItem)
             return true
-        } catch let error as PetLibraryError {
-            if case let .duplicatePackage(incomingMetadata, installationIDs) = error {
-                let preferredInstallationID = selectedInstallationID.flatMap { selectedID in
-                    installationIDs.contains(selectedID) ? selectedID : nil
-                }
-                let orderedInstallationIDs = preferredInstallationID.map { preferredID in
-                    [preferredID] + installationIDs.filter { $0 != preferredID }
-                } ?? installationIDs
-                let installedPackagesByID = Dictionary(
-                    uniqueKeysWithValues: installedPackagesProvider().map {
-                        ($0.installationID, $0)
-                    }
-                )
-                let candidates = orderedInstallationIDs.compactMap { installationID in
-                    installedPackagesByID[installationID].map { installedPackage in
-                        DuplicatePetInstallationCandidate(
-                            installationID: installationID,
-                            metadata: installedPackage.package.metadata,
-                            isEditable: editablePackageProvider(installedPackage),
-                            isCurrentlySelected: installationID == selectedInstallationID
-                        )
-                    }
-                }
-                duplicateInstallRequest = DuplicatePetInstallRequest(
-                    sourceURL: sourceURL,
-                    incomingMetadata: incomingMetadata,
-                    candidates: candidates,
-                    importReview: reviewedImport,
-                    appliesRecommendedProfileToNewInstallation:
-                        appliesRecommendedProfile
-                )
-                errorMessage = nil
-            } else {
-                errorMessage = error.localizedDescription
-            }
-            return false
         } catch {
             errorMessage = error.localizedDescription
             return false
         }
     }
 
-    func installDuplicateSeparately() {
-        guard let request = duplicateInstallRequest else {
-            return
-        }
-        _ = performPackageInstallation(
-            from: request.sourceURL,
-            mode: .installSeparately,
-            reviewedImport: request.importReview,
-            appliesRecommendedProfile:
-                request.appliesRecommendedProfileToNewInstallation
-        )
-    }
-
-    func replaceDuplicateInstallation(
-        _ installationID: UUID,
-        appliesRecommendedProfile: Bool = false
-    ) {
-        guard
-            let request = duplicateInstallRequest,
-            request.candidates.contains(where: { $0.installationID == installationID })
-        else {
-            return
-        }
-        if appliesRecommendedProfile,
-           request.importReview?.recommendedProfile == nil {
-            errorMessage = PetPackageImportError
-                .recommendedProfileUnavailable
-                .localizedDescription
-            return
-        }
-        _ = performPackageInstallation(
-            from: request.sourceURL,
-            mode: .replace(installationID: installationID),
-            reviewedImport: request.importReview,
-            appliesRecommendedProfile: appliesRecommendedProfile
-        )
-    }
-
-    func cancelDuplicateInstallation() {
-        duplicateInstallRequest = nil
-    }
 
     func reviewSelectedPetForSharing(
         behaviorProfile: BehaviorProfile? = nil,
@@ -566,6 +498,17 @@ final class PetLibrarySession: ObservableObject {
             return review
         } catch {
             errorMessage = error.localizedDescription
+            return nil
+        }
+    }
+
+    func recommendedProfileForSelectedPet() -> RecommendedPetProfile? {
+        guard let rootURL = selectedItem.installedPackage?.rootURL else {
+            return nil
+        }
+        do {
+            return try packageImportReviewer(rootURL).recommendedProfile
+        } catch {
             return nil
         }
     }
@@ -612,11 +555,22 @@ final class PetLibrarySession: ObservableObject {
             try installationRemover(installationID)
             _ = reload(preferredInstallationID: nil)
             onInstallationRemoved?(installationID)
-            onSelectionChange?(builtInItem)
             return true
         } catch {
             errorMessage = error.localizedDescription
             return false
+        }
+    }
+
+    func removeInstallationForDeletedPet(_ installationID: UUID) throws {
+        do {
+            try installationRemover(installationID)
+            _ = reload(preferredInstallationID: nil)
+            errorMessage = nil
+            onInstallationContentRemoved?(installationID)
+        } catch {
+            errorMessage = error.localizedDescription
+            throw error
         }
     }
 
@@ -642,6 +596,49 @@ final class PetLibrarySession: ObservableObject {
         return performNewUserPetInstallation(
             purpose: .editableCopy(
                 sourcePetKey: .installed(installedPackage.installationID)
+            )
+        ) {
+            try editableCopyCreator(installedPackage, displayName)
+        }
+    }
+
+    @discardableResult
+    func prepareSelectedPetForEditing(
+        displayName: String,
+        instanceID: UUID,
+        requiresIndependentCopy: Bool
+    ) -> Bool {
+        if !selectedItem.isBuiltIn,
+           !requiresIndependentCopy,
+           let installedPackage = selectedItem.installedPackage {
+            if selectedItem.isEditable {
+                return true
+            }
+            return performUserPetChange {
+                try editablePackageConverter(installedPackage)
+            }
+        }
+
+        let sourcePetKey = PetBehaviorKey(
+            installationID: selectedInstallationID
+        )
+        if selectedItem.isBuiltIn {
+            return performNewUserPetInstallation(
+                purpose: .editableReplacement(
+                    sourcePetKey: .builtIn,
+                    instanceID: instanceID
+                )
+            ) {
+                try builtInEditableCopyCreator(displayName)
+            }
+        }
+        guard let installedPackage = selectedItem.installedPackage else {
+            return false
+        }
+        return performNewUserPetInstallation(
+            purpose: .editableReplacement(
+                sourcePetKey: sourcePetKey,
+                instanceID: instanceID
             )
         ) {
             try editableCopyCreator(installedPackage, displayName)
@@ -751,7 +748,7 @@ final class PetLibrarySession: ObservableObject {
             let installed = try operation()
             errorMessage = nil
             _ = reload(preferredInstallationID: installed.installationID)
-            onSelectionChange?(selectedItem)
+            onInstalledContentChange?(selectedItem)
             return true
         } catch {
             errorMessage = error.localizedDescription
@@ -787,7 +784,7 @@ final class PetLibrarySession: ObservableObject {
                     preferredInstallationID: previousSelection.installationID
                 )
                 if let cleanupError {
-                    errorMessage = "\(settingsError) 새 펫 설치를 정리하지 못했습니다: \(cleanupError) 펫 보관함에서 비활성 설치 항목을 확인해 주세요."
+                    errorMessage = "\(settingsError) 새 펫 설치를 정리하지 못했습니다: \(cleanupError) 앱을 다시 시작한 뒤 내 펫에서 확인해 주세요."
                 } else {
                     errorMessage = "\(settingsError) 새 펫 설치는 되돌렸습니다."
                 }
@@ -795,7 +792,7 @@ final class PetLibrarySession: ObservableObject {
             }
 
             errorMessage = nil
-            onSelectionChange?(selectedItem)
+            onInstalledContentChange?(selectedItem)
             return true
         } catch {
             errorMessage = error.localizedDescription

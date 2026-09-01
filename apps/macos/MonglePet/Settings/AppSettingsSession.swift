@@ -207,7 +207,8 @@ final class AppSettingsSession: ObservableObject {
     @discardableResult
     func addPetInstance(
         for petKey: PetBehaviorKey,
-        copyingSettingsFrom sourceInstanceID: UUID? = nil
+        copyingSettingsFrom sourceInstanceID: UUID? = nil,
+        usesSelectedOverlayFallback: Bool = true
     ) -> UUID? {
         guard isWritingEnabled else {
             return nil
@@ -217,6 +218,7 @@ final class AppSettingsSession: ObservableObject {
         let updated = settings.addingPetInstance(
             for: petKey,
             copyingSettingsFrom: sourceInstanceID,
+            usesSelectedOverlayFallback: usesSelectedOverlayFallback,
             instanceID: instanceID,
             profileID: profileID
         )
@@ -228,9 +230,39 @@ final class AppSettingsSession: ObservableObject {
     }
 
     @discardableResult
+    func addPetInstance(
+        for petKey: PetBehaviorKey,
+        applyingRecommendedProfile profile: RecommendedPetProfile
+    ) -> UUID? {
+        guard isWritingEnabled else { return nil }
+
+        let instanceID = UUID()
+        let profileID = UUID()
+        var updated = settings.addingPetInstance(
+            for: petKey,
+            usesSelectedOverlayFallback: false,
+            instanceID: instanceID,
+            profileID: profileID
+        )
+        guard updated != settings else { return nil }
+
+        updated = updated.replacingActiveBehaviorProfile(
+            profile.behaviorProfile(for: petKey)
+        )
+        if profile.includesDisplaySettings {
+            updated = updated.replacingSelectedOverlay(
+                profile.display.applying(to: updated.overlay)
+            )
+        }
+        update(BuiltInBehaviorPresets.normalizedDefaults(in: updated))
+        return instanceID
+    }
+
+    @discardableResult
     func addNewlyInstalledPetInstance(
         for petKey: PetBehaviorKey,
-        copyingSettingsFrom sourceInstanceID: UUID?
+        copyingSettingsFrom sourceInstanceID: UUID?,
+        applyingRecommendedProfile recommendedProfile: RecommendedPetProfile? = nil
     ) throws -> UUID {
         guard isWritingEnabled else {
             throw AppSettingsMutationError.writingDisabled
@@ -238,7 +270,7 @@ final class AppSettingsSession: ObservableObject {
 
         let instanceID = UUID()
         let profileID = UUID()
-        let updated = settings.addingPetInstance(
+        var updated = settings.addingPetInstance(
             for: petKey,
             copyingSettingsFrom: sourceInstanceID,
             allowsCopyingAcrossPetKeys: true,
@@ -246,6 +278,16 @@ final class AppSettingsSession: ObservableObject {
             instanceID: instanceID,
             profileID: profileID
         )
+        if let recommendedProfile {
+            updated = updated.replacingActiveBehaviorProfile(
+                recommendedProfile.behaviorProfile(for: petKey)
+            )
+            if recommendedProfile.includesDisplaySettings {
+                updated = updated.replacingSelectedOverlay(
+                    recommendedProfile.display.applying(to: updated.overlay)
+                )
+            }
+        }
         let normalized = BuiltInBehaviorPresets.normalizedDefaults(in: updated)
         guard normalized != settings else {
             throw AppSettingsMutationError.noChange
@@ -267,16 +309,102 @@ final class AppSettingsSession: ObservableObject {
         return instanceID
     }
 
+    func replacePetInstanceContent(
+        _ instanceID: UUID,
+        with petKey: PetBehaviorKey
+    ) throws {
+        guard isWritingEnabled else {
+            throw AppSettingsMutationError.writingDisabled
+        }
+        let updated = BuiltInBehaviorPresets.normalizedDefaults(
+            in: settings.replacingPetContent(
+                for: instanceID,
+                with: petKey
+            )
+        )
+        guard updated != settings else {
+            throw AppSettingsMutationError.noChange
+        }
+
+        do {
+            try store.save(updated)
+        } catch {
+            let mutationError = AppSettingsMutationError.saveFailed(
+                error.localizedDescription
+            )
+            saveErrorMessage = mutationError.localizedDescription
+            throw mutationError
+        }
+
+        settings = updated
+        saveErrorMessage = nil
+        onChange?(updated)
+    }
+
     @discardableResult
-    func removePetInstance(_ instanceID: UUID) -> Bool {
+    func recoverMissingPetInstances(
+        for petKeys: [PetBehaviorKey],
+        publishesChange: Bool = true
+    ) -> Bool {
+        guard isWritingEnabled else { return false }
+        let updated = BuiltInBehaviorPresets.normalizedDefaults(
+            in: settings.recoveringMissingPetInstances(for: petKeys)
+        )
+        guard updated != settings else { return true }
+
+        do {
+            try store.save(updated)
+        } catch {
+            saveErrorMessage = error.localizedDescription
+            return false
+        }
+        settings = updated
+        saveErrorMessage = nil
+        if publishesChange {
+            onChange?(updated)
+        }
+        return true
+    }
+
+    @discardableResult
+    func removePetInstance(
+        _ instanceID: UUID,
+        removingInstallation: (() throws -> Void)? = nil
+    ) -> Bool {
         guard isWritingEnabled else {
             return false
         }
+        let previous = settings
         let updated = settings.removingPetInstance(instanceID)
         guard updated != settings else {
             return false
         }
-        update(updated)
+
+        do {
+            try store.save(updated)
+        } catch {
+            saveErrorMessage = error.localizedDescription
+            return false
+        }
+
+        settings = updated
+        saveErrorMessage = nil
+        onChange?(updated)
+
+        do {
+            try removingInstallation?()
+        } catch {
+            let removalError = error.localizedDescription
+            do {
+                try store.save(previous)
+                settings = previous
+                onChange?(previous)
+                saveErrorMessage = "펫 파일을 삭제하지 못해 변경을 되돌렸습니다. \(removalError)"
+            } catch {
+                saveErrorMessage = "펫 파일을 삭제하지 못했고 설정 복원에도 실패했습니다. 앱을 종료하지 말고 다시 시도해 주세요. \(removalError)"
+            }
+            return false
+        }
         return true
     }
 
@@ -415,7 +543,7 @@ final class AppSettingsSession: ObservableObject {
     func addBehaviorSequence(
         named name: String,
         initialMotionID: String = PetMotionReference.currentPetDefault,
-        repeats: Bool = true
+        repeats: Bool = false
     ) -> Bool {
         applyBehaviorEdit {
             try BehaviorSettingsEditor.addingSequence(

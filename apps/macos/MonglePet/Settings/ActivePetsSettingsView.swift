@@ -4,7 +4,11 @@ struct ActivePetsSettingsView: View {
     @ObservedObject var settingsSession: AppSettingsSession
     @ObservedObject var petLibrarySession: PetLibrarySession
     @ObservedObject var runtimeControlSession: PetRuntimeControlSession
-    @State private var isAddingPet = false
+    let onCreatePet: () -> Void
+    let onImportPet: () -> Void
+    let onCreateCopy: (UUID) -> Void
+    let onExport: (UUID) -> Void
+    let onDelete: (UUID) -> Void
     @State private var removingInstanceID: UUID?
 
     var body: some View {
@@ -47,7 +51,9 @@ struct ActivePetsSettingsView: View {
                             isSelected: instance.instanceID
                                 == settingsSession.settings
                                     .selectedPetInstanceID,
-                            canRemove: orderedInstances.count > 1,
+                            canRemove: orderedInstances.count > 1
+                                && (!item(for: instance).isBuiltIn
+                                    || builtInInstanceCount > 1),
                             canEdit: settingsSession.isWritingEnabled,
                             canMoveForward: instance.displayOrder > 0,
                             canMoveBackward: instance.displayOrder
@@ -81,6 +87,12 @@ struct ActivePetsSettingsView: View {
                             onRemove: {
                                 removingInstanceID = instance.instanceID
                             },
+                            onCreateCopy: {
+                                onCreateCopy(instance.instanceID)
+                            },
+                            onExport: {
+                                onExport(instance.instanceID)
+                            },
                             onRestore: {
                                 runtimeControlSession.restoreInstance(
                                     instance.instanceID
@@ -104,75 +116,79 @@ struct ActivePetsSettingsView: View {
                             return true
                         }
                     }
+
                 }
                 .padding(20)
             }
         }
-        .navigationTitle("활성 펫")
-        .sheet(isPresented: $isAddingPet) {
-            AddActivePetView(
-                settingsSession: settingsSession,
-                petLibrarySession: petLibrarySession,
-                isPresented: $isAddingPet
-            )
-        }
+        .navigationTitle("내 펫")
         .alert(
-            "활성 펫을 제거할까요?",
+            "펫을 완전히 삭제할까요?",
             isPresented: removalAlertBinding
         ) {
             Button("취소", role: .cancel) {
                 removingInstanceID = nil
             }
-            Button("제거", role: .destructive) {
+            Button("완전히 삭제", role: .destructive) {
                 if let removingInstanceID {
-                    _ = settingsSession.removePetInstance(
-                        removingInstanceID
-                    )
+                    onDelete(removingInstanceID)
                 }
                 self.removingInstanceID = nil
             }
         } message: {
-            Text("화면의 해당 펫과 이 펫만의 설정을 제거합니다. 보관함의 원본 펫은 삭제하지 않습니다.")
+            Text("이 펫의 이미지, 애니메이션, 크기, 행동, 이동, 쓰다듬기와 말풍선 설정이 모두 삭제되며 복원되지 않습니다. 나중에 다시 사용할 가능성이 있다면 먼저 패키지로 내보내 주세요.")
         }
         .accessibilityIdentifier("monglepet.settings.activePets")
     }
 
     private var header: some View {
-        HStack(spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
-                Text("활성 펫")
+                Text("내 펫")
                     .font(.title2.weight(.semibold))
-                Text("각 펫은 위치, 행동, 이동과 말풍선 설정을 독립적으로 사용합니다.")
+                    Text("각 펫은 독립된 이미지, 행동, 이동과 말풍선 설정을 사용합니다. 잠시 숨기려면 삭제하지 말고 재워 주세요.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
 
-            Spacer()
+            HStack(spacing: 10) {
+                Button("펫 만들기", systemImage: "plus") {
+                    onCreatePet()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(!settingsSession.isWritingEnabled)
+                .accessibilityIdentifier("monglepet.settings.createUserPet")
 
-            Button("모두 깨우기", systemImage: "sun.max") {
-                setAllPresentations(.awake)
+                Button("펫 가져오기", systemImage: "square.and.arrow.down") {
+                    onImportPet()
+                }
+                .disabled(!settingsSession.isWritingEnabled)
+                .accessibilityIdentifier("monglepet.settings.importPet")
+
+                Spacer()
             }
-            Button("모두 재우기", systemImage: "moon.zzz") {
-                setAllPresentations(.tuckedAway)
+
+            HStack(spacing: 10) {
+                Button("모두 깨우기", systemImage: "sun.max") {
+                    setAllPresentations(.awake)
+                }
+                Button("모두 재우기", systemImage: "moon.zzz") {
+                    setAllPresentations(.tuckedAway)
+                }
+                Button(
+                    runtimeControlSession.isAllPaused
+                        ? "모두 계속하기"
+                        : "모두 일시정지",
+                    systemImage: runtimeControlSession.isAllPaused
+                        ? "play.fill"
+                        : "pause.fill"
+                ) {
+                    runtimeControlSession.setAllPaused(
+                        !runtimeControlSession.isAllPaused
+                    )
+                }
+                Spacer()
             }
-            Button(
-                runtimeControlSession.isAllPaused
-                    ? "모두 계속하기"
-                    : "모두 일시정지",
-                systemImage: runtimeControlSession.isAllPaused
-                    ? "play.fill"
-                    : "pause.fill"
-            ) {
-                runtimeControlSession.setAllPaused(
-                    !runtimeControlSession.isAllPaused
-                )
-            }
-            Button("펫 추가", systemImage: "plus") {
-                isAddingPet = true
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(!settingsSession.isWritingEnabled)
-            .accessibilityIdentifier("monglepet.settings.addActivePet")
         }
         .padding(20)
     }
@@ -181,6 +197,10 @@ struct ActivePetsSettingsView: View {
         settingsSession.settings.activePetInstances.sorted {
             $0.displayOrder < $1.displayOrder
         }
+    }
+
+    private var builtInInstanceCount: Int {
+        orderedInstances.filter { $0.petKey == .builtIn }.count
     }
 
     private var noticeMessage: String? {
@@ -312,6 +332,8 @@ private struct ActivePetCard: View {
     let onMoveForward: () -> Void
     let onMoveBackward: () -> Void
     let onRemove: () -> Void
+    let onCreateCopy: () -> Void
+    let onExport: () -> Void
     let onRestore: () -> Void
     @State private var nickname: String
 
@@ -331,6 +353,8 @@ private struct ActivePetCard: View {
         onMoveForward: @escaping () -> Void,
         onMoveBackward: @escaping () -> Void,
         onRemove: @escaping () -> Void,
+        onCreateCopy: @escaping () -> Void,
+        onExport: @escaping () -> Void,
         onRestore: @escaping () -> Void
     ) {
         self.instance = instance
@@ -348,6 +372,8 @@ private struct ActivePetCard: View {
         self.onMoveForward = onMoveForward
         self.onMoveBackward = onMoveBackward
         self.onRemove = onRemove
+        self.onCreateCopy = onCreateCopy
+        self.onExport = onExport
         self.onRestore = onRestore
         _nickname = State(initialValue: instance.nickname ?? "")
     }
@@ -419,6 +445,30 @@ private struct ActivePetCard: View {
                                 || nickname == (instance.nickname ?? "")
                         )
                 }
+
+                HStack(spacing: 8) {
+                    Button("펫 사본 만들기", systemImage: "doc.on.doc") {
+                        onCreateCopy()
+                    }
+                    .disabled(!canEdit)
+                    .accessibilityIdentifier(
+                        "monglepet.settings.createPetCopy"
+                    )
+
+                    if !item.isBuiltIn {
+                        Button(
+                            "패키지로 내보내기",
+                            systemImage: "square.and.arrow.up"
+                        ) {
+                            onExport()
+                        }
+                        .disabled(!canEdit)
+                        .accessibilityIdentifier(
+                            "monglepet.settings.exportPackage"
+                        )
+                    }
+                }
+                .buttonStyle(.bordered)
             }
 
             VStack(spacing: 8) {
@@ -459,7 +509,7 @@ private struct ActivePetCard: View {
                 }
                 .buttonStyle(.borderless)
                 .disabled(!canEdit || !canRemove)
-                .help(canRemove ? "활성 펫 제거" : "펫은 한 마리 이상 필요합니다")
+                .help(canRemove ? "펫과 모든 설정 완전히 삭제" : "내장 펫 또는 마지막 펫은 삭제할 수 없습니다")
             }
         }
         .padding(16)
@@ -526,7 +576,7 @@ private struct AddActivePetView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             VStack(alignment: .leading, spacing: 5) {
-                Text("활성 펫 추가")
+                Text("내 펫에 추가")
                     .font(.title2.weight(.semibold))
                 Text("같은 원본 펫도 여러 마리 추가할 수 있으며 이후 설정은 서로 독립적으로 저장됩니다.")
                     .foregroundStyle(.secondary)
@@ -534,7 +584,7 @@ private struct AddActivePetView: View {
 
             Picker("추가할 펫", selection: $selection) {
                 ForEach(petLibrarySession.items) { item in
-                    Text(item.metadata.displayName)
+                    Text(petLibrarySession.libraryDisplayLabel(for: item))
                         .tag(item.selection)
                 }
             }

@@ -440,10 +440,6 @@ struct BehaviorSequencesSettingsView: View {
                         )
                 }
 
-                Section("‘\(selectedSequenceDisplayName)’ 재생 설정") {
-                    Toggle("마지막 단계 후 처음부터 반복", isOn: repeatsBinding(for: sequence))
-                }
-
                 Section("‘\(selectedSequenceDisplayName)’ 애니메이션 단계") {
                     ForEach(Array(sequence.steps.indices), id: \.self) { index in
                         BehaviorStepEditorRow(
@@ -485,11 +481,11 @@ struct BehaviorSequencesSettingsView: View {
                     including: PetMotionReference.currentPetDefault
                 ),
                 errorMessage: settingsSession.behaviorEditErrorMessage
-            ) { name, motionID, repeats in
+            ) { name, motionID in
                 if settingsSession.addBehaviorSequence(
                     named: name,
                     initialMotionID: motionID,
-                    repeats: repeats
+                    repeats: false
                 ) {
                     selectedSequenceID = settingsSession.settings
                         .sequences.last?.id ?? selectedSequenceID
@@ -530,17 +526,6 @@ struct BehaviorSequencesSettingsView: View {
         )
     }
 
-    private func repeatsBinding(for sequence: BehaviorSequence) -> Binding<Bool> {
-        Binding(
-            get: {
-                settingsSession.settings.sequences
-                    .first(where: { $0.id == sequence.id })?.repeats
-                    ?? sequence.repeats
-            },
-            set: { settingsSession.setBehaviorSequenceRepeats($0, for: sequence.id) }
-        )
-    }
-
     private func availableMotionIDs(for step: BehaviorStep) -> [String] {
         BehaviorMotionCatalog.identifiers(
             for: petDefinition,
@@ -562,11 +547,10 @@ struct BehaviorSequencesSettingsView: View {
 private struct NewBehaviorSequenceSheet: View {
     let motionIDs: [String]
     let errorMessage: String?
-    let onCreate: (String, String, Bool) -> Void
+    let onCreate: (String, String) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var name = ""
     @State private var motionID = PetMotionReference.currentPetDefault
-    @State private var repeats = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -586,7 +570,6 @@ private struct NewBehaviorSequenceSheet: View {
                             .tag(id)
                     }
                 }
-                Toggle("마지막 단계 후 처음부터 반복", isOn: $repeats)
             }
             .formStyle(.grouped)
 
@@ -607,7 +590,7 @@ private struct NewBehaviorSequenceSheet: View {
                 Button("취소") { dismiss() }
                     .keyboardShortcut(.cancelAction)
                 Button("만들고 편집") {
-                    onCreate(name, motionID, repeats)
+                    onCreate(name, motionID)
                 }
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)

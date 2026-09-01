@@ -18,22 +18,26 @@ nonisolated enum BehaviorSelectionLabel {
     }
 }
 
+enum MovementSettingsContent {
+    case stationaryBehavior
+    case movement
+    case interaction
+}
+
 struct MovementSettingsView: View {
     @ObservedObject var settingsSession: AppSettingsSession
     let petDefinition: PetDefinition
-    let petDisplayName: String
+    let content: MovementSettingsContent
     @State private var displayOptions: [PetMovementDisplayOption] = []
 
     var body: some View {
         Form {
-            PetDisplaySettingsSections(
-                settingsSession: settingsSession,
-                petDisplayName: petDisplayName
-            )
+            if content == .stationaryBehavior {
+                stationaryBehaviorSection
+            }
 
-            stationaryBehaviorSection
-
-            Section("이동 방식") {
+            if content == .movement {
+                Section("이동 방식") {
                 LazyVGrid(
                     columns: [
                         GridItem(.flexible(), spacing: 10),
@@ -228,7 +232,10 @@ struct MovementSettingsView: View {
                 }
             }
 
-            Section("상호작용") {
+            }
+
+            if content == .interaction {
+                Section("상호작용") {
                 if movement.mode == .cursorAvoiding {
                     LabeledContent("쓰다듬기", value: "사용하지 않음")
                     Text("마우스 도망가기 모드에서는 접근 반응과 충돌하지 않도록 쓰다듬기를 실행하지 않습니다. 다른 이동 모드에서 선택한 설정은 유지됩니다.")
@@ -248,10 +255,14 @@ struct MovementSettingsView: View {
                 }
             }
 
-            Section {
-                Text("이동 방식은 현재 펫에 저장되고 이동 범위는 이 Mac의 모든 펫에 공통으로 적용됩니다. 마우스 위치와 앱 창 위치는 저장하지 않습니다.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            }
+
+            if content == .movement {
+                Section {
+                    Text("이동 방식은 현재 펫에 저장되고 이동 범위는 이 Mac의 모든 펫에 공통으로 적용됩니다. 마우스 위치와 앱 창 위치는 저장하지 않습니다.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
         .formStyle(.grouped)
@@ -470,7 +481,7 @@ struct MovementSettingsView: View {
     private var stationaryBehaviorDescription: String {
         switch settingsSession.settings.stationaryBehaviorMode {
         case .fixed:
-            "펫이 이동하지 않고 적용할 규칙도 없을 때 선택한 행동을 반복합니다."
+            "펫이 이동하지 않고 적용할 규칙도 없을 때 선택한 행동을 재생한 뒤 마지막 프레임을 유지합니다."
         case .random:
             randomSequenceIDs.isEmpty
                 ? "행동을 하나 이상 선택해 주세요. 선택 전에는 기본 행동을 표시합니다."

@@ -1206,6 +1206,53 @@ nonisolated struct AppSettings: Equatable, Sendable {
         )
     }
 
+    func recoveringMissingPetInstances(
+        for petKeys: [PetBehaviorKey],
+        idGenerator: () -> UUID = UUID.init
+    ) -> AppSettings {
+        var instances = activePetInstances
+        var profiles = petBehaviorProfiles
+        var referencedProfileIDs = Set(instances.map(\.behaviorProfileID))
+        var seenKeys = Set(instances.map(\.petKey))
+
+        for petKey in petKeys where seenKeys.insert(petKey).inserted {
+            let profileID: UUID
+            if let existingProfile = profiles.first(where: {
+                $0.profile.petKey == petKey
+                    && !referencedProfileIDs.contains($0.profileID)
+            }) {
+                profileID = existingProfile.profileID
+            } else {
+                profileID = idGenerator()
+                profiles.append(
+                    PetBehaviorProfileSettings(
+                        profileID: profileID,
+                        profile: Self.defaultProfile(for: petKey)
+                    )
+                )
+            }
+            referencedProfileIDs.insert(profileID)
+            instances.append(
+                PetInstanceSettings(
+                    instanceID: idGenerator(),
+                    petKey: petKey,
+                    nickname: nil,
+                    presentation: .tuckedAway,
+                    overlay: .default,
+                    behaviorProfileID: profileID,
+                    displayOrder: instances.count
+                )
+            )
+        }
+
+        guard instances != activePetInstances else { return self }
+        return AppSettings(
+            selectedPetInstanceID: selectedPetInstanceID,
+            activePetInstances: instances,
+            petBehaviorProfiles: profiles
+        )
+    }
+
     func removingPetInstance(_ instanceID: UUID) -> AppSettings {
         guard
             activePetInstances.count > 1,
@@ -1243,6 +1290,43 @@ nonisolated struct AppSettings: Equatable, Sendable {
             selectedPetInstanceID: selectedID,
             activePetInstances: remainingInstances,
             petBehaviorProfiles: remainingProfiles
+        )
+    }
+
+    func replacingPetContent(
+        for instanceID: UUID,
+        with petKey: PetBehaviorKey
+    ) -> AppSettings {
+        guard let instanceIndex = activePetInstances.firstIndex(where: {
+            $0.instanceID == instanceID
+        }) else {
+            return self
+        }
+        let instance = activePetInstances[instanceIndex]
+        guard instance.petKey != petKey,
+              let profileIndex = petBehaviorProfiles.firstIndex(where: {
+                  $0.profileID == instance.behaviorProfileID
+              }) else {
+            return self
+        }
+
+        var instances = activePetInstances
+        instances[instanceIndex] = Self.replacing(
+            instance,
+            petKey: petKey
+        )
+        var profiles = petBehaviorProfiles
+        profiles[profileIndex] = PetBehaviorProfileSettings(
+            profileID: profiles[profileIndex].profileID,
+            profile: Self.copying(
+                profiles[profileIndex].profile,
+                for: petKey
+            )
+        )
+        return AppSettings(
+            selectedPetInstanceID: instanceID,
+            activePetInstances: instances,
+            petBehaviorProfiles: profiles
         )
     }
 

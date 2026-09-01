@@ -3,6 +3,23 @@ import XCTest
 @testable import MonglePet
 
 final class PetPointerOverlapTests: XCTestCase {
+    func testAlphaMaskReportsNormalizedVisibleBounds() {
+        let mask = PetFrameAlphaMask(
+            width: 4,
+            height: 3,
+            alphaValues: [
+                0, 0, 0, 0,
+                0, 255, 255, 0,
+                0, 0, 255, 0
+            ]
+        )
+
+        XCTAssertEqual(
+            mask.normalizedVisibleBounds,
+            CGRect(x: 0.25, y: 1.0 / 3.0, width: 0.5, height: 2.0 / 3.0)
+        )
+    }
+
     func testAlphaMaskUsesVisiblePixelsAndAspectFitContentArea() throws {
         let mask = PetFrameAlphaMask(
             width: 2,
@@ -151,6 +168,10 @@ final class PetPointerOverlapTests: XCTestCase {
         )
         XCTAssertTrue(
             view.containsVisibleContent(at: NSPoint(x: 175, y: 50))
+        )
+        XCTAssertEqual(
+            view.visibleContentBounds(),
+            NSRect(x: 100, y: 0, width: 100, height: 100)
         )
     }
 

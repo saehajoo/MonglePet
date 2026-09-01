@@ -9,16 +9,16 @@ struct SettingsView: View {
     @ObservedObject var runtimeControlSession: PetRuntimeControlSession
     @ObservedObject var remotePetImportRequestCenter: RemotePetImportRequestCenter
     let remotePetImportService: RemotePetImportService
-    @State private var destination = SettingsDestination.activePets
+    @State private var destination = SettingsDestination.myPets
 
     var body: some View {
         NavigationSplitView {
             List(selection: $destination) {
                 Section("데스크톱") {
                     navigationRow(
-                        "활성 펫",
+                        "내 펫",
                         systemImage: "pawprint.fill",
-                        destination: .activePets
+                        destination: .myPets
                     )
                     navigationRow(
                         "일반",
@@ -29,12 +29,32 @@ struct SettingsView: View {
 
                 Section("선택한 펫") {
                     navigationRow(
-                        "표시 및 이동",
+                        "펫 정보·애니메이션",
+                        systemImage: "photo.on.rectangle.angled",
+                        destination: .petContent
+                    )
+                    navigationRow(
+                        "화면 표시",
+                        systemImage: "rectangle.on.rectangle",
+                        destination: .display
+                    )
+                    navigationRow(
+                        "평상시 행동",
+                        systemImage: "play.square.stack",
+                        destination: .stationaryBehavior
+                    )
+                    navigationRow(
+                        "이동",
                         systemImage: "location",
                         destination: .movement
                     )
                     navigationRow(
-                        "행동",
+                        "상호작용",
+                        systemImage: "hand.point.up.left",
+                        destination: .interaction
+                    )
+                    navigationRow(
+                        "행동 편집",
                         systemImage: "list.bullet.rectangle",
                         destination: .behavior
                     )
@@ -50,13 +70,6 @@ struct SettingsView: View {
                     )
                 }
 
-                Section("보관함") {
-                    navigationRow(
-                        "펫 보관함",
-                        systemImage: "shippingbox",
-                        destination: .petLibrary
-                    )
-                }
             }
             .listStyle(.sidebar)
             .navigationSplitViewColumnWidth(
@@ -75,13 +88,13 @@ struct SettingsView: View {
         .onChange(of: remotePetImportRequestCenter.request?.id) {
             _, requestID in
             if requestID != nil {
-                destination = .petLibrary
+                destination = .myPets
             }
         }
         .onChange(of: remotePetImportRequestCenter.errorMessage) {
             _, errorMessage in
             if errorMessage != nil {
-                destination = .petLibrary
+                destination = .myPets
             }
         }
     }
@@ -89,53 +102,73 @@ struct SettingsView: View {
     private func synchronizeRemoteImportDestination() {
         if remotePetImportRequestCenter.request != nil
             || remotePetImportRequestCenter.errorMessage != nil {
-            destination = .petLibrary
+            destination = .myPets
         }
     }
 
     @ViewBuilder
     private var detailView: some View {
         switch destination {
-        case .activePets:
-            ActivePetsSettingsView(
+        case .myPets:
+            MyPetsSettingsView(
                 settingsSession: settingsSession,
                 petLibrarySession: petLibrarySession,
-                runtimeControlSession: runtimeControlSession
+                runtimeControlSession: runtimeControlSession,
+                remotePetImportRequestCenter: remotePetImportRequestCenter,
+                remotePetImportService: remotePetImportService
             )
         case .general:
             GeneralSettingsView(
                 settingsSession: settingsSession,
                 loginLaunchSettings: loginLaunchSettings
             )
+        case .petContent:
+            PetSettingsView(
+                settingsSession: settingsSession,
+                petLibrarySession: petLibrarySession,
+                remotePetImportRequestCenter:
+                    remotePetImportRequestCenter,
+                remotePetImportService: remotePetImportService
+            )
+        case .display:
+            PetDisplaySettingsView(
+                settingsSession: settingsSession,
+                petDisplayName: selectedPetDisplayName
+            )
+        case .stationaryBehavior:
+            MovementSettingsView(
+                settingsSession: settingsSession,
+                petDefinition: selectedActivePetItem.definition,
+                content: .stationaryBehavior
+            )
         case .movement:
             MovementSettingsView(
                 settingsSession: settingsSession,
-                petDefinition: petLibrarySession.selectedItem.definition,
-                petDisplayName: selectedPetDisplayName
+                petDefinition: selectedActivePetItem.definition,
+                content: .movement
+            )
+        case .interaction:
+            MovementSettingsView(
+                settingsSession: settingsSession,
+                petDefinition: selectedActivePetItem.definition,
+                content: .interaction
             )
         case .behavior:
             BehaviorSequencesSettingsView(
                 settingsSession: settingsSession,
-                petDefinition: petLibrarySession.selectedItem.definition,
+                petDefinition: selectedActivePetItem.definition,
                 petDisplayName: selectedPetDisplayName
             )
         case .speech:
             SpeechBubbleSettingsView(
                 settingsSession: settingsSession,
-                petItem: petLibrarySession.selectedItem,
+                petItem: selectedActivePetItem,
                 petDisplayName: selectedPetDisplayName
             )
         case .automaticRules:
             AutomaticRulesSettingsView(
                 settingsSession: settingsSession,
                 petDisplayName: selectedPetDisplayName
-            )
-        case .petLibrary:
-            PetSettingsView(
-                settingsSession: settingsSession,
-                petLibrarySession: petLibrarySession,
-                remotePetImportRequestCenter: remotePetImportRequestCenter,
-                remotePetImportService: remotePetImportService
             )
         }
     }
@@ -152,47 +185,530 @@ struct SettingsView: View {
 
     private var selectedPetDisplayName: String {
         settingsSession.settings.selectedPetInstance?.nickname
-            ?? petLibrarySession.selectedItem.metadata.displayName
+            ?? selectedActivePetItem.metadata.displayName
+    }
+
+    private var selectedActivePetItem: PetLibraryItem {
+        petLibrarySession.item(
+            for: settingsSession.settings.selectedPetKey
+        ) ?? petLibrarySession.items.first(where: \.isBuiltIn)
+            ?? petLibrarySession.selectedItem
     }
 }
 
 private enum SettingsDestination: Hashable {
-    case activePets
+    case myPets
     case general
+    case petContent
+    case display
+    case stationaryBehavior
     case movement
+    case interaction
     case behavior
     case speech
     case automaticRules
-    case petLibrary
 
     var accessibilityIdentifier: String {
         switch self {
-        case .activePets:
+        case .myPets:
             "monglepet.settings.navigation.activePets"
         case .general:
             "monglepet.settings.navigation.general"
+        case .petContent:
+            "monglepet.settings.navigation.petContent"
+        case .display:
+            "monglepet.settings.navigation.display"
+        case .stationaryBehavior:
+            "monglepet.settings.navigation.stationaryBehavior"
         case .movement:
             "monglepet.settings.navigation.movement"
+        case .interaction:
+            "monglepet.settings.navigation.interaction"
         case .behavior:
             "monglepet.settings.navigation.behavior"
         case .speech:
             "monglepet.settings.navigation.speech"
         case .automaticRules:
             "monglepet.settings.navigation.automaticRules"
-        case .petLibrary:
-            "monglepet.settings.navigation.petLibrary"
         }
     }
 }
 
-private struct AnimationDuplicationFailure: Identifiable {
-    let id = UUID()
-    let message: String
+private struct MyPetsSettingsView: View {
+    @ObservedObject var settingsSession: AppSettingsSession
+    @ObservedObject var petLibrarySession: PetLibrarySession
+    @ObservedObject var runtimeControlSession: PetRuntimeControlSession
+    @ObservedObject var remotePetImportRequestCenter: RemotePetImportRequestCenter
+    let remotePetImportService: RemotePetImportService
+    @State private var isCreatingPet = false
+    @State private var isImportingPet = false
+    @State private var isCreatingPetCopy = false
+    @State private var shareReview: PetPackageShareReview?
+    @State private var pendingSharingFollowUp: PetSharingFollowUp?
+    @State private var petPackageExportDocument: MonglePetPackageDocument?
+    @State private var petPackageExportFileName = "MonglePet.monglepet"
+    @State private var isPresentingPetPackageExporter = false
+    @State private var petPackageExportErrorMessage: String?
+    @State private var exportedPackageFileName: String?
+
+    var body: some View {
+        ActivePetsSettingsView(
+            settingsSession: settingsSession,
+            petLibrarySession: petLibrarySession,
+            runtimeControlSession: runtimeControlSession,
+            onCreatePet: { isCreatingPet = true },
+            onImportPet: { isImportingPet = true },
+            onCreateCopy: preparePetCopy,
+            onExport: preparePetExport,
+            onDelete: deletePet
+        )
+        .navigationTitle("내 펫")
+        .sheet(isPresented: $isCreatingPet) {
+            UserPetAnimationEditorView(
+                mode: .create,
+                petLibrarySession: petLibrarySession,
+                settingsSession: settingsSession,
+                prepareForSaving: { true }
+            )
+        }
+        .sheet(isPresented: $isImportingPet) {
+            PetImportSheetView(
+                settingsSession: settingsSession,
+                petLibrarySession: petLibrarySession,
+                remotePetImportRequestCenter:
+                    remotePetImportRequestCenter,
+                remotePetImportService: remotePetImportService
+            )
+        }
+        .sheet(isPresented: $isCreatingPetCopy) {
+            PetCopyEditorView(
+                item: petLibrarySession.selectedItem,
+                petLibrarySession: petLibrarySession
+            )
+        }
+        .sheet(
+            item: $shareReview,
+            onDismiss: performPendingSharingFollowUp
+        ) { review in
+            PetPackageShareReviewView(
+                review: review,
+                onExport: { options in
+                    pendingSharingFollowUp = .export(review, options)
+                }
+            )
+        }
+        .fileExporter(
+            isPresented: $isPresentingPetPackageExporter,
+            document: petPackageExportDocument,
+            contentType: MonglePetPackageDocument.contentType,
+            defaultFilename: petPackageExportFileName,
+            onCompletion: handlePetPackageExportResult
+        )
+        .alert(
+            "펫 내보내기 완료",
+            isPresented: exportSuccessAlertBinding
+        ) {
+            Button("확인", role: .cancel) {}
+        } message: {
+            Text("\(exportedPackageFileName ?? "펫 패키지") 파일을 저장했습니다.")
+        }
+        .alert(
+            "펫을 내보내지 못했습니다",
+            isPresented: exportErrorAlertBinding
+        ) {
+            Button("확인", role: .cancel) {}
+        } message: {
+            Text(petPackageExportErrorMessage ?? "펫 공유 파일을 준비하지 못했습니다.")
+        }
+        .onAppear(perform: presentImportIfNeeded)
+        .onChange(of: remotePetImportRequestCenter.request?.id) {
+            _, _ in presentImportIfNeeded()
+        }
+        .onChange(of: remotePetImportRequestCenter.errorMessage) {
+            _, _ in presentImportIfNeeded()
+        }
+        .accessibilityIdentifier("monglepet.settings.myPets")
+    }
+
+    private func preparePetCopy(_ instanceID: UUID) {
+        guard select(instanceID) else { return }
+        isCreatingPetCopy = true
+    }
+
+    private func preparePetExport(_ instanceID: UUID) {
+        guard select(instanceID),
+              let runtimeSettings = settingsSession.settings.runtimeSettings(
+                  for: instanceID
+              ) else {
+            return
+        }
+        shareReview = petLibrarySession.reviewSelectedPetForSharing(
+            behaviorProfile: runtimeSettings.activeBehaviorProfile,
+            overlay: runtimeSettings.overlay
+        )
+    }
+
+    private func deletePet(_ instanceID: UUID) {
+        guard let instance = settingsSession.settings.activePetInstances
+            .first(where: { $0.instanceID == instanceID }) else {
+            return
+        }
+        let installationID = instance.petKey.installationID
+        let referenceCount = settingsSession.settings.activePetInstances
+            .filter { $0.petKey == instance.petKey }
+            .count
+        let removesInstallation = installationID != nil && referenceCount == 1
+
+        _ = settingsSession.removePetInstance(
+            instanceID,
+            removingInstallation: removesInstallation ? {
+                guard let installationID else { return }
+                try petLibrarySession.removeInstallationForDeletedPet(
+                    installationID
+                )
+            } : nil
+        )
+    }
+
+    private func select(_ instanceID: UUID) -> Bool {
+        guard let instance = settingsSession.settings.activePetInstances
+            .first(where: { $0.instanceID == instanceID }),
+              let item = petLibrarySession.item(for: instance.petKey) else {
+            return false
+        }
+        settingsSession.selectPetInstance(instanceID)
+        return petLibrarySession.select(item.selection)
+    }
+
+    private func preparePetPackageExport(
+        for review: PetPackageShareReview,
+        options: PetPackageShareOptions
+    ) {
+        let workspaceURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(
+                "MonglePetShareUI-\(UUID().uuidString)",
+                isDirectory: true
+            )
+        let archiveURL = workspaceURL.appendingPathComponent(
+            review.suggestedFileName,
+            isDirectory: false
+        )
+
+        do {
+            try FileManager.default.createDirectory(
+                at: workspaceURL,
+                withIntermediateDirectories: false
+            )
+        } catch {
+            petPackageExportErrorMessage = "펫 공유 파일을 준비하지 못했습니다."
+            return
+        }
+        defer { try? FileManager.default.removeItem(at: workspaceURL) }
+
+        guard petLibrarySession.exportSelectedPet(
+            reviewed: review,
+            options: options,
+            isConfirmed: true,
+            to: archiveURL
+        ) else {
+            return
+        }
+
+        do {
+            petPackageExportDocument = MonglePetPackageDocument(
+                data: try Data(contentsOf: archiveURL)
+            )
+            petPackageExportFileName = review.suggestedFileName
+            petPackageExportErrorMessage = nil
+            isPresentingPetPackageExporter = true
+        } catch {
+            petPackageExportDocument = nil
+            petPackageExportErrorMessage = "펫 공유 파일을 준비하지 못했습니다."
+        }
+    }
+
+    private func performPendingSharingFollowUp() {
+        guard let followUp = pendingSharingFollowUp else { return }
+        pendingSharingFollowUp = nil
+        switch followUp {
+        case let .export(review, options):
+            preparePetPackageExport(for: review, options: options)
+        }
+    }
+
+    private func handlePetPackageExportResult(
+        _ result: Result<URL, Error>
+    ) {
+        switch result {
+        case let .success(destinationURL):
+            petPackageExportErrorMessage = nil
+            exportedPackageFileName = destinationURL.lastPathComponent
+        case let .failure(error):
+            if (error as? CocoaError)?.code != .userCancelled {
+                petPackageExportErrorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    private var exportSuccessAlertBinding: Binding<Bool> {
+        Binding(
+            get: { exportedPackageFileName != nil },
+            set: { if !$0 { exportedPackageFileName = nil } }
+        )
+    }
+
+    private var exportErrorAlertBinding: Binding<Bool> {
+        Binding(
+            get: { petPackageExportErrorMessage != nil },
+            set: { if !$0 { petPackageExportErrorMessage = nil } }
+        )
+    }
+
+    private func presentImportIfNeeded() {
+        if remotePetImportRequestCenter.request != nil
+            || remotePetImportRequestCenter.errorMessage != nil {
+            isImportingPet = true
+        }
+    }
 }
 
-private struct PendingAnimationDuplication {
-    let sourceAnimationID: String
-    let duplicatedAnimationID: String
+private struct PetImportSheetView: View {
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject var settingsSession: AppSettingsSession
+    @ObservedObject var petLibrarySession: PetLibrarySession
+    @ObservedObject var remotePetImportRequestCenter:
+        RemotePetImportRequestCenter
+    let remotePetImportService: RemotePetImportService
+    @State private var importReview: PetPackageImportReview?
+    @State private var pendingImportAction: PetImportAction?
+    @State private var remotePetURLText = ""
+    @State private var isImportingRemotePet = false
+    @State private var remoteImportErrorMessage: String?
+    @State private var remoteImportTemporaryDirectoryURL: URL?
+    @State private var remoteImportTask: Task<Void, Never>?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("펫 가져오기")
+                        .font(.title2.weight(.semibold))
+                    Text("웹 주소 또는 Mac에 저장된 패키지에서 새 펫을 추가합니다.")
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button("닫기", role: .cancel) { dismiss() }
+            }
+            .padding(20)
+
+            Divider()
+
+            Form {
+                if let error = petLibrarySession.errorMessage {
+                    Label(error, systemImage: "xmark.circle.fill")
+                        .foregroundStyle(.orange)
+                }
+
+                Section("웹에서 가져오기") {
+                    RemotePetImportControls(
+                        urlText: $remotePetURLText,
+                        isImporting: isImportingRemotePet,
+                        isBusy: isBusy,
+                        errorMessage: remoteImportErrorMessage
+                            ?? remotePetImportRequestCenter.errorMessage,
+                        catalogURL: webPetCatalogURL,
+                        onInputChange: clearRemoteImportErrors,
+                        onImport: { startRemotePetImport() }
+                    )
+                }
+
+                Section("Mac의 패키지 파일") {
+                    Text(".monglepet 파일을 선택하면 설치할 내용과 권장 설정을 먼저 보여드립니다.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    Button("패키지 파일 선택…", systemImage: "doc.badge.plus") {
+                        choosePetPackage()
+                    }
+                    .disabled(isBusy)
+                    .accessibilityIdentifier("monglepet.settings.importPackage")
+                }
+            }
+            .formStyle(.grouped)
+        }
+        .frame(minWidth: 620, minHeight: 620)
+        .sheet(
+            item: $importReview,
+            onDismiss: performPendingImportAction
+        ) { review in
+            PetPackageImportReviewView(
+                review: review,
+                allowsRecommendedProfileApplication:
+                    settingsSession.isWritingEnabled,
+                onInstall: { appliesRecommendedProfile in
+                    pendingImportAction = PetImportAction(
+                        review: review,
+                        appliesRecommendedProfile: appliesRecommendedProfile
+                    )
+                }
+            )
+        }
+        .onAppear(perform: performPendingRemoteImportRequest)
+        .onDisappear {
+            remoteImportTask?.cancel()
+            remoteImportTask = nil
+            cleanupRemoteImportIfFinished()
+        }
+    }
+
+    private var isBusy: Bool {
+        petLibrarySession.isImporting
+            || petLibrarySession.isExporting
+            || isImportingRemotePet
+    }
+
+    private var webPetCatalogURL: URL {
+#if DEBUG
+        URL(string: "https://dev.mapleroom.kr/monglepet/pets")!
+#else
+        URL(string: "https://mapleroom.kr/monglepet/pets")!
+#endif
+    }
+
+    private func choosePetPackage() {
+        let panel = NSOpenPanel()
+        panel.title = "MonglePet 패키지 가져오기"
+        panel.prompt = "가져오기"
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.resolvesAliases = true
+        if let packageType = UTType(filenameExtension: "monglepet") {
+            panel.allowedContentTypes = [packageType]
+        }
+        guard panel.runModal() == .OK, let sourceURL = panel.url else {
+            return
+        }
+        importReview = petLibrarySession.reviewPackageForImport(
+            from: sourceURL
+        )
+    }
+
+    private func performPendingRemoteImportRequest() {
+        guard let request = remotePetImportRequestCenter.request else {
+            return
+        }
+        remotePetImportRequestCenter.consume(request.id)
+        remotePetImportRequestCenter.clearError()
+        remotePetURLText = request.source.canonicalWebURL.absoluteString
+        startRemotePetImport(source: request.source)
+    }
+
+    private func startRemotePetImport(source: RemotePetImportSource? = nil) {
+        guard !isBusy else { return }
+        remoteImportTask?.cancel()
+        remoteImportErrorMessage = nil
+        remotePetImportRequestCenter.clearError()
+        isImportingRemotePet = true
+        let input = remotePetURLText
+        remoteImportTask = Task {
+            do {
+                let prepared: RemotePetPreparedPackage
+                if let source {
+                    prepared = try await remotePetImportService.preparePackage(
+                        from: source
+                    )
+                } else {
+                    prepared = try await remotePetImportService.preparePackage(
+                        from: input
+                    )
+                }
+                do {
+                    try Task.checkCancellation()
+                } catch {
+                    try? FileManager.default.removeItem(
+                        at: prepared.temporaryDirectoryURL
+                    )
+                    throw error
+                }
+                cleanupRemoteImportTemporaryDirectory()
+                remoteImportTemporaryDirectoryURL =
+                    prepared.temporaryDirectoryURL
+                importReview = petLibrarySession.reviewPackageForImport(
+                    from: prepared.packageURL
+                )?.withPublishedMinimumMonglePetVersion(
+                    prepared.publishedMinimumMonglePetVersion
+                )
+                if importReview == nil {
+                    cleanupRemoteImportTemporaryDirectory()
+                }
+            } catch is CancellationError {
+                // Closing the sheet cancels an unfinished request.
+            } catch {
+                remoteImportErrorMessage = messageForRemoteImportError(error)
+            }
+            isImportingRemotePet = false
+            remoteImportTask = nil
+        }
+    }
+
+    private func clearRemoteImportErrors() {
+        remoteImportErrorMessage = nil
+        remotePetImportRequestCenter.clearError()
+    }
+
+    private func messageForRemoteImportError(_ error: Error) -> String {
+        if let importError = error as? RemotePetImportError {
+            return importError.localizedDescription
+        }
+        guard let urlError = error as? URLError else {
+            return "펫을 가져오지 못했습니다. 잠시 뒤 다시 시도해 주세요."
+        }
+        switch urlError.code {
+        case .notConnectedToInternet:
+            return "인터넷 연결을 확인한 뒤 다시 시도해 주세요."
+        case .timedOut, .networkConnectionLost:
+            return "서버 응답이 늦거나 연결이 끊겼습니다. 잠시 뒤 다시 시도해 주세요."
+        case .cannotFindHost, .cannotConnectToHost, .dnsLookupFailed:
+            return "MonglePet 서버에 연결할 수 없습니다. 주소를 확인하거나 잠시 뒤 다시 시도해 주세요."
+        case .secureConnectionFailed,
+             .serverCertificateHasBadDate,
+             .serverCertificateNotYetValid,
+             .serverCertificateUntrusted:
+            return "MonglePet 서버와 안전하게 연결할 수 없어 가져오기를 중단했습니다."
+        default:
+            return "펫을 가져오지 못했습니다. 잠시 뒤 다시 시도해 주세요."
+        }
+    }
+
+    private func performPendingImportAction() {
+        guard let action = pendingImportAction else {
+            cleanupRemoteImportTemporaryDirectory()
+            return
+        }
+        pendingImportAction = nil
+        let succeeded = petLibrarySession.installReviewedPackage(
+            action.review,
+            appliesRecommendedProfile: action.appliesRecommendedProfile
+        )
+        cleanupRemoteImportIfFinished()
+        if succeeded {
+            dismiss()
+        }
+    }
+
+    private func cleanupRemoteImportIfFinished() {
+        guard importReview == nil, pendingImportAction == nil else { return }
+        cleanupRemoteImportTemporaryDirectory()
+    }
+
+    private func cleanupRemoteImportTemporaryDirectory() {
+        guard let remoteImportTemporaryDirectoryURL else { return }
+        try? FileManager.default.removeItem(
+            at: remoteImportTemporaryDirectoryURL
+        )
+        self.remoteImportTemporaryDirectoryURL = nil
+    }
 }
 
 private struct PetSettingsView: View {
@@ -200,16 +716,11 @@ private struct PetSettingsView: View {
     @ObservedObject var petLibrarySession: PetLibrarySession
     @ObservedObject var remotePetImportRequestCenter: RemotePetImportRequestCenter
     let remotePetImportService: RemotePetImportService
-    @State private var isConfirmingRemoval = false
     @State private var isConfirmingAnimationRemoval = false
     @State private var isEditingPetDetails = false
-    @State private var isCreatingEditableCopy = false
     @State private var userPetEditorMode: UserPetEditorMode?
     @State private var editingAnimation: PetMotion?
-    @State private var animationDuplicationFailure:
-        AnimationDuplicationFailure?
-    @State private var pendingAnimationDuplication:
-        PendingAnimationDuplication?
+    @State private var duplicatingAnimation: PetMotion?
     @State private var previewMotionID: String?
     @State private var importReview: PetPackageImportReview?
     @State private var pendingImportAction: PetImportAction?
@@ -225,6 +736,9 @@ private struct PetSettingsView: View {
     @State private var remoteImportErrorMessage: String?
     @State private var remoteImportTemporaryDirectoryURL: URL?
     @State private var remoteImportTask: Task<Void, Never>?
+    @State private var isConfirmingDesktopAddition = false
+    @State private var desktopAdditionRecommendedProfile:
+        RecommendedPetProfile?
 
     var body: some View {
         Form {
@@ -243,15 +757,7 @@ private struct PetSettingsView: View {
                     systemImage: "xmark.circle.fill"
                 )
             }
-            Section("현재 펫") {
-                Picker("현재 펫", selection: petSelectionBinding) {
-                    ForEach(petLibrarySession.items) { item in
-                        Text(item.metadata.displayName)
-                            .tag(item.selection)
-                    }
-                }
-                .accessibilityIdentifier("monglepet.settings.petSelection")
-
+            Section("펫 정보") {
                 HStack(alignment: .top, spacing: 16) {
                     PetAnimationPreviewView(
                         item: petLibrarySession.selectedItem,
@@ -262,7 +768,7 @@ private struct PetSettingsView: View {
                         .quaternary.opacity(0.35),
                         in: RoundedRectangle(cornerRadius: 12)
                     )
-                    .accessibilityLabel("현재 펫 애니메이션 미리보기")
+                    .accessibilityLabel("선택한 펫 애니메이션 미리보기")
 
                     VStack(alignment: .leading, spacing: 10) {
                         Text(
@@ -284,6 +790,20 @@ private struct PetSettingsView: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
+
+                Button {
+                    isEditingPetDetails = true
+                } label: {
+                    Label("펫 정보 수정", systemImage: "pencil")
+                }
+                .disabled(petLibrarySession.isImporting)
+                .accessibilityIdentifier(
+                    "monglepet.settings.editPetDetails"
+                )
+
+                Text("내장 펫이나 여러 펫이 같은 이미지를 공유하는 경우에도 선택한 펫만 안전하게 분리해 수정합니다.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("애니메이션") {
@@ -308,112 +828,6 @@ private struct PetSettingsView: View {
                     }
                 }
 
-                if petLibrarySession.selectedItem.isEditable {
-                    LazyVGrid(
-                        columns: [
-                            GridItem(.adaptive(minimum: 160), spacing: 8)
-                        ],
-                        alignment: .leading,
-                        spacing: 8
-                    ) {
-                        Button {
-                            userPetEditorMode = .addAnimation
-                        } label: {
-                            Label(
-                                "애니메이션 추가",
-                                systemImage: "photo.badge.plus"
-                            )
-                            .frame(
-                                maxWidth: .infinity,
-                                alignment: .leading
-                            )
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(petLibrarySession.isImporting)
-                        .accessibilityIdentifier(
-                            "monglepet.settings.addPetAnimation"
-                        )
-
-                        Button {
-                            editingAnimation = selectedPreviewMotion
-                        } label: {
-                            Label(
-                                "애니메이션 수정",
-                                systemImage: "slider.horizontal.3"
-                            )
-                            .frame(
-                                maxWidth: .infinity,
-                                alignment: .leading
-                            )
-                        }
-                        .disabled(
-                            selectedPreviewMotion == nil
-                                || petLibrarySession.isImporting
-                        )
-                        .accessibilityIdentifier(
-                            "monglepet.settings.editPetAnimation"
-                        )
-
-                        Button {
-                            duplicateSelectedAnimation()
-                        } label: {
-                            Label(
-                                "애니메이션 복제…",
-                                systemImage: "doc.on.doc"
-                            )
-                            .frame(
-                                maxWidth: .infinity,
-                                alignment: .leading
-                            )
-                        }
-                        .disabled(
-                            selectedPreviewMotion == nil
-                                || petLibrarySession.isImporting
-                        )
-                        .accessibilityIdentifier(
-                            "monglepet.settings.duplicatePetAnimation"
-                        )
-
-                        Button(role: .destructive) {
-                            isConfirmingAnimationRemoval = true
-                        } label: {
-                            Label(
-                                "애니메이션 삭제",
-                                systemImage: "trash"
-                            )
-                            .frame(
-                                maxWidth: .infinity,
-                                alignment: .leading
-                            )
-                        }
-                        .disabled(
-                            !canDeleteSelectedAnimation
-                                || petLibrarySession.isImporting
-                        )
-                        .help(animationDeletionHelp)
-                        .accessibilityIdentifier(
-                            "monglepet.settings.removePetAnimation"
-                        )
-                    }
-                } else {
-                    Label(
-                        petLibrarySession.selectedItem.isBuiltIn
-                            ? "내장 몽글이의 애니메이션은 직접 편집할 수 없습니다."
-                            : "가져온 펫을 편집하려면 편집 가능한 사본을 만들어야 합니다.",
-                        systemImage: "lock"
-                    )
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                }
-            }
-
-            petPackageSection
-
-            Section("펫 관리") {
-                Text(petManagementDescription)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
                 LazyVGrid(
                     columns: [
                         GridItem(.adaptive(minimum: 160), spacing: 8)
@@ -422,120 +836,75 @@ private struct PetSettingsView: View {
                     spacing: 8
                 ) {
                     Button {
-                        userPetEditorMode = .create
-                    } label: {
-                        Label("새 펫 만들기", systemImage: "plus")
-                            .frame(
-                                maxWidth: .infinity,
-                                alignment: .leading
-                            )
-                    }
-                    .disabled(petLibrarySession.isImporting)
-                    .accessibilityIdentifier(
-                        "monglepet.settings.createUserPet"
-                    )
-
-                    if petLibrarySession.selectedItem.isEditable {
-                        Button {
-                            isEditingPetDetails = true
-                        } label: {
-                            Label("펫 정보 수정", systemImage: "pencil")
-                                .frame(
-                                    maxWidth: .infinity,
-                                    alignment: .leading
-                                )
-                        }
-                        .disabled(petLibrarySession.isImporting)
-                        .accessibilityIdentifier(
-                            "monglepet.settings.editPetDetails"
-                        )
-                    }
-
-                    Button {
-                        isCreatingEditableCopy = true
+                        userPetEditorMode = .addAnimation
                     } label: {
                         Label(
-                            "펫 사본 새로 만들기",
-                            systemImage: "doc.on.doc"
+                            "애니메이션 추가",
+                            systemImage: "photo.badge.plus"
                         )
-                        .frame(
-                            maxWidth: .infinity,
-                            alignment: .leading
-                        )
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                    .buttonStyle(.borderedProminent)
                     .disabled(petLibrarySession.isImporting)
                     .accessibilityIdentifier(
-                        "monglepet.settings.createEditablePetCopy"
+                        "monglepet.settings.addPetAnimation"
                     )
-                    if !petLibrarySession.selectedItem.isBuiltIn {
-                        Button(role: .destructive) {
-                            isConfirmingRemoval = true
-                        } label: {
-                            Label("펫 삭제", systemImage: "trash")
-                                .frame(
-                                    maxWidth: .infinity,
-                                    alignment: .leading
-                                )
-                        }
-                        .disabled(isPetLibraryBusy)
-                        .accessibilityIdentifier(
-                            "monglepet.settings.removePet"
+
+                    Button {
+                        editingAnimation = selectedPreviewMotion
+                    } label: {
+                        Label(
+                            "애니메이션 수정",
+                            systemImage: "slider.horizontal.3"
                         )
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                    .disabled(
+                        selectedPreviewMotion == nil
+                            || petLibrarySession.isImporting
+                    )
+                    .accessibilityIdentifier(
+                        "monglepet.settings.editPetAnimation"
+                    )
+
+                    Button {
+                        duplicatingAnimation = selectedPreviewMotion
+                    } label: {
+                        Label(
+                            "애니메이션 복제…",
+                            systemImage: "doc.on.doc"
+                        )
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .disabled(
+                        selectedPreviewMotion == nil
+                            || petLibrarySession.isImporting
+                    )
+                    .accessibilityIdentifier(
+                        "monglepet.settings.duplicatePetAnimation"
+                    )
+
+                    Button(role: .destructive) {
+                        isConfirmingAnimationRemoval = true
+                    } label: {
+                        Label(
+                            "애니메이션 삭제",
+                            systemImage: "trash"
+                        )
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .disabled(
+                        !canDeleteSelectedAnimation
+                            || petLibrarySession.isImporting
+                    )
+                    .help(animationDeletionHelp)
+                    .accessibilityIdentifier(
+                        "monglepet.settings.removePetAnimation"
+                    )
                 }
             }
         }
         .formStyle(.grouped)
-        .sheet(
-            item: $importReview,
-            onDismiss: performPendingImportAction
-        ) { review in
-            PetPackageImportReviewView(
-                review: review,
-                allowsRecommendedProfileApplication:
-                    settingsSession.isWritingEnabled,
-                onInstall: { appliesRecommendedProfile in
-                    pendingImportAction = PetImportAction(
-                        review: review,
-                        appliesRecommendedProfile: appliesRecommendedProfile
-                    )
-                }
-            )
-        }
-        .sheet(
-            item: duplicateInstallRequestBinding,
-            onDismiss: cleanupRemoteImportIfFinished
-        ) { request in
-            DuplicatePetInstallView(
-                request: request,
-                petLibrarySession: petLibrarySession,
-                allowsRecommendedProfileApplication:
-                    settingsSession.isWritingEnabled
-            )
-        }
-        .onAppear(perform: performPendingRemoteImportRequest)
-        .onChange(of: remotePetImportRequestCenter.request?.id) {
-            _, requestID in
-            if requestID != nil {
-                performPendingRemoteImportRequest()
-            }
-        }
-        .onDisappear {
-            remoteImportTask?.cancel()
-            remoteImportTask = nil
-            cleanupRemoteImportIfFinished()
-        }
-        .alert("선택한 펫을 삭제할까요?", isPresented: $isConfirmingRemoval) {
-            Button("삭제", role: .destructive) {
-                _ = petLibrarySession.removeSelectedInstallation()
-            }
-            Button("취소", role: .cancel) {}
-        } message: {
-            Text(
-                "라이브러리의 패키지 파일과 이 펫의 행동 루틴·규칙 설정을 "
-                    + "함께 삭제하고 내장 몽글이로 전환합니다."
-            )
-        }
         .alert(
             "선택한 애니메이션을 삭제할까요?",
             isPresented: $isConfirmingAnimationRemoval
@@ -547,86 +916,51 @@ private struct PetSettingsView: View {
         } message: {
             Text("이 애니메이션을 사용하던 행동 단계는 현재 펫의 기본 애니메이션으로 복구됩니다.")
         }
-        .alert(item: $animationDuplicationFailure) { failure in
-            Alert(
-                title: Text("애니메이션을 복제하지 못했습니다"),
-                message: Text(failure.message),
-                dismissButton: .default(Text("확인"))
-            )
-        }
-        .alert(
-            "펫 내보내기 완료",
-            isPresented: exportSuccessAlertBinding
-        ) {
-            Button("확인", role: .cancel) {}
-        } message: {
-            Text("\(exportedPackageFileName ?? "펫 패키지") 파일을 저장했습니다.")
-        }
         .sheet(item: $userPetEditorMode) { mode in
             UserPetAnimationEditorView(
                 mode: mode,
                 petLibrarySession: petLibrarySession,
-                settingsSession: settingsSession
+                settingsSession: settingsSession,
+                prepareForSaving: {
+                    mode == .create || ensureSelectedPetIsEditable()
+                }
+            )
+        }
+        .sheet(item: $duplicatingAnimation) { motion in
+            UserPetAnimationEditorView(
+                mode: .addAnimation,
+                petLibrarySession: petLibrarySession,
+                settingsSession: settingsSession,
+                prepareForSaving: ensureSelectedPetIsEditable,
+                duplicating: motion
             )
         }
         .sheet(isPresented: $isEditingPetDetails) {
             UserPetDetailsEditorView(
                 item: petLibrarySession.selectedItem,
-                petLibrarySession: petLibrarySession
+                petLibrarySession: petLibrarySession,
+                prepareForSaving: ensureSelectedPetIsEditable
             )
         }
-        .sheet(isPresented: $isCreatingEditableCopy) {
-            ReadOnlyPetCopyEditorView(
-                item: petLibrarySession.selectedItem,
-                petLibrarySession: petLibrarySession
-            )
-        }
-        .sheet(
-            item: $editingAnimation,
-            onDismiss: rollbackPendingAnimationDuplication
-        ) { motion in
+        .sheet(item: $editingAnimation) { motion in
             UserPetAnimationDetailsEditorView(
                 item: petLibrarySession.selectedItem,
                 motion: motion,
                 petLibrarySession: petLibrarySession,
                 settingsSession: settingsSession,
-                duplicationSourceAnimationID:
-                    pendingAnimationDuplication?.duplicatedAnimationID
-                        == motion.id
-                        ? pendingAnimationDuplication?.sourceAnimationID
-                        : nil,
+                prepareForSaving: ensureSelectedPetIsEditable,
+                duplicationSourceAnimationID: nil,
                 onSaved: { animationID in
-                    pendingAnimationDuplication = nil
                     previewMotionID = animationID
                 }
             )
         }
-        .sheet(
-            item: $shareReview,
-            onDismiss: performPendingSharingFollowUp
-        ) { review in
-            PetPackageShareReviewView(
-                review: review,
-                onExport: { options in
-                    pendingSharingFollowUp = .export(review, options)
-                }
-            )
+        .onAppear(perform: synchronizeSelectedPetContent)
+        .onChange(of: settingsSession.settings.selectedPetInstanceID) {
+            _, _ in synchronizeSelectedPetContent()
         }
-        .fileExporter(
-            isPresented: $isPresentingPetPackageExporter,
-            document: petPackageExportDocument,
-            contentType: MonglePetPackageDocument.contentType,
-            defaultFilename: petPackageExportFileName,
-            onCompletion: handlePetPackageExportResult
-        )
-        .onAppear(perform: synchronizePreviewMotion)
         .onChange(of: petLibrarySession.selection) {
             synchronizePreviewMotion()
-        }
-        .onChange(of: isPresentingPetPackageExporter) {
-            if !isPresentingPetPackageExporter {
-                petPackageExportDocument = nil
-            }
         }
     }
 
@@ -670,7 +1004,7 @@ private struct PetSettingsView: View {
             .accessibilityIdentifier("monglepet.settings.importPackage")
         }
 
-        Section("현재 펫 내보내기") {
+        Section("선택한 설치 펫 내보내기") {
             if petLibrarySession.selectedItem.isBuiltIn {
                 Label(
                     "내장 몽글이는 패키지 파일로 내보낼 수 없습니다.",
@@ -686,9 +1020,9 @@ private struct PetSettingsView: View {
                 Button {
                     shareReview = petLibrarySession
                         .reviewSelectedPetForSharing(
-                            behaviorProfile: settingsSession.settings
+                            behaviorProfile: selectedContentRuntimeSettings?
                                 .activeBehaviorProfile,
-                            overlay: settingsSession.settings.overlay
+                            overlay: selectedContentRuntimeSettings?.overlay
                         )
                 } label: {
                     Label(
@@ -730,16 +1064,6 @@ private struct PetSettingsView: View {
             || isImportingRemotePet
     }
 
-    private var petManagementDescription: String {
-        if petLibrarySession.selectedItem.isBuiltIn {
-            return "개별 PNG 또는 정적 PNG·WebP 스프라이트 시트로 새 펫을 만들 수 있습니다."
-        }
-        if petLibrarySession.selectedItem.isEditable {
-            return "현재 펫의 이름, 버전과 제작자를 수정하거나 펫을 삭제할 수 있습니다."
-        }
-        return "가져온 패키지는 원본을 보호하기 위해 직접 수정하지 않으며 필요하면 펫을 삭제할 수 있습니다."
-    }
-
     private var canDeleteSelectedAnimation: Bool {
         guard let motion = selectedPreviewMotion else {
             return false
@@ -763,64 +1087,43 @@ private struct PetSettingsView: View {
         previewMotionID = petLibrarySession.selectedItem.definition.defaultMotion?.id
     }
 
+    private func synchronizeSelectedPetContent() {
+        guard let instance = settingsSession.settings.selectedPetInstance,
+              let item = petLibrarySession.item(for: instance.petKey) else {
+            synchronizePreviewMotion()
+            return
+        }
+        _ = petLibrarySession.select(item.selection)
+        synchronizePreviewMotion()
+    }
+
+    private func ensureSelectedPetIsEditable() -> Bool {
+        synchronizeSelectedPetContent()
+        guard let instance = settingsSession.settings.selectedPetInstance else {
+            return false
+        }
+        let referenceCount = settingsSession.settings.activePetInstances
+            .filter { $0.petKey == instance.petKey }
+            .count
+        let displayName = instance.nickname
+            ?? petLibrarySession.selectedItem.metadata.displayName
+        guard petLibrarySession.prepareSelectedPetForEditing(
+            displayName: displayName,
+            instanceID: instance.instanceID,
+            requiresIndependentCopy: referenceCount > 1
+        ) else {
+            return false
+        }
+        synchronizeSelectedPetContent()
+        return true
+    }
+
     private func removeSelectedAnimation() {
         guard let motionID = selectedPreviewMotion?.id else {
             return
         }
+        guard ensureSelectedPetIsEditable() else { return }
         if petLibrarySession.removeSelectedPetAnimation(id: motionID) {
-            synchronizePreviewMotion()
-        }
-    }
-
-    private func duplicateSelectedAnimation() {
-        guard let sourceID = selectedPreviewMotion?.id else {
-            return
-        }
-        guard let duplicateID = petLibrarySession
-            .duplicateSelectedPetAnimation(id: sourceID) else {
-            animationDuplicationFailure = AnimationDuplicationFailure(
-                message: petLibrarySession.errorMessage
-                    ?? "선택한 애니메이션의 사본을 만들 수 없습니다."
-            )
-            return
-        }
-
-        pendingAnimationDuplication = PendingAnimationDuplication(
-            sourceAnimationID: sourceID,
-            duplicatedAnimationID: duplicateID
-        )
-        previewMotionID = duplicateID
-        presentDuplicatedAnimationEditor(id: duplicateID)
-    }
-
-    private func presentDuplicatedAnimationEditor(id animationID: String) {
-        guard let motion = petLibrarySession.selectedItem.definition.motion(
-            id: animationID
-        ) else {
-            rollbackPendingAnimationDuplication()
-            animationDuplicationFailure = AnimationDuplicationFailure(
-                message: "복제본을 만든 뒤 편집 화면을 열지 못했습니다. 다시 시도해 주세요."
-            )
-            return
-        }
-        editingAnimation = motion
-    }
-
-    private func rollbackPendingAnimationDuplication() {
-        guard let pendingAnimationDuplication else {
-            return
-        }
-        self.pendingAnimationDuplication = nil
-
-        _ = petLibrarySession.removeSelectedPetAnimation(
-            id: pendingAnimationDuplication.duplicatedAnimationID
-        )
-
-        if petLibrarySession.selectedItem.definition.motion(
-            id: pendingAnimationDuplication.sourceAnimationID
-        ) != nil {
-            previewMotionID = pendingAnimationDuplication.sourceAnimationID
-        } else {
             synchronizePreviewMotion()
         }
     }
@@ -846,15 +1149,60 @@ private struct PetSettingsView: View {
         )
     }
 
-    private var duplicateInstallRequestBinding: Binding<DuplicatePetInstallRequest?> {
-        Binding(
-            get: { petLibrarySession.duplicateInstallRequest },
-            set: { request in
-                if request == nil {
-                    petLibrarySession.cancelDuplicateInstallation()
-                }
-            }
+    private var selectedInstallationActiveReferenceCount: Int {
+        let selectedKey = PetBehaviorKey(
+            installationID: petLibrarySession.selectedInstallationID
         )
+        guard selectedKey != .builtIn else { return 0 }
+        return settingsSession.settings.activePetInstances.filter {
+            $0.petKey == selectedKey
+        }.count
+    }
+
+    private var selectedContentRuntimeSettings: AppSettings? {
+        let selectedKey = PetBehaviorKey(
+            installationID: petLibrarySession.selectedInstallationID
+        )
+        let settings = settingsSession.settings
+        if settings.selectedPetInstance?.petKey == selectedKey {
+            return settings.runtimeSettings(
+                for: settings.selectedPetInstanceID
+            )
+        }
+        guard let instanceID = settings.activePetInstances
+            .filter({ $0.petKey == selectedKey })
+            .sorted(by: { $0.displayOrder < $1.displayOrder })
+            .first?.instanceID else {
+            return nil
+        }
+        return settings.runtimeSettings(for: instanceID)
+    }
+
+    private func prepareDesktopPetAddition() {
+        desktopAdditionRecommendedProfile = petLibrarySession
+            .recommendedProfileForSelectedPet()
+        isConfirmingDesktopAddition = true
+    }
+
+    private func addSelectedPetToDesktop(
+        appliesRecommendedProfile: Bool
+    ) {
+        let petKey = PetBehaviorKey(
+            installationID: petLibrarySession.selectedInstallationID
+        )
+        if appliesRecommendedProfile,
+           let desktopAdditionRecommendedProfile {
+            _ = settingsSession.addPetInstance(
+                for: petKey,
+                applyingRecommendedProfile: desktopAdditionRecommendedProfile
+            )
+        } else {
+            _ = settingsSession.addPetInstance(
+                for: petKey,
+                usesSelectedOverlayFallback: false
+            )
+        }
+        self.desktopAdditionRecommendedProfile = nil
     }
 
     private var exportSuccessAlertBinding: Binding<Bool> {
@@ -991,8 +1339,7 @@ private struct PetSettingsView: View {
     private func cleanupRemoteImportIfFinished() {
         guard
             importReview == nil,
-            pendingImportAction == nil,
-            petLibrarySession.duplicateInstallRequest == nil
+            pendingImportAction == nil
         else {
             return
         }
@@ -1482,9 +1829,7 @@ private struct PetPackageImportReviewView: View {
                     compatibilitySection
                     recommendedProfileSection
 
-                    Text(
-                        "권장 설정을 적용해도 설치 후 평상시 행동, 행동 루틴, 조건 규칙과 이동 설정을 자유롭게 수정할 수 있습니다."
-                    )
+                    Text("가져오면 독립된 설정을 가진 새 펫으로 내 펫에 추가됩니다. 같은 펫을 다시 가져와도 기존 펫과 설정은 바뀌지 않습니다.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 }
@@ -1498,22 +1843,25 @@ private struct PetPackageImportReviewView: View {
                     dismiss()
                 }
                 Spacer()
-                Button("펫만 설치 · 포함 설정 적용 안 함") {
+                Button("기본 설정으로 추가") {
                     onInstall(false)
                     dismiss()
                 }
+                .buttonStyle(.borderedProminent)
                 .disabled(!review.canInstall)
                 .accessibilityIdentifier("monglepet.import.petOnly")
-                if review.recommendedProfile != nil,
-                   allowsRecommendedProfileApplication {
-                    Button("포함된 설정 모두 적용 후 설치") {
+                if review.recommendedProfile != nil {
+                    Button("권장 설정으로 추가") {
                         onInstall(true)
                         dismiss()
                     }
                     .buttonStyle(.borderedProminent)
-                    .disabled(!review.canInstall)
+                    .disabled(
+                        !review.canInstall
+                            || !allowsRecommendedProfileApplication
+                    )
                     .accessibilityIdentifier(
-                        "monglepet.import.applyRecommendedProfile"
+                        "monglepet.import.withRecommendedProfile"
                     )
                 }
             }
@@ -1615,15 +1963,13 @@ private struct PetPackageImportReviewView: View {
                     summary: RecommendedProfileSummary(profile: profile)
                 )
 
-                Text(
-                    "‘포함된 설정 모두 적용 후 설치’를 선택하면 아래 설정을 새 펫에 함께 적용합니다."
-                )
+                Text("권장 설정으로 추가하면 이 펫의 표시·행동·이동·말풍선 설정을 함께 적용합니다.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
                 if !allowsRecommendedProfileApplication {
                     Label(
-                        "현재 설정 파일을 보호하기 위해 권장 설정 적용이 비활성화되어 있습니다.",
+                        "현재 설정 파일을 보호하기 위해 내 펫 추가가 비활성화되어 있습니다.",
                         systemImage: "lock.fill"
                     )
                     .font(.caption)
@@ -1662,317 +2008,6 @@ private struct PetPackageImportReviewView: View {
 
 }
 
-private enum DuplicateReplacementProfileChoice: Hashable {
-    case preserveLocal
-    case applyRecommended
-}
-
-private struct DuplicatePetInstallView: View {
-    @Environment(\.dismiss) private var dismiss
-
-    let request: DuplicatePetInstallRequest
-    @ObservedObject var petLibrarySession: PetLibrarySession
-    let allowsRecommendedProfileApplication: Bool
-
-    @State private var selectedInstallationID: UUID?
-    @State private var replacementProfileChoice:
-        DuplicateReplacementProfileChoice = .preserveLocal
-
-    init(
-        request: DuplicatePetInstallRequest,
-        petLibrarySession: PetLibrarySession,
-        allowsRecommendedProfileApplication: Bool
-    ) {
-        self.request = request
-        self.petLibrarySession = petLibrarySession
-        self.allowsRecommendedProfileApplication =
-            allowsRecommendedProfileApplication
-        _selectedInstallationID = State(
-            initialValue: request.preferredReplacementInstallationID
-        )
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("같은 펫 패키지가 이미 있습니다")
-                            .font(.title2.weight(.semibold))
-                        Text(
-                            "새 설치로 추가하거나, 아래 설치 중 하나를 선택해 교체할 수 있습니다."
-                        )
-                        .foregroundStyle(.secondary)
-                    }
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("가져올 펫")
-                            .font(.headline)
-                        packageInformation(request.incomingMetadata)
-                    }
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("교체할 기존 설치")
-                            .font(.headline)
-
-                        if request.candidates.isEmpty {
-                            Label(
-                                "기존 설치 정보를 다시 불러오지 못했습니다. 취소 후 다시 시도해 주세요.",
-                                systemImage: "exclamationmark.triangle.fill"
-                            )
-                            .foregroundStyle(.orange)
-                        } else {
-                            LazyVStack(spacing: 0) {
-                                ForEach(request.candidates) { candidate in
-                                    Button {
-                                        selectedInstallationID =
-                                            candidate.installationID
-                                    } label: {
-                                        candidateRow(candidate)
-                                    }
-                                    .buttonStyle(.plain)
-                                    .accessibilityIdentifier(
-                                        "monglepet.import.candidate."
-                                            + candidate.installationID.uuidString
-                                    )
-
-                                    if candidate.id != request.candidates.last?.id {
-                                        Divider()
-                                    }
-                                }
-                            }
-                            .background(
-                                .quaternary.opacity(0.35),
-                                in: RoundedRectangle(cornerRadius: 10)
-                            )
-                        }
-                    }
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        Label(
-                            newInstallationDescription,
-                            systemImage: "plus.square.on.square"
-                        )
-                        Label(
-                            replacementDescription,
-                            systemImage: selectedCandidate?.isEditable == true
-                                ? "exclamationmark.triangle.fill"
-                                : "arrow.triangle.2.circlepath"
-                        )
-                        .foregroundStyle(
-                            selectedCandidate?.isEditable == true
-                                ? Color.orange
-                                : Color.secondary
-                        )
-                    }
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                    replacementProfileSection
-
-                    if let errorMessage = petLibrarySession.errorMessage {
-                        Label(errorMessage, systemImage: "xmark.circle.fill")
-                            .foregroundStyle(.orange)
-                            .font(.callout)
-                            .accessibilityIdentifier("monglepet.import.error")
-                    }
-                }
-                .padding(20)
-            }
-
-            Divider()
-
-            HStack {
-                Spacer()
-                Button("취소", role: .cancel) {
-                    petLibrarySession.cancelDuplicateInstallation()
-                    dismiss()
-                }
-                Button("새 설치로 추가") {
-                    petLibrarySession.installDuplicateSeparately()
-                }
-                .disabled(petLibrarySession.isImporting)
-                .accessibilityIdentifier("monglepet.import.installSeparately")
-                Button("선택 항목 교체", role: .destructive) {
-                    guard let selectedInstallationID else {
-                        return
-                    }
-                    petLibrarySession.replaceDuplicateInstallation(
-                        selectedInstallationID,
-                        appliesRecommendedProfile:
-                            replacementProfileChoice == .applyRecommended
-                    )
-                }
-                .disabled(
-                    selectedInstallationID == nil || petLibrarySession.isImporting
-                )
-                .accessibilityIdentifier("monglepet.import.replaceSelected")
-            }
-            .padding(16)
-        }
-        .frame(width: 580)
-        .frame(minHeight: 520, maxHeight: 720)
-        .accessibilityIdentifier("monglepet.import.duplicateReview")
-    }
-
-    @ViewBuilder
-    private var replacementProfileSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("교체 후 행동·이동 설정")
-                .font(.headline)
-
-            if request.importReview?.recommendedProfile != nil,
-               allowsRecommendedProfileApplication {
-                Picker(
-                    "교체 후 행동·이동 설정",
-                    selection: $replacementProfileChoice
-                ) {
-                    Text("현재 설정 유지")
-                        .tag(DuplicateReplacementProfileChoice.preserveLocal)
-                    Text("권장 설정으로 전체 교체")
-                        .tag(DuplicateReplacementProfileChoice.applyRecommended)
-                }
-                .labelsHidden()
-                .pickerStyle(.radioGroup)
-                .accessibilityIdentifier(
-                    "monglepet.import.replacementProfileChoice"
-                )
-
-                Text(replacementProfileChoiceDescription)
-                    .font(.caption)
-                    .foregroundStyle(
-                        replacementProfileChoice == .applyRecommended
-                            ? Color.orange
-                            : Color.secondary
-                    )
-            } else {
-                Label(
-                    replacementProfileUnavailableDescription,
-                    systemImage: allowsRecommendedProfileApplication
-                        ? "checkmark.shield"
-                        : "lock.fill"
-                )
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            }
-        }
-        .padding(12)
-        .background(
-            .quaternary.opacity(0.35),
-            in: RoundedRectangle(cornerRadius: 10)
-        )
-    }
-
-    private var replacementProfileChoiceDescription: String {
-        switch replacementProfileChoice {
-        case .preserveLocal:
-            "현재 설치의 평상시 행동, 루틴, 조건 규칙, 이동과 쓰다듬기 설정을 그대로 유지합니다."
-        case .applyRecommended:
-            "현재 펫별 표시·행동·이동·말풍선 설정 전체를 패키지 설정으로 바꿉니다. 화면 위치와 기기 공통 이동 범위는 유지합니다. 부분 병합은 제공하지 않습니다."
-        }
-    }
-
-    private var replacementProfileUnavailableDescription: String {
-        if !allowsRecommendedProfileApplication {
-            return "현재 설정 파일을 보호하기 위해 로컬 설정을 유지합니다."
-        }
-        if request.importReview?.containsRecommendedProfile == true {
-            return "이 패키지의 권장 설정을 적용할 수 없어 현재 로컬 설정을 유지합니다."
-        }
-        return "패키지에 권장 설정이 없어 현재 로컬 설정을 유지합니다."
-    }
-
-    private var selectedCandidate: DuplicatePetInstallationCandidate? {
-        request.candidates.first {
-            $0.installationID == selectedInstallationID
-        }
-    }
-
-    private var replacementDescription: String {
-        if selectedCandidate?.isEditable == true {
-            return "교체하면 선택한 펫 파일과 편집 가능 상태가 읽기 전용 패키지로 바뀝니다. 아래에서 행동·이동 설정 처리 방식을 선택하세요."
-        }
-        return "교체하면 선택한 설치 ID의 펫 파일이 바뀝니다. 아래에서 행동·이동 설정 처리 방식을 선택하세요."
-    }
-
-    private var newInstallationDescription: String {
-        if request.appliesRecommendedProfileToNewInstallation,
-           request.importReview?.recommendedProfile != nil {
-            return "새 설치는 새 설치 ID를 사용하며 확인한 표시·행동·이동·말풍선 설정을 적용합니다."
-        }
-        return "새 설치는 새 설치 ID와 독립된 기본 행동·이동 설정을 사용합니다."
-    }
-
-    @ViewBuilder
-    private func packageInformation(_ metadata: PetPackageMetadata) -> some View {
-        Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 8) {
-            importInformationRow("펫 이름", value: metadata.displayName)
-            importInformationRow("버전", value: metadata.version)
-            importInformationRow("제작자", value: metadata.author)
-            importInformationRow("패키지 ID", value: metadata.id)
-        }
-        .padding(12)
-        .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 10))
-    }
-
-    @ViewBuilder
-    private func candidateRow(
-        _ candidate: DuplicatePetInstallationCandidate
-    ) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(
-                systemName: candidate.installationID == selectedInstallationID
-                    ? "largecircle.fill.circle"
-                    : "circle"
-            )
-            .foregroundStyle(
-                candidate.installationID == selectedInstallationID
-                    ? Color.accentColor
-                    : Color.secondary
-            )
-
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
-                    Text(candidate.metadata.displayName)
-                        .fontWeight(.medium)
-                    if candidate.isCurrentlySelected {
-                        Text("현재 선택")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                    Text(candidate.isEditable ? "편집 가능" : "읽기 전용")
-                        .font(.caption2)
-                        .foregroundStyle(
-                            candidate.isEditable ? Color.blue : Color.secondary
-                        )
-                }
-                Text("버전 \(candidate.metadata.version) · 제작자 \(candidate.metadata.author)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                Text("설치 ID \(candidate.installationID.uuidString)")
-                    .font(.caption2.monospaced())
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
-            }
-            Spacer()
-        }
-        .contentShape(Rectangle())
-        .padding(12)
-    }
-
-    private func importInformationRow(
-        _ label: String,
-        value: String
-    ) -> some View {
-        GridRow {
-            Text(label)
-                .foregroundStyle(.secondary)
-            Text(value)
-                .textSelection(.enabled)
-        }
-    }
-}
 
 private struct PetPackageShareReviewView: View {
     @Environment(\.dismiss) private var dismiss
@@ -2020,7 +2055,7 @@ private struct PetPackageShareReviewView: View {
                     )
 
                     Text(
-                        "공유한 콘텐츠의 권리와 책임은 게시자에게 있으며, 받는 사용자는 편집 가능한 사본을 만들 수 있습니다."
+                        "공유한 콘텐츠의 권리와 책임은 게시자에게 있으며, 받는 사용자는 자신의 펫으로 가져와 편집할 수 있습니다."
                     )
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -2085,7 +2120,7 @@ private struct PetPackageShareReviewView: View {
                     .font(.caption)
                     .foregroundStyle(.orange)
                 } else if review.recommendedProfile == nil {
-                    Text("현재 펫에 공유할 평상시 행동·규칙·이동·말풍선 권장 설정이 없습니다.")
+                    Text("선택한 설치 펫에 공유할 평상시 행동·규칙·이동·말풍선 권장 설정이 없습니다.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {
@@ -2268,11 +2303,7 @@ private struct RecommendedProfileSummaryView: View {
                                 sequence.displayName
                             )
                                 .font(.caption.weight(.semibold))
-                            Text(
-                                sequence.repeats
-                                    ? "전체 반복"
-                                    : "한 번 재생"
-                            )
+                            Text("모든 단계 재생 후 마지막 프레임 유지")
                             .foregroundStyle(.secondary)
                             ForEach(
                                 Array(sequence.steps.enumerated()),
@@ -2905,6 +2936,8 @@ private struct UserPetAnimationEditorView: View {
     let mode: UserPetEditorMode
     @ObservedObject var petLibrarySession: PetLibrarySession
     @ObservedObject var settingsSession: AppSettingsSession
+    let prepareForSaving: () -> Bool
+    let duplicationSourceAnimationID: String?
 
     @State private var petName = ""
     @State private var version = "1.0.0"
@@ -2924,9 +2957,47 @@ private struct UserPetAnimationEditorView: View {
     @State private var existingBehaviorID = ""
     @State private var behaviorLinkErrorMessage: String?
 
+    init(
+        mode: UserPetEditorMode,
+        petLibrarySession: PetLibrarySession,
+        settingsSession: AppSettingsSession,
+        prepareForSaving: @escaping () -> Bool,
+        duplicating motion: PetMotion? = nil
+    ) {
+        self.mode = mode
+        self.petLibrarySession = petLibrarySession
+        self.settingsSession = settingsSession
+        self.prepareForSaving = prepareForSaving
+        duplicationSourceAnimationID = motion?.id
+        if let motion {
+            _animationName = State(initialValue: "\(motion.id) 사본")
+            _loops = State(initialValue: motion.loops)
+            let sourceDrafts = UserPetAnimationDraftFactory.existing(
+                item: petLibrarySession.selectedItem,
+                motion: motion
+            )
+            let frameDrafts: [UserPetAnimationFrameDraft] = sourceDrafts
+                .enumerated()
+                .flatMap { index, draft -> [UserPetAnimationFrameDraft] in
+                    guard let image = draft.previewImage else { return [] }
+                    return UserPetAnimationDraftFactory.new(
+                        images: [
+                            UserPetSourceImage(
+                                displayName: "\(motion.id) \(index + 1)번 프레임",
+                                image: image
+                            )
+                        ],
+                        durationMilliseconds: draft.durationMilliseconds
+                    )
+                }
+            _frames = State(initialValue: frameDrafts)
+            _selectedFrameID = State(initialValue: frameDrafts.first?.id)
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(mode == .create ? "새 펫 만들기" : "펫 애니메이션 추가")
+            Text(editorTitle)
                 .font(.title2.weight(.semibold))
                 .padding(.horizontal, 20)
                 .padding(.vertical, 16)
@@ -3014,6 +3085,16 @@ private struct UserPetAnimationEditorView: View {
                 appendExistingFrames(selections)
             }
         }
+    }
+
+    private var editorTitle: String {
+        if mode == .create {
+            return "새 펫 만들기"
+        }
+        if duplicationSourceAnimationID != nil {
+            return "애니메이션 복제"
+        }
+        return "펫 애니메이션 추가"
     }
 
     private var petInformationSection: some View {
@@ -3417,6 +3498,9 @@ private struct UserPetAnimationEditorView: View {
 
     private func save() {
         behaviorLinkErrorMessage = nil
+        guard mode == .create || prepareForSaving() else {
+            return
+        }
         let succeeded: Bool
         switch mode {
         case .create:
@@ -3450,7 +3534,7 @@ private struct UserPetAnimationEditorView: View {
                 )
                 behaviorLinkErrorMessage = rolledBack
                     ? "\(linkError) 추가한 애니메이션은 되돌렸습니다."
-                    : "\(linkError) 애니메이션은 추가되었을 수 있으니 펫 보관함에서 확인해 주세요."
+                    : "\(linkError) 애니메이션은 추가되었을 수 있으니 펫 정보·애니메이션에서 확인해 주세요."
                 return
             }
             dismiss()
@@ -3565,7 +3649,7 @@ private struct UserPetAnimationEditorView: View {
     }
 }
 
-private struct ReadOnlyPetCopyEditorView: View {
+private struct PetCopyEditorView: View {
     @Environment(\.dismiss) private var dismiss
     let item: PetLibraryItem
     @ObservedObject var petLibrarySession: PetLibrarySession
@@ -3586,7 +3670,7 @@ private struct ReadOnlyPetCopyEditorView: View {
             Text("펫 사본 새로 만들기")
                 .font(.title2.weight(.semibold))
 
-            Text("현재 펫은 그대로 보존됩니다. 사본은 새 패키지 ID를 가진 독립된 사용자 펫으로 설치되어 정보와 애니메이션을 수정할 수 있습니다.")
+            Text("현재 펫은 그대로 보존됩니다. 사본은 독립된 이미지·애니메이션과 설정을 가진 새 펫으로 추가됩니다.")
                 .foregroundStyle(.secondary)
 
             Form {
@@ -3596,8 +3680,6 @@ private struct ReadOnlyPetCopyEditorView: View {
                 LabeledContent("원본 펫", value: item.metadata.displayName)
                 LabeledContent("제작자", value: item.metadata.author)
                 LabeledContent("버전", value: item.metadata.version)
-                LabeledContent("원본 패키지 ID", value: item.metadata.id)
-                    .textSelection(.enabled)
             }
             .formStyle(.grouped)
 
@@ -3643,6 +3725,7 @@ private struct UserPetDetailsEditorView: View {
     @Environment(\.dismiss) private var dismiss
     let item: PetLibraryItem
     @ObservedObject var petLibrarySession: PetLibrarySession
+    let prepareForSaving: () -> Bool
 
     @State private var displayName: String
     @State private var version: String
@@ -3650,9 +3733,14 @@ private struct UserPetDetailsEditorView: View {
     @State private var petDescription: String
     @State private var defaultMotionID: String
 
-    init(item: PetLibraryItem, petLibrarySession: PetLibrarySession) {
+    init(
+        item: PetLibraryItem,
+        petLibrarySession: PetLibrarySession,
+        prepareForSaving: @escaping () -> Bool
+    ) {
         self.item = item
         self.petLibrarySession = petLibrarySession
+        self.prepareForSaving = prepareForSaving
         _displayName = State(initialValue: item.metadata.displayName)
         _version = State(initialValue: item.metadata.version)
         _author = State(initialValue: item.metadata.author)
@@ -3736,6 +3824,7 @@ private struct UserPetDetailsEditorView: View {
     }
 
     private func save() {
+        guard prepareForSaving() else { return }
         let succeeded = petLibrarySession.updateSelectedPetDetails(
             UserPetDetailsRequest(
                 displayName: displayName,
@@ -3756,6 +3845,7 @@ private struct UserPetAnimationDetailsEditorView: View {
     let motion: PetMotion
     @ObservedObject var petLibrarySession: PetLibrarySession
     @ObservedObject var settingsSession: AppSettingsSession
+    let prepareForSaving: () -> Bool
     let duplicationSourceAnimationID: String?
     let onSaved: (String) -> Void
 
@@ -3778,12 +3868,14 @@ private struct UserPetAnimationDetailsEditorView: View {
         motion: PetMotion,
         petLibrarySession: PetLibrarySession,
         settingsSession: AppSettingsSession,
+        prepareForSaving: @escaping () -> Bool,
         duplicationSourceAnimationID: String? = nil,
         onSaved: @escaping (String) -> Void
     ) {
         self.motion = motion
         self.petLibrarySession = petLibrarySession
         self.settingsSession = settingsSession
+        self.prepareForSaving = prepareForSaving
         self.duplicationSourceAnimationID = duplicationSourceAnimationID
         self.onSaved = onSaved
         _animationName = State(initialValue: motion.id)
@@ -4255,6 +4347,7 @@ private struct UserPetAnimationDetailsEditorView: View {
 
     private func save() {
         behaviorLinkErrorMessage = nil
+        guard prepareForSaving() else { return }
         let normalizedName = normalizedAnimationName
         let succeeded = petLibrarySession.updateSelectedPetAnimation(
             UserPetAnimationDetailsRequest(

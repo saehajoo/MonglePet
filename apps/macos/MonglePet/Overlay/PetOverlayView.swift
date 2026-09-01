@@ -11,6 +11,7 @@ struct PetAtlasImage {
 final class PetOverlayView: NSView {
     var onDragBegan: (() -> Void)?
     var onDragEnded: ((Bool) -> Void)?
+    var onDisplayedFrameChange: (() -> Void)?
     var allowsWindowDragging = true
 
     private var resources: PetPresentationResources
@@ -121,6 +122,7 @@ final class PetOverlayView: NSView {
         layer?.contentsRect = normalizedRect
         CATransaction.commit()
         displayedFrame = frame
+        onDisplayedFrameChange?()
         return true
     }
 
@@ -166,6 +168,37 @@ final class PetOverlayView: NSView {
         return alphaMask.containsVisiblePixel(
             normalizedX: normalizedPoint.x,
             normalizedY: normalizedPoint.y
+        )
+    }
+
+    func visibleContentBounds() -> NSRect? {
+        guard let displayedFrame,
+              let atlas = atlases[displayedFrame.atlasID],
+              let maskBounds = alphaMask(
+                  for: displayedFrame,
+                  atlas: atlas
+              )?.normalizedVisibleBounds else {
+            return nil
+        }
+        let contentWidth = Double(displayedFrame.sourceRect.width)
+        let contentHeight = Double(displayedFrame.sourceRect.height)
+        guard contentWidth > 0, contentHeight > 0,
+              bounds.width > 0, bounds.height > 0 else {
+            return nil
+        }
+        let scale = min(
+            Double(bounds.width) / contentWidth,
+            Double(bounds.height) / contentHeight
+        )
+        let displayedWidth = contentWidth * scale
+        let displayedHeight = contentHeight * scale
+        let minimumX = (Double(bounds.width) - displayedWidth) / 2
+        let minimumY = (Double(bounds.height) - displayedHeight) / 2
+        return NSRect(
+            x: minimumX + maskBounds.minX * displayedWidth,
+            y: minimumY + maskBounds.minY * displayedHeight,
+            width: maskBounds.width * displayedWidth,
+            height: maskBounds.height * displayedHeight
         )
     }
 

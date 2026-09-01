@@ -187,12 +187,26 @@ final class PetWindowController: NSWindowController {
                 )
             }
         )
-        speechBubbleController = PetSpeechBubbleWindowController(
+        let speechBubbleController = PetSpeechBubbleWindowController(
             parentWindow: panel,
             displaysProvider: { [weak environmentProvider] in
                 environmentProvider?.currentSnapshot.displays ?? []
+            },
+            anchorFrameProvider: { [weak panel, weak petOverlayView] in
+                guard let panel, let petOverlayView,
+                      let viewBounds = petOverlayView.visibleContentBounds()
+                else {
+                    return nil
+                }
+                let windowBounds = petOverlayView.convert(viewBounds, to: nil)
+                return panel.convertToScreen(windowBounds)
             }
         )
+        self.speechBubbleController = speechBubbleController
+        petOverlayView.onDisplayedFrameChange = {
+            [weak speechBubbleController] in
+            speechBubbleController?.refreshPlacement()
+        }
 
         super.init(window: panel)
         shouldCascadeWindows = false

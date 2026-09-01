@@ -67,6 +67,8 @@ MonglePet은 데스크톱 위에 반려 캐릭터를 표시하고 사용자의 �
 | 웹 URL 펫 가져오기 Windows 인계 | `AGENTS/guides/WINDOWS_WEB_PET_IMPORT_HANDOFF.md`, `AGENTS/specifications/PET_PACKAGE.md`와 `apps/windows/AGENTS.md` |
 | macOS 1.3 편집기·호환성·내장 펫 Windows 인계 | `AGENTS/guides/WINDOWS_MACOS_1_3_HANDOFF.md`, `AGENTS/guides/WINDOWS_BUILTIN_MONGLE_HANDOFF.md`와 `apps/windows/AGENTS.md` |
 | 행동 중심 설정·런타임 Windows 인계 | `AGENTS/guides/WINDOWS_BEHAVIOR_CENTRIC_HANDOFF.md`, `AGENTS/specifications/BEHAVIOR_MODEL.md`, `AGENTS/specifications/SETTINGS_SCHEMA.md`와 `apps/windows/AGENTS.md` |
+| 내 펫 통합·행동 1회 재생·말풍선 보정 Windows 인계 | `AGENTS/guides/WINDOWS_MY_PETS_RUNTIME_POLISH_HANDOFF.md`, `AGENTS/specifications/BEHAVIOR_MODEL.md`, `AGENTS/specifications/PET_PACKAGE.md`와 `apps/windows/AGENTS.md` |
+| 데스크톱 펫·설치한 펫 UX Windows 인계 | `AGENTS/guides/WINDOWS_DESKTOP_PET_LIBRARY_HANDOFF.md`, `AGENTS/specifications/PET_PACKAGE.md`, `AGENTS/specifications/SETTINGS_SCHEMA.md`와 `apps/windows/AGENTS.md` |
 | Windows 선반영 펫 제작기 결과의 macOS 후속 작업 | `AGENTS/guides/MACOS_PET_EDITOR_FOLLOWUP.md`, `AGENTS/specifications/PET_PACKAGE.md`와 `apps/macos/AGENTS.md` |
 | 내장 몽글이 Windows 인계 | `AGENTS/guides/WINDOWS_BUILTIN_MONGLE_HANDOFF.md`, `AGENTS/guides/WINDOWS_BUILTIN_MONGLE_PROMPT.md`와 `apps/windows/AGENTS.md` |
 | macOS 앱, Xcode, 배포 자동화 | `apps/macos/AGENTS.md` |

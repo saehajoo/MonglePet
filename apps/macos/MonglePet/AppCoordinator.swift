@@ -146,21 +146,20 @@ final class AppCoordinator: NSObject {
         settingsSession.onChange = { [weak self] settings in
             self?.settingsDidChange(settings)
         }
-        petLibrarySession.onSelectionChange = { [weak self] item in
-            self?.selectedPetDidChange(item)
+        petLibrarySession.onInstalledContentChange = { [weak self] item in
+            self?.installedPetContentDidChange(item)
+        }
+        petLibrarySession.onInstallationContentRemoved = { [weak self]
+            installationID in
+            self?.presentationResourceCache.invalidate(
+                .installed(installationID)
+            )
         }
         petLibrarySession.onInstallationRemoved = { [weak self] installationID in
             self?.installedPetDidRemove(installationID)
         }
         petLibrarySession.onAnimationReferenceChange = { [weak self] change in
             self?.petAnimationReferencesDidChange(change)
-        }
-        petLibrarySession.onRecommendedProfileApplied = {
-            [weak settingsSession] installationID, profile in
-            _ = settingsSession?.applyRecommendedProfile(
-                profile,
-                to: installationID
-            )
         }
         petLibrarySession.onNewUserPetInstallation = {
             [weak settingsSession] installed, purpose in
@@ -187,10 +186,24 @@ final class AppCoordinator: NSObject {
                         }
                         .first?.instanceID
                 }
+            case let .editableReplacement(_, instanceID):
+                try settingsSession.replacePetInstanceContent(
+                    instanceID,
+                    with: .installed(installed.installationID)
+                )
+                return
+            case .imported:
+                sourceInstanceID = nil
             }
             try settingsSession.addNewlyInstalledPetInstance(
                 for: .installed(installed.installationID),
-                copyingSettingsFrom: sourceInstanceID
+                copyingSettingsFrom: sourceInstanceID,
+                applyingRecommendedProfile: {
+                    if case let .imported(recommendedProfile) = purpose {
+                        return recommendedProfile
+                    }
+                    return nil
+                }()
             )
         }
         effectiveRuntimeControlSession.onSetAllPaused = {
@@ -270,6 +283,14 @@ final class AppCoordinator: NSObject {
         if effectiveInstallationID != settingsSession.settings.selectedPetInstallationID {
             settingsSession.setSelectedPetInstallationID(effectiveInstallationID)
         }
+        _ = settingsSession.recoverMissingPetInstances(
+            for: petLibrarySession.items.map {
+                PetBehaviorKey(
+                    installationID: $0.selection.installationID
+                )
+            },
+            publishesChange: false
+        )
         prepareAndRestoreStartupRuntimes(
             shouldRestorePosition: loadResult.shouldRestoreOverlayPosition
         )
@@ -622,18 +643,6 @@ final class AppCoordinator: NSObject {
             try? startupRecoveryStore.clear()
             shouldRestoreAfterRemovingPending = true
         }
-        if settings.selectedPetInstallationID != petLibrarySession.selectedInstallationID {
-            let effectiveInstallationID = petLibrarySession.reload(
-                preferredInstallationID: settings.selectedPetInstallationID
-            )
-            if effectiveInstallationID != settings.selectedPetInstallationID {
-                _ = petLibrarySession.select(.builtIn)
-                settingsSession.setSelectedPetInstallationID(
-                    effectiveInstallationID
-                )
-                return
-            }
-        }
         if !synchronizeActiveRuntimes(
             settings: settings,
             reason: .settingsChange
@@ -646,22 +655,11 @@ final class AppCoordinator: NSObject {
         }
     }
 
-    private func selectedPetDidChange(_ item: PetLibraryItem) {
+    private func installedPetContentDidChange(_ item: PetLibraryItem) {
         let selectedPetKey = PetBehaviorKey(
             installationID: item.selection.installationID
         )
-        let shouldInvalidateResources = item.selection != .builtIn
-            && settingsSession.settings.selectedPetKey == selectedPetKey
-        if settingsSession.settings.selectedPetKey != selectedPetKey {
-            settingsSession.setSelectedPetInstallationID(
-                item.selection.installationID
-            )
-            guard settingsSession.settings.selectedPetKey == selectedPetKey else {
-                return
-            }
-        }
-
-        if shouldInvalidateResources {
+        if item.selection != .builtIn {
             presentationResourceCache.invalidate(item.selection)
         }
 

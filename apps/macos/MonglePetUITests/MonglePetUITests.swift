@@ -21,7 +21,18 @@ final class MonglePetUITests: XCTestCase {
         XCTAssertTrue(app.windows["MonglePet 설정"].waitForExistence(timeout: 5))
 
         selectSettingsDestination(
-            "monglepet.settings.navigation.petLibrary",
+            "monglepet.settings.navigation.activePets",
+            in: app
+        )
+        XCTAssertTrue(
+            app.buttons["monglepet.settings.createUserPet"]
+                .waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(app.buttons["monglepet.settings.importPet"].exists)
+        XCTAssertTrue(app.buttons["monglepet.settings.createPetCopy"].exists)
+
+        selectSettingsDestination(
+            "monglepet.settings.navigation.petContent",
             in: app
         )
         XCTAssertTrue(
@@ -33,35 +44,8 @@ final class MonglePetUITests: XCTestCase {
                 .exists
         )
 
-        scrollPetTab(in: app, by: -280)
-
-        XCTAssertTrue(
-            app.buttons["monglepet.settings.importPackage"]
-                .waitForExistence(timeout: 5)
-        )
-        XCTAssertEqual(
-            app.buttons["monglepet.settings.importPackage"].label,
-            "패키지 파일 선택…"
-        )
-        XCTAssertTrue(
-            app.buttons["monglepet.settings.browseWebPets"].exists
-        )
-        XCTAssertTrue(
-            app.textFields["monglepet.settings.remotePetURL"].exists
-        )
-        XCTAssertTrue(
-            app.buttons["monglepet.settings.importRemotePackage"].exists
-        )
-        XCTAssertTrue(
-            app.buttons["monglepet.settings.createUserPet"].exists
-        )
-        XCTAssertTrue(
-            app.buttons["monglepet.settings.createEditablePetCopy"].exists
-        )
-        XCTAssertEqual(
-            app.buttons["monglepet.settings.createEditablePetCopy"].label,
-            "펫 사본 새로 만들기"
-        )
+        XCTAssertTrue(app.buttons["monglepet.settings.editPetDetails"].exists)
+        XCTAssertTrue(app.buttons["monglepet.settings.addPetAnimation"].exists)
 
         selectSettingsDestination(
             "monglepet.settings.navigation.general",
@@ -113,50 +97,29 @@ final class MonglePetUITests: XCTestCase {
         addButton.click()
 
         XCTAssertTrue(
-            app.staticTexts["활성 펫 추가"].waitForExistence(timeout: 5)
+            app.staticTexts["내 펫에 추가"].waitForExistence(timeout: 5)
         )
         XCTAssertTrue(app.buttons["추가"].exists)
         XCTAssertTrue(app.buttons["취소"].exists)
     }
 
     @MainActor
-    func testMovementSettingsTabShowsCurrentPetAndMode() throws {
+    func testSelectedPetSettingsAreSplitIntoNativeSidebarDestinations() throws {
         let app = XCUIApplication()
         app.launchArguments.append("--ui-testing-open-settings")
         app.launch()
 
         selectSettingsDestination(
-            "monglepet.settings.navigation.movement",
+            "monglepet.settings.navigation.display",
             in: app
         )
-
         XCTAssertTrue(
             app.descendants(matching: .any)["monglepet.settings.movementPetName"]
                 .waitForExistence(timeout: 5)
         )
         XCTAssertTrue(
-            app.descendants(matching: .any)["monglepet.settings.movementMode"]
-                .exists
-        )
-        XCTAssertTrue(
-            app.descendants(matching: .any)["monglepet.settings.awake"]
-                .exists
-        )
-        XCTAssertTrue(
             app.descendants(matching: .any)["monglepet.settings.overlayWidth"]
                 .exists
-        )
-        XCTAssertTrue(
-            app.descendants(matching: .any)[
-                "monglepet.settings.stationaryBehaviorMode"
-            ]
-            .exists
-        )
-        XCTAssertTrue(
-            app.descendants(matching: .any)[
-                "monglepet.settings.stationaryBehavior"
-            ]
-            .exists
         )
         let tenPercentButton =
             app.descendants(matching: .any)[
@@ -170,14 +133,44 @@ final class MonglePetUITests: XCTestCase {
             ]
             .waitForExistence(timeout: 2)
         )
-
         XCTAssertTrue(
             app.descendants(matching: .any)["monglepet.settings.clickThrough"]
                 .exists
         )
+
+        selectSettingsDestination(
+            "monglepet.settings.navigation.stationaryBehavior",
+            in: app
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)[
+                "monglepet.settings.stationaryBehaviorMode"
+            ]
+            .waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)[
+                "monglepet.settings.stationaryBehavior"
+            ]
+            .exists
+        )
+
+        selectSettingsDestination(
+            "monglepet.settings.navigation.movement",
+            in: app
+        )
+
+        XCTAssertTrue(
+            app.descendants(matching: .any)["monglepet.settings.movementMode"]
+                .waitForExistence(timeout: 5)
+        )
+        selectSettingsDestination(
+            "monglepet.settings.navigation.interaction",
+            in: app
+        )
         XCTAssertTrue(
             app.descendants(matching: .any)["monglepet.settings.pettingMotion"]
-                .exists
+                .waitForExistence(timeout: 5)
         )
     }
 

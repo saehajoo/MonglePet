@@ -134,6 +134,206 @@ final class AppSettingsSessionTests: XCTestCase {
     }
 
     @MainActor
+    func testRecoverMissingPetInstanceReusesProfileAndStartsAsleep() throws {
+        let installationID = UUID()
+        let profileID = UUID()
+        let orphanProfile = PetBehaviorProfileSettings(
+            profileID: profileID,
+            profile: BuiltInBehaviorPresets.defaultProfile(
+                for: .installed(installationID)
+            )
+        )
+        let defaults = AppSettings.default
+        let initial = AppSettings(
+            selectedPetInstanceID: defaults.selectedPetInstanceID,
+            activePetInstances: defaults.activePetInstances,
+            petBehaviorProfiles: defaults.petBehaviorProfiles + [orphanProfile]
+        )
+        let store = AppSettingsStore(settingsURL: settingsURL)
+        try store.save(initial)
+        let session = AppSettingsSession(store: store)
+        _ = session.load()
+
+        XCTAssertTrue(
+            session.recoverMissingPetInstances(
+                for: [.builtIn, .installed(installationID)]
+            )
+        )
+
+        let recovered = try XCTUnwrap(
+            session.settings.activePetInstances.first {
+                $0.petKey == .installed(installationID)
+            }
+        )
+        XCTAssertEqual(recovered.behaviorProfileID, profileID)
+        XCTAssertEqual(recovered.presentation, .tuckedAway)
+        XCTAssertEqual(session.settings.activePetInstances.count, 2)
+        XCTAssertEqual(store.load().settings, session.settings)
+
+        XCTAssertTrue(
+            session.recoverMissingPetInstances(
+                for: [.builtIn, .installed(installationID)]
+            )
+        )
+        XCTAssertEqual(session.settings.activePetInstances.count, 2)
+    }
+
+    @MainActor
+    func testPermanentPetDeletionRestoresSettingsWhenFileRemovalFails() throws {
+        enum RemovalFailure: Error { case failed }
+
+        let store = AppSettingsStore(settingsURL: settingsURL)
+        let session = AppSettingsSession(store: store)
+        _ = session.load()
+        let removableID = try XCTUnwrap(
+            session.addPetInstance(for: .installed(UUID()))
+        )
+        let previous = session.settings
+        var published: [AppSettings] = []
+        session.onChange = { published.append($0) }
+
+        XCTAssertFalse(
+            session.removePetInstance(
+                removableID,
+                removingInstallation: { throw RemovalFailure.failed }
+            )
+        )
+
+        XCTAssertEqual(session.settings, previous)
+        XCTAssertEqual(store.load().settings, previous)
+        XCTAssertEqual(published.count, 2)
+        XCTAssertNotNil(session.saveErrorMessage)
+    }
+
+    @MainActor
+    func testAddingDesktopPetWithRecommendedProfileCreatesIndependentSettings() throws {
+        let store = AppSettingsStore(settingsURL: settingsURL)
+        let session = AppSettingsSession(store: store)
+        _ = session.load()
+        let originalInstanceID = session.settings.selectedPetInstanceID
+        let installationID = UUID(
+            uuidString: "79000000-0000-0000-0000-000000000002"
+        )!
+        let sequence = BehaviorSequence(
+            id: "recommended",
+            steps: [BehaviorStep(motionID: "idle", repeatCount: 2)],
+            repeats: true
+        )
+        let profile = RecommendedPetProfile(
+            stationaryBehaviorMode: .fixed,
+            stationarySequenceID: sequence.id,
+            sequences: [sequence],
+            automaticRules: [],
+            movement: PetMovementSettings(
+                mode: .freeRoaming,
+                speed: 222,
+                cursorDistance: 96,
+                stopRadius: 20,
+                freeRoamingDwellMilliseconds: 4_500,
+                prefersFrontmostWindow: false,
+                cursorFollowingMotionID: nil,
+                freeRoamingMotionID: "idle"
+            ),
+            pettingMotionID: "recommended",
+            display: PortablePetDisplaySettings(
+                scalePercent: 50,
+                clickThrough: true,
+                opacity: 0.75,
+                pointerOverlapFadeEnabled: true,
+                pointerOverlapOpacity: 0.25,
+                pixelArtRendering: true
+            )
+        )
+
+        let newInstanceID = try XCTUnwrap(
+            session.addPetInstance(
+                for: .installed(installationID),
+                applyingRecommendedProfile: profile
+            )
+        )
+
+        XCTAssertNotEqual(newInstanceID, originalInstanceID)
+        XCTAssertEqual(session.settings.activePetInstances.count, 2)
+        XCTAssertEqual(session.settings.petBehaviorProfiles.count, 2)
+        XCTAssertEqual(session.settings.selectedPetInstanceID, newInstanceID)
+        XCTAssertEqual(session.settings.movementSettings.speed, 222)
+        XCTAssertEqual(session.settings.stationarySequenceID, sequence.id)
+        XCTAssertEqual(
+            session.settings.overlay.width,
+            AppSettingsLimits.defaultOverlayWidth * 0.5
+        )
+        XCTAssertTrue(session.settings.overlay.clickThrough)
+        let originalSettings = try XCTUnwrap(
+            session.settings.runtimeSettings(for: originalInstanceID)
+        )
+        XCTAssertEqual(originalSettings.movementSettings, .default)
+        XCTAssertEqual(
+            originalSettings.selectedPetInstance?.overlay,
+            AppSettings.default.overlay
+        )
+
+        let reloaded = AppSettingsSession(store: store)
+        XCTAssertEqual(reloaded.load().source, .file)
+        XCTAssertEqual(reloaded.settings, session.settings)
+    }
+
+    @MainActor
+    func testImportedPetTransactionPersistsRecommendedProfileBeforePublishing() throws {
+        let store = AppSettingsStore(settingsURL: settingsURL)
+        let session = AppSettingsSession(store: store)
+        _ = session.load()
+        let originalInstanceID = session.settings.selectedPetInstanceID
+        let installationID = UUID(
+            uuidString: "79000000-0000-0000-0000-000000000003"
+        )!
+        let sequence = BehaviorSequence(
+            id: "imported-recommended",
+            steps: [BehaviorStep(motionID: "idle", repeatCount: 3)],
+            repeats: true
+        )
+        let profile = RecommendedPetProfile(
+            stationaryBehaviorMode: .fixed,
+            stationarySequenceID: sequence.id,
+            sequences: [sequence],
+            automaticRules: [],
+            movement: .default,
+            pettingMotionID: nil,
+            display: PortablePetDisplaySettings(
+                scalePercent: 125,
+                clickThrough: true,
+                opacity: 0.8,
+                pointerOverlapFadeEnabled: false,
+                pointerOverlapOpacity: 0.2,
+                pixelArtRendering: true
+            )
+        )
+
+        let newInstanceID = try session.addNewlyInstalledPetInstance(
+            for: .installed(installationID),
+            copyingSettingsFrom: nil,
+            applyingRecommendedProfile: profile
+        )
+
+        XCTAssertNotEqual(newInstanceID, originalInstanceID)
+        XCTAssertEqual(session.settings.selectedPetInstanceID, newInstanceID)
+        XCTAssertEqual(session.settings.stationarySequenceID, sequence.id)
+        XCTAssertEqual(
+            session.settings.overlay.width,
+            AppSettingsLimits.defaultOverlayWidth * 1.25
+        )
+        XCTAssertTrue(session.settings.overlay.clickThrough)
+        XCTAssertEqual(
+            session.settings.runtimeSettings(for: originalInstanceID)?
+                .selectedPetInstance?.overlay,
+            AppSettings.default.overlay
+        )
+
+        let reloaded = AppSettingsSession(store: store)
+        XCTAssertEqual(reloaded.load().source, .file)
+        XCTAssertEqual(reloaded.settings, session.settings)
+    }
+
+    @MainActor
     func testOverlayOpacitySettingsClampApplyAndPersist() {
         let session = AppSettingsSession(
             store: AppSettingsStore(settingsURL: settingsURL)

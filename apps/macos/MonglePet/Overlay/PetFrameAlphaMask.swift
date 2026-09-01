@@ -30,6 +30,31 @@ nonisolated struct PetFrameAlphaMask: Equatable, Sendable {
         return alphaValues[y * width + x] > 0
     }
 
+    var normalizedVisibleBounds: CGRect? {
+        var minimumX = width
+        var minimumY = height
+        var maximumX = -1
+        var maximumY = -1
+
+        for y in 0..<height {
+            for x in 0..<width where alphaValues[y * width + x] > 0 {
+                minimumX = min(minimumX, x)
+                minimumY = min(minimumY, y)
+                maximumX = max(maximumX, x)
+                maximumY = max(maximumY, y)
+            }
+        }
+        guard maximumX >= minimumX, maximumY >= minimumY else {
+            return nil
+        }
+        return CGRect(
+            x: Double(minimumX) / Double(width),
+            y: Double(minimumY) / Double(height),
+            width: Double(maximumX - minimumX + 1) / Double(width),
+            height: Double(maximumY - minimumY + 1) / Double(height)
+        )
+    }
+
     static func normalizedContentPoint(
         pointX: Double,
         pointY: Double,

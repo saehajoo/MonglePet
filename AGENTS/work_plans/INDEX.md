@@ -8,6 +8,9 @@
 
 | 상태 | 작업명 | 파일 | 마지막 갱신 |
 | --- | --- | --- | --- |
+| in_progress | macOS 1.6.0 내 펫·런타임 보정 Preview 릴리스 | `tasks/2026-09-01-macos-1-6-my-pets-release.md` | 2026-09-01 |
+| in_progress | 내 펫 통합·행동 1회 재생·말풍선 배치 보정 | `tasks/2026-09-01-my-pets-one-shot-behavior-speech.md` | 2026-09-01 |
+| in_progress | 데스크톱 펫과 설치한 펫 역할 분리 | `tasks/2026-09-01-desktop-pet-library-ux.md` | 2026-09-01 |
 | in_progress | macOS 펫 제작기·활성 인스턴스 후속 동등성 | `tasks/2026-08-29-macos-pet-editor-followup.md` | 2026-08-29 |
 | in_progress | 행동 중심 실행 모델과 평상시 행동·규칙 분리 | `tasks/2026-08-26-behavior-centric-runtime.md` | 2026-08-30 |
 | in_progress | Windows macOS 1.3.1 호환성·이미지 편집기·내장 몽글이 동등성 | `tasks/2026-08-24-windows-macos-1-3-parity.md` | 2026-08-29 |

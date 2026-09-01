@@ -258,17 +258,18 @@ final class PetBehaviorRuntime {
             tickScheduler.cancel()
             motionScheduler.pause()
             lastAdvancedAt = now
-        case let .sequence(sequence, source):
+        case let .sequence(sequence, _):
             isDecisionPaused = false
             motionScheduler.resume()
-            let scheduledSequence = source == .random
-                ? BehaviorSequence(
-                    id: sequence.id,
-                    displayName: sequence.displayName,
-                    steps: sequence.steps,
-                    repeats: false
-                )
-                : sequence
+            // Behavior-level repetition is a legacy storage/package hint.
+            // Stationary and rule behavior runs once and holds its last frame;
+            // movement owns its separate while-moving looping scheduler.
+            let scheduledSequence = BehaviorSequence(
+                id: sequence.id,
+                displayName: sequence.displayName,
+                steps: sequence.steps,
+                repeats: false
+            )
             if restartBaseSequence {
                 _ = motionScheduler.restart(scheduledSequence)
             } else {
@@ -415,7 +416,7 @@ final class PetBehaviorRuntime {
             )
         )
         latestDecision = decision
-        apply(decision, at: now)
+        apply(decision, at: now, restartBaseSequence: true)
         return true
     }
 

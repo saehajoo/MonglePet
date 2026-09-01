@@ -268,9 +268,9 @@ extension UserPetEditingError: LocalizedError {
         case .cannotDeleteLastAnimation:
             "마지막 남은 펫 애니메이션은 삭제할 수 없습니다."
         case .importedPackageIsReadOnly:
-            "MonglePet에서 만든 펫만 직접 수정할 수 있습니다."
+            "펫 편집 준비를 완료하지 못했습니다. 다시 시도해 주세요."
         case .petIsAlreadyEditable:
-            "이미 편집 가능한 펫입니다."
+            "이 펫은 이미 수정할 수 있는 상태입니다."
         case .cannotWritePackage:
             "사용자 펫 패키지를 저장하지 못했습니다."
         }
@@ -313,6 +313,38 @@ nonisolated struct UserPetPackageEditor {
         }
         return marker.schemaVersion == 1
             && marker.packageID == installedPackage.package.metadata.id
+    }
+
+    func makeEditable(
+        _ installedPackage: InstalledPetPackage
+    ) throws -> InstalledPetPackage {
+        if isEditable(installedPackage) {
+            return installedPackage
+        }
+
+        return try withTemporaryPackage { packageURL in
+            do {
+                try fileManager.copyItem(
+                    at: installedPackage.rootURL,
+                    to: packageURL
+                )
+            } catch {
+                throw UserPetEditingError.cannotWritePackage
+            }
+
+            try writeMarker(
+                packageID: installedPackage.package.metadata.id,
+                to: packageURL
+            )
+            let validated = try loader.loadPackage(at: packageURL)
+            return try store.install(
+                packageAt: packageURL,
+                validatedPackage: validated,
+                mode: .replace(
+                    installationID: installedPackage.installationID
+                )
+            )
+        }
     }
 
     func createPet(_ request: UserPetCreationRequest) throws -> InstalledPetPackage {

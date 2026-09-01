@@ -71,15 +71,15 @@ final class PetLibrarySessionTests: XCTestCase {
         XCTAssertEqual(session.selection, .builtIn)
     }
 
-    func testSelectionPublishesSelectedItemAndRejectsUnknownInstallation() {
+    func testBrowseSelectionDoesNotPublishInstalledContentChange() {
         let installed = makeInstalled(id: firstID, name: "가람")
         let session = makeSession(packages: [installed])
         _ = session.reload(preferredInstallationID: nil)
         var receivedItems: [PetLibraryItem] = []
-        session.onSelectionChange = { receivedItems.append($0) }
+        session.onInstalledContentChange = { receivedItems.append($0) }
 
         XCTAssertTrue(session.select(.installed(firstID)))
-        XCTAssertEqual(receivedItems.map(\.selection), [.installed(firstID)])
+        XCTAssertTrue(receivedItems.isEmpty)
         XCTAssertFalse(session.select(.installed(secondID)))
         XCTAssertEqual(session.selection, .installed(firstID))
     }
@@ -99,18 +99,18 @@ final class PetLibrarySessionTests: XCTestCase {
         _ = session.reload(preferredInstallationID: firstID)
         var selections: [PetLibrarySelection] = []
         var removedInstallationIDs: [UUID] = []
-        session.onSelectionChange = { selections.append($0.selection) }
+        session.onInstalledContentChange = { selections.append($0.selection) }
         session.onInstallationRemoved = { removedInstallationIDs.append($0) }
 
         XCTAssertTrue(session.removeSelectedInstallation())
         XCTAssertEqual(removedIDs, [firstID])
         XCTAssertEqual(removedInstallationIDs, [firstID])
-        XCTAssertEqual(selections, [.builtIn])
+        XCTAssertTrue(selections.isEmpty)
         XCTAssertEqual(session.items.map(\.selection), [.builtIn])
         XCTAssertEqual(session.selection, .builtIn)
     }
 
-    func testInstallingPackageReloadsSelectsAndNotifiesRuntime() {
+    func testInstallingPackageCreatesSeparateContentAndRequestsActivePet() {
         let sourceURL = URL(fileURLWithPath: "/tmp/test.monglepet")
         let installed = makeInstalled(id: firstID, name: "가람")
         var packages: [InstalledPetPackage] = []
@@ -127,16 +127,24 @@ final class PetLibrarySessionTests: XCTestCase {
             }
         )
         var selections: [PetLibrarySelection] = []
-        session.onSelectionChange = { selections.append($0.selection) }
+        var purposes: [NewUserPetInstallationPurpose] = []
+        session.onInstalledContentChange = { selections.append($0.selection) }
+        session.onNewUserPetInstallation = { _, purpose in
+            purposes.append(purpose)
+        }
 
         XCTAssertTrue(session.installPackage(from: sourceURL))
-        XCTAssertEqual(requestedModes, [.rejectDuplicate])
+        XCTAssertEqual(requestedModes, [.installSeparately])
         XCTAssertEqual(session.selection, .installed(firstID))
         XCTAssertEqual(selections, [.installed(firstID)])
+        XCTAssertEqual(
+            purposes,
+            [.imported(recommendedProfile: nil)]
+        )
         XCTAssertNil(session.errorMessage)
     }
 
-    func testReviewedImportAppliesRecommendedProfileAfterSelection() {
+    func testReviewedImportAddsContentAndRequestsIndependentActivePet() {
         let sourceURL = URL(fileURLWithPath: "/tmp/recommended.monglepet")
         let installed = makeInstalled(id: firstID, name: "추천 펫")
         let profile = makeRecommendedProfile()
@@ -147,7 +155,7 @@ final class PetLibrarySessionTests: XCTestCase {
         )
         var packages: [InstalledPetPackage] = []
         var selectedIDs: [UUID?] = []
-        var appliedProfiles: [(UUID, RecommendedPetProfile)] = []
+        var purposes: [NewUserPetInstallationPurpose] = []
         let session = PetLibrarySession(
             builtInDefinition: builtInDefinition,
             installedPackagesProvider: { packages },
@@ -161,7 +169,7 @@ final class PetLibrarySessionTests: XCTestCase {
                 mode,
                 expectedReview in
                 XCTAssertEqual(receivedURL, sourceURL)
-                XCTAssertEqual(mode, .rejectDuplicate)
+                XCTAssertEqual(mode, .installSeparately)
                 XCTAssertEqual(expectedReview, review)
                 packages = [installed]
                 return PetPackageInstallationResult(
@@ -170,38 +178,32 @@ final class PetLibrarySessionTests: XCTestCase {
                 )
             }
         )
-        session.onSelectionChange = {
+        session.onInstalledContentChange = {
             selectedIDs.append($0.selection.installationID)
         }
-        session.onRecommendedProfileApplied = {
-            appliedProfiles.append(($0, $1))
+        session.onNewUserPetInstallation = { _, purpose in
+            purposes.append(purpose)
         }
-
         XCTAssertEqual(session.reviewPackageForImport(from: sourceURL), review)
-        XCTAssertTrue(
-            session.installReviewedPackage(
-                review,
-                appliesRecommendedProfile: true
-            )
-        )
+        XCTAssertTrue(session.installReviewedPackage(review))
         XCTAssertEqual(session.selection, .installed(firstID))
         XCTAssertEqual(selectedIDs, [firstID])
-        XCTAssertEqual(appliedProfiles.map(\.0), [firstID])
-        XCTAssertEqual(appliedProfiles.map(\.1), [profile])
+        XCTAssertEqual(
+            purposes,
+            [.imported(recommendedProfile: nil)]
+        )
         XCTAssertNil(session.errorMessage)
     }
 
     func testReviewedImportCanInstallPetWithoutRecommendedProfile() {
         let sourceURL = URL(fileURLWithPath: "/tmp/pet-only.monglepet")
         let installed = makeInstalled(id: firstID, name: "기본 설치 펫")
-        let profile = makeRecommendedProfile()
         let review = makeImportReview(
             sourceURL: sourceURL,
             installed: installed,
-            profile: profile
+            profile: nil
         )
         var packages: [InstalledPetPackage] = []
-        var appliedProfileCount = 0
         let session = PetLibrarySession(
             builtInDefinition: builtInDefinition,
             installedPackagesProvider: { packages },
@@ -214,21 +216,47 @@ final class PetLibrarySessionTests: XCTestCase {
                 )
             }
         )
-        session.onRecommendedProfileApplied = { _, _ in
-            appliedProfileCount += 1
-        }
-
-        XCTAssertTrue(
-            session.installReviewedPackage(
-                review,
-                appliesRecommendedProfile: false
-            )
-        )
+        XCTAssertTrue(session.installReviewedPackage(review))
         XCTAssertEqual(session.selection, .installed(firstID))
-        XCTAssertEqual(appliedProfileCount, 0)
     }
 
-    func testDuplicateSeparateInstallationKeepsRecommendedProfileChoice() {
+    func testReviewedImportRejectsUnavailableRecommendedProfile() {
+        let sourceURL = URL(fileURLWithPath: "/tmp/no-profile.monglepet")
+        let installed = makeInstalled(id: firstID, name: "권장 설정 없음")
+        let review = makeImportReview(
+            sourceURL: sourceURL,
+            installed: installed,
+            profile: nil
+        )
+        var didInstall = false
+        let session = PetLibrarySession(
+            builtInDefinition: builtInDefinition,
+            installedPackagesProvider: { [] },
+            installationRemover: { _ in },
+            reviewedPackageInstaller: { _, _, _ in
+                didInstall = true
+                return PetPackageInstallationResult(
+                    installedPackage: installed,
+                    importReview: review
+                )
+            }
+        )
+
+        XCTAssertFalse(
+            session.installReviewedPackage(
+                review,
+                appliesRecommendedProfile: true
+            )
+        )
+        XCTAssertFalse(didInstall)
+        XCTAssertEqual(
+            session.errorMessage,
+            PetPackageImportError.recommendedProfileUnavailable
+                .localizedDescription
+        )
+    }
+
+    func testDuplicateReviewedImportInstallsSeparately() {
         let sourceURL = URL(fileURLWithPath: "/tmp/duplicate-profile.monglepet")
         let existing = makeInstalled(
             id: firstID,
@@ -248,7 +276,6 @@ final class PetLibrarySessionTests: XCTestCase {
         )
         var packages = [existing]
         var requestedModes: [PetPackageInstallationMode] = []
-        var appliedProfiles: [(UUID, RecommendedPetProfile)] = []
         let session = PetLibrarySession(
             builtInDefinition: builtInDefinition,
             installedPackagesProvider: { packages },
@@ -268,29 +295,13 @@ final class PetLibrarySessionTests: XCTestCase {
                 )
             }
         )
-        session.onRecommendedProfileApplied = {
-            appliedProfiles.append(($0, $1))
-        }
+        XCTAssertTrue(session.installReviewedPackage(review))
 
-        XCTAssertFalse(
-            session.installReviewedPackage(
-                review,
-                appliesRecommendedProfile: true
-            )
-        )
-        XCTAssertTrue(
-            session.duplicateInstallRequest?
-                .appliesRecommendedProfileToNewInstallation == true
-        )
-        session.installDuplicateSeparately()
-
-        XCTAssertEqual(requestedModes, [.rejectDuplicate, .installSeparately])
+        XCTAssertEqual(requestedModes, [.installSeparately])
         XCTAssertEqual(session.selection, .installed(secondID))
-        XCTAssertEqual(appliedProfiles.map(\.0), [secondID])
-        XCTAssertEqual(appliedProfiles.map(\.1), [profile])
     }
 
-    func testDuplicateReplacementPreservesByDefaultAndCanExplicitlyApplyProfile() {
+    func testDuplicateReviewedImportDoesNotReplaceExistingInstallation() {
         let sourceURL = URL(fileURLWithPath: "/tmp/replacement-profile.monglepet")
         let existing = makeInstalled(
             id: firstID,
@@ -299,8 +310,8 @@ final class PetLibrarySessionTests: XCTestCase {
             version: "1.0.0"
         )
         let replacement = makeInstalled(
-            id: firstID,
-            name: "교체 펫",
+            id: secondID,
+            name: "새 설치 펫",
             packageID: "test.replacement",
             version: "2.0.0"
         )
@@ -312,65 +323,104 @@ final class PetLibrarySessionTests: XCTestCase {
         )
         var packages = [existing]
         var requestedModes: [PetPackageInstallationMode] = []
-        var appliedProfiles: [(UUID, RecommendedPetProfile)] = []
         let session = PetLibrarySession(
             builtInDefinition: builtInDefinition,
             installedPackagesProvider: { packages },
             installationRemover: { _ in },
             reviewedPackageInstaller: { _, mode, _ in
                 requestedModes.append(mode)
-                if mode == .rejectDuplicate {
-                    throw PetLibraryError.duplicatePackage(
-                        metadata: review.metadata,
-                        installationIDs: [self.firstID]
-                    )
-                }
-                packages = [replacement]
+                packages.append(replacement)
                 return PetPackageInstallationResult(
                     installedPackage: replacement,
                     importReview: review
                 )
             }
         )
-        session.onRecommendedProfileApplied = {
-            appliedProfiles.append(($0, $1))
-        }
-
-        XCTAssertFalse(
-            session.installReviewedPackage(
-                review,
-                appliesRecommendedProfile: false
-            )
-        )
-        session.replaceDuplicateInstallation(firstID)
-        XCTAssertTrue(appliedProfiles.isEmpty)
-
-        packages = [existing]
-        XCTAssertFalse(
-            session.installReviewedPackage(
-                review,
-                appliesRecommendedProfile: false
-            )
-        )
-        session.replaceDuplicateInstallation(
-            firstID,
-            appliesRecommendedProfile: true
-        )
-
-        XCTAssertEqual(
-            requestedModes,
-            [
-                .rejectDuplicate,
-                .replace(installationID: firstID),
-                .rejectDuplicate,
-                .replace(installationID: firstID)
-            ]
-        )
-        XCTAssertEqual(appliedProfiles.map(\.0), [firstID])
-        XCTAssertEqual(appliedProfiles.map(\.1), [profile])
+        XCTAssertTrue(session.installReviewedPackage(review))
+        XCTAssertEqual(requestedModes, [.installSeparately])
+        XCTAssertEqual(packages.map(\.installationID), [firstID, secondID])
+        XCTAssertEqual(packages.first?.package.metadata.version, "1.0.0")
     }
 
-    func testDuplicateInstallCanRetryAsSeparateCopyOrReplacement() {
+    func testReviewedImportRequestsNewActivePetWithRecommendedProfile() {
+        let sourceURL = URL(fileURLWithPath: "/tmp/profile.monglepet")
+        let installed = makeInstalled(id: secondID, name: "권장 펫")
+        let profile = makeRecommendedProfile()
+        let review = makeImportReview(
+            sourceURL: sourceURL,
+            installed: installed,
+            profile: profile
+        )
+        var packages: [InstalledPetPackage] = []
+        let session = PetLibrarySession(
+            builtInDefinition: builtInDefinition,
+            installedPackagesProvider: { packages },
+            installationRemover: { _ in },
+            reviewedPackageInstaller: { _, _, _ in
+                packages.append(installed)
+                return PetPackageInstallationResult(
+                    installedPackage: installed,
+                    importReview: review
+                )
+            }
+        )
+        var purposes: [NewUserPetInstallationPurpose] = []
+        session.onNewUserPetInstallation = { _, purpose in
+            purposes.append(purpose)
+        }
+
+        XCTAssertTrue(
+            session.installReviewedPackage(
+                review,
+                appliesRecommendedProfile: true
+            )
+        )
+        XCTAssertEqual(
+            purposes,
+            [.imported(recommendedProfile: profile)]
+        )
+        XCTAssertEqual(session.selection, .installed(secondID))
+    }
+
+    func testReviewedImportRollsBackInstallationWhenSettingsSaveFails() {
+        let sourceURL = URL(fileURLWithPath: "/tmp/rollback.monglepet")
+        let original = makeInstalled(id: firstID, name: "기존 펫")
+        let installed = makeInstalled(id: secondID, name: "실패 펫")
+        let review = makeImportReview(
+            sourceURL: sourceURL,
+            installed: installed,
+            profile: nil
+        )
+        var packages = [original]
+        var removedIDs: [UUID] = []
+        let session = PetLibrarySession(
+            builtInDefinition: builtInDefinition,
+            installedPackagesProvider: { packages },
+            installationRemover: { installationID in
+                removedIDs.append(installationID)
+                packages.removeAll { $0.installationID == installationID }
+            },
+            reviewedPackageInstaller: { _, _, _ in
+                packages.append(installed)
+                return PetPackageInstallationResult(
+                    installedPackage: installed,
+                    importReview: review
+                )
+            }
+        )
+        _ = session.reload(preferredInstallationID: firstID)
+        session.onNewUserPetInstallation = { _, _ in
+            throw AppSettingsMutationError.saveFailed("테스트 실패")
+        }
+
+        XCTAssertFalse(session.installReviewedPackage(review))
+        XCTAssertEqual(removedIDs, [secondID])
+        XCTAssertEqual(packages.map(\.installationID), [firstID])
+        XCTAssertEqual(session.selection, .installed(firstID))
+        XCTAssertTrue(session.errorMessage?.contains("되돌렸습니다") == true)
+    }
+
+    func testDuplicatePackageIDInstallsImmediatelyAsSeparateCopy() {
         let sourceURL = URL(fileURLWithPath: "/tmp/test.monglepet")
         let thirdID = UUID(
             uuidString: "33333333-3333-3333-3333-333333333333"
@@ -401,71 +451,26 @@ final class PetLibrarySessionTests: XCTestCase {
             installationRemover: { _ in },
             packageInstaller: { _, mode in
                 requestedModes.append(mode)
-                if mode == .rejectDuplicate {
-                    throw PetLibraryError.duplicatePackage(
-                        metadata: incoming.package.metadata,
-                        installationIDs: [self.firstID]
-                            + [self.secondID]
-                    )
-                }
-                let installed: InstalledPetPackage
-                switch mode {
-                case .rejectDuplicate:
-                    XCTFail("중복 거부 모드는 위에서 오류를 발생시켜야 합니다.")
-                    installed = incoming
-                case .installSeparately:
-                    installed = incoming
-                case let .replace(installationID):
-                    installed = self.makeInstalled(
-                        id: installationID,
-                        name: incoming.package.metadata.displayName,
-                        packageID: incoming.package.metadata.id,
-                        version: incoming.package.metadata.version
-                    )
-                }
-                packages = [installed]
-                return installed
+                packages.append(incoming)
+                return incoming
             },
             editablePackageProvider: { $0.installationID == self.firstID }
         )
         _ = session.reload(preferredInstallationID: secondID)
 
-        XCTAssertFalse(session.installPackage(from: sourceURL))
-        guard let duplicateRequest = session.duplicateInstallRequest else {
-            return XCTFail("중복 설치 선택 요청이 필요합니다.")
+        XCTAssertTrue(session.installPackage(from: sourceURL))
+        XCTAssertEqual(requestedModes, [.installSeparately])
+        XCTAssertEqual(
+            packages.map(\.installationID),
+            [firstID, secondID, thirdID]
+        )
+        XCTAssertEqual(session.selection, .installed(thirdID))
+        for (index, item) in session.items.filter({ !$0.isBuiltIn }).enumerated() {
+            XCTAssertEqual(
+                session.libraryDisplayLabel(for: item),
+                "\(item.metadata.displayName) · \(item.metadata.version) · 설치 \(index + 1)"
+            )
         }
-        XCTAssertEqual(duplicateRequest.packageID, "test.pet")
-        XCTAssertEqual(duplicateRequest.incomingMetadata.version, "2.0.0")
-        XCTAssertEqual(
-            duplicateRequest.candidates.map(\.installationID),
-            [secondID, firstID]
-        )
-        XCTAssertEqual(
-            duplicateRequest.preferredReplacementInstallationID,
-            secondID
-        )
-        XCTAssertEqual(
-            duplicateRequest.candidates.map(\.isEditable),
-            [false, true]
-        )
-        session.installDuplicateSeparately()
-        XCTAssertEqual(requestedModes, [.rejectDuplicate, .installSeparately])
-        XCTAssertNil(session.duplicateInstallRequest)
-
-        packages = [first, second]
-        _ = session.reload(preferredInstallationID: secondID)
-        XCTAssertFalse(session.installPackage(from: sourceURL))
-        session.replaceDuplicateInstallation(firstID)
-        XCTAssertEqual(
-            requestedModes,
-            [
-                .rejectDuplicate,
-                .installSeparately,
-                .rejectDuplicate,
-                .replace(installationID: firstID)
-            ]
-        )
-        XCTAssertEqual(session.selection, .installed(firstID))
     }
 
     func testCreatingUserPetReloadsSelectsAndMarksEditableItem() {
@@ -491,7 +496,7 @@ final class PetLibrarySessionTests: XCTestCase {
         )
         var selections: [PetLibrarySelection] = []
         var purposes: [NewUserPetInstallationPurpose] = []
-        session.onSelectionChange = { selections.append($0.selection) }
+        session.onInstalledContentChange = { selections.append($0.selection) }
         session.onNewUserPetInstallation = { received, purpose in
             XCTAssertEqual(received, installed)
             purposes.append(purpose)
@@ -523,7 +528,7 @@ final class PetLibrarySessionTests: XCTestCase {
         _ = session.reload(preferredInstallationID: firstID)
         var selections: [PetLibrarySelection] = []
         var purposes: [NewUserPetInstallationPurpose] = []
-        session.onSelectionChange = { selections.append($0.selection) }
+        session.onInstalledContentChange = { selections.append($0.selection) }
         session.onNewUserPetInstallation = { received, purpose in
             XCTAssertEqual(received, copy)
             purposes.append(purpose)
@@ -573,7 +578,7 @@ final class PetLibrarySessionTests: XCTestCase {
         )
         _ = session.reload(preferredInstallationID: firstID)
         var selections: [PetLibrarySelection] = []
-        session.onSelectionChange = { selections.append($0.selection) }
+        session.onInstalledContentChange = { selections.append($0.selection) }
         session.onNewUserPetInstallation = { _, _ in
             throw AppSettingsMutationError.saveFailed("테스트 실패")
         }
@@ -586,7 +591,7 @@ final class PetLibrarySessionTests: XCTestCase {
         XCTAssertTrue(session.errorMessage?.contains("되돌렸습니다") == true)
     }
 
-    func testFailedRollbackLeavesInstallationInactiveWithRecoveryMessage() {
+    func testFailedRollbackKeepsInstallationDiscoverableWithRecoveryMessage() {
         let original = makeInstalled(id: firstID, name: "기존 펫")
         let created = makeInstalled(id: secondID, name: "정리 실패 펫")
         var packages = [original]
@@ -619,7 +624,11 @@ final class PetLibrarySessionTests: XCTestCase {
             Set(session.items.compactMap { $0.selection.installationID }),
             Set([firstID, secondID])
         )
-        XCTAssertTrue(session.errorMessage?.contains("비활성 설치 항목") == true)
+        XCTAssertTrue(
+            session.errorMessage?.contains(
+                "앱을 다시 시작한 뒤 내 펫에서 확인"
+            ) == true
+        )
     }
 
     func testCreatingEditableCopyFromEditablePetKeepsOriginal() {
@@ -673,7 +682,7 @@ final class PetLibrarySessionTests: XCTestCase {
         )
         _ = session.reload(preferredInstallationID: firstID)
         var selections: [PetLibraryItem] = []
-        session.onSelectionChange = { selections.append($0) }
+        session.onInstalledContentChange = { selections.append($0) }
 
         XCTAssertTrue(session.updateSelectedPetDetails(request))
         XCTAssertEqual(session.selection, .installed(firstID))

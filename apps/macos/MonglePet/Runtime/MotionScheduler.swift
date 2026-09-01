@@ -125,7 +125,7 @@ nonisolated struct MotionScheduler: Sendable {
             return true
         }
 
-        if baseCursor.sequence == sequence, !baseCursor.isComplete {
+        if baseCursor.sequence == sequence {
             pendingSequence = nil
             return false
         }

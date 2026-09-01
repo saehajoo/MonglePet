@@ -54,7 +54,7 @@ nonisolated enum BehaviorSettingsEditor {
     static func addingSequence(
         named name: String,
         initialMotionID: String = PetMotionReference.currentPetDefault,
-        repeats: Bool = true,
+        repeats: Bool = false,
         to settings: AppSettings
     ) throws -> AppSettings {
         guard settings.sequences.count < AppSettingsLimits.maximumSequences else {

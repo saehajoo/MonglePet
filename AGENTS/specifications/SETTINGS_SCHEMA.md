@@ -312,9 +312,9 @@ schema-v2는 schema-v1의 최상위 전역 행동 필드를 펫별 `behaviorProf
 - 행동의 `mode`, `manualSequenceID`, `sequences`, `automaticRules`, 쓰다듬기 애니메이션과 이동의 `movement` 전체가 프로필에 속한다.
 - 선택한 펫의 프로필이 없으면 시스템 `기본` 루틴 하나와 자동 규칙 0개로 생성한다.
 - 같은 설치 UUID를 업데이트하거나 편집해도 프로필을 유지한다.
-- 가져오기 교체에서 사용자가 권장 설정 전체 적용을 명시적으로 선택한 경우에만 해당 설치 UUID의 프로필과 현재 권장 프로필 v11의 휴대 표시 옵션을 한 번에 교체한다. 다른 펫 프로필과 화면 좌표·디스플레이·모든 펫 공통 이동 범위·표시 상태는 유지한다.
-- 별도 사본 설치와 새 사용자 펫은 독립 프로필을 만든다.
-- 앱에서 설치 펫 삭제를 확인하면 해당 설치 UUID의 행동 프로필을 함께 제거하고 내장 몽글이를 선택한다.
+- 일반 가져오기는 기존 프로필을 바꾸지 않고 항상 새 installation·instance·profile UUID를 한 작업으로 만든다. 권장 프로필 v11의 휴대 설정은 새 profile·overlay에만 복사한다.
+- 가져오기, 콘텐츠 재추가, 별도 사본 설치와 새 사용자 펫은 모두 독립 프로필을 만든다.
+- 재우기는 instance·profile·installation을 모두 유지한다. 완전 삭제는 해당 instance와 전용 profile을 제거하고 같은 installation을 참조하는 다른 instance가 없으면 installation 콘텐츠도 함께 제거한다. 파일 정리가 실패하면 이전 settings를 다시 저장하고 instance를 복원한다.
 - 앱 시작 시 설치 폴더 누락·손상 등으로 선택 펫을 찾지 못하면 내장 몽글이를 선택하되, 연결이 끊긴 행동 설정은 자동 삭제하지 않는다. 사용자가 앱에서 명시적으로 삭제한 경우에만 제거한다.
 - `.monglepet` 공유 권장 프로필은 화면 좌표와 설치 식별자를 제외한 별도 DTO를 사용한다. 새 설치에서 사용자가 적용을 선택하면 설치 UUID를 키로 하는 로컬 `BehaviorProfile`과 휴대 표시 옵션으로 변환해 원자적으로 저장한다.
 
@@ -500,6 +500,7 @@ schema-v11은 설치된 펫 콘텐츠와 화면에 표시되는 활성 펫을 �
 
 - `instanceID`는 화면에 표시되는 펫 하나의 안정적인 UUID다. 같은 설치 펫을 여러 번 추가해도 항상 새 값을 사용한다.
 - `selectedPetInstanceID`는 설정에서 편집하는 대상을 가리키며 유일한 실행 펫을 뜻하지 않는다.
+- 과거 데이터에서 installation은 있지만 이를 참조하는 active instance가 없으면 시작 시 미참조 기존 profile을 우선 연결한 새 instance를 만들고 `tuckedAway`로 복구한다. 별도 보관 상태나 탐색 선택은 settings schema에 추가하지 않는다.
 - `petKey`는 내장 펫 또는 로컬 `installationID`를 가리킨다. 패키지 ID나 웹 게시물 ID를 실행 인스턴스 식별자로 사용하지 않는다.
 - `nickname`은 선택적인 사용자 구분 이름이다. 값이 없으면 펫 원본 이름을 표시하며 원본 metadata는 변경하지 않는다.
 - `presentation`, `overlay`, 이동·행동·말풍선을 담은 행동 프로필은 인스턴스마다 독립적이다.
@@ -510,6 +511,9 @@ schema-v11은 설치된 펫 콘텐츠와 화면에 표시되는 활성 펫을 �
 - `nickname`은 앞뒤 공백이 없는 1~80자이며 잘못된 값은 원본 펫 이름을 사용하는 `null` 또는 안전한 길이로 복구한다.
 - `displayOrder`는 파일에 적힌 순서와 값을 안정적으로 정렬한 뒤 중복·간격을 0부터 연속된 값으로 복구한다.
 - 제품 UI에는 활성 펫 마릿수 상한을 두지 않는다. 파일 크기 5MiB와 인스턴스·프로필 각각 10,000개 검증은 손상되거나 조작된 설정 파일이 창을 무제한 생성하지 못하게 하는 기술적 방어 경계다.
+- 완전 삭제 확인은 이미지·애니메이션과 크기·행동·이동·쓰다듬기·말풍선 등 개인 설정이 복원되지 않음을 안내한다. 같은 installation을 참조하는 다른 instance가 있으면 콘텐츠는 그 instance를 위해 유지한다.
+- 내장 또는 공유 installation을 편집할 때는 새 installation을 publish한 뒤 선택 instance의 `petKey`와 연결 profile의 `petKey`만 함께 교체한다. instance UUID, profile UUID, overlay와 나머지 설정은 보존하고 settings 저장 실패 시 새 installation을 제거한다.
+- 행동 sequence의 `repeats` 필드는 schema-v1~v15와 권장 프로필 왕복을 위해 보존한다. 새 행동은 `false`로 저장하며 일반 행동 runtime은 과거 `true`도 1회 재생으로 해석한다. 이 제품 의미 변경만으로 schema를 올리거나 기존 파일을 다시 쓰지 않는다.
 
 schema-v10에서 v11으로 마이그레이션할 때 현재 선택 펫을 새 `instanceID`의 첫 활성 인스턴스로 만들고 기존 표시 상태와 overlay를 그대로 옮긴다. 선택 펫의 기존 프로필에는 새 `profileID`를 부여해 연결한다. 선택 펫 프로필이 없으면 시스템 `기본` 루틴을 가진 새 프로필을 만들며, 선택되지 않았던 나머지 펫 프로필도 각각 새 UUID를 부여해 삭제하지 않고 보존한다.
 

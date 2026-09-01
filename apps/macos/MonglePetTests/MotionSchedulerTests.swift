@@ -99,6 +99,23 @@ final class MotionSchedulerTests: XCTestCase {
         XCTAssertEqual(scheduler.activeCycleRemainingDuration, .seconds(1))
     }
 
+    func testIdenticalCompletedSequenceRequestKeepsLastFrame() throws {
+        var scheduler = MotionScheduler(petDefinition: makePet())
+        let oneShot = makeSequence(
+            id: "one-shot",
+            steps: [makeStep(motionID: "rest", repeatCount: 1)],
+            repeats: false
+        )
+
+        XCTAssertTrue(scheduler.request(oneShot))
+        scheduler.advance(by: .seconds(5))
+        XCTAssertEqual(scheduler.activeCycleRemainingDuration, .zero)
+
+        XCTAssertFalse(scheduler.request(oneShot))
+        XCTAssertEqual(try playback(from: scheduler).motion.id, "rest")
+        XCTAssertEqual(scheduler.activeCycleRemainingDuration, .zero)
+    }
+
     func testEditedNonRepeatingSequenceWithSameIDRestartsAfterCompletion() throws {
         var scheduler = MotionScheduler(petDefinition: makePet())
         let original = makeSequence(

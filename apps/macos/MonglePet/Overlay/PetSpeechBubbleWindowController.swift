@@ -86,16 +86,20 @@ final class PetSpeechBubbleWindowController {
     private var currentPlacement: PetSpeechBubblePlacementSettings = .default
     private var currentTailEdge: PetSpeechBubbleTailEdge = .bottom
     private var currentTailAnchorX: Double?
+    private var lockedAutomaticPosition: PetSpeechBubblePreferredPosition?
     private let displaysProvider: () -> [PetDesktopDisplaySnapshot]
+    private let anchorFrameProvider: () -> NSRect?
 
     init(
         parentWindow: NSWindow,
         displaysProvider: @escaping () -> [PetDesktopDisplaySnapshot] = {
             AppKitDisplayLayoutReader.currentDisplaySnapshots()
-        }
+        },
+        anchorFrameProvider: @escaping () -> NSRect? = { nil }
     ) {
         self.parentWindow = parentWindow
         self.displaysProvider = displaysProvider
+        self.anchorFrameProvider = anchorFrameProvider
         panel = NSPanel(
             contentRect: .zero,
             styleMask: [.borderless, .nonactivatingPanel],
@@ -143,6 +147,7 @@ final class PetSpeechBubbleWindowController {
         currentText = text
         currentTheme = theme
         currentPlacement = placement
+        lockedAutomaticPosition = nil
         let bubbleView = PetSpeechBubbleContentView(
             text: text,
             theme: theme,
@@ -155,9 +160,10 @@ final class PetSpeechBubbleWindowController {
             height: min(max(fittingSize.height, 44), 260)
         )
         let placement = bubblePlacement(
-            parentFrame: parentWindow.frame,
+            parentFrame: effectiveAnchorFrame(parentWindow: parentWindow),
             bubbleSize: size
         )
+        updateAutomaticPositionLock(for: placement.tailEdge)
         currentTailEdge = placement.tailEdge
         currentTailAnchorX = placement.tailAnchorX
         hostingView.rootView = PetSpeechBubbleContentView(
@@ -183,6 +189,11 @@ final class PetSpeechBubbleWindowController {
     func hide() {
         panel.parent?.removeChildWindow(panel)
         panel.orderOut(nil)
+        lockedAutomaticPosition = nil
+    }
+
+    func refreshPlacement() {
+        updatePlacementIfVisible()
     }
 
     private func bubblePlacement(
@@ -226,7 +237,7 @@ final class PetSpeechBubbleWindowController {
                 width: visibleFrame.width,
                 height: visibleFrame.height
             ),
-            settings: currentPlacement
+            settings: effectivePlacementSettings
         )
         return (
             NSPoint(
@@ -247,15 +258,45 @@ final class PetSpeechBubbleWindowController {
         )
     }
 
+    private var effectivePlacementSettings: PetSpeechBubblePlacementSettings {
+        guard currentPlacement.preferredPosition == .automatic,
+              let lockedAutomaticPosition else {
+            return currentPlacement
+        }
+        return PetSpeechBubblePlacementSettings(
+            preferredPosition: lockedAutomaticPosition,
+            horizontalOffset: currentPlacement.horizontalOffset,
+            gap: currentPlacement.gap
+        )
+    }
+
+    private func effectiveAnchorFrame(parentWindow: NSWindow) -> NSRect {
+        anchorFrameProvider() ?? parentWindow.frame
+    }
+
+    private func updateAutomaticPositionLock(
+        for tailEdge: PetSpeechBubbleTailEdge
+    ) {
+        guard currentPlacement.preferredPosition == .automatic else {
+            return
+        }
+        lockedAutomaticPosition = tailEdge == .bottom ? .above : .below
+    }
+
     @objc
     private func parentWindowDidMove() {
+        updatePlacementIfVisible()
+    }
+
+    private func updatePlacementIfVisible() {
         guard let parentWindow, panel.isVisible else {
             return
         }
         let placement = bubblePlacement(
-            parentFrame: parentWindow.frame,
+            parentFrame: effectiveAnchorFrame(parentWindow: parentWindow),
             bubbleSize: panel.frame.size
         )
+        updateAutomaticPositionLock(for: placement.tailEdge)
         if placement.tailEdge != currentTailEdge
             || placement.tailAnchorX != currentTailAnchorX {
             currentTailEdge = placement.tailEdge

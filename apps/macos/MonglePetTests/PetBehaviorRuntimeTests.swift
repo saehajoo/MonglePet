@@ -136,6 +136,41 @@ final class PetBehaviorRuntimeTests: XCTestCase {
         XCTAssertEqual(tickScheduler.scheduledDelay, .milliseconds(100))
     }
 
+    func testFixedBehaviorIgnoresLegacyRepeatFlagAndHoldsLastFrame() {
+        let clock = ManualBehaviorRuntimeClock()
+        let tickScheduler = ManualBehaviorTickScheduler()
+        let runtime = PetBehaviorRuntime(
+            petDefinition: makePet(),
+            clock: clock,
+            tickScheduler: tickScheduler
+        ) { _ in }
+        let sequence = BehaviorSequence(
+            id: "legacy-looping-behavior",
+            steps: [BehaviorStep(motionID: "focus", repeatCount: 1)],
+            repeats: true
+        )
+        let settings = AppSettings(
+            selectedPetInstallationID: nil,
+            lastUserPresentation: .awake,
+            behaviorMode: .manual,
+            overlay: .default,
+            manualSequenceID: sequence.id,
+            sequences: [sequence],
+            automaticRules: []
+        )
+
+        runtime.update(settings: settings, snapshot: snapshot())
+        clock.advance(by: .milliseconds(100))
+        tickScheduler.fire()
+
+        XCTAssertEqual(runtime.currentPlayback?.motion.id, "focus")
+        XCTAssertNil(tickScheduler.scheduledDelay)
+
+        runtime.update(settings: settings, snapshot: snapshot())
+        XCTAssertEqual(runtime.currentPlayback?.motion.id, "focus")
+        XCTAssertNil(tickScheduler.scheduledDelay)
+    }
+
     func testSuspensionCancelsTickAndPreservesRemainingStepTime() {
         let clock = ManualBehaviorRuntimeClock()
         let tickScheduler = ManualBehaviorTickScheduler()

@@ -1,5 +1,21 @@
 import SwiftUI
 
+struct PetDisplaySettingsView: View {
+    @ObservedObject var settingsSession: AppSettingsSession
+    let petDisplayName: String
+
+    var body: some View {
+        Form {
+            PetDisplaySettingsSections(
+                settingsSession: settingsSession,
+                petDisplayName: petDisplayName
+            )
+        }
+        .formStyle(.grouped)
+        .accessibilityIdentifier("monglepet.settings.displayRoot")
+    }
+}
+
 struct PetDisplaySettingsSections: View {
     @ObservedObject var settingsSession: AppSettingsSession
     let petDisplayName: String
@@ -12,12 +28,7 @@ struct PetDisplaySettingsSections: View {
                         "monglepet.settings.movementPetName"
                     )
 
-                Toggle("펫 깨우기", isOn: awakeBinding)
-                    .accessibilityIdentifier(
-                        "monglepet.settings.awake"
-                    )
-
-                Text("현재 선택한 펫의 화면 표시와 이동 방식을 설정합니다.")
+                Text("현재 선택한 내 펫의 크기와 화면 표시 방식을 설정합니다. 깨우기와 재우기는 내 펫 화면에서 바꿀 수 있습니다.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -37,10 +48,11 @@ struct PetDisplaySettingsSections: View {
                     )
                     HStack(spacing: 3) {
                         TextField(
-                            "크기",
+                            "",
                             value: overlayScaleInputPercentBinding,
                             format: .number.precision(.fractionLength(0))
                         )
+                        .accessibilityLabel("펫 크기 퍼센트")
                         .multilineTextAlignment(.trailing)
                         .textFieldStyle(.roundedBorder)
                         .monospacedDigit()
@@ -178,19 +190,6 @@ struct PetDisplaySettingsSections: View {
             }
         }
         .disabled(!settingsSession.isWritingEnabled)
-    }
-
-    private var awakeBinding: Binding<Bool> {
-        Binding(
-            get: {
-                settingsSession.settings.lastUserPresentation == .awake
-            },
-            set: {
-                settingsSession.setUserPresentation(
-                    $0 ? .awake : .tuckedAway
-                )
-            }
-        )
     }
 
     private var overlayScalePercentBinding: Binding<Double> {

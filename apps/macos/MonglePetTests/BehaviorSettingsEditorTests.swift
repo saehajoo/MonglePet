@@ -136,7 +136,7 @@ final class BehaviorSettingsEditorTests: XCTestCase {
             sequence.steps,
             [BehaviorStep(motionID: "wave 복사본", repeatCount: 1)]
         )
-        XCTAssertTrue(sequence.repeats)
+        XCTAssertFalse(sequence.repeats)
     }
 
     func testStepsCanBeAddedEditedMovedAndRemovedWhileKeepingOne() throws {

@@ -35,6 +35,8 @@
 | `guides/WINDOWS_MACOS_1_3_PROMPT.md` | Windows 작업 공간에 전달할 macOS 1.3 동등성 프롬프트 | active |
 | `guides/WINDOWS_BEHAVIOR_CENTRIC_HANDOFF.md` | 행동 중심 schema-v14·권장 프로필 v10·독립 이동·전체 옵션 공유·WinUI·런타임 Windows 구현 인계 | active |
 | `guides/MACOS_PET_EDITOR_FOLLOWUP.md` | Windows에서 먼저 확정한 제작 버전·새 활성 인스턴스 결과의 macOS 후속 인계 | pending |
+| `guides/WINDOWS_DESKTOP_PET_LIBRARY_HANDOFF.md` | 데스크톱 펫·설치한 펫 역할과 항상 새 설치 UX의 Windows 구현 인계 | active |
+| `guides/WINDOWS_MY_PETS_RUNTIME_POLISH_HANDOFF.md` | 내 펫 통합·행동 1회 재생·말풍선 배치의 Windows 구현·QA 인계 | active |
 | `guides/PREVIEW_DOWNLOAD_HANDOFF.md` | Windows·macOS Preview 웹 다운로드 화면 전달 자료 | active |
 | `guides/PREVIEW_DOWNLOAD_SERVER_PROMPT.md` | 별도 서버 담당자에게 전달할 Preview 다운로드 화면 구현 프롬프트 | active |
 | `work_plans/INDEX.md` | 개별 작업 계획과 진행 상태 목록 | active |
