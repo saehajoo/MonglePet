@@ -8,7 +8,6 @@
 
 | 상태 | 작업명 | 파일 | 마지막 갱신 |
 | --- | --- | --- | --- |
-| in_progress | macOS 1.6.0 내 펫·런타임 보정 Preview 릴리스 | `tasks/2026-09-01-macos-1-6-my-pets-release.md` | 2026-09-01 |
 | in_progress | 내 펫 통합·행동 1회 재생·말풍선 배치 보정 | `tasks/2026-09-01-my-pets-one-shot-behavior-speech.md` | 2026-09-01 |
 | in_progress | 데스크톱 펫과 설치한 펫 역할 분리 | `tasks/2026-09-01-desktop-pet-library-ux.md` | 2026-09-01 |
 | in_progress | macOS 펫 제작기·활성 인스턴스 후속 동등성 | `tasks/2026-08-29-macos-pet-editor-followup.md` | 2026-08-29 |
@@ -35,6 +34,7 @@
 
 | 상태 | 작업명 | 파일 | 완료일 |
 | --- | --- | --- | --- |
+| completed | macOS 1.6.0 내 펫·런타임 보정 Preview 릴리스 | `tasks/2026-09-01-macos-1-6-my-pets-release.md` | 2026-09-01 |
 | completed | macOS 1.4.0 펫 제작기 후속 Preview 2 릴리스 | `tasks/2026-08-29-macos-1-4-preview-2-release.md` | 2026-08-29 |
 | completed | macOS 1.4.0 행동 중심 설정·최종 몽글이 Preview 릴리스 | `tasks/2026-08-27-macos-1-4-behavior-release.md` | 2026-08-27 |
 | completed | macOS 1.3.2 이동 런타임 성능 보정 Preview 릴리스 | `tasks/2026-08-25-macos-1-3-2-performance-release.md` | 2026-08-25 |

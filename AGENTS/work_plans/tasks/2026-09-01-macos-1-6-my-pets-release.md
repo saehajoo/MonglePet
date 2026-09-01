@@ -2,7 +2,7 @@
 
 ## 상태
 
-- 상태: in_progress
+- 상태: completed
 - 생성일: 2026-09-01
 - 마지막 갱신: 2026-09-01
 
@@ -45,8 +45,8 @@
 
 - [x] 앱 버전과 버전 테스트를 `1.6.0 (12)`로 올린다.
 - [x] 전체 단위 테스트와 코드 서명 없는 Debug 빌드를 통과한다.
-- [ ] 깨끗한 원격 커밋에서 Universal Preview ZIP·체크섬·manifest를 생성하고 압축 해제본을 검증한다.
-- [ ] GitHub Pre-release를 게시하고 원격 자산과 태그 대상을 다시 검증한다.
+- [x] 깨끗한 원격 커밋에서 Universal Preview ZIP·체크섬·manifest를 생성하고 압축 해제본을 검증한다.
+- [x] GitHub Pre-release를 게시하고 원격 자산과 태그 대상을 다시 검증한다.
 
 ### Windows
 
@@ -54,7 +54,7 @@
 
 ### 플랫폼 동등성
 
-- [ ] Windows 구현·실제 QA와 교차 왕복 전까지 진행 중 상태를 유지한다.
+- [x] Windows 구현·실제 QA와 교차 왕복 전까지 진행 중 상태를 유지한다.
 
 ## 검증 방법
 
@@ -69,10 +69,14 @@
 - 2026-09-01: 변경 범위에 맞춰 `1.6.0 (12)`, `macos-v1.6.0-preview.1`로 확정했다.
 - 2026-09-01: 전체 531개 중 530개 통과·조건부 WebP fixture 1개 건너뜀·실패 0개와 코드 서명 없는 Debug 빌드, `git diff --check`를 통과했다.
 - 2026-09-01: rollback 정리 실패 회귀 테스트에서 D-113에 없는 `비활성 설치 항목` 문구가 남은 것을 발견해, 설치를 다시 찾을 수 있다는 의미를 유지하면서 `앱을 다시 시작한 뒤 내 펫에서 확인`하도록 코드와 테스트를 정렬했다.
+- 2026-09-01: 소스 커밋 `617af2e11ff9f404922227d1ca8aa6f60d8e999d`에서 10,889,967 bytes Universal ZIP과 SHA-256 `b48937ffdd03892b52049e9dc06d7a7698edf3c59da1cb589f6f1bc63f650129`을 생성했다. 압축 무결성, `1.6.0 (12)`, Bundle ID, arm64/x86_64, 앱 아이콘과 격리된 3초 실행을 확인했다.
+- 2026-09-01: 태그 `macos-v1.6.0-preview.1`의 GitHub Pre-release에 ZIP·SHA-256·manifest를 게시했다. 원격 태그 대상을 확인하고 세 자산을 다시 내려받아 로컬 최종본과 바이트 단위로 일치함을 확인했다.
 
 ## 완료 결과
 
-- 진행 중
+- [`MonglePet macOS 1.6.0 Preview 1`](https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.6.0-preview.1)을 미서명·미공증 Pre-release로 게시했다.
+- `MonglePet-1.6.0-build.12-preview.zip`, 체크섬과 manifest가 검증된 소스 커밋 및 원격 자산과 일치한다.
+- Windows 네이티브 구현과 실제 교차 왕복은 완료로 표시하지 않고 후속 범위로 유지했다.
 
 ## 남은 위험 / 후속 작업
 
