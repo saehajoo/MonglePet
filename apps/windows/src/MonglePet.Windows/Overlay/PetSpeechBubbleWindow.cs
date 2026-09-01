@@ -38,6 +38,7 @@ internal sealed unsafe class PetSpeechBubbleWindow : IDisposable
     private double _tailHeightDip;
     private double? _tailAnchorDip;
     private PetSpeechBubbleTailEdge _tailEdge;
+    private PetSpeechBubbleTailEdge? _lockedAutomaticTailEdge;
     private Microsoft.UI.Xaml.Shapes.Path? _outlinePath;
     private Border? _contentBody;
     private bool _hasRenderedContent;
@@ -58,9 +59,13 @@ internal sealed unsafe class PetSpeechBubbleWindow : IDisposable
             _xamlSource.SiteBridge.ResizePolicy = Microsoft.UI.Content.ContentSizePolicy.ResizeContentToParentWindow;
             _parent.PositionChanged += Parent_PositionChanged;
             _parent.DisplayEnvironmentChanged += Parent_DisplayEnvironmentChanged;
+            _parent.StateChanged += Parent_StateChanged;
         }
         catch
         {
+            _parent.PositionChanged -= Parent_PositionChanged;
+            _parent.DisplayEnvironmentChanged -= Parent_DisplayEnvironmentChanged;
+            _parent.StateChanged -= Parent_StateChanged;
             PInvoke.DestroyWindow(_window);
             _window = default;
             throw;
@@ -97,6 +102,10 @@ internal sealed unsafe class PetSpeechBubbleWindow : IDisposable
         ArgumentNullException.ThrowIfNull(presentation);
         ThrowIfDisposed();
         bool presentationChanged = presentation != _presentation;
+        if (presentationChanged)
+        {
+            _lockedAutomaticTailEdge = null;
+        }
         _presentation = presentation;
         if (!_parent.IsVisible)
         {
@@ -115,6 +124,7 @@ internal sealed unsafe class PetSpeechBubbleWindow : IDisposable
         _xamlSource.SiteBridge.Hide();
         PInvoke.ShowWindow(_window, SHOW_WINDOW_CMD.SW_HIDE);
         _isVisible = false;
+        _lockedAutomaticTailEdge = null;
     }
 
     public void Reposition()
@@ -135,6 +145,7 @@ internal sealed unsafe class PetSpeechBubbleWindow : IDisposable
         _disposed = true;
         _parent.PositionChanged -= Parent_PositionChanged;
         _parent.DisplayEnvironmentChanged -= Parent_DisplayEnvironmentChanged;
+        _parent.StateChanged -= Parent_StateChanged;
         _xamlSource.SiteBridge.Hide();
         _xamlSource.Dispose();
         if (!_window.IsNull)
@@ -179,11 +190,7 @@ internal sealed unsafe class PetSpeechBubbleWindow : IDisposable
         int width = Math.Max(1, (int)Math.Ceiling(widthDip * scale));
         int height = Math.Max(1, (int)Math.Ceiling(heightDip * scale));
 
-        PetSpeechBubbleRect parentFrame = new(
-            _parent.OriginX,
-            _parent.OriginY,
-            _parent.Width,
-            _parent.Height);
+        PetSpeechBubbleRect parentFrame = _parent.SpeechAnchorFrame();
         MonitorWorkArea screen = TargetWorkArea(parentFrame);
         PetSpeechBubblePlacementSettings scaledSettings = presentation.Placement with
         {
@@ -198,7 +205,15 @@ internal sealed unsafe class PetSpeechBubbleWindow : IDisposable
                 screen.Top,
                 screen.Width,
                 screen.Height),
-            scaledSettings);
+            scaledSettings,
+            presentation.Placement.PreferredPosition ==
+                PetSpeechBubblePreferredPosition.Automatic
+                    ? _lockedAutomaticTailEdge
+                    : null);
+        _lockedAutomaticTailEdge = presentation.Placement.PreferredPosition ==
+            PetSpeechBubblePreferredPosition.Automatic
+                ? placement.TailEdge
+                : null;
 
         double? tailAnchorDip = placement.TailAnchorX / scale;
         bool tailGeometryChanged = !_hasRenderedContent ||
@@ -644,6 +659,8 @@ internal sealed unsafe class PetSpeechBubbleWindow : IDisposable
     private void Parent_PositionChanged(object? sender, EventArgs e) => Reposition();
 
     private void Parent_DisplayEnvironmentChanged(object? sender, EventArgs e) => Reposition();
+
+    private void Parent_StateChanged(object? sender, EventArgs e) => Reposition();
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, this);
 }

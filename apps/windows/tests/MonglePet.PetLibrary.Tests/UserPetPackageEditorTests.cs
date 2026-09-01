@@ -90,6 +90,21 @@ public sealed class UserPetPackageEditorTests
     }
 
     [Fact]
+    public void ImportedPetCanBecomeEditableInPlaceWithoutChangingInstallationIdentity()
+    {
+        using var workspace = new Workspace();
+        var store = workspace.CreateStore();
+        var editor = new UserPetPackageEditor(store, new FixtureAtlasBuilder());
+        InstalledPetPackage imported = store.InstallFromDirectory(FixturePath());
+
+        InstalledPetPackage editable = editor.MakeEditableInPlace(imported);
+
+        Assert.Equal(imported.InstallationId, editable.InstallationId);
+        Assert.Equal(imported.Package.Manifest.Id, editable.Package.Manifest.Id);
+        Assert.True(editor.IsEditable(editable));
+    }
+
+    [Fact]
     public async Task EditablePetCanAlsoCreateIndependentEditableCopy()
     {
         using var workspace = new Workspace();

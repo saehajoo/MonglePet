@@ -93,6 +93,31 @@ internal sealed class PetFrameCompositionPlayer : IDisposable
         return mask.ContainsVisiblePixel(point.X, point.Y);
     }
 
+    public bool TryGetVisibleContentBounds(out MovementRect bounds)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        PetPackageFrame frame = _state.CurrentFrame;
+        if (!_alphaMaskLoader.TryGet(_motion.Atlas, frame, out PetFrameAlphaMask? mask) ||
+            mask?.VisibleBounds is not { } visible)
+        {
+            bounds = default;
+            return false;
+        }
+        MovementRect content = CurrentContentBounds(frame);
+        bounds = new MovementRect(
+            content.X + (visible.X * content.Width),
+            content.Y + (visible.Y * content.Height),
+            visible.Width * content.Width,
+            visible.Height * content.Height);
+        return true;
+    }
+
+    public MovementRect CurrentContentBounds()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        return CurrentContentBounds(_state.CurrentFrame);
+    }
+
     public void SetAlphaMaskObservationEnabled(bool enabled)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -144,6 +169,48 @@ internal sealed class PetFrameCompositionPlayer : IDisposable
             StateChanged?.Invoke(this, EventArgs.Empty);
         }
 
+        return true;
+    }
+
+    public bool HoldLastFrame(string requestedMotionId)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        PetPackageMotion motion = ResolveMotion(requestedMotionId);
+        bool alreadyHeld =
+            _isPaused &&
+            string.Equals(motion.Id, _motion.Id, StringComparison.Ordinal) &&
+            _state.CurrentFrameIndex == motion.Frames.Count - 1;
+        if (alreadyHeld)
+        {
+            return false;
+        }
+
+        _timer.Stop();
+        bool atlasChanged = !string.Equals(
+            _loadedAtlasId,
+            motion.Atlas,
+            StringComparison.Ordinal);
+        _motion = motion;
+        _state = new PetFramePlaybackState(motion, loops: false);
+        _state.Seek(_state.CycleDuration);
+        _isPaused = true;
+        _playbackStartedAtTimestamp = 0;
+        _playbackOffset = _state.CycleDuration;
+        if (_alphaMaskObservationEnabled)
+        {
+            _alphaMaskLoader.Preload(motion.Atlas, motion.Frames);
+        }
+        if (atlasChanged || _surface is null)
+        {
+            LoadAtlasForCurrentMotion();
+        }
+        else if (_requestedSurfaceLoadCompleted &&
+            _surface?.Status == LoadedImageSourceLoadStatus.Success)
+        {
+            ApplyCurrentFrame();
+            Status = "일시 정지";
+            StateChanged?.Invoke(this, EventArgs.Empty);
+        }
         return true;
     }
 
@@ -259,7 +326,14 @@ internal sealed class PetFrameCompositionPlayer : IDisposable
         _displayedSurface = surface;
         StartPlaybackClock();
         Status = _isPaused ? "일시 정지" : "재생 중";
-        RefreshFrameAndSchedule();
+        if (_isPaused)
+        {
+            ApplyCurrentFrame();
+        }
+        else
+        {
+            RefreshFrameAndSchedule();
+        }
         StateChanged?.Invoke(this, EventArgs.Empty);
         if (previous is not null && !ReferenceEquals(previous, surface))
         {
@@ -297,6 +371,20 @@ internal sealed class PetFrameCompositionPlayer : IDisposable
         _brush.Offset = new Vector2(
             left - frame.X * scale,
             top - frame.Y * scale);
+    }
+
+    private MovementRect CurrentContentBounds(PetPackageFrame frame)
+    {
+        double scale = Math.Min(
+            _visual.Size.X / frame.Width,
+            _visual.Size.Y / frame.Height);
+        double width = frame.Width * scale;
+        double height = frame.Height * scale;
+        return new MovementRect(
+            (_visual.Size.X - width) / 2d,
+            (_visual.Size.Y - height) / 2d,
+            width,
+            height);
     }
 
     private void RefreshFrameAndSchedule()

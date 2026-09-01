@@ -19,14 +19,13 @@
 - 로컬·웹 가져오기에서 설치·인스턴스·프로필 원자적 생성
 - macOS 단일 `내 펫` 대시보드와 선택 펫 편집 동선
 - 현재 프레임의 불투명 영역을 기준으로 한 macOS 말풍선 배치
-- 상세 Windows 구현·테스트·실제 QA 인계
+- Windows Domain·저장·WinUI·overlay runtime 구현과 테스트·실제 QA
 
 ## 제외 범위
 
 - `.monglepet` formatVersion, 권장 프로필 v11, 로컬 settings schema-v15 변경
 - 설치 콘텐츠 자동 업데이트·기존 설치 교체
 - 제거한 펫의 휴지통·복원 이력
-- Windows 소스 수정과 Windows 빌드
 - 이번 작업의 버전·빌드 번호 승격과 Release 게시
 
 ## 확정 결정
@@ -78,8 +77,9 @@
 ### Windows
 
 - [x] `WINDOWS_MY_PETS_RUNTIME_POLISH_HANDOFF.md`에 구현 순서·자동 테스트·실제 QA를 기록한다.
-- [ ] Windows 환경에서 Domain·저장·WinUI·런타임 순서로 구현한다.
-- [ ] Debug·Release 테스트와 실제 앱 QA를 완료한다.
+- [x] Windows 환경에서 Domain·저장·WinUI·런타임 순서로 구현한다.
+- [x] Debug·Release 전체 308개 테스트와 두 구성 빌드를 완료한다.
+- [ ] packaged Release 실제 앱·성능 QA를 완료한다.
 
 ### 플랫폼 동등성
 
@@ -115,6 +115,8 @@
 
 ## 진행 로그
 
+- 2026-09-01: Windows `main` `30a3e47`과 깨끗한 작업 트리를 확인했다. `WINDOWS_MY_PETS_RUNTIME_POLISH_HANDOFF.md`를 최종 기준으로 Domain 행동 1회 재생부터 Windows 구현을 시작했다. 구형 `WINDOWS_DESKTOP_PET_LIBRARY_HANDOFF.md`에서는 installation·instance 분리와 항상 새 설치 원칙만 유지한다.
+- 2026-09-01: Windows 행동 1회 재생·완료 프레임 유지, 항상 새 installation·instance·profile 가져오기, 단일 `내 펫`, 보편 편집·copy-on-write, 재우기·완전 삭제·legacy orphan 복구와 말풍선 alpha anchor·자동 방향 잠금을 구현했다. schema-v15·권장 프로필 v11과 저장 `repeats` 왕복은 유지했다. Debug·Release 각각 Activity 27, Core 62, Packages 28, PetLibrary 89, Settings 82, Shell 20으로 총 308개 테스트와 두 구성 빌드가 경고·오류 없이 통과했다. 실제 packaged UI·DPI·성능 QA와 macOS 교차 왕복은 남아 있다.
 - 2026-09-01: 반복 문제, 말풍선 패널 기준 배치와 D-110 UI의 사용자 혼란을 검토하고 D-111 범위를 확정했다.
 - 2026-09-01: 행동 1회 재생 runtime, 반복 UI 제거, 내 펫 통합 목적지, 원자적 가져오기와 알파 기반 말풍선 anchor를 1차 구현했다.
 - 2026-09-01: macOS 전체 단위 테스트 529개 중 528개 통과·1개 조건부 건너뜀, Debug 빌드와 `git diff --check` 통과를 확인했다.
@@ -125,6 +127,19 @@
 - 2026-09-01: D-113에 따라 보관 카드를 제거하고 재우기·완전 삭제·legacy orphan 복구를 구현했다. Windows 인계도 보관 없는 최종 생명주기로 다시 정리했다.
 - 2026-09-01: D-113 최종 소스의 macOS Debug 빌드와 `git diff --check`를 통과했다. 복구·삭제 rollback 단위 테스트를 추가했지만 사용자 요청에 따라 테스트 실행은 보류했다.
 - 2026-09-01: 릴리스 요청에 따라 보류했던 테스트를 재개했다. D-113 회귀를 포함한 macOS 전체 531개 중 530개 통과·조건부 WebP fixture 1개 건너뜀·실패 0개와 별도 Debug 빌드를 통과했다.
+- 2026-09-01: Windows 선택 펫 UI 후속 정리로 `펫 정보 수정`을 정보 요약 바로 아래로 이동하고 숨겨진 관리 섹션의 잔여 구분선 4개와 저장 위치·진단 정보를 제거했다. 화면 표시는 macOS 순서대로 크기·빠른 크기·투명도·픽셀 아트·클릭 통과·겹침 투명도를 배치하고, 평상시 행동의 빈 카드와 이동의 중복 제목·설명 및 선택 펫 화면의 공통 `설정 대상 펫` 요약을 제거했다. Windows Debug 빌드와 전체 308개 테스트가 통과했고 같은 소스의 Release 설치본을 로컬에서 갱신·실행했다. 실제 UI QA와 macOS의 동일 대상 요약 제거는 남아 있다.
+- 2026-09-01: Windows 라이트·다크 테마의 주요 액션 버튼을 슬라이더·토글·라디오 활성 상태와 같은 MonglePet 중성 강조 토큰에 연결했다. 실제 `AccentButtonStyle`이 참조하는 상위 `AccentFillColor`와 글자 리소스까지 같은 normal·hover·pressed·disabled 토큰으로 통일하고, 전역 슬라이더의 36px 높이·중앙 정렬과 2px 아래 보정을 적용했다. `펫 가져오기`, 행동·단계·규칙 추가와 대화상자 기본 동작이 같은 색상 계열을 사용한다. Debug 빌드와 Release 로컬 재설치·실행을 확인했다.
+- 2026-09-01: 회색 강조색이 활성·비활성 의미를 흐리는 문제를 보정해 primary button·slider 값·toggle on·radio checked를 라이트·다크별 따뜻한 MonglePet 강조색으로 통일하고 중립 보조 버튼 경계를 강화했다. `내 펫`은 중복 제목과 항상 열린 폼을 제거하고 수량 요약·생성/가져오기·전체 작업, 축약 상태 카드, 실제 단일 선택 시 펼쳐지는 이름/복제/내보내기/순서 작업, 화면 표시 토글과 일시정지/삭제 추가 메뉴로 재구성했다. ListView 단일 선택·시스템 focus visual과 명시적 Automation 이름을 유지했다. 색상 대비 계산, Debug·Release 빌드와 각 308개 테스트, `git diff --check`가 통과했다. 좁은 창·라이트/다크·키보드·Narrator 실제 UI QA와 macOS 정보 구조 후속 반영은 남아 있다.
+- 2026-09-01: `내 펫`의 동작이 같은 버튼 묶음처럼 보이는 후속 피드백에 따라 전체 펫 작업을 제목·구분선이 있는 toolbar로 묶고, 카드의 화면 표시를 독립 control panel로 분리했다. 선택 확장 영역은 `이름`, `표시 순서`, `펫 작업`으로 나눠 저장만 primary, 순서와 복제·내보내기는 별도 중립 button group으로 표시한다. 화살표에 `앞으로`·`뒤로` 문구를 병기하고 선택 card에 옅은 accent tint를 추가했다. 전체/개별 일시정지는 현재 상태에 맞는 단일 문구를 사용하고 개별 메뉴에는 pause/play/delete 아이콘과 대상 문구를 제공한다. Debug 빌드와 전체 308개 테스트, `git diff --check`가 통과했다.
+- 2026-09-01: 사용자 요청으로 macOS `ActivePetsSettingsView`의 현재 source를 다시 대조하고 위의 Windows 전용 축약/확장 초안을 최종 정보 구조로 사용하지 않기로 했다. Windows도 macOS와 같이 안내→생성/가져오기→전체 작업 순서를 쓰고 각 카드를 항상 펼쳐 84px preview, 이름·선택/상태, 원본, 이동·상호작용, 별칭, 사본·내보내기와 우측 switch·borderless 순서·삭제로 배치했다. primary는 펫 만들기에만 사용하고 내장 펫 내보내기 숨김, 삭제 가능 조건, 변경된 이름만 저장 가능, 선택 tint/stroke를 맞췄다. SwiftUI를 복사하지 않고 WinUI `SymbolIcon`, `ToggleSwitch`, `ListView`와 native focus visual로 구현했으며 Debug 빌드가 경고·오류 없이 통과했다.
+- 2026-09-01: 실제 Windows 카드 후속 QA에 따라 이동 방식·클릭 통과 앞의 장식 아이콘을 제거하고 두 상태 글자를 11px로 한 단계 낮췄다. 카드 중앙과 우측을 공유 5행 Grid로 바꿔 `자는 중/깨어 있음`과 34px switch, 이름 저장 행과 34px 앞뒤 순서 버튼, 사본/내보내기 행과 휴지통 버튼이 각각 같은 수평선과 높이를 사용하게 했다. Debug 빌드가 경고·오류 없이 통과했다.
+- 2026-09-01: 선택 badge가 상단 34px 행 높이까지 늘어나는 실제 화면을 확인해 `설정 중`을 24px 고정 높이·수직 중앙으로 제한했다. 카드 작업은 34px hit target을 유지하면서 사본·내보내기 glyph를 14px, 삭제 glyph와 앞뒤 화살표를 15px로 축소하고 서로 다른 Up/Download symbol 대신 동일한 `↑`/`↓` 방향 문자를 사용했다. `SymbolIcon`에는 직접 글자 크기를 지정할 수 없어 작은 `Viewbox`로 배율을 제한했으며 Debug 빌드가 통과했다.
+- 2026-09-01: 후속 실제 화면에서 capsule 자체가 이름보다 강하게 보이는 문제를 확인해 `설정 중`은 테두리·배경 없는 11px accent text로 단순화했다. 상단 펫 만들기·가져오기와 전체 깨우기·재우기·일시정지의 기본 20px symbol은 모두 14px `Viewbox`로 축소하고 34px button hit target은 유지했다. 이전 축약/확장 초안에서 남은 미사용 ActivePet badge/group style도 제거했다. Debug 빌드가 경고·오류 없이 통과했다.
+- 2026-09-01: 상태 switch의 빈 On/Off content presenter가 폭을 예약해 `자는 중`·`깨어 있음`이 카드 안쪽으로 밀리는 실제 화면을 수정했다. 상태 문구와 44px switch를 두 Auto 열 Grid로 묶고 content를 null로 제거해 우측 화살표·휴지통과 같은 카드 오른쪽 기준선에 정렬했다. Debug 빌드가 경고·오류 없이 통과했다.
+- 2026-09-01: 펫 추가 작업과 전체 펫 제어가 연속된 같은 button row처럼 보이는 후속 피드백에 따라 두 작업군 사이에 1px divider, 12px 상단 padding과 `전체 펫 제어` caption을 추가했다. 생성·가져오기와 전체 깨우기·재우기·일시정지의 의미 계층은 유지하며 Debug 빌드와 `git diff --check`가 통과했다.
+- 2026-09-02: 실제 다크 모드 QA에서 slider 값 구간이 primary button과 같은 주황색으로 보이고 switch의 켜짐·꺼짐 대비가 의도와 반대인 문제를 수정했다. 다크 slider 값 구간은 밝은 중립색, 나머지 track은 중간 회색으로 분리하고 switch는 `켜짐=밝은 track+어두운 knob`, `꺼짐=어두운 track+밝은 knob`로 정확히 반전했다. 라이트 모드는 `켜짐=진한 track`, `꺼짐=밝은 track`의 기존 의미를 유지한다. `내 펫` 카드의 상태 문구와 switch는 상단 이름 행에서 카드 중앙 상태 행으로 옮겼으며 Debug 빌드가 경고·오류 없이 통과했다.
+- 2026-09-02: 설치본 후속 QA에서 WinUI 기본 `ToggleSwitch` 템플릿의 라이브러리 리소스가 앱 전역 override보다 우선되어 `내 펫` switch가 이전 회색을 유지하는 것을 확인했다. 카드 switch의 로컬 Default/Light theme resource에 fill·stroke·knob의 모든 상태를 직접 지정해 실제 template lookup 경계에서 색상을 고정하고, 상태 문구에는 20px 고정 line box와 2px 시각 보정을 적용해 switch track과의 광학 중심을 맞췄다. Debug 빌드가 경고·오류 없이 통과했다.
+- 2026-09-02: 사용자 최종 확인과 릴리스 요청에 따라 Windows 새 기능선을 `1.6.0.15`, 태그 `windows-v1.6.0-preview.1`, 릴리스 이름 `MonglePet Windows 1.6.0 Preview 1`로 확정했다. 마케팅·Assembly·File·MSIX 버전과 배포 계약 테스트를 함께 승격했고 Debug·Release 각 Activity 27, Core 62, Packages 28, PetLibrary 89, Settings 82, Shell 20으로 총 308개 테스트와 두 구성 빌드가 경고·오류 없이 통과했다.
 
 ## 남은 위험
 

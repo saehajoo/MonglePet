@@ -8,6 +8,13 @@ public static class BehaviorMotionReferences
 
 public sealed record MotionDefinition(string Id, TimeSpan CycleDuration);
 
+public enum MotionSequencePlayback
+{
+    Stored,
+    Once,
+    RepeatWhileRequested,
+}
+
 public sealed record ScheduledMotion(
     string SequenceId,
     int StepIndex,
@@ -79,18 +86,17 @@ public sealed class MotionScheduler
                 return new MotionSchedulerStatus.Completed(_cursor.Sequence.Id);
             }
 
-            ResolvedStep step = _cursor.Steps[_cursor.StepIndex];
-            return new MotionSchedulerStatus.Playing(new ScheduledMotion(
-                _cursor.Sequence.Id,
-                _cursor.StepIndex,
-                step.Source.MotionId,
-                step.ResolvedMotionId));
+            return new MotionSchedulerStatus.Playing(Scheduled(_cursor, _cursor.StepIndex));
         }
     }
 
     public bool IsPaused { get; private set; }
 
     public string? ActiveSequenceId => _cursor?.Sequence.Id;
+
+    public ScheduledMotion? CompletedMotion => _cursor is { IsComplete: true } cursor
+        ? Scheduled(cursor, cursor.Steps.Count - 1)
+        : null;
 
     public TimeSpan? ActiveCycleRemainingDuration =>
         _cursor is { IsComplete: false } cursor
@@ -102,9 +108,12 @@ public sealed class MotionScheduler
             ? cursor.Steps[cursor.StepIndex].CycleDuration - cursor.RemainingCycleDuration
             : null;
 
-    public bool Request(BehaviorSequence sequence)
+    public bool Request(
+        BehaviorSequence sequence,
+        MotionSequencePlayback playback = MotionSequencePlayback.Stored)
     {
         ArgumentNullException.ThrowIfNull(sequence);
+        sequence = ApplyPlayback(sequence, playback);
         Cursor? requested = MakeCursor(sequence);
         if (requested is null)
         {
@@ -115,7 +124,7 @@ public sealed class MotionScheduler
             return false;
         }
 
-        if (_cursor is { IsComplete: false } && SequencesEqual(_cursor.Sequence, sequence))
+        if (_cursor is not null && SequencesEqual(_cursor.Sequence, sequence))
         {
             _unavailable = false;
             return false;
@@ -126,9 +135,12 @@ public sealed class MotionScheduler
         return true;
     }
 
-    public bool Restart(BehaviorSequence sequence)
+    public bool Restart(
+        BehaviorSequence sequence,
+        MotionSequencePlayback playback = MotionSequencePlayback.Stored)
     {
         ArgumentNullException.ThrowIfNull(sequence);
+        sequence = ApplyPlayback(sequence, playback);
         Cursor? requested = MakeCursor(sequence);
         if (requested is null)
         {
@@ -245,6 +257,25 @@ public sealed class MotionScheduler
         cursor.StepIndex = 0;
         cursor.CompletedCycles = 0;
         cursor.RemainingCycleDuration = cursor.Steps[0].CycleDuration;
+    }
+
+    private static BehaviorSequence ApplyPlayback(
+        BehaviorSequence sequence,
+        MotionSequencePlayback playback) => playback switch
+    {
+        MotionSequencePlayback.Once => sequence with { Repeats = false },
+        MotionSequencePlayback.RepeatWhileRequested => sequence with { Repeats = true },
+        _ => sequence,
+    };
+
+    private static ScheduledMotion Scheduled(Cursor cursor, int stepIndex)
+    {
+        ResolvedStep step = cursor.Steps[stepIndex];
+        return new ScheduledMotion(
+            cursor.Sequence.Id,
+            stepIndex,
+            step.Source.MotionId,
+            step.ResolvedMotionId);
     }
 
     private static bool SequencesEqual(BehaviorSequence left, BehaviorSequence right)

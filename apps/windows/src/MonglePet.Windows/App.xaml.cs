@@ -295,28 +295,29 @@ public partial class App : Application
         return "기본 몽글이로 전환했습니다.";
     }
 
-    public InstalledPetPackage ImportPackage(
-        string sourcePath,
-        PetPackageInstallMode mode = PetPackageInstallMode.RejectDuplicate,
-        Guid? replacementInstallationId = null)
+    public InstalledPetPackage ImportPackage(string sourcePath)
     {
         EnsureSettingsWritingEnabled();
         InstalledPetPackage installed = PetImporter.Import(
             sourcePath,
-            mode,
-            replacementInstallationId);
+            PetPackageInstallMode.InstallSeparately);
         try
         {
-            ActivateInstalledPackage(installed);
+            CommitNewPet(installed, sourceProfile: null, sourceOverlay: null);
             return installed;
         }
-        catch
+        catch (Exception addException)
         {
-            if (mode != PetPackageInstallMode.Replace)
+            try
             {
-                TryRemoveInstallation(installed.InstallationId);
+                PetLibrary.RemoveInstallation(installed.InstallationId);
             }
-
+            catch (Exception cleanupException)
+            {
+                throw new InvalidOperationException(
+                    $"펫 추가를 완료하지 못했고 설치 정리도 필요합니다: {installed.InstallationId:D}",
+                    new AggregateException(addException, cleanupException));
+            }
             throw;
         }
     }
@@ -342,9 +343,7 @@ public partial class App : Application
 
     internal InstalledPetPackage ImportReviewedPackage(
         PetPackageImportReview review,
-        PetRecommendedProfileApplyOptions options,
-        PetPackageInstallMode mode = PetPackageInstallMode.RejectDuplicate,
-        Guid? replacementInstallationId = null)
+        PetRecommendedProfileApplyOptions options)
     {
         EnsureSettingsWritingEnabled();
         if (options.AppliesProfile && review.RecommendedProfile is null)
@@ -356,15 +355,15 @@ public partial class App : Application
 
         InstalledPetPackage installed = PetImporter.ImportReviewed(
             review,
-            mode,
-            replacementInstallationId);
+            PetPackageInstallMode.InstallSeparately);
         try
         {
-            ActivateInstalledPackage(installed);
+            BehaviorProfile? sourceProfile = null;
+            OverlaySettings? sourceOverlay = null;
             if (options.AppliesProfile && review.RecommendedProfile is { } recommended)
             {
-                BehaviorProfile target = ActiveBehaviorProfile;
-                BehaviorProfile applied = target;
+                BehaviorProfile applied = BehaviorProfileDefaults.Create(
+                    new PetBehaviorKey.Installed(installed.InstallationId));
                 if (options.IncludesBehavior)
                 {
                     IReadOnlyList<AutomaticRule> rules = options.IncludesApplicationRules
@@ -396,27 +395,45 @@ public partial class App : Application
                         ? recommended.Speech
                         : WithoutBehaviorTriggeredSpeech(recommended.Speech),
                 };
-                SaveBehaviorProfile(applied with
-                {
-                    PetKey = new PetBehaviorKey.Installed(installed.InstallationId),
-                });
+                sourceProfile = applied;
                 if (options.IncludesDisplay &&
                     review.RecommendedProfileIncludesDisplay &&
                     review.RecommendedDisplay is { } display)
                 {
-                    SaveOverlaySettings(display.ApplyTo(CurrentSettings.Overlay));
+                    sourceOverlay = display.ApplyTo(OverlaySettings.Default);
                 }
             }
+            CommitNewPet(installed, sourceProfile, sourceOverlay);
             return installed;
         }
-        catch
+        catch (Exception addException)
         {
-            if (mode != PetPackageInstallMode.Replace)
+            try
             {
-                TryRemoveInstallation(installed.InstallationId);
+                PetLibrary.RemoveInstallation(installed.InstallationId);
+            }
+            catch (Exception cleanupException)
+            {
+                throw new InvalidOperationException(
+                    $"펫 추가를 완료하지 못했고 설치 정리도 필요합니다: {installed.InstallationId:D}",
+                    new AggregateException(addException, cleanupException));
             }
             throw;
         }
+    }
+
+    private void CommitNewPet(
+        InstalledPetPackage installed,
+        BehaviorProfile? sourceProfile,
+        OverlaySettings? sourceOverlay)
+    {
+        var petKey = new PetBehaviorKey.Installed(installed.InstallationId);
+        AppSettings updatedSettings = ActivePetSettingsEditor.AddPetInstance(
+            CurrentSettings,
+            petKey,
+            sourceProfile,
+            sourceOverlay);
+        CommitSettingsAndSynchronize(updatedSettings, selectedPetChanged: true);
     }
 
     public string ExportActivePackage(
@@ -429,13 +446,13 @@ public partial class App : Application
         bool includesSpeech,
         bool includesDisplay)
     {
-        if (ActiveInstallationId is not Guid installationId)
-        {
-            throw new PetPackageExportException(
+        LoadedPetPackage activePackage = ActivePackage
+            ?? throw new PetPackageExportException(
                 PetPackageExportError.InvalidDestination,
-                "내장 펫은 내보낼 수 없습니다.");
-        }
-        InstalledPetPackage installed = PetLibrary.GetInstallation(installationId);
+                "내보낼 내 펫을 찾을 수 없습니다.");
+        InstalledPetPackage installed = ActiveInstallationId is Guid installationId
+            ? PetLibrary.GetInstallation(installationId)
+            : new InstalledPetPackage(Guid.Empty, activePackage.PackageRootPath, activePackage);
         BehaviorProfile? profile = null;
         if (includesRecommendedProfile)
         {
@@ -505,11 +522,7 @@ public partial class App : Application
         AppSettings updatedSettings = ActivePetSettingsEditor.AddPetInstance(
             CurrentSettings,
             new PetBehaviorKey.Installed(installed.InstallationId));
-        SettingsStore.Save(updatedSettings);
-        CurrentSettings = updatedSettings;
-        SynchronizePetInstances();
-        SettingsStateChanged?.Invoke(this, EventArgs.Empty);
-        SelectedPetInstanceChanged?.Invoke(this, EventArgs.Empty);
+        CommitSettingsAndSynchronize(updatedSettings, selectedPetChanged: true);
         return installed;
     }
 
@@ -527,12 +540,108 @@ public partial class App : Application
             new PetBehaviorKey.Installed(installed.InstallationId),
             sourceProfile,
             sourceOverlay);
-        SettingsStore.Save(updatedSettings);
-        CurrentSettings = updatedSettings;
-        SynchronizePetInstances();
-        SettingsStateChanged?.Invoke(this, EventArgs.Empty);
-        SelectedPetInstanceChanged?.Invoke(this, EventArgs.Empty);
+        CommitSettingsAndSynchronize(updatedSettings, selectedPetChanged: true);
         return installed;
+    }
+
+    public InstalledPetPackage DuplicateSelectedPet(string displayName)
+    {
+        EnsureSettingsWritingEnabled();
+        LoadedPetPackage package = ActivePackage
+            ?? throw new InvalidOperationException("사본을 만들 내 펫을 찾을 수 없습니다.");
+        BehaviorProfile sourceProfile = ActiveBehaviorProfile;
+        OverlaySettings sourceOverlay = CurrentSettings.SelectedPetInstance?.Overlay
+            ?? OverlaySettings.Default;
+        InstalledPetPackage copied = PetEditor.CreateEditableCopy(
+            package,
+            package.PackageRootPath,
+            displayName);
+        try
+        {
+            return AddInstallationCopyAsNewInstance(
+                copied.InstallationId,
+                sourceProfile,
+                sourceOverlay);
+        }
+        catch (Exception addException)
+        {
+            try
+            {
+                PetLibrary.RemoveInstallation(copied.InstallationId);
+            }
+            catch (Exception cleanupException)
+            {
+                throw new InvalidOperationException(
+                    $"펫 사본을 추가하지 못했고 생성한 콘텐츠 정리도 필요합니다: {copied.InstallationId:D}",
+                    new AggregateException(addException, cleanupException));
+            }
+            throw;
+        }
+    }
+
+    public async Task<InstalledPetPackage> EditSelectedPetAsync(
+        Func<InstalledPetPackage, Task<InstalledPetPackage>> edit)
+    {
+        ArgumentNullException.ThrowIfNull(edit);
+        EnsureSettingsWritingEnabled();
+        ActivePetInstance selected = CurrentSettings.SelectedPetInstance
+            ?? throw new InvalidOperationException("편집할 내 펫을 찾을 수 없습니다.");
+        LoadedPetPackage sourcePackage = ResolvePackage(selected.PetKey);
+        InstalledPetPackage editableSource;
+        bool createdCopy = false;
+        if (selected.PetKey is PetBehaviorKey.Installed installedKey &&
+            CurrentSettings.ActivePetInstances.Count(value =>
+                value.PetKey == selected.PetKey) == 1)
+        {
+            editableSource = PetLibrary.GetInstallation(installedKey.InstallationId);
+        }
+        else
+        {
+            editableSource = PetEditor.CreateEditableCopy(
+                sourcePackage,
+                sourcePackage.PackageRootPath,
+                sourcePackage.Manifest.DisplayName);
+            createdCopy = true;
+        }
+
+        try
+        {
+            InstalledPetPackage edited = await edit(editableSource);
+            if (createdCopy)
+            {
+                var petKey = new PetBehaviorKey.Installed(edited.InstallationId);
+                AppSettings updated = ActivePetSettingsEditor.ReassignPetKeepingIdentity(
+                    CurrentSettings,
+                    selected.InstanceId,
+                    petKey);
+                CommitSettingsAndSynchronize(updated, selectedPetChanged: true);
+            }
+            else
+            {
+                _instanceManager?.InvalidateInstance(selected.InstanceId);
+                SynchronizePetInstances();
+                SettingsStateChanged?.Invoke(this, EventArgs.Empty);
+                SelectedPetInstanceChanged?.Invoke(this, EventArgs.Empty);
+            }
+            return edited;
+        }
+        catch (Exception editException)
+        {
+            if (createdCopy)
+            {
+                try
+                {
+                    PetLibrary.RemoveInstallation(editableSource.InstallationId);
+                }
+                catch (Exception cleanupException)
+                {
+                    throw new InvalidOperationException(
+                        $"펫 편집을 완료하지 못했고 생성한 콘텐츠 정리도 필요합니다: {editableSource.InstallationId:D}",
+                        new AggregateException(editException, cleanupException));
+                }
+            }
+            throw;
+        }
     }
 
     private static PetSpeechSettings WithoutBehaviorTriggeredSpeech(
@@ -623,13 +732,53 @@ public partial class App : Application
         SettingsStateChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    public void RemovePetInstance(Guid instanceId)
+    public void DeletePetCompletely(Guid instanceId)
     {
         EnsureSettingsWritingEnabled();
-        CurrentSettings = ActivePetSettingsEditor.Remove(CurrentSettings, instanceId);
-        SettingsStore.Save(CurrentSettings);
+        ActivePetInstance removing = CurrentSettings.ActivePetInstances.FirstOrDefault(value =>
+            value.InstanceId == instanceId)
+            ?? throw new ArgumentException("삭제할 내 펫을 찾을 수 없습니다.", nameof(instanceId));
+        if (removing.PetKey is PetBehaviorKey.BuiltIn &&
+            CurrentSettings.ActivePetInstances.Count(value =>
+                value.PetKey is PetBehaviorKey.BuiltIn) <= 1)
+        {
+            throw new InvalidOperationException("기본 몽글이는 최소 한 마리 남겨야 합니다.");
+        }
+
+        AppSettings previous = CurrentSettings;
+        AppSettings updated = ActivePetSettingsEditor.Remove(previous, instanceId);
+        Guid? installationToRemove = removing.PetKey is PetBehaviorKey.Installed installed &&
+            !updated.ActivePetInstances.Any(value => value.PetKey == removing.PetKey)
+                ? installed.InstallationId
+                : null;
+        SettingsStore.Save(updated);
+        if (installationToRemove is Guid installationId)
+        {
+            try
+            {
+                PetLibrary.RemoveInstallation(installationId);
+            }
+            catch (Exception removalException)
+            {
+                try
+                {
+                    SettingsStore.Save(previous);
+                }
+                catch (Exception rollbackException)
+                {
+                    throw new InvalidOperationException(
+                        "펫 콘텐츠 삭제와 설정 복원에 모두 실패했습니다.",
+                        new AggregateException(removalException, rollbackException));
+                }
+                throw new InvalidOperationException(
+                    "펫 콘텐츠를 삭제하지 못해 기존 내 펫 설정을 복원했습니다.",
+                    removalException);
+            }
+        }
+        CurrentSettings = updated;
         SynchronizePetInstances();
         SettingsStateChanged?.Invoke(this, EventArgs.Empty);
+        SelectedPetInstanceChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public void MovePetInstance(Guid instanceId, int targetIndex)
@@ -656,6 +805,13 @@ public partial class App : Application
     public void ToggleAllPetsPaused()
     {
         _instanceManager?.SetPaused(!AreAllPetsPaused);
+        RefreshNotificationArea();
+        SettingsStateChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void TogglePetPaused(Guid instanceId)
+    {
+        _instanceManager?.ToggleInstancePaused(instanceId);
         RefreshNotificationArea();
         SettingsStateChanged?.Invoke(this, EventArgs.Empty);
     }
@@ -887,6 +1043,14 @@ public partial class App : Application
             if (upgradedSettings != CurrentSettings && SettingsStore.IsWritingEnabled)
             {
                 CurrentSettings = upgradedSettings;
+                SettingsStore.Save(CurrentSettings);
+            }
+            AppSettings recoveredSettings = ActivePetSettingsEditor.RecoverUnreferencedInstallations(
+                CurrentSettings,
+                PetLibrary.GetInstalledPackages().Select(value => value.InstallationId));
+            if (recoveredSettings != CurrentSettings && SettingsStore.IsWritingEnabled)
+            {
+                CurrentSettings = recoveredSettings;
                 SettingsStore.Save(CurrentSettings);
             }
             SettingsStatusMessage = loadResult.Issues.Count == 0
@@ -1288,6 +1452,40 @@ public partial class App : Application
             throw new AppSettingsException(
                 AppSettingsError.WritingDisabled,
                 "보호 중인 설정 schema가 있어 펫 라이브러리 변경을 저장할 수 없습니다.");
+        }
+    }
+
+    private void CommitSettingsAndSynchronize(
+        AppSettings updated,
+        bool selectedPetChanged)
+    {
+        AppSettings previous = CurrentSettings;
+        SettingsStore.Save(updated);
+        try
+        {
+            CurrentSettings = updated;
+            SynchronizePetInstances();
+        }
+        catch (Exception applyException)
+        {
+            try
+            {
+                SettingsStore.Save(previous);
+                CurrentSettings = previous;
+                SynchronizePetInstances();
+            }
+            catch (Exception rollbackException)
+            {
+                throw new InvalidOperationException(
+                    "내 펫 설정 적용과 이전 설정 복원에 모두 실패했습니다.",
+                    new AggregateException(applyException, rollbackException));
+            }
+            throw;
+        }
+        SettingsStateChanged?.Invoke(this, EventArgs.Empty);
+        if (selectedPetChanged)
+        {
+            SelectedPetInstanceChanged?.Invoke(this, EventArgs.Empty);
         }
     }
 

@@ -5,6 +5,7 @@ public sealed class PetFrameAlphaMask
     public const int DefaultMaximumDimension = 64;
 
     private readonly byte[] _alphaValues;
+    private readonly MovementRect? _visibleBounds;
 
     public PetFrameAlphaMask(int width, int height, IEnumerable<byte> alphaValues)
     {
@@ -28,11 +29,14 @@ public sealed class PetFrameAlphaMask
 
         Width = width;
         Height = height;
+        _visibleBounds = CalculateVisibleBounds();
     }
 
     public int Width { get; }
 
     public int Height { get; }
+
+    public MovementRect? VisibleBounds => _visibleBounds;
 
     public bool ContainsVisiblePixel(double normalizedX, double normalizedY)
     {
@@ -151,6 +155,35 @@ public sealed class PetFrameAlphaMask
             cropY,
             cropRight - cropX,
             cropBottom - cropY);
+    }
+
+    private MovementRect? CalculateVisibleBounds()
+    {
+        int minimumX = Width;
+        int minimumY = Height;
+        int maximumX = -1;
+        int maximumY = -1;
+        for (int y = 0; y < Height; y++)
+        {
+            for (int x = 0; x < Width; x++)
+            {
+                if (_alphaValues[(y * Width) + x] == 0)
+                {
+                    continue;
+                }
+                minimumX = Math.Min(minimumX, x);
+                minimumY = Math.Min(minimumY, y);
+                maximumX = Math.Max(maximumX, x);
+                maximumY = Math.Max(maximumY, y);
+            }
+        }
+        return maximumX < minimumX || maximumY < minimumY
+            ? null
+            : new MovementRect(
+                minimumX / (double)Width,
+                minimumY / (double)Height,
+                (maximumX - minimumX + 1) / (double)Width,
+                (maximumY - minimumY + 1) / (double)Height);
     }
 }
 

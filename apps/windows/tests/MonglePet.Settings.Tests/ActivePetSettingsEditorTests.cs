@@ -165,4 +165,63 @@ public sealed class ActivePetSettingsEditorTests
         Assert.DoesNotContain(copied.BehaviorProfiles, profile =>
             profile.ProfileId == source.ProfileId);
     }
+
+    [Fact]
+    public void ReassigningSharedPetKeepsInstanceProfileOverlayAndSettings()
+    {
+        AppSettings settings = AppSettings.CreateDefault();
+        ActivePetInstance originalInstance = settings.SelectedPetInstance!;
+        BehaviorProfile originalProfile = settings.SelectedBehaviorProfile! with
+        {
+            Speech = settings.SelectedBehaviorProfile!.Speech with { IsEnabled = true },
+        };
+        settings = settings.WithSelectedBehaviorProfile(originalProfile);
+        var replacement = new PetBehaviorKey.Installed(Guid.NewGuid());
+
+        AppSettings reassigned = ActivePetSettingsEditor.ReassignPetKeepingIdentity(
+            settings,
+            originalInstance.InstanceId,
+            replacement);
+
+        Assert.Equal(originalInstance.InstanceId, reassigned.SelectedPetInstanceId);
+        Assert.Equal(originalInstance.BehaviorProfileId, reassigned.SelectedPetInstance!.BehaviorProfileId);
+        Assert.Equal(originalInstance.Overlay, reassigned.SelectedPetInstance.Overlay);
+        Assert.Equal(replacement, reassigned.SelectedPetInstance.PetKey);
+        Assert.Equal(originalProfile.ProfileId, reassigned.SelectedBehaviorProfile!.ProfileId);
+        Assert.Equal(replacement, reassigned.SelectedBehaviorProfile.PetKey);
+        Assert.True(reassigned.SelectedBehaviorProfile.Speech.IsEnabled);
+    }
+
+    [Fact]
+    public void RecoversEachOrphanOnceAsSleepingAndReusesUnreferencedProfile()
+    {
+        Guid installationId = Guid.NewGuid();
+        var petKey = new PetBehaviorKey.Installed(installationId);
+        Guid profileId = Guid.NewGuid();
+        AppSettings settings = AppSettings.CreateDefault();
+        settings = settings with
+        {
+            BehaviorProfiles =
+            [
+                .. settings.BehaviorProfiles,
+                BehaviorProfileDefaults.Create(petKey, profileId),
+            ],
+        };
+        Guid selectedId = settings.SelectedPetInstanceId;
+
+        AppSettings recovered = ActivePetSettingsEditor.RecoverUnreferencedInstallations(
+            settings,
+            [installationId]);
+        AppSettings recoveredAgain = ActivePetSettingsEditor.RecoverUnreferencedInstallations(
+            recovered,
+            [installationId]);
+
+        ActivePetInstance instance = Assert.Single(
+            recovered.ActivePetInstances,
+            value => value.PetKey == petKey);
+        Assert.Equal(profileId, instance.BehaviorProfileId);
+        Assert.Equal(PetPresentation.TuckedAway, instance.Presentation);
+        Assert.Equal(selectedId, recovered.SelectedPetInstanceId);
+        Assert.Equal(recovered, recoveredAgain);
+    }
 }

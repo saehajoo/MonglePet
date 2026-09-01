@@ -118,7 +118,7 @@ internal sealed class PetBehaviorRuntime : IDisposable
         _movementScheduler.Pause();
         _ruleScheduler.Pause();
         _interactionBehaviorId = behaviorId;
-        _interactionScheduler.Request(behavior with { Repeats = false });
+        _interactionScheduler.Request(behavior, MotionSequencePlayback.Once);
         _interactionScheduler.Resume();
         _lastAdvancedTimestamp = now;
         EmitCurrentMotion(restart: true);
@@ -136,6 +136,9 @@ internal sealed class PetBehaviorRuntime : IDisposable
         long now = Stopwatch.GetTimestamp();
         AdvanceTo(now);
         string[] availableRandomSequences = [];
+        bool randomSequenceCompleted =
+            profile.StationaryBehaviorMode == StationaryBehaviorMode.Random &&
+            _baseScheduler.Status is MotionSchedulerStatus.Completed;
         if (profile.StationaryBehaviorMode == StationaryBehaviorMode.Random)
         {
             availableRandomSequences = profile.RandomSequences
@@ -144,7 +147,7 @@ internal sealed class PetBehaviorRuntime : IDisposable
                 .ToArray();
             _randomSelector.Update(
                 availableRandomSequences,
-                _baseScheduler.Status is MotionSchedulerStatus.Completed);
+                randomSequenceCompleted);
         }
         else
         {
@@ -207,7 +210,7 @@ internal sealed class PetBehaviorRuntime : IDisposable
             decision,
             profile,
             now,
-            randomWasInterrupted);
+            randomWasInterrupted || randomSequenceCompleted);
     }
 
     public void UpdateActivity(ActivitySnapshot snapshot, BehaviorProfile profile, PetPresentation presentation)
@@ -256,8 +259,12 @@ internal sealed class PetBehaviorRuntime : IDisposable
             case BehaviorDecision.Sequence sequence:
                 bool baseChanged = stationaryDecision is BehaviorDecision.Sequence stationarySequence &&
                     (restartBaseSequence
-                        ? _baseScheduler.Restart(stationarySequence.Value)
-                        : _baseScheduler.Request(stationarySequence.Value));
+                        ? _baseScheduler.Restart(
+                            stationarySequence.Value,
+                            MotionSequencePlayback.Once)
+                        : _baseScheduler.Request(
+                            stationarySequence.Value,
+                            MotionSequencePlayback.Once));
                 if (stationaryDecision is not BehaviorDecision.Sequence)
                 {
                     _baseScheduler.Stop();
@@ -269,14 +276,18 @@ internal sealed class PetBehaviorRuntime : IDisposable
                         movementBehaviorId,
                         StringComparison.Ordinal)) is { } movementSequence)
                 {
-                    movementChanged = _movementScheduler.Request(movementSequence);
+                    movementChanged = _movementScheduler.Request(
+                        movementSequence,
+                        MotionSequencePlayback.RepeatWhileRequested);
                 }
                 else
                 {
                     _movementScheduler.Stop();
                 }
                 bool ruleChanged = sequence.Source is BehaviorSource.AutomaticRule
-                    ? _ruleScheduler.Request(sequence.Value)
+                    ? _ruleScheduler.Request(
+                        sequence.Value,
+                        MotionSequencePlayback.Once)
                     : StopScheduler(_ruleScheduler);
                 PlaybackLayer nextLayer = sequence.Source switch
                 {
@@ -473,6 +484,13 @@ internal sealed class PetBehaviorRuntime : IDisposable
         MotionSchedulerStatus schedulerStatus = _interactionBehaviorId is not null
             ? _interactionScheduler.Status
             : ActiveScheduler.Status;
+        if (schedulerStatus is MotionSchedulerStatus.Completed &&
+            ActiveScheduler.CompletedMotion is { } completedMotion)
+        {
+            _overlay.HoldMotionLastFrame(completedMotion.ResolvedMotionId);
+            _displayedMotionId = completedMotion.ResolvedMotionId;
+            return;
+        }
         string? desired = (schedulerStatus as MotionSchedulerStatus.Playing)?.Motion.ResolvedMotionId;
         if (desired is null)
         {

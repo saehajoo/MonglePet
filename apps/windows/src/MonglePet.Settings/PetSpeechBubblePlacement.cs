@@ -65,7 +65,8 @@ public static class PetSpeechBubblePlacement
         PetSpeechBubbleRect parentFrame,
         PetSpeechBubbleSize bubbleSize,
         PetSpeechBubbleRect visibleFrame,
-        PetSpeechBubblePlacementSettings settings)
+        PetSpeechBubblePlacementSettings settings,
+        PetSpeechBubbleTailEdge? lockedAutomaticTailEdge = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         Validate(parentFrame, bubbleSize, visibleFrame);
@@ -80,7 +81,12 @@ public static class PetSpeechBubblePlacement
         double belowY = parentFrame.Bottom + settings.Gap;
         bool canPlaceAbove = aboveY >= visibleFrame.Top;
         bool canPlaceBelow = belowY + bubbleSize.Height <= visibleFrame.Bottom;
-        bool usesAbove = settings.PreferredPosition switch
+        bool usesAbove = settings.PreferredPosition == PetSpeechBubblePreferredPosition.Automatic &&
+            lockedAutomaticTailEdge is { } locked
+                ? locked == PetSpeechBubbleTailEdge.Bottom
+                    ? canPlaceAbove || !canPlaceBelow
+                    : !canPlaceBelow && canPlaceAbove
+                : settings.PreferredPosition switch
         {
             PetSpeechBubblePreferredPosition.Automatic or
                 PetSpeechBubblePreferredPosition.Above =>

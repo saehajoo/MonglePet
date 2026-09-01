@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using Microsoft.UI.Composition;
 using Microsoft.UI.Content;
 using MonglePet.Packages;
+using MonglePet.Core.Movement;
 using MonglePet.Settings;
 using Windows.Win32;
 using Windows.Win32.Foundation;
@@ -253,6 +254,13 @@ public sealed unsafe class PetOverlayWindow : IDisposable
         _framePlayer?.Pause();
     }
 
+    public void HoldMotionLastFrame(string motionId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(motionId);
+        ThrowIfDisposed();
+        _framePlayer?.HoldLastFrame(motionId);
+    }
+
     public void ResumePlayback()
     {
         ThrowIfDisposed();
@@ -263,6 +271,21 @@ public sealed unsafe class PetOverlayWindow : IDisposable
     {
         ThrowIfDisposed();
         return _framePlayer?.ContainsVisibleContent(pointX, pointY) ?? false;
+    }
+
+    internal PetSpeechBubbleRect SpeechAnchorFrame()
+    {
+        MovementRect local;
+        if (_framePlayer?.TryGetVisibleContentBounds(out local) != true)
+        {
+            local = _framePlayer?.CurrentContentBounds() ??
+                new MovementRect(0, 0, Width, Height);
+        }
+        return new PetSpeechBubbleRect(
+            OriginX + local.X,
+            OriginY + local.Y,
+            Math.Max(local.Width, 1),
+            Math.Max(local.Height, 1));
     }
 
     public bool IsTopmostWindowAt(int screenX, int screenY)

@@ -288,6 +288,91 @@ public static class ActivePetSettingsEditor
         };
     }
 
+    public static AppSettings ReassignPetKeepingIdentity(
+        AppSettings settings,
+        Guid instanceId,
+        PetBehaviorKey petKey)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(petKey);
+        ActivePetInstance instance = RequiredInstance(settings, instanceId);
+        BehaviorProfile profile = settings.BehaviorProfiles.FirstOrDefault(value =>
+            value.ProfileId == instance.BehaviorProfileId)
+            ?? throw new InvalidOperationException("The pet behavior profile is missing.");
+        return settings with
+        {
+            ActivePetInstances = settings.ActivePetInstances
+                .Select(value => value.InstanceId == instanceId
+                    ? value with { PetKey = petKey }
+                    : value)
+                .ToList(),
+            BehaviorProfiles = settings.BehaviorProfiles
+                .Select(value => value.ProfileId == profile.ProfileId
+                    ? value with { PetKey = petKey }
+                    : value)
+                .ToList(),
+        };
+    }
+
+    public static AppSettings RecoverUnreferencedInstallations(
+        AppSettings settings,
+        IEnumerable<Guid> installationIds,
+        Func<Guid>? idGenerator = null)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(installationIds);
+        idGenerator ??= Guid.NewGuid;
+        var instances = settings.ActivePetInstances.ToList();
+        var profiles = settings.BehaviorProfiles.ToList();
+        var usedInstanceIds = instances.Select(value => value.InstanceId).ToHashSet();
+        var usedProfileIds = instances.Select(value => value.BehaviorProfileId).ToHashSet();
+        var allProfileIds = profiles.Select(value => value.ProfileId).ToHashSet();
+        int nextOrder = instances.Count == 0
+            ? 0
+            : instances.Max(value => value.DisplayOrder) + 1;
+
+        foreach (Guid installationId in installationIds
+                     .Where(value => value != Guid.Empty)
+                     .Distinct()
+                     .Order())
+        {
+            var petKey = new PetBehaviorKey.Installed(installationId);
+            if (instances.Any(value => value.PetKey == petKey))
+            {
+                continue;
+            }
+
+            BehaviorProfile? profile = profiles.FirstOrDefault(value =>
+                value.PetKey == petKey && !usedProfileIds.Contains(value.ProfileId));
+            if (profile is null)
+            {
+                Guid profileId = NextUniqueId(idGenerator, allProfileIds);
+                allProfileIds.Add(profileId);
+                profile = BehaviorProfileDefaults.Create(petKey, profileId);
+                profiles.Add(profile);
+            }
+            usedProfileIds.Add(profile.ProfileId);
+            Guid instanceId = NextUniqueId(idGenerator, usedInstanceIds);
+            usedInstanceIds.Add(instanceId);
+            instances.Add(new ActivePetInstance(
+                instanceId,
+                profile.ProfileId,
+                petKey,
+                null,
+                PetPresentation.TuckedAway,
+                OverlaySettings.Default,
+                nextOrder++));
+        }
+
+        return instances.Count == settings.ActivePetInstances.Count
+            ? settings
+            : settings with
+            {
+                ActivePetInstances = instances,
+                BehaviorProfiles = profiles,
+            };
+    }
+
     public static AppSettings Move(AppSettings settings, Guid instanceId, int targetIndex)
     {
         ArgumentNullException.ThrowIfNull(settings);

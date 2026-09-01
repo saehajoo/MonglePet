@@ -242,6 +242,28 @@ public sealed class PetSpeechRuntimeTests
     }
 
     [Fact]
+    public void AutomaticPlacementKeepsLockedSideForCurrentPresentation()
+    {
+        var visible = new PetSpeechBubbleRect(0, 0, 1000, 800);
+        var size = new PetSpeechBubbleSize(240, 80);
+        PetSpeechBubblePlacementResult initial = PetSpeechBubblePlacement.Calculate(
+            new PetSpeechBubbleRect(400, 10, 100, 100),
+            size,
+            visible,
+            PetSpeechBubblePlacementSettings.Default);
+        PetSpeechBubblePlacementResult moved = PetSpeechBubblePlacement.Calculate(
+            new PetSpeechBubbleRect(400, 400, 100, 100),
+            size,
+            visible,
+            PetSpeechBubblePlacementSettings.Default,
+            initial.TailEdge);
+
+        Assert.Equal(PetSpeechBubbleTailEdge.Top, initial.TailEdge);
+        Assert.Equal(PetSpeechBubbleTailEdge.Top, moved.TailEdge);
+        Assert.Equal(508, moved.Origin.Y);
+    }
+
+    [Fact]
     public void PlacementClampsHorizontalOffsetAndPointsTailAtPet()
     {
         var parent = new PetSpeechBubbleRect(900, 500, 100, 100);

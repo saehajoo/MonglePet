@@ -62,17 +62,29 @@
         SelectionChanged="SettingsNavigationView_SelectionChanged">
         <NavigationView.MenuItems>
             <NavigationViewItemHeader Content="데스크톱" />
-            <NavigationViewItem Content="활성 펫" IsSelected="True" Tag="activePets">
+            <NavigationViewItem Content="내 펫" IsSelected="True" Tag="activePets">
                 <NavigationViewItem.Icon><SymbolIcon Symbol="Contact" /></NavigationViewItem.Icon>
             </NavigationViewItem>
             <NavigationViewItem Content="일반" Tag="general">
                 <NavigationViewItem.Icon><SymbolIcon Symbol="Setting" /></NavigationViewItem.Icon>
             </NavigationViewItem>
             <NavigationViewItemHeader Content="선택한 펫" />
-            <NavigationViewItem Content="표시 및 이동" Tag="movement">
+            <NavigationViewItem Content="펫 정보·애니메이션" Tag="pet">
+                <NavigationViewItem.Icon><SymbolIcon Symbol="Folder" /></NavigationViewItem.Icon>
+            </NavigationViewItem>
+            <NavigationViewItem Content="화면 표시" Tag="display">
                 <NavigationViewItem.Icon><SymbolIcon Symbol="Map" /></NavigationViewItem.Icon>
             </NavigationViewItem>
-            <NavigationViewItem Content="행동 루틴" Tag="routines">
+            <NavigationViewItem Content="평상시 행동" Tag="stationary">
+                <NavigationViewItem.Icon><SymbolIcon Symbol="Play" /></NavigationViewItem.Icon>
+            </NavigationViewItem>
+            <NavigationViewItem Content="이동" Tag="movement">
+                <NavigationViewItem.Icon><SymbolIcon Symbol="Map" /></NavigationViewItem.Icon>
+            </NavigationViewItem>
+            <NavigationViewItem Content="상호작용" Tag="interaction">
+                <NavigationViewItem.Icon><SymbolIcon Symbol="Edit" /></NavigationViewItem.Icon>
+            </NavigationViewItem>
+            <NavigationViewItem Content="행동 편집" Tag="routines">
                 <NavigationViewItem.Icon><SymbolIcon Symbol="Bullets" /></NavigationViewItem.Icon>
             </NavigationViewItem>
             <NavigationViewItem Content="말풍선" Tag="speech">
@@ -80,10 +92,6 @@
             </NavigationViewItem>
             <NavigationViewItem Content="규칙 설정" Tag="automaticRules">
                 <NavigationViewItem.Icon><SymbolIcon Symbol="Clock" /></NavigationViewItem.Icon>
-            </NavigationViewItem>
-            <NavigationViewItemHeader Content="보관함" />
-            <NavigationViewItem Content="펫 보관함" Tag="pet">
-                <NavigationViewItem.Icon><SymbolIcon Symbol="Folder" /></NavigationViewItem.Icon>
             </NavigationViewItem>
             <NavigationViewItemHeader Content="지원" />
             <NavigationViewItem Content="문제 해결" Tag="troubleshooting">
@@ -163,122 +171,336 @@
             <Border
                 x:Name="ActivePetsCard"
                 Style="{StaticResource SettingsCardStyle}">
-                <StackPanel Spacing="16">
-                    <Grid ColumnSpacing="12">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <StackPanel Spacing="4">
-                            <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="활성 펫" />
-                            <TextBlock Style="{StaticResource SettingsCaptionStyle}" Text="목록 위쪽의 펫이 화면에서도 앞에 표시됩니다." />
-                        </StackPanel>
+                <StackPanel Spacing="12">
+                    <TextBlock
+                        Style="{StaticResource SettingsCaptionStyle}"
+                        Text="각 펫은 독립된 이미지, 행동, 이동과 말풍선 설정을 사용합니다. 잠시 숨기려면 삭제하지 말고 재워 주세요." />
+                    <StackPanel Orientation="Horizontal" Spacing="10">
                         <Button
-                            Grid.Column="1"
-                            Click="AddActivePetButton_Click"
-                            Content="펫 추가"
-                            Style="{StaticResource AccentButtonStyle}" />
-                    </Grid>
-                    <Grid ColumnSpacing="8">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <Button HorizontalAlignment="Stretch" Click="WakeAllPetsButton_Click" Content="모두 깨우기" Style="{StaticResource SettingsActionButtonStyle}" />
-                        <Button Grid.Column="1" HorizontalAlignment="Stretch" Click="TuckAwayAllPetsButton_Click" Content="모두 재우기" Style="{StaticResource SettingsActionButtonStyle}" />
-                        <Button x:Name="PauseAllPetsButton" Grid.Column="2" HorizontalAlignment="Stretch" Click="PauseAllPetsButton_Click" Content="모든 펫 일시정지/재개" Style="{StaticResource SettingsActionButtonStyle}" />
-                    </Grid>
+                            AutomationProperties.Name="펫 만들기"
+                            Click="CreatePetButton_Click"
+                            Style="{StaticResource AccentButtonStyle}">
+                            <StackPanel Orientation="Horizontal" Spacing="7">
+                                <Viewbox Width="14" Height="14">
+                                    <SymbolIcon Symbol="Add" />
+                                </Viewbox>
+                                <TextBlock Text="펫 만들기" />
+                            </StackPanel>
+                        </Button>
+                        <Button AutomationProperties.Name="펫 가져오기" Click="ImportPetFromDashboardButton_Click">
+                            <StackPanel Orientation="Horizontal" Spacing="7">
+                                <Viewbox Width="14" Height="14">
+                                    <SymbolIcon Symbol="Download" />
+                                </Viewbox>
+                                <TextBlock Text="펫 가져오기" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                    <Border
+                        Margin="0,4,0,0"
+                        Padding="0,12,0,0"
+                        BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}"
+                        BorderThickness="0,1,0,0">
+                        <StackPanel Spacing="6">
+                            <TextBlock Style="{StaticResource SettingsCaptionStyle}" Text="전체 펫 제어" />
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <Button AutomationProperties.Name="모두 깨우기" Click="WakeAllPetsButton_Click">
+                                    <StackPanel Orientation="Horizontal" Spacing="7">
+                                        <Viewbox Width="14" Height="14">
+                                            <SymbolIcon Symbol="Play" />
+                                        </Viewbox>
+                                        <TextBlock Text="모두 깨우기" />
+                                    </StackPanel>
+                                </Button>
+                                <Button AutomationProperties.Name="모두 재우기" Click="TuckAwayAllPetsButton_Click">
+                                    <StackPanel Orientation="Horizontal" Spacing="7">
+                                        <Viewbox Width="14" Height="14">
+                                            <SymbolIcon Symbol="Stop" />
+                                        </Viewbox>
+                                        <TextBlock Text="모두 재우기" />
+                                    </StackPanel>
+                                </Button>
+                                <Button AutomationProperties.Name="모든 펫 일시정지 또는 계속" Click="PauseAllPetsButton_Click">
+                                    <StackPanel Orientation="Horizontal" Spacing="7">
+                                        <Viewbox Width="14" Height="14">
+                                            <SymbolIcon x:Name="PauseAllPetsIcon" Symbol="Pause" />
+                                        </Viewbox>
+                                        <TextBlock x:Name="PauseAllPetsText" Text="모두 일시정지" />
+                                    </StackPanel>
+                                </Button>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
                     <ListView
                         x:Name="ActivePetsList"
                         Background="Transparent"
                         BorderThickness="0"
                         HorizontalContentAlignment="Stretch"
-                        IsTabStop="False"
-                        IsItemClickEnabled="True"
-                        ItemClick="ActivePetsList_ItemClick"
-                        SelectionMode="None">
+                        IsItemClickEnabled="False"
+                        SelectionChanged="ActivePetsList_SelectionChanged"
+                        SelectionMode="Single">
                         <ListView.ItemContainerStyle>
                             <Style TargetType="ListViewItem">
                                 <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                                <Setter Property="IsTabStop" Value="False" />
+                                <Setter Property="IsTabStop" Value="True" />
                                 <Setter Property="Padding" Value="0" />
                                 <Setter Property="Margin" Value="0,3" />
-                                <Setter Property="UseSystemFocusVisuals" Value="False" />
+                                <Setter Property="UseSystemFocusVisuals" Value="True" />
                             </Style>
                         </ListView.ItemContainerStyle>
                         <ListView.ItemTemplate>
                             <DataTemplate>
                                 <Grid>
-                                    <Border Padding="16" Style="{StaticResource SettingsSubcardStyle}">
-                                    <Grid ColumnSpacing="16">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="84" />
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <Border
-                                            Width="84"
-                                            Height="84"
-                                            VerticalAlignment="Top"
-                                            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                            CornerRadius="12">
-                                            <Grid>
-                                                <TextBlock
-                                                    HorizontalAlignment="Center"
-                                                    VerticalAlignment="Center"
-                                                    FontSize="28"
-                                                    Foreground="{ThemeResource TextFillColorTertiaryBrush}"
-                                                    Text="🐾" />
-                                                <Image
-                                                    Margin="6"
-                                                    Source="{Binding Preview}"
-                                                    Stretch="Uniform" />
-                                            </Grid>
-                                        </Border>
-                                        <StackPanel Grid.Column="1" Spacing="5">
-                                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                                <TextBlock
-                                                    Style="{StaticResource BodyStrongTextBlockStyle}"
-                                                    Text="{Binding DisplayName}" />
-                                                <Border
-                                                    Padding="7,2"
-                                                    Background="{ThemeResource AccentFillColorSecondaryBrush}"
-                                                    CornerRadius="9"
-                                                    Visibility="{Binding SelectionVisibility}">
-                                                    <TextBlock
-                                                        FontSize="11"
-                                                        Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
-                                                        Text="설정 중" />
-                                                </Border>
-                                            </StackPanel>
-                                            <TextBox
-                                                Header="구분 이름 (선택)"
-                                                LostFocus="ActivePetNicknameTextBox_LostFocus"
-                                                Tag="{Binding InstanceId}"
-                                                Text="{Binding Nickname, Mode=OneWay}" />
-                                            <TextBlock Style="{StaticResource SettingsCaptionStyle}" Text="{Binding Detail}" />
-                                        </StackPanel>
-                                        <Grid Grid.Column="2" ColumnSpacing="6" RowSpacing="6" VerticalAlignment="Center">
+                                    <Border Padding="16" CornerRadius="16" Style="{StaticResource SettingsSubcardStyle}">
+                                        <Grid ColumnSpacing="16" RowSpacing="8">
                                             <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="84" />
+                                                <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
                                             <Grid.RowDefinitions>
                                                 <RowDefinition Height="Auto" />
                                                 <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
                                             </Grid.RowDefinitions>
-                                            <Button Width="38" AutomationProperties.Name="앞으로 이동" Click="MoveActivePetUpButton_Click" Content="↑" Tag="{Binding InstanceId}" ToolTipService.ToolTip="앞으로" />
-                                            <Button Width="38" Grid.Column="1" AutomationProperties.Name="뒤로 이동" Click="MoveActivePetDownButton_Click" Content="↓" Tag="{Binding InstanceId}" ToolTipService.ToolTip="뒤로" />
-                                            <Button Grid.Row="1" MinWidth="72" Click="ToggleActivePetButton_Click" Content="{Binding PresentationCommand}" Tag="{Binding InstanceId}" />
-                                            <Button Grid.Row="1" Grid.Column="1" MinWidth="58" Foreground="{ThemeResource MongleDangerForegroundBrush}" Click="RemoveActivePetButton_Click" Content="제거" Tag="{Binding InstanceId}" />
+                                            <Border
+                                                Grid.RowSpan="5"
+                                                Width="84"
+                                                Height="84"
+                                                VerticalAlignment="Top"
+                                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                                CornerRadius="12">
+                                                <Grid>
+                                                    <TextBlock
+                                                        HorizontalAlignment="Center"
+                                                        VerticalAlignment="Center"
+                                                        FontSize="28"
+                                                        Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                                                        Text="🐾" />
+                                                    <Image Margin="6" Source="{Binding Preview}" Stretch="Uniform" />
+                                                </Grid>
+                                            </Border>
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Orientation="Horizontal" Spacing="8">
+                                                <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="{Binding DisplayName}" />
+                                                <TextBlock
+                                                    VerticalAlignment="Center"
+                                                    FontSize="11"
+                                                    FontWeight="SemiBold"
+                                                    Foreground="{ThemeResource MongleControlAccentBrush}"
+                                                    Text="설정 중"
+                                                    Visibility="{Binding SelectionVisibility}" />
+                                            </StackPanel>
+                                            <Grid
+                                                Grid.Row="2"
+                                                Grid.Column="2"
+                                                HorizontalAlignment="Right"
+                                                VerticalAlignment="Center"
+                                                ColumnSpacing="8">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock
+                                                    Margin="0,2,0,0"
+                                                    VerticalAlignment="Center"
+                                                    LineHeight="20"
+                                                    LineStackingStrategy="BlockLineHeight"
+                                                    Style="{StaticResource SettingsCaptionStyle}"
+                                                    Text="{Binding StatusTitle}" />
+                                                <ToggleSwitch
+                                                    Grid.Column="1"
+                                                    AutomationProperties.Name="펫 화면 표시"
+                                                    Height="34"
+                                                    HorizontalAlignment="Right"
+                                                    VerticalAlignment="Center"
+                                                    IsOn="{Binding IsAwake, Mode=OneWay}"
+                                                    MinHeight="34"
+                                                    MinWidth="44"
+                                                    OffContent="{x:Null}"
+                                                    OnContent="{x:Null}"
+                                                    Tag="{Binding InstanceId}"
+                                                    ToolTipService.ToolTip="펫 깨우기 또는 재우기"
+                                                    Width="44"
+                                                    Toggled="ActivePetAwakeToggle_Toggled">
+                                                    <ToggleSwitch.Resources>
+                                                        <ResourceDictionary>
+                                                            <ResourceDictionary.ThemeDictionaries>
+                                                                <ResourceDictionary x:Key="Default">
+                                                                    <SolidColorBrush x:Key="ToggleSwitchFillOn" Color="#FFC6C6C6" />
+                                                                    <SolidColorBrush x:Key="ToggleSwitchFillOnPointerOver" Color="#FFDADADA" />
+                                                                    <SolidColorBrush x:Key="ToggleSwitchFillOnPressed" Color="#FFB0B0B0" />
+                                                                    <SolidColorBrush x:Key="ToggleSwitchFillOnDisabled" Color="#FF777777" />
+                                                                    <SolidColorBrush x:Key="ToggleSwitchStrokeOn" Color="#FFC6C6C6" />
+                                                                    <SolidColorBrush x:Key="ToggleSwitchStrokeOnPointerOver" Color="#FFDADADA" />
+                                                                    <SolidColorBrush x:Key="ToggleSwitchStrokeOnPressed" Color="#FFB0B0B0" />
+                                                                    <SolidColorBrush x:Key="ToggleSwitchStrokeOnDisabled" Color="#FF777777" />
+                                                                    <SolidColorBrush x:Key="ToggleSwitchKnobFillOn" Color="#FF303030" />
+                                                                    <SolidColorBrush x:Key="ToggleSwitchKnobFillOnPointerOver" Color="#FF303030" />
+                                                                    <SolidColorBrush x:Key="ToggleSwitchKnobFillOnPressed" Color="#FF303030" />
+                                                                    <SolidColorBrush x:Key="ToggleSwitchKnobFillOnDisabled" Color="#FFB0B0B0" />
+                                                                    <SolidColorBrush x:Key="ToggleSwitchFillOff" Color="#FF303030" />
+                                                                    <SolidColorBrush x:Key="ToggleSwitchFillOffPointerOver" Color="#FF3A3A3A" />
+                                                                    <SolidColorBrush x:Key="ToggleSwitchFillOffPressed" Color="#FF252525" />
+                                                                    <SolidColorBrush x:Key="ToggleSwitchFillOffDisabled" Color="#FF404040" />
+                                                                    <SolidColorBrush x:Key="ToggleSwitchStrokeOff" Color="#FF858585" />
+                                                                    <SolidColorBrush x:Key="ToggleSwitchStrokeOffPointerOver" Color="#FFA0A0A0" />
+                                                                    <SolidColorBrush x:Key="ToggleSwitchStrokeOffPressed" Color="#FF707070" />
+                                                                    <SolidColorBrush x:Key="ToggleSwitchStrokeOffDisabled" Color="#FF606060" />
+                                                                    <SolidColorBrush x:Key="ToggleSwitchKnobFillOff" Color="#FFC6C6C6" />
+                                                                    <SolidColorBrush x:Key="ToggleSwitchKnobFillOffPointerOver" Color="#FFDADADA" />
+                                                                    <SolidColorBrush x:Key="ToggleSwitchKnobFillOffPressed" Color="#FFB0B0B0" />
+                                                                    <SolidColorBrush x:Key="ToggleSwitchKnobFillOffDisabled" Color="#FF8A8A8A" />
+                                                                </ResourceDictionary>
+                                                                <ResourceDictionary x:Key="Light">
+                                                                    <SolidColorBrush x:Key="ToggleSwitchFillOn" Color="#FF666666" />
+                                                                    <SolidColorBrush x:Key="ToggleSwitchFillOnPointerOver" Color="#FF505050" />
+                                                                    <SolidColorBrush x:Key="ToggleSwitchFillOnPressed" Color="#FF3E3E3E" />
+                                                                    <SolidColorBrush x:Key="ToggleSwitchFillOnDisabled" Color="#FFAAAAAA" />
+                                                                    <SolidColorBrush x:Key="ToggleSwitchStrokeOn" Color="#FF666666" />
+                                                                    <SolidColorBrush x:Key="ToggleSwitchStrokeOnPointerOver" Color="#FF505050" />
+                                                                    <SolidColorBrush x:Key="ToggleSwitchStrokeOnPressed" Color="#FF3E3E3E" />
+                                                                    <SolidColorBrush x:Key="ToggleSwitchStrokeOnDisabled" Color="#FFAAAAAA" />
+                                                                    <SolidColorBrush x:Key="ToggleSwitchKnobFillOn" Color="#FFF7F7F7" />
+                                                                    <SolidColorBrush x:Key="ToggleSwitchKnobFillOnPointerOver" Color="#FFFFFFFF" />
+                                                                    <SolidColorBrush x:Key="ToggleSwitchKnobFillOnPressed" Color="#FFF0F0F0" />
+                                                                    <SolidColorBrush x:Key="ToggleSwitchKnobFillOnDisabled" Color="#FFF0F0F0" />
+                                                                    <SolidColorBrush x:Key="ToggleSwitchFillOff" Color="#FFE4E4E4" />
+                                                                    <SolidColorBrush x:Key="ToggleSwitchFillOffPointerOver" Color="#FFF0F0F0" />
+                                                                    <SolidColorBrush x:Key="ToggleSwitchFillOffPressed" Color="#FFD0D0D0" />
+                                                                    <SolidColorBrush x:Key="ToggleSwitchFillOffDisabled" Color="#FFF0F0F0" />
+                                                                    <SolidColorBrush x:Key="ToggleSwitchStrokeOff" Color="#FF8A8A8A" />
+                                                                    <SolidColorBrush x:Key="ToggleSwitchStrokeOffPointerOver" Color="#FF707070" />
+                                                                    <SolidColorBrush x:Key="ToggleSwitchStrokeOffPressed" Color="#FF5F5F5F" />
+                                                                    <SolidColorBrush x:Key="ToggleSwitchStrokeOffDisabled" Color="#FFC8C8C8" />
+                                                                    <SolidColorBrush x:Key="ToggleSwitchKnobFillOff" Color="#FF666666" />
+                                                                    <SolidColorBrush x:Key="ToggleSwitchKnobFillOffPointerOver" Color="#FF505050" />
+                                                                    <SolidColorBrush x:Key="ToggleSwitchKnobFillOffPressed" Color="#FF3E3E3E" />
+                                                                    <SolidColorBrush x:Key="ToggleSwitchKnobFillOffDisabled" Color="#FF999999" />
+                                                                </ResourceDictionary>
+                                                            </ResourceDictionary.ThemeDictionaries>
+                                                        </ResourceDictionary>
+                                                    </ToggleSwitch.Resources>
+                                                </ToggleSwitch>
+                                            </Grid>
+                                            <TextBlock
+                                                Grid.Row="1"
+                                                Grid.Column="1"
+                                                Style="{StaticResource SettingsCaptionStyle}"
+                                                Text="{Binding OriginalNameText}"
+                                                Visibility="{Binding OriginalNameVisibility}" />
+                                            <StackPanel
+                                                Grid.Row="2"
+                                                Grid.Column="1"
+                                                Orientation="Horizontal"
+                                                Spacing="16">
+                                                <TextBlock
+                                                    FontSize="11"
+                                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                    Text="{Binding MovementStatus}" />
+                                                <TextBlock
+                                                    FontSize="11"
+                                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                    Text="{Binding InteractionStatus}" />
+                                            </StackPanel>
+                                            <Grid Grid.Row="3" Grid.Column="1" ColumnSpacing="8">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBox
+                                                    PlaceholderText="구분 이름 (선택)"
+                                                    Tag="{Binding InstanceId}"
+                                                    Text="{Binding Nickname, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                <Button
+                                                    Grid.Column="1"
+                                                    VerticalAlignment="Stretch"
+                                                    Click="SaveActivePetNicknameButton_Click"
+                                                    Content="저장"
+                                                    IsEnabled="{Binding CanSaveNickname}"
+                                                    Tag="{Binding InstanceId}" />
+                                            </Grid>
+                                            <StackPanel
+                                                Grid.Row="3"
+                                                Grid.Column="2"
+                                                HorizontalAlignment="Right"
+                                                VerticalAlignment="Center"
+                                                Orientation="Horizontal"
+                                                Spacing="2">
+                                                <Button
+                                                    AutomationProperties.Name="한 단계 앞으로"
+                                                    Click="MoveActivePetUpButton_Click"
+                                                    IsEnabled="{Binding CanMoveUp}"
+                                                    Style="{StaticResource ActivePetIconButtonStyle}"
+                                                    Tag="{Binding InstanceId}"
+                                                    ToolTipService.ToolTip="한 단계 앞으로">
+                                                    <TextBlock FontSize="15" Text="↑" />
+                                                </Button>
+                                                <Button
+                                                    AutomationProperties.Name="한 단계 뒤로"
+                                                    Click="MoveActivePetDownButton_Click"
+                                                    IsEnabled="{Binding CanMoveDown}"
+                                                    Style="{StaticResource ActivePetIconButtonStyle}"
+                                                    Tag="{Binding InstanceId}"
+                                                    ToolTipService.ToolTip="한 단계 뒤로">
+                                                    <TextBlock FontSize="15" Text="↓" />
+                                                </Button>
+                                            </StackPanel>
+                                            <StackPanel
+                                                Grid.Row="4"
+                                                Grid.Column="1"
+                                                Orientation="Horizontal"
+                                                Spacing="8">
+                                                <Button AutomationProperties.Name="펫 사본 만들기" Click="DuplicateActivePetButton_Click" Tag="{Binding InstanceId}">
+                                                    <StackPanel Orientation="Horizontal" Spacing="7">
+                                                        <Viewbox Width="14" Height="14">
+                                                            <SymbolIcon Symbol="Copy" />
+                                                        </Viewbox>
+                                                        <TextBlock Text="펫 사본 만들기" />
+                                                    </StackPanel>
+                                                </Button>
+                                                <Button
+                                                    AutomationProperties.Name="패키지로 내보내기"
+                                                    Click="ExportActivePetButton_Click"
+                                                    Tag="{Binding InstanceId}"
+                                                    Visibility="{Binding ExportVisibility}">
+                                                    <StackPanel Orientation="Horizontal" Spacing="7">
+                                                        <Viewbox Width="14" Height="14">
+                                                            <SymbolIcon Symbol="Upload" />
+                                                        </Viewbox>
+                                                        <TextBlock Text="패키지로 내보내기" />
+                                                    </StackPanel>
+                                                </Button>
+                                            </StackPanel>
+                                            <Button
+                                                Grid.Row="4"
+                                                Grid.Column="2"
+                                                HorizontalAlignment="Right"
+                                                VerticalAlignment="Center"
+                                                AutomationProperties.Name="펫과 모든 설정 완전히 삭제"
+                                                Click="RemoveActivePetButton_Click"
+                                                Foreground="{ThemeResource MongleDangerForegroundBrush}"
+                                                IsEnabled="{Binding CanRemove}"
+                                                Style="{StaticResource ActivePetIconButtonStyle}"
+                                                Tag="{Binding InstanceId}"
+                                                ToolTipService.ToolTip="펫과 모든 설정 완전히 삭제">
+                                                <Viewbox Width="15" Height="15">
+                                                    <SymbolIcon Symbol="Delete" />
+                                                </Viewbox>
+                                            </Button>
                                         </Grid>
-                                    </Grid>
                                     </Border>
                                     <Border
+                                        Background="{ThemeResource AccentFillColorDefaultBrush}"
+                                        CornerRadius="16"
+                                        IsHitTestVisible="False"
+                                        Opacity="0.09"
+                                        Visibility="{Binding SelectionVisibility}" />
+                                    <Border
                                         BorderBrush="{ThemeResource AccentFillColorDefaultBrush}"
-                                        BorderThickness="2"
-                                        CornerRadius="10"
+                                        BorderThickness="1.5"
+                                        CornerRadius="16"
                                         IsHitTestVisible="False"
                                         Visibility="{Binding SelectionVisibility}" />
                                 </Grid>
@@ -321,46 +543,61 @@
                                 Style="{StaticResource SettingsCaptionStyle}"
                                 Text="펫의 크기와 선명도, 화면 위에서 마우스와 겹칠 때의 표시 방법을 정합니다." />
                         </StackPanel>
-                        <ToggleSwitch
-                            x:Name="ClickThroughToggle"
-                            Header="클릭 통과"
-                            IsOn="True"
-                            OffContent="펫 클릭 가능"
-                            OnContent="클릭 통과 중"
-                            Toggled="ClickThroughToggle_Toggled" />
-                        <ToggleSwitch
-                            x:Name="PointerOverlapFadeToggle"
-                            Header="마우스가 펫과 겹치면 더 투명하게"
-                            Toggled="PointerOverlapFadeToggle_Toggled" />
-                        <Grid ColumnSpacing="12" RowSpacing="8">
+                        <StackPanel Spacing="6">
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="56" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock VerticalAlignment="Center" Text="펫 크기" />
+                                <Slider
+                                    x:Name="OverlayWidthSlider"
+                                    Grid.Column="1"
+                                    Maximum="384"
+                                    Minimum="19.2"
+                                    SmallChange="9.6"
+                                    StepFrequency="9.6"
+                                    ValueChanged="DisplaySlider_ValueChanged" />
+                                <TextBlock
+                                    x:Name="OverlayWidthValueText"
+                                    Grid.Column="2"
+                                    HorizontalAlignment="Right"
+                                    VerticalAlignment="Center" />
+                            </Grid>
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <TextBlock VerticalAlignment="Center" Style="{StaticResource SettingsCaptionStyle}" Text="빠른 크기" />
+                                <Button Click="OverlaySizePresetButton_Click" Content="10%" Tag="10" />
+                                <Button Click="OverlaySizePresetButton_Click" Content="25%" Tag="25" />
+                                <Button Click="OverlaySizePresetButton_Click" Content="50%" Tag="50" />
+                                <Button Click="OverlaySizePresetButton_Click" Content="100%" Tag="100" />
+                                <Button Click="OverlaySizePresetButton_Click" Content="150%" Tag="150" />
+                                <Button Click="OverlaySizePresetButton_Click" Content="200%" Tag="200" />
+                            </StackPanel>
+                            <InfoBar
+                                x:Name="TinyPetInfoBar"
+                                IsClosable="False"
+                                IsOpen="False"
+                                Message="아주 작은 펫은 찾거나 드래그하기 어려울 수 있습니다. 설정에서 다시 크게 만들거나 ‘현재 화면으로 가져오기’를 사용하세요."
+                                Severity="Warning"
+                                Title="아주 작은 펫 크기">
+                                <InfoBar.ActionButton>
+                                    <Button Click="BringPetToCurrentScreenButton_Click" Content="현재 화면으로 가져오기" />
+                                </InfoBar.ActionButton>
+                            </InfoBar>
+                            <TextBlock
+                                Style="{StaticResource SettingsCaptionStyle}"
+                                Text="100%는 192px이며 10%~200% 범위에서 펫마다 따로 저장됩니다." />
+                        </StackPanel>
+                        <Grid ColumnSpacing="12">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="56" />
                             </Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-                            <TextBlock VerticalAlignment="Center" Text="펫 크기" />
-                            <Slider
-                                x:Name="OverlayWidthSlider"
-                                Grid.Column="1"
-                                Maximum="384"
-                                Minimum="19.2"
-                                SmallChange="9.6"
-                                StepFrequency="9.6"
-                                ValueChanged="DisplaySlider_ValueChanged" />
-                            <TextBlock
-                                x:Name="OverlayWidthValueText"
-                                Grid.Column="2"
-                                HorizontalAlignment="Right"
-                                VerticalAlignment="Center" />
-                            <TextBlock Grid.Row="1" VerticalAlignment="Center" Text="기본 투명도" />
+                            <TextBlock VerticalAlignment="Center" Text="기본 투명도" />
                             <Slider
                                 x:Name="OverlayOpacitySlider"
-                                Grid.Row="1"
                                 Grid.Column="1"
                                 Maximum="1"
                                 Minimum="0.1"
@@ -369,58 +606,60 @@
                                 ValueChanged="DisplaySlider_ValueChanged" />
                             <TextBlock
                                 x:Name="OverlayOpacityValueText"
-                                Grid.Row="1"
-                                Grid.Column="2"
-                                HorizontalAlignment="Right"
-                                VerticalAlignment="Center" />
-                            <TextBlock Grid.Row="2" VerticalAlignment="Center" Text="겹침 투명도" />
-                            <Slider
-                                x:Name="PointerOverlapOpacitySlider"
-                                Grid.Row="2"
-                                Grid.Column="1"
-                                Maximum="1"
-                                Minimum="0.05"
-                                SmallChange="0.05"
-                                StepFrequency="0.05"
-                                ValueChanged="DisplaySlider_ValueChanged" />
-                            <TextBlock
-                                x:Name="PointerOverlapOpacityValueText"
-                                Grid.Row="2"
                                 Grid.Column="2"
                                 HorizontalAlignment="Right"
                                 VerticalAlignment="Center" />
                         </Grid>
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <TextBlock VerticalAlignment="Center" Style="{StaticResource SettingsCaptionStyle}" Text="빠른 크기" />
-                            <Button Click="OverlaySizePresetButton_Click" Content="10%" Tag="10" />
-                            <Button Click="OverlaySizePresetButton_Click" Content="25%" Tag="25" />
-                            <Button Click="OverlaySizePresetButton_Click" Content="50%" Tag="50" />
-                            <Button Click="OverlaySizePresetButton_Click" Content="100%" Tag="100" />
-                            <Button Click="OverlaySizePresetButton_Click" Content="150%" Tag="150" />
-                            <Button Click="OverlaySizePresetButton_Click" Content="200%" Tag="200" />
-                        </StackPanel>
-                        <InfoBar
-                            x:Name="TinyPetInfoBar"
-                            IsClosable="False"
-                            IsOpen="False"
-                            Message="25% 미만에서는 펫을 찾거나 직접 드래그하기 어려울 수 있습니다."
-                            Severity="Informational"
-                            Title="아주 작은 펫 크기">
-                            <InfoBar.ActionButton>
-                                <Button Click="BringPetToCurrentScreenButton_Click" Content="현재 화면으로 가져오기" />
-                            </InfoBar.ActionButton>
-                        </InfoBar>
-                        <TextBlock
-                            Style="{StaticResource SettingsCaptionStyle}"
-                            Text="클릭 통과가 켜진 동안 마우스가 펫의 보이는 부분에 닿았을 때만 겹침 투명도를 적용합니다." />
                         <ToggleSwitch
                             x:Name="PixelArtToggle"
                             Header="픽셀 아트 선명하게"
                             Toggled="PixelArtToggle_Toggled" />
                         <TextBlock
                             Style="{StaticResource SettingsCaptionStyle}"
-                            Text="픽셀 아트는 nearest 보간으로 또렷하게 표시합니다. 일반 일러스트에서는 끄는 편이 자연스럽습니다."
+                            Text="픽셀 아트의 확대 경계를 또렷하게 표시합니다. 일반 일러스트에서는 계단 현상이 보일 수 있습니다."
                             TextWrapping="Wrap" />
+                        <Border Style="{StaticResource SettingsDividerStyle}" />
+                        <ToggleSwitch
+                            x:Name="ClickThroughToggle"
+                            Header="클릭 통과"
+                            IsOn="True"
+                            Toggled="ClickThroughToggle_Toggled" />
+                        <TextBlock
+                            x:Name="ClickThroughDescriptionText"
+                            Style="{StaticResource SettingsCaptionStyle}"
+                            TextWrapping="Wrap" />
+                        <Border Style="{StaticResource SettingsDividerStyle}" />
+                        <ToggleSwitch
+                            x:Name="PointerOverlapFadeToggle"
+                            Header="마우스가 펫과 겹치면 더 투명하게"
+                            Toggled="PointerOverlapFadeToggle_Toggled" />
+                        <StackPanel x:Name="PointerOverlapOpacityPanel" Spacing="6">
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="56" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock VerticalAlignment="Center" Text="겹침 투명도" />
+                                <Slider
+                                    x:Name="PointerOverlapOpacitySlider"
+                                    Grid.Column="1"
+                                    Maximum="1"
+                                    Minimum="0.05"
+                                    SmallChange="0.05"
+                                    StepFrequency="0.05"
+                                    ValueChanged="DisplaySlider_ValueChanged" />
+                                <TextBlock
+                                    x:Name="PointerOverlapOpacityValueText"
+                                    Grid.Column="2"
+                                    HorizontalAlignment="Right"
+                                    VerticalAlignment="Center" />
+                            </Grid>
+                            <TextBlock
+                                Style="{StaticResource SettingsCaptionStyle}"
+                                Text="마우스가 펫의 보이는 부분과 겹칠 때 적용할 투명도입니다."
+                                TextWrapping="Wrap" />
+                        </StackPanel>
                     </StackPanel>
                     <Border x:Name="DisplayApplicationDivider" Style="{StaticResource SettingsDividerStyle}" />
                     <StackPanel x:Name="ApplicationSettingsPanel" Spacing="10">
@@ -468,19 +707,6 @@
                             Style="{StaticResource SettingsCaptionStyle}"
                             Text="현재 펫이 행동을 바꾸거나 일정 시간이 지났을 때 보여 줄 말을 정합니다." />
                     </StackPanel>
-                    <Border Style="{StaticResource SettingsSubcardStyle}">
-                        <Grid ColumnSpacing="12">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="설정 대상 펫" />
-                            <TextBlock
-                                x:Name="SpeechTargetPetText"
-                                Grid.Column="1"
-                                Style="{StaticResource BodyStrongTextBlockStyle}" />
-                        </Grid>
-                    </Border>
                     <ToggleSwitch
                         x:Name="SpeechEnabledToggle"
                         Header="말풍선 사용"
@@ -881,24 +1107,8 @@
                 Style="{StaticResource SettingsCardStyle}"
                 Visibility="Collapsed">
                 <StackPanel Spacing="14">
-                    <StackPanel Spacing="4">
-                        <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="이동" />
-                        <TextBlock
-                            Style="{StaticResource SettingsCaptionStyle}"
-                            Text="현재 펫이 데스크톱에서 움직이는 방식과 사용할 애니메이션을 정합니다." />
-                    </StackPanel>
-                    <Border Style="{StaticResource SettingsSubcardStyle}">
-                        <Grid ColumnSpacing="12">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="설정 대상 펫" />
-                            <TextBlock x:Name="MovementTargetPetText" Grid.Column="1" HorizontalAlignment="Right" Style="{StaticResource BodyStrongTextBlockStyle}" />
-                        </Grid>
-                    </Border>
-                    <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="이동 방식" />
-                    <Grid ColumnSpacing="10" RowSpacing="10">
+                    <TextBlock x:Name="MovementModeTitleText" Style="{StaticResource BodyStrongTextBlockStyle}" Text="이동 방식" />
+                    <Grid x:Name="MovementModeChoicesGrid" ColumnSpacing="10" RowSpacing="10">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="*" />
@@ -1142,6 +1352,7 @@
                         DisplayMemberPath="DisplayName"
                         Header="현재 펫"
                         SelectedValuePath="InstallationId"
+                        Visibility="Collapsed"
                         SelectionChanged="CurrentPetComboBox_SelectionChanged" />
                     <Border Style="{StaticResource SettingsSubcardStyle}">
                         <Grid ColumnSpacing="20">
@@ -1177,6 +1388,15 @@
                             </StackPanel>
                         </Grid>
                     </Border>
+                    <Button
+                        x:Name="EditPetDetailsButton"
+                        HorizontalAlignment="Left"
+                        Click="EditPetDetailsButton_Click"
+                        Content="펫 정보 수정…" />
+                    <TextBlock
+                        Style="{StaticResource SettingsCaptionStyle}"
+                        Text="내장 펫이나 여러 펫이 같은 이미지를 공유하는 경우에도 선택한 펫만 안전하게 분리해 수정합니다."
+                        TextWrapping="Wrap" />
                     <Border Style="{StaticResource SettingsDividerStyle}" />
 
                     <StackPanel Spacing="8">
@@ -1255,8 +1475,7 @@
                         </Grid>
                     </StackPanel>
 
-                    <Border Style="{StaticResource SettingsDividerStyle}" />
-                    <StackPanel Spacing="10">
+                    <StackPanel Spacing="10" Visibility="Collapsed">
                         <StackPanel Spacing="2">
                             <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="웹에서 펫 가져오기" />
                             <TextBlock
@@ -1319,8 +1538,7 @@
                             Severity="Error" />
                     </StackPanel>
 
-                    <Border Style="{StaticResource SettingsDividerStyle}" />
-                    <StackPanel Spacing="8">
+                    <StackPanel Spacing="8" Visibility="Collapsed">
                         <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Windows의 패키지 가져오기" />
                         <TextBlock
                             Style="{StaticResource SettingsCaptionStyle}"
@@ -1334,8 +1552,7 @@
                             Content="패키지 파일 선택…" />
                     </StackPanel>
 
-                    <Border Style="{StaticResource SettingsDividerStyle}" />
-                    <StackPanel Spacing="8">
+                    <StackPanel Spacing="8" Visibility="Collapsed">
                         <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="현재 펫 내보내기" />
                         <TextBlock
                             Style="{StaticResource SettingsCaptionStyle}"
@@ -1364,8 +1581,7 @@
                         </StackPanel>
                     </StackPanel>
 
-                    <Border Style="{StaticResource SettingsDividerStyle}" />
-                    <StackPanel Spacing="8">
+                    <StackPanel Spacing="8" Visibility="Collapsed">
                         <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="펫 관리" />
                         <TextBlock
                             x:Name="PetManagementCaptionText"
@@ -1384,19 +1600,15 @@
                                 x:Name="CreatePetButton"
                                 Click="CreatePetButton_Click"
                                 Content="새 펫 만들기…"
-                                Style="{StaticResource SettingsActionButtonStyle}" />
-                            <Button
-                                x:Name="EditPetDetailsButton"
-                                Grid.Column="1"
-                                Click="EditPetDetailsButton_Click"
-                                Content="펫 정보 수정…"
-                                Style="{StaticResource SettingsActionButtonStyle}" />
+                                Style="{StaticResource SettingsActionButtonStyle}"
+                                Visibility="Collapsed" />
                             <Button
                                 x:Name="CreateEditablePetCopyButton"
                                 Grid.Row="1"
                                 Click="CreateEditablePetCopyButton_Click"
                                 Content="펫 사본 새로 만들기…"
-                                Style="{StaticResource SettingsActionButtonStyle}" />
+                                Style="{StaticResource SettingsActionButtonStyle}"
+                                Visibility="Collapsed" />
                             <Button
                                 x:Name="DeleteCurrentPetButton"
                                 Grid.Row="1"
@@ -1404,7 +1616,8 @@
                                 Click="DeleteCurrentPetButton_Click"
                                 Content="펫 삭제…"
                                 Foreground="{ThemeResource MongleDangerForegroundBrush}"
-                                Style="{StaticResource SettingsActionButtonStyle}" />
+                                Style="{StaticResource SettingsActionButtonStyle}"
+                                Visibility="Collapsed" />
                         </Grid>
                         <Expander Header="다른 설치된 펫 선택" Visibility="Collapsed">
                             <ListView
@@ -1440,12 +1653,6 @@
                             Content="기본 몽글이 복원"
                             Visibility="Collapsed" />
                     </StackPanel>
-                    <Expander Header="저장 위치 및 진단 정보">
-                        <StackPanel Spacing="4">
-                            <TextBlock x:Name="LibraryStatusText" Style="{StaticResource SettingsCaptionStyle}" />
-                            <TextBlock x:Name="SettingsStatusText" Style="{StaticResource SettingsCaptionStyle}" />
-                        </StackPanel>
-                    </Expander>
                     <InfoBar
                         x:Name="LibraryInfoBar"
                         IsClosable="True"
@@ -1458,19 +1665,6 @@
                 Style="{StaticResource SettingsCardStyle}"
                 Visibility="Collapsed">
                 <StackPanel Spacing="14">
-                    <Border Style="{StaticResource SettingsSubcardStyle}">
-                        <Grid ColumnSpacing="12">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="설정 대상 펫" />
-                            <TextBlock
-                                x:Name="BehaviorTargetPetText"
-                                Grid.Column="1"
-                                Style="{StaticResource BodyStrongTextBlockStyle}" />
-                        </Grid>
-                    </Border>
                     <Border
                         x:Name="RoutineEditorCard"
                         Style="{StaticResource SettingsSubcardStyle}"
@@ -1485,7 +1679,7 @@
                                     <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="행동 루틴 편집" />
                                     <TextBlock
                                         Style="{StaticResource SettingsCaptionStyle}"
-                                        Text="루틴을 선택한 뒤 애니메이션 단계와 반복 방식을 편집합니다."
+                                        Text="각 단계의 반복 횟수로 행동 길이를 조절합니다. 행동이 끝나면 마지막 프레임을 유지합니다."
                                         TextWrapping="Wrap" />
                                 </StackPanel>
                                 <Button
@@ -1521,10 +1715,6 @@
                                     Content="선택 삭제"
                                     Foreground="{ThemeResource MongleDangerForegroundBrush}" />
                             </Grid>
-                            <ToggleSwitch
-                                x:Name="SequenceRepeatsToggle"
-                                Header="마지막 단계 후 처음부터 반복"
-                                Toggled="SequenceRepeatsToggle_Toggled" />
                             <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="애니메이션 단계" />
                             <ListView
                                 x:Name="BehaviorStepsList"

@@ -34,7 +34,7 @@ public sealed class BehaviorProfileEditorTests
         BehaviorSequence sequence = Assert.Single(result.Sequences, value => value.Id == id.ToString("D"));
         Assert.Equal("focus", sequence.DisplayName);
         Assert.Equal(BehaviorMotionReferences.CurrentPetDefault, Assert.Single(sequence.Steps).MotionId);
-        Assert.True(sequence.Repeats);
+        Assert.False(sequence.Repeats);
     }
 
     [Fact]

@@ -57,7 +57,7 @@ public static class BehaviorProfileEditor
         {
             throw Error(BehaviorProfileEditError.DuplicateSequenceName, "같은 ID의 행동이 이미 있습니다.");
         }
-        var sequence = new BehaviorSequence(sequenceId, [DefaultStep], true)
+        var sequence = new BehaviorSequence(sequenceId, [DefaultStep], false)
         {
             DisplayName = displayName,
         };

@@ -18,6 +18,7 @@ internal sealed class PetInstanceManager : IDisposable
     private readonly WindowsFrontmostWindowProvider _frontmostWindowProvider = new();
     private readonly WindowsActivityMonitor _activityMonitor = new();
     private readonly PetRestoreJournal _restoreJournal;
+    private readonly HashSet<Guid> _pausedInstanceIds = [];
     private bool _isPaused;
     private bool _disposed;
 
@@ -71,6 +72,7 @@ internal sealed class PetInstanceManager : IDisposable
         foreach (Guid removedId in _contexts.Keys.Where(id => !desiredIds.Contains(id)).ToList())
         {
             RemoveContext(removedId);
+            _pausedInstanceIds.Remove(removedId);
         }
 
         var issues = new List<PetInstanceRestoreIssue>();
@@ -119,7 +121,11 @@ internal sealed class PetInstanceManager : IDisposable
                 }
             }
 
-            existing.Apply(runtimeInstance, profile, LatestActivitySnapshot, _isPaused);
+            existing.Apply(
+                runtimeInstance,
+                profile,
+                LatestActivitySnapshot,
+                _isPaused || _pausedInstanceIds.Contains(instance.InstanceId));
             if (runtimeInstance.Overlay != instance.Overlay)
             {
                 OverlayChanged?.Invoke(
@@ -136,7 +142,9 @@ internal sealed class PetInstanceManager : IDisposable
             ? settings.SelectedPetInstanceId
             : desired.FirstOrDefault()?.InstanceId;
         _activityMonitor.SetShouldPoll(
-            !_isPaused && desired.Any(instance => instance.Presentation == PetPresentation.Awake));
+            !_isPaused && desired.Any(instance =>
+                instance.Presentation == PetPresentation.Awake &&
+                !_pausedInstanceIds.Contains(instance.InstanceId)));
         ApplyDisplayOrder();
         StateChanged?.Invoke(this, EventArgs.Empty);
     }
@@ -151,11 +159,37 @@ internal sealed class PetInstanceManager : IDisposable
         _isPaused = paused;
         foreach (PetRuntimeContext context in Contexts)
         {
-            context.Apply(context.Instance, context.Profile, LatestActivitySnapshot, paused);
+            context.Apply(
+                context.Instance,
+                context.Profile,
+                LatestActivitySnapshot,
+                paused || _pausedInstanceIds.Contains(context.Instance.InstanceId));
         }
         _activityMonitor.SetShouldPoll(
             !paused && Contexts.Any(context =>
-                context.Instance.Presentation == PetPresentation.Awake));
+                context.Instance.Presentation == PetPresentation.Awake &&
+                !_pausedInstanceIds.Contains(context.Instance.InstanceId)));
+        StateChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void ToggleInstancePaused(Guid instanceId)
+    {
+        ThrowIfDisposed();
+        PetRuntimeContext context = RequiredContext(instanceId);
+        bool paused = !_pausedInstanceIds.Remove(instanceId);
+        if (paused)
+        {
+            _pausedInstanceIds.Add(instanceId);
+        }
+        context.Apply(
+            context.Instance,
+            context.Profile,
+            LatestActivitySnapshot,
+            _isPaused || paused);
+        _activityMonitor.SetShouldPoll(
+            !_isPaused && Contexts.Any(value =>
+                value.Instance.Presentation == PetPresentation.Awake &&
+                !_pausedInstanceIds.Contains(value.Instance.InstanceId)));
         StateChanged?.Invoke(this, EventArgs.Empty);
     }
 

@@ -5,6 +5,20 @@ namespace MonglePet.Core.Tests;
 public sealed class PetFrameAlphaMaskTests
 {
     [Fact]
+    public void VisibleBoundsExcludeTransparentPaddingAndAreCachedGeometry()
+    {
+        var mask = new PetFrameAlphaMask(4, 3,
+        [
+            0, 0, 0, 0,
+            0, 255, 255, 0,
+            0, 0, 0, 0,
+        ]);
+
+        Assert.Equal(new MovementRect(0.25, 1d / 3d, 0.5, 1d / 3d), mask.VisibleBounds);
+        Assert.Null(new PetFrameAlphaMask(2, 2, [0, 0, 0, 0]).VisibleBounds);
+    }
+
+    [Fact]
     public void UsesVisiblePixelsAndIncludesNormalizedEdges()
     {
         var mask = new PetFrameAlphaMask(2, 2, [

@@ -179,6 +179,26 @@ public sealed class UserPetPackageEditor
         return CreateEditableCopy(installed.Package, installed.RootPath, displayName);
     }
 
+    public InstalledPetPackage MakeEditableInPlace(InstalledPetPackage installed)
+    {
+        ArgumentNullException.ThrowIfNull(installed);
+        if (IsEditable(installed))
+        {
+            return installed;
+        }
+
+        return WithWorkspace(workspace =>
+        {
+            CopyDirectory(installed.RootPath, workspace);
+            WriteMarker(workspace, installed.Package.Manifest.Id);
+            _loader.LoadDirectory(workspace);
+            return _store.InstallEditableFromDirectory(
+                workspace,
+                PetPackageInstallMode.Replace,
+                installed.InstallationId);
+        }, createWorkspace: false);
+    }
+
     public InstalledPetPackage CreateEditableCopy(
         LoadedPetPackage package,
         string sourceRootPath,
@@ -209,7 +229,6 @@ public sealed class UserPetPackageEditor
         InstalledPetPackage installed,
         UserPetDetailsRequest request)
     {
-        EnsureEditable(installed);
         ValidDetails details = ValidateDetails(
             request.DisplayName,
             request.Version,
@@ -236,7 +255,6 @@ public sealed class UserPetPackageEditor
         UserPetAnimationRequest request,
         CancellationToken cancellationToken = default)
     {
-        EnsureEditable(installed);
         string name = ValidateAnimationName(request.AnimationName);
         EnsureUniqueMotion(installed.Package.Manifest, name, except: null);
         ValidateFrames(request.Frames);
@@ -260,7 +278,6 @@ public sealed class UserPetPackageEditor
         UserPetAnimationUpdateRequest request,
         CancellationToken cancellationToken = default)
     {
-        EnsureEditable(installed);
         PetPackageMotion original = installed.Package.Manifest.Motions.FirstOrDefault(value =>
             string.Equals(value.Id, request.AnimationId, StringComparison.Ordinal))
             ?? throw Error(UserPetEditingError.AnimationNotFound, "애니메이션을 찾을 수 없습니다.");
@@ -301,7 +318,6 @@ public sealed class UserPetPackageEditor
 
     public InstalledPetPackage RemoveAnimation(InstalledPetPackage installed, string animationId)
     {
-        EnsureEditable(installed);
         PetPackageManifest manifest = installed.Package.Manifest;
         PetPackageMotion removed = manifest.Motions.FirstOrDefault(value => value.Id == animationId)
             ?? throw Error(UserPetEditingError.AnimationNotFound, "애니메이션을 찾을 수 없습니다.");
@@ -339,6 +355,7 @@ public sealed class UserPetPackageEditor
             CopyDirectory(installed.RootPath, workspace);
             PetPackageManifest manifest = installed.Package.Manifest;
             edit(workspace, manifest);
+            WriteMarker(workspace, manifest.Id);
             _loader.LoadDirectory(workspace);
             return _store.InstallEditableFromDirectory(
                 workspace,
@@ -424,14 +441,6 @@ public sealed class UserPetPackageEditor
             string.Equals(value.Id, name, StringComparison.OrdinalIgnoreCase)))
         {
             throw Error(UserPetEditingError.DuplicateAnimationName, $"같은 이름의 애니메이션이 이미 있습니다: {name}");
-        }
-    }
-
-    private void EnsureEditable(InstalledPetPackage installed)
-    {
-        if (!IsEditable(installed))
-        {
-            throw Error(UserPetEditingError.ImportedPackageIsReadOnly, "MonglePet에서 만든 편집 가능한 펫만 직접 수정할 수 있습니다.");
         }
     }
 

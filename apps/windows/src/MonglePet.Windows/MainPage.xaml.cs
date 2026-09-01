@@ -51,6 +51,7 @@ public sealed partial class MainPage : Page
     private bool _isRefreshingMovementControls;
     private bool _isRefreshingSpeechControls;
     private bool _isRefreshingPetChoice;
+    private bool _isRefreshingActivePetsSelection;
     private bool _isEditingSpeechPhrase;
     private bool _isRefreshingLoginLaunch;
     private bool _isPersistingMovementControls;
@@ -190,7 +191,8 @@ public sealed partial class MainPage : Page
     {
         string section = (args.SelectedItemContainer as NavigationViewItem)?.Tag?.ToString()
             ?? "activePets";
-        if (_currentSettingsSection == "movement" && section != "movement")
+        if ((_currentSettingsSection == "movement" || _currentSettingsSection == "interaction") &&
+            section != "movement" && section != "interaction")
         {
             FlushMovementSave();
         }
@@ -213,7 +215,10 @@ public sealed partial class MainPage : Page
         bool isActivePets = section == "activePets";
         bool isPet = section == "pet";
         bool isGeneral = section == "general";
+        bool isDisplay = section == "display";
+        bool isStationary = section == "stationary";
         bool isMovement = section == "movement";
+        bool isInteraction = section == "interaction";
         bool isRoutines = section == "routines";
         bool isSpeech = section == "speech";
         bool isAutomaticRules = section == "automaticRules";
@@ -227,23 +232,23 @@ public sealed partial class MainPage : Page
             ? Visibility.Visible
             : Visibility.Collapsed;
         PetLibraryCard.Visibility = isPet ? Visibility.Visible : Visibility.Collapsed;
-        GeneralSettingsCard.Visibility = isMovement
-            ? Visibility.Visible
-            : Visibility.Collapsed;
-        PetPresentationPanel.Visibility = isMovement ? Visibility.Visible : Visibility.Collapsed;
-        BehaviorOverviewPanel.Visibility = isMovement
+        GeneralSettingsCard.Visibility = Visibility.Collapsed;
+        PetPresentationPanel.Visibility = Visibility.Collapsed;
+        BehaviorOverviewPanel.Visibility = isStationary
             ? Visibility.Visible
             : Visibility.Collapsed;
 
-        OverlaySettingsCard.Visibility = isGeneral || isMovement
+        OverlaySettingsCard.Visibility = isGeneral || isDisplay
             ? Visibility.Visible
             : Visibility.Collapsed;
-        OverlayDisplayPanel.Visibility = isMovement ? Visibility.Visible : Visibility.Collapsed;
+        OverlayDisplayPanel.Visibility = isDisplay ? Visibility.Visible : Visibility.Collapsed;
         ApplicationSettingsPanel.Visibility = isGeneral ? Visibility.Visible : Visibility.Collapsed;
         AppInformationPanel.Visibility = isGeneral ? Visibility.Visible : Visibility.Collapsed;
         DisplayApplicationDivider.Visibility = Visibility.Collapsed;
         ApplicationInfoDivider.Visibility = isGeneral ? Visibility.Visible : Visibility.Collapsed;
-        MovementSettingsCard.Visibility = isMovement ? Visibility.Visible : Visibility.Collapsed;
+        MovementSettingsCard.Visibility = isMovement || isInteraction
+            ? Visibility.Visible
+            : Visibility.Collapsed;
         SpeechSettingsCard.Visibility = isSpeech ? Visibility.Visible : Visibility.Collapsed;
 
         BehaviorSettingsCard.Visibility = isRoutines || isAutomaticRules
@@ -259,12 +264,21 @@ public sealed partial class MainPage : Page
             "general" => (
                 "일반",
                 "로그인 자동 실행과 앱 버전, 로컬 개인정보 보호 정보를 확인합니다."),
+            "display" => (
+                "화면 표시",
+                "선택한 펫의 표시 상태와 크기, 투명도 및 포인터 표시 방법을 설정합니다."),
+            "stationary" => (
+                "평상시 행동",
+                "이동하지 않고 조건 규칙이 일치하지 않을 때 재생할 행동을 선택합니다."),
             "movement" => (
-                "표시 및 이동",
-                "선택한 펫의 표시 상태와 화면 모양, 이동 방식과 쓰다듬기를 설정합니다."),
+                "이동",
+                "선택한 펫의 이동 방식과 범위, 속도 및 이동 애니메이션을 설정합니다."),
+            "interaction" => (
+                "상호작용",
+                "선택한 펫의 쓰다듬기 행동을 설정합니다."),
             "routines" => (
-                "행동 루틴",
-                "애니메이션 단계를 조합해 행동을 만들고 이름과 반복 방식을 편집합니다."),
+                "행동 편집",
+                "애니메이션 단계를 조합해 행동을 만들고 단계별 반복 횟수를 편집합니다."),
             "speech" => (
                 "말풍선",
                 "행동 대사와 주기 대사, 말풍선 모양 및 표시 위치를 설정합니다."),
@@ -272,15 +286,24 @@ public sealed partial class MainPage : Page
                 "규칙 설정",
                 "이동·입력 없음·앱 사용 규칙의 우선순위와 조건별 행동을 설정합니다."),
             "pet" => (
-                "펫 보관함",
-                "펫 패키지를 가져오거나 내보내고 원본 정보와 애니메이션을 관리합니다."),
+                "펫 정보·애니메이션",
+                "선택한 펫의 정보와 애니메이션을 확인하고 추가·수정·복제·삭제합니다."),
             "troubleshooting" => (
                 "문제 해결",
                 "복원 중 문제가 생긴 펫을 안전 모드에서 분리하고 다시 시작합니다."),
             _ => (
-                "활성 펫",
-                "데스크톱에 함께 표시할 펫을 추가하고 선택, 순서와 실행 상태를 관리합니다."),
+                "내 펫",
+                "모든 펫을 한곳에서 추가하고 선택, 순서와 실행 상태를 관리합니다."),
         };
+
+        if (isMovement && Application.Current is App app)
+        {
+            RefreshMovementControlVisibility(app.SettingsStore.IsWritingEnabled);
+        }
+        else
+        {
+            ApplyMovementSectionVisibility();
+        }
 
         if (_isLoaded && section != "activePets" && _selectedPetDetailsAreStale)
         {
@@ -383,6 +406,7 @@ public sealed partial class MainPage : Page
             return;
         }
 
+        UpdateDisplayOptionPresentation();
         PersistDisplaySettingsFromControls();
     }
 
@@ -403,6 +427,7 @@ public sealed partial class MainPage : Page
             return;
         }
 
+        UpdateDisplayOptionPresentation();
         PersistDisplaySettingsFromControls();
     }
 
@@ -678,18 +703,7 @@ public sealed partial class MainPage : Page
             ShowLibraryMessage(
                 InfoBarSeverity.Success,
                 "가져오기 완료",
-                $"'{installed.Package.Manifest.DisplayName}'을(를) 설치하고 현재 펫으로 전환했습니다.");
-        }
-        catch (PetLibraryException exception)
-            when (exception.Error == PetLibraryError.DuplicatePackage &&
-                  exception.MatchingInstallationIds.Count > 0)
-        {
-            await ResolveDuplicateImport(
-                app,
-                review,
-                exception.MatchingInstallationIds[0],
-                options,
-                usesRemoteErrorSurface);
+                $"'{installed.Package.Manifest.DisplayName}'을(를) 새 내 펫으로 추가했습니다.");
         }
         catch (Exception exception)
         {
@@ -699,69 +713,6 @@ public sealed partial class MainPage : Page
         RefreshLibraryState();
         RefreshOverlayState();
         RefreshBehaviorState();
-    }
-
-    private async Task ResolveDuplicateImport(
-        App app,
-        PetPackageImportReview review,
-        Guid existingInstallationId,
-        PetRecommendedProfileApplyOptions optionsForSeparateInstall,
-        bool usesRemoteErrorSurface)
-    {
-        var replaceProfileCheckBox = new CheckBox
-        {
-            Content = "교체하면서 권장 설정으로 기존 로컬 설정도 바꾸기",
-            IsEnabled = review.CanApplyRecommendedProfile &&
-                optionsForSeparateInstall.AppliesProfile,
-            IsChecked = false,
-        };
-        var content = new StackPanel { Spacing = 10 };
-        content.Children.Add(new TextBlock
-        {
-            Text = "기존 설치 UUID를 유지해 교체하거나, 편집 가능한 별도 사본으로 설치할 수 있습니다. 교체 시 로컬 설정은 기본적으로 보존됩니다.",
-            TextWrapping = TextWrapping.Wrap,
-        });
-        content.Children.Add(replaceProfileCheckBox);
-        var dialog = new ContentDialog
-        {
-            XamlRoot = XamlRoot,
-            Title = "같은 펫 패키지가 이미 설치되어 있습니다",
-            Content = content,
-            PrimaryButtonText = "기존 설치 교체",
-            SecondaryButtonText = "별도 설치",
-            CloseButtonText = "취소",
-            DefaultButton = ContentDialogButton.Close,
-        };
-        ContentDialogResult result = await dialog.ShowAsync();
-        try
-        {
-            InstalledPetPackage? installed = result switch
-            {
-                ContentDialogResult.Primary => app.ImportReviewedPackage(
-                    review,
-                    replaceProfileCheckBox.IsChecked == true
-                        ? optionsForSeparateInstall
-                        : PetRecommendedProfileApplyOptions.None,
-                    PetPackageInstallMode.Replace,
-                    existingInstallationId),
-                ContentDialogResult.Secondary => app.ImportReviewedPackage(
-                    review,
-                    optionsForSeparateInstall,
-                    PetPackageInstallMode.InstallSeparately),
-                _ => null,
-            };
-            if (installed is not null)
-            {
-                ShowLibraryMessage(
-                    InfoBarSeverity.Success,
-                    "가져오기 완료",
-                    $"'{installed.Package.Manifest.DisplayName}'을 설치하고 전환했습니다.");
-            }
-        }
-        catch (Exception exception)
-        {
-            ShowImportFailure(usesRemoteErrorSurface, exception.Message);
-        }
     }
 
     private void ShowImportFailure(bool usesRemoteErrorSurface, string message)
@@ -811,50 +762,6 @@ public sealed partial class MainPage : Page
             content.Children.Add(warning);
             content.Children.Add(downloadButton);
         }
-        var apply = new CheckBox
-        {
-            Content = "권장 펫 설정도 적용",
-            IsEnabled = review.CanApplyRecommendedProfile,
-            IsChecked = false,
-        };
-        CheckBox Option(string text, bool defaultValue = true) => new()
-        {
-            Content = text,
-            IsChecked = defaultValue,
-            IsEnabled = false,
-            Margin = new Thickness(20, 0, 0, 0),
-        };
-        CheckBox behavior = Option("평상시 행동과 조건 규칙");
-        CheckBox applicationRules = Option("앱 사용 규칙", defaultValue: false);
-        CheckBox movement = Option("이동 설정");
-        CheckBox petting = Option("쓰다듬기 행동");
-        CheckBox speech = Option("말풍선 설정");
-        CheckBox display = Option("크기·투명도·클릭 통과 표시 설정");
-        CheckBox[] options = [behavior, applicationRules, movement, petting, speech, display];
-        apply.Checked += (_, _) =>
-        {
-            foreach (CheckBox option in options) option.IsEnabled = true;
-        };
-        apply.Unchecked += (_, _) =>
-        {
-            foreach (CheckBox option in options) option.IsEnabled = false;
-        };
-        behavior.Unchecked += (_, _) =>
-        {
-            movement.IsChecked = false;
-            petting.IsChecked = false;
-            applicationRules.IsChecked = false;
-            movement.IsEnabled = false;
-            petting.IsEnabled = false;
-            applicationRules.IsEnabled = false;
-        };
-        behavior.Checked += (_, _) =>
-        {
-            bool enabled = apply.IsChecked == true;
-            movement.IsEnabled = enabled;
-            petting.IsEnabled = enabled;
-            applicationRules.IsEnabled = enabled;
-        };
         if (review.RecommendedProfile is { } profile)
         {
             content.Children.Add(new TextBlock
@@ -862,8 +769,11 @@ public sealed partial class MainPage : Page
                 Text = RecommendedProfileSummary(profile),
                 TextWrapping = TextWrapping.Wrap,
             });
-            content.Children.Add(apply);
-            foreach (CheckBox option in options) content.Children.Add(option);
+            content.Children.Add(new TextBlock
+            {
+                Text = "기본 설정으로 추가하거나 제작자가 함께 저장한 권장 설정으로 추가할 수 있습니다. 앱 사용 규칙과 화면 절대 위치는 가져오지 않습니다.",
+                TextWrapping = TextWrapping.Wrap,
+            });
         }
         else if (review.ContainsRecommendedProfile)
         {
@@ -883,30 +793,37 @@ public sealed partial class MainPage : Page
             XamlRoot = XamlRoot,
             Title = "가져오기 검토",
             Content = content,
-            PrimaryButtonText = "설치",
+            PrimaryButtonText = "기본 설정으로 추가",
+            SecondaryButtonText = review.CanApplyRecommendedProfile
+                ? "권장 설정으로 추가"
+                : string.Empty,
             CloseButtonText = "취소",
             DefaultButton = ContentDialogButton.Primary,
         };
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+        ContentDialogResult result = await dialog.ShowAsync();
+        if (result == ContentDialogResult.None)
         {
             return null;
         }
-        bool applies = apply.IsChecked == true;
+        if (result == ContentDialogResult.Primary)
+        {
+            return PetRecommendedProfileApplyOptions.None;
+        }
         return new PetRecommendedProfileApplyOptions(
-            applies,
-            applies && behavior.IsChecked == true,
-            applies && applicationRules.IsChecked == true,
-            applies && movement.IsChecked == true,
-            applies && petting.IsChecked == true,
-            applies && speech.IsChecked == true,
-            applies && display.IsChecked == true);
+            true,
+            true,
+            false,
+            true,
+            true,
+            true,
+            true);
     }
 
     private async void ExportPackageButton_Click(object sender, RoutedEventArgs e)
     {
         if (Application.Current is not App app ||
             app.MainWindowHandle == IntPtr.Zero ||
-            app.ActiveInstallationId is null)
+            app.ActivePackage is null)
         {
             return;
         }
@@ -921,8 +838,7 @@ public sealed partial class MainPage : Page
         {
             SuggestedStartLocation = PickerLocationId.Downloads,
             SuggestedFileName = SafeFileName(
-                app.PetLibrary.GetInstallation(app.ActiveInstallationId.Value)
-                    .Package.Manifest.DisplayName),
+                app.ActivePackage.Manifest.DisplayName),
         };
         picker.FileTypeChoices.Add("MonglePet package", [".monglepet"]);
         WinRT.Interop.InitializeWithWindow.Initialize(picker, app.MainWindowHandle);
@@ -1288,8 +1204,7 @@ public sealed partial class MainPage : Page
 
     private async void AddPetAnimationButton_Click(object sender, RoutedEventArgs e)
     {
-        if (!TryGetActiveInstalledPet(out App app, out InstalledPetPackage installed) ||
-            !app.PetEditor.IsEditable(installed))
+        if (Application.Current is not App app || app.ActivePackage is not { } package)
         {
             return;
         }
@@ -1297,7 +1212,7 @@ public sealed partial class MainPage : Page
         PetAnimationEditorControl? editor = await ShowPetAnimationEditorAsync(
             "펫 애니메이션 추가",
             "추가",
-            installed.Package);
+            package);
         if (editor is null)
         {
             return;
@@ -1310,28 +1225,31 @@ public sealed partial class MainPage : Page
 
         await RunPetEditAsync("애니메이션 추가", async () =>
         {
-            InstalledPetPackage updated = await app.PetEditor.AddAnimationAsync(
-                installed,
-                animationRequest);
+            InstalledPetPackage updated = await app.EditSelectedPetAsync(editable =>
+                app.PetEditor.AddAnimationAsync(editable, animationRequest));
             try
             {
-                app.SaveBehaviorProfile(connectedProfile);
+                BehaviorProfile target = app.ActiveBehaviorProfile;
+                app.SaveBehaviorProfile(connectedProfile with
+                {
+                    ProfileId = target.ProfileId,
+                    PetKey = target.PetKey,
+                });
             }
             catch
             {
                 _ = app.PetEditor.RemoveAnimation(updated, animationRequest.AnimationName);
                 throw;
             }
-            app.ActivateInstallation(updated.InstallationId);
             return $"'{updated.Package.Manifest.DisplayName}'에 애니메이션을 추가했습니다.";
         });
     }
 
     private async void EditPetAnimationButton_Click(object sender, RoutedEventArgs e)
     {
-        if (!TryGetSelectedEditableAnimation(
+        if (!TryGetSelectedAnimation(
                 out App app,
-                out InstalledPetPackage installed,
+                out LoadedPetPackage package,
                 out PetPackageMotion motion))
         {
             return;
@@ -1340,7 +1258,7 @@ public sealed partial class MainPage : Page
         PetAnimationEditorControl? editor = await ShowPetAnimationEditorAsync(
             "펫 애니메이션 수정",
             "저장",
-            installed.Package,
+            package,
             motion);
         if (editor is null)
         {
@@ -1358,20 +1276,23 @@ public sealed partial class MainPage : Page
             request.AnimationName);
         await RunPetEditAsync("애니메이션 수정", async () =>
         {
-            InstalledPetPackage updated = await app.PetEditor.UpdateAnimationAsync(
-                installed,
-                request);
-            app.SaveBehaviorProfile(connectedProfile);
-            app.ActivateInstallation(updated.InstallationId);
+            _ = await app.EditSelectedPetAsync(editable =>
+                app.PetEditor.UpdateAnimationAsync(editable, request));
+            BehaviorProfile target = app.ActiveBehaviorProfile;
+            app.SaveBehaviorProfile(connectedProfile with
+            {
+                ProfileId = target.ProfileId,
+                PetKey = target.PetKey,
+            });
             return $"'{motion.Id}' 애니메이션을 수정했습니다.";
         });
     }
 
     private async void DuplicatePetAnimationButton_Click(object sender, RoutedEventArgs e)
     {
-        if (!TryGetSelectedEditableAnimation(
+        if (!TryGetSelectedAnimation(
                 out App app,
-                out InstalledPetPackage installed,
+                out LoadedPetPackage package,
                 out PetPackageMotion motion))
         {
             return;
@@ -1380,9 +1301,9 @@ public sealed partial class MainPage : Page
         PetAnimationEditorControl? editor = await ShowPetAnimationEditorAsync(
             "애니메이션 복제",
             "복제본 저장",
-            installed.Package,
+            package,
             motion,
-            AvailableAnimationCopyName(installed.Package.Manifest, motion.Id));
+            AvailableAnimationCopyName(package.Manifest, motion.Id));
         if (editor is null)
         {
             return;
@@ -1394,19 +1315,22 @@ public sealed partial class MainPage : Page
             animationRequest.AnimationName);
         await RunPetEditAsync("애니메이션 복제", async () =>
         {
-            InstalledPetPackage updated = await app.PetEditor.AddAnimationAsync(
-                installed,
-                animationRequest);
+            InstalledPetPackage updated = await app.EditSelectedPetAsync(editable =>
+                app.PetEditor.AddAnimationAsync(editable, animationRequest));
             try
             {
-                app.SaveBehaviorProfile(connectedProfile);
+                BehaviorProfile target = app.ActiveBehaviorProfile;
+                app.SaveBehaviorProfile(connectedProfile with
+                {
+                    ProfileId = target.ProfileId,
+                    PetKey = target.PetKey,
+                });
             }
             catch
             {
                 _ = app.PetEditor.RemoveAnimation(updated, animationRequest.AnimationName);
                 throw;
             }
-            app.ActivateInstallation(updated.InstallationId);
             return $"'{motion.Id}' 애니메이션 복제본을 만들었습니다.";
         });
     }
@@ -1509,9 +1433,9 @@ public sealed partial class MainPage : Page
 
     private async void DeletePetAnimationButton_Click(object sender, RoutedEventArgs e)
     {
-        if (!TryGetSelectedEditableAnimation(
+        if (!TryGetSelectedAnimation(
                 out App app,
-                out InstalledPetPackage installed,
+                out _,
                 out PetPackageMotion motion))
         {
             return;
@@ -1531,24 +1455,23 @@ public sealed partial class MainPage : Page
             return;
         }
 
-        await RunPetEditAsync("애니메이션 삭제", () =>
+        await RunPetEditAsync("애니메이션 삭제", async () =>
         {
-            InstalledPetPackage updated = app.PetEditor.RemoveAnimation(installed, motion.Id);
+            _ = await app.EditSelectedPetAsync(editable => Task.FromResult(
+                app.PetEditor.RemoveAnimation(editable, motion.Id)));
             app.ReplaceActiveMotionReferences(motion.Id, replacementMotionId: null);
-            app.ActivateInstallation(updated.InstallationId);
-            return Task.FromResult($"'{motion.Id}' 애니메이션을 삭제했습니다.");
+            return $"'{motion.Id}' 애니메이션을 삭제했습니다.";
         });
     }
 
     private async void EditPetDetailsButton_Click(object sender, RoutedEventArgs e)
     {
-        if (!TryGetActiveInstalledPet(out App app, out InstalledPetPackage installed) ||
-            !app.PetEditor.IsEditable(installed))
+        if (Application.Current is not App app || app.ActivePackage is not { } package)
         {
             return;
         }
 
-        PetPackageManifest manifest = installed.Package.Manifest;
+        PetPackageManifest manifest = package.Manifest;
         var name = new TextBox { Header = "펫 이름", Text = manifest.DisplayName };
         var author = new TextBox { Header = "제작자", Text = manifest.Author };
         var version = new TextBox { Header = "버전", Text = manifest.Version };
@@ -1570,7 +1493,7 @@ public sealed partial class MainPage : Page
         {
             Header = "기본 애니메이션",
             ItemsSource = manifest.Motions.Select(value => value.Id).ToArray(),
-            SelectedItem = installed.Package.DefaultMotionId,
+            SelectedItem = package.DefaultMotionId,
         };
         var content = new StackPanel { Width = 520, Spacing = 10 };
         content.Children.Add(name);
@@ -1605,18 +1528,18 @@ public sealed partial class MainPage : Page
             return;
         }
 
-        await RunPetEditAsync("펫 정보 수정", () =>
+        await RunPetEditAsync("펫 정보 수정", async () =>
         {
-            InstalledPetPackage updated = app.PetEditor.UpdateDetails(
-                installed,
-                new UserPetDetailsRequest(
+            InstalledPetPackage updated = await app.EditSelectedPetAsync(editable => Task.FromResult(
+                app.PetEditor.UpdateDetails(
+                    editable,
+                    new UserPetDetailsRequest(
                     name.Text,
                     version.Text,
                     author.Text,
                     description.Text,
-                    defaultMotion.SelectedItem?.ToString() ?? installed.Package.DefaultMotionId));
-            app.ActivateInstallation(updated.InstallationId);
-            return Task.FromResult($"'{updated.Package.Manifest.DisplayName}' 정보를 수정했습니다.");
+                    defaultMotion.SelectedItem?.ToString() ?? package.DefaultMotionId))));
+            return $"'{updated.Package.Manifest.DisplayName}' 정보를 수정했습니다.";
         });
     }
 
@@ -1674,20 +1597,10 @@ public sealed partial class MainPage : Page
             return;
         }
 
-        BehaviorProfile sourceProfile = app.ActiveBehaviorProfile;
-        OverlaySettings sourceOverlay = app.CurrentSettings.SelectedPetInstance?.Overlay
-            ?? OverlaySettings.Default;
         await RunPetEditAsync("편집 가능한 사본", () =>
         {
-            InstalledPetPackage copied = app.PetEditor.CreateEditableCopy(
-                package,
-                package.PackageRootPath,
-                name.Text);
-            app.AddInstallationCopyAsNewInstance(
-                copied.InstallationId,
-                sourceProfile,
-                sourceOverlay);
-            return Task.FromResult($"'{copied.Package.Manifest.DisplayName}' 사본을 새 활성 펫으로 추가했습니다.");
+            InstalledPetPackage copied = app.DuplicateSelectedPet(name.Text);
+            return Task.FromResult($"'{copied.Package.Manifest.DisplayName}' 사본을 새 내 펫으로 추가했습니다.");
         });
     }
 
@@ -1736,19 +1649,21 @@ public sealed partial class MainPage : Page
         }
     }
 
-    private bool TryGetSelectedEditableAnimation(
+    private bool TryGetSelectedAnimation(
         out App app,
-        out InstalledPetPackage installed,
+        out LoadedPetPackage package,
         out PetPackageMotion motion)
     {
+        app = (Application.Current as App)!;
+        package = null!;
         motion = null!;
-        if (!TryGetActiveInstalledPet(out app, out installed) ||
-            !app.PetEditor.IsEditable(installed) ||
+        if (app is null || app.ActivePackage is not { } activePackage ||
             PetAnimationsList.SelectedItem is not PetAnimationItem selected)
         {
             return false;
         }
-        motion = installed.Package.Manifest.Motions.First(value => value.Id == selected.Id);
+        package = activePackage;
+        motion = activePackage.Manifest.Motions.First(value => value.Id == selected.Id);
         return true;
     }
 
@@ -1805,6 +1720,7 @@ public sealed partial class MainPage : Page
             PointerOverlapOpacitySlider.IsEnabled = canEdit &&
                 settings.PointerOverlapFadeEnabled;
             PixelArtToggle.IsOn = settings.PixelArtRendering;
+            UpdateDisplayOptionPresentation();
             UpdateDisplayValueLabels();
         }
         finally
@@ -1884,9 +1800,14 @@ public sealed partial class MainPage : Page
             return;
         }
 
+        _isRefreshingActivePetsSelection = true;
+        try
+        {
         List<ActivePetInstance> orderedInstances = app.CurrentSettings.ActivePetInstances
             .OrderBy(value => value.DisplayOrder)
             .ToList();
+        int builtInInstanceCount = orderedInstances.Count(value =>
+            value.PetKey is PetBehaviorKey.BuiltIn);
         HashSet<Guid> currentInstanceIds = orderedInstances
             .Select(value => value.InstanceId)
             .ToHashSet();
@@ -1911,17 +1832,18 @@ public sealed partial class MainPage : Page
             {
                 originalName = "찾을 수 없는 펫";
             }
-            string nickname = instance.Nickname ?? originalName;
+            string nickname = instance.Nickname ?? string.Empty;
+            string displayName = string.IsNullOrWhiteSpace(nickname)
+                ? originalName
+                : nickname;
             PetMovementMode movementMode = app.CurrentSettings.BehaviorProfiles
                 .FirstOrDefault(value => value.ProfileId == instance.BehaviorProfileId)?
                 .Movement.Mode ?? PetMovementMode.Fixed;
-            string detail =
-                $"{originalName} · {MovementModeTitle(movementMode)} · " +
-                $"{(instance.Overlay.ClickThrough ? "클릭 통과" : "상호작용")} · " +
-                $"{(instance.Presentation == PetPresentation.Awake ? "표시" : "숨김")}";
             string presentationCommand = instance.Presentation == PetPresentation.Awake
                 ? "재우기"
                 : "깨우기";
+            bool isPaused = app.ActivePetSnapshots.FirstOrDefault(value =>
+                value.InstanceId == instance.InstanceId)?.IsPaused ?? false;
 
             int currentIndex = IndexOfActivePet(instance.InstanceId);
             ActivePetItem item;
@@ -1940,11 +1862,22 @@ public sealed partial class MainPage : Page
             }
 
             item.Update(
+                displayName,
+                originalName,
                 nickname,
-                detail,
                 presentationCommand,
+                isPaused ? "재개" : "일시정지",
+                instance.Presentation == PetPresentation.Awake,
+                isPaused,
+                MovementModeTitle(movementMode),
+                instance.Overlay.ClickThrough ? "클릭 통과 켜짐" : "직접 상호작용",
                 instance.DisplayOrder,
-                instance.InstanceId == app.CurrentSettings.SelectedPetInstanceId);
+                instance.InstanceId == app.CurrentSettings.SelectedPetInstanceId,
+                targetIndex > 0,
+                targetIndex < orderedInstances.Count - 1,
+                instance.PetKey is not PetBehaviorKey.BuiltIn,
+                orderedInstances.Count > 1 &&
+                    (instance.PetKey is not PetBehaviorKey.BuiltIn || builtInInstanceCount > 1));
             if (item.NeedsPreview(instance.PetKey))
             {
                 string? previewPath = null;
@@ -1962,10 +1895,22 @@ public sealed partial class MainPage : Page
                 }
             }
         }
+        ActivePetsList.SelectedItem = _activePets.FirstOrDefault(value =>
+            value.InstanceId == app.CurrentSettings.SelectedPetInstanceId);
+        int pausedCount = _activePets.Count(value => value.IsPaused);
+        bool resumesAll = orderedInstances.Count > 0 &&
+            pausedCount == orderedInstances.Count;
+        PauseAllPetsText.Text = resumesAll ? "모두 계속하기" : "모두 일시정지";
+        PauseAllPetsIcon.Symbol = resumesAll ? Symbol.Play : Symbol.Pause;
         SafeStartInfoBar.IsOpen = app.SafeStartRecovery is not null;
         ResumeWithoutLastSafeStartButton.Visibility = app.SafeStartRecovery is not null
             ? Visibility.Visible
             : Visibility.Collapsed;
+        }
+        finally
+        {
+            _isRefreshingActivePetsSelection = false;
+        }
     }
 
     private async Task LoadActivePetPreviewAsync(
@@ -2034,9 +1979,11 @@ public sealed partial class MainPage : Page
         }
     }
 
-    private void ActivePetsList_ItemClick(object sender, ItemClickEventArgs e)
+    private void ActivePetsList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (Application.Current is App app && e.ClickedItem is ActivePetItem item)
+        if (!_isRefreshingActivePetsSelection &&
+            Application.Current is App app &&
+            ActivePetsList.SelectedItem is ActivePetItem item)
         {
             app.SelectPetInstance(item.InstanceId);
         }
@@ -2048,6 +1995,79 @@ public sealed partial class MainPage : Page
         {
             app.RenamePetInstance(instanceId, textBox.Text);
         }
+    }
+
+    private void SaveActivePetNicknameButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (Application.Current is not App app || sender is not Button { Tag: Guid instanceId })
+        {
+            return;
+        }
+
+        ActivePetItem? item = _activePets.FirstOrDefault(value => value.InstanceId == instanceId);
+        if (item is not null)
+        {
+            app.RenamePetInstance(instanceId, item.Nickname);
+        }
+    }
+
+    private void ActivePetAwakeToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_isRefreshingActivePetsSelection ||
+            Application.Current is not App app ||
+            sender is not ToggleSwitch { Tag: Guid instanceId } toggle)
+        {
+            return;
+        }
+
+        ActivePetInstance? instance = app.CurrentSettings.ActivePetInstances.FirstOrDefault(value =>
+            value.InstanceId == instanceId);
+        if (instance is null)
+        {
+            return;
+        }
+
+        PetPresentation requested = toggle.IsOn
+            ? PetPresentation.Awake
+            : PetPresentation.TuckedAway;
+        if (instance.Presentation != requested)
+        {
+            app.SelectPetInstance(instanceId);
+            app.SetUserPresentation(requested);
+        }
+    }
+
+    private void ActivePetMoreButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (Application.Current is not App app || sender is not Button { Tag: Guid instanceId } button)
+        {
+            return;
+        }
+
+        ActivePetItem? item = _activePets.FirstOrDefault(value => value.InstanceId == instanceId);
+        if (item is null)
+        {
+            return;
+        }
+
+        var pauseItem = new MenuFlyoutItem
+        {
+            Text = item.IsPaused ? "이 펫 재개" : "이 펫 일시정지",
+            Icon = new SymbolIcon(item.IsPaused ? Symbol.Play : Symbol.Pause),
+        };
+        pauseItem.Click += (_, _) => app.TogglePetPaused(instanceId);
+        var deleteItem = new MenuFlyoutItem
+        {
+            Text = "이 펫 완전히 삭제",
+            Icon = new SymbolIcon(Symbol.Delete),
+        };
+        deleteItem.Click += async (_, _) => await RemoveActivePetAsync(instanceId);
+
+        var flyout = new MenuFlyout();
+        flyout.Items.Add(pauseItem);
+        flyout.Items.Add(new MenuFlyoutSeparator());
+        flyout.Items.Add(deleteItem);
+        flyout.ShowAt(button);
     }
 
     private void WakeAllPetsButton_Click(object sender, RoutedEventArgs e) =>
@@ -2073,29 +2093,117 @@ public sealed partial class MainPage : Page
             : PetPresentation.Awake);
     }
 
+    private void ToggleActivePetPauseButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (Application.Current is App app && sender is Button { Tag: Guid instanceId })
+        {
+            app.TogglePetPaused(instanceId);
+        }
+    }
+
+    private void DuplicateActivePetButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (Application.Current is App app && sender is Button { Tag: Guid instanceId })
+        {
+            app.SelectPetInstance(instanceId);
+            CreateEditablePetCopyButton_Click(sender, e);
+        }
+    }
+
+    private void ExportActivePetButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (Application.Current is App app && sender is Button { Tag: Guid instanceId })
+        {
+            app.SelectPetInstance(instanceId);
+            ExportPackageButton_Click(sender, e);
+        }
+    }
+
+    private async void ImportPetFromDashboardButton_Click(object sender, RoutedEventArgs e)
+    {
+        var url = new TextBox
+        {
+            Header = "웹 펫 주소",
+            PlaceholderText = "https://mapleroom.kr/monglepet/pets/...",
+            MinWidth = 440,
+        };
+        var content = new StackPanel { Spacing = 12, MaxWidth = 520 };
+        content.Children.Add(new TextBlock
+        {
+            Text = "PC의 .monglepet 파일을 선택하거나 MonglePet 펫 상세 주소에서 가져올 수 있습니다.",
+            TextWrapping = TextWrapping.Wrap,
+        });
+        content.Children.Add(url);
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = "펫 가져오기",
+            Content = content,
+            PrimaryButtonText = "로컬 파일 선택",
+            SecondaryButtonText = "웹 주소에서 가져오기",
+            CloseButtonText = "취소",
+            DefaultButton = ContentDialogButton.Close,
+        };
+        ContentDialogResult result = await dialog.ShowAsync();
+        if (result == ContentDialogResult.Primary)
+        {
+            ImportPackageButton_Click(sender, e);
+        }
+        else if (result == ContentDialogResult.Secondary)
+        {
+            RemotePetUrlTextBox.Text = url.Text;
+            await ImportRemotePetAsync();
+        }
+    }
+
     private async void RemoveActivePetButton_Click(object sender, RoutedEventArgs e)
     {
-        if (Application.Current is not App app || sender is not Button { Tag: Guid instanceId })
+        if (sender is Button { Tag: Guid instanceId })
+        {
+            await RemoveActivePetAsync(instanceId);
+        }
+    }
+
+    private async Task RemoveActivePetAsync(Guid instanceId)
+    {
+        if (Application.Current is not App app)
         {
             return;
         }
+
         if (app.CurrentSettings.ActivePetInstances.Count <= 1)
         {
-            ShowLibraryMessage(InfoBarSeverity.Warning, "활성 펫 제거", "최소 한 마리의 활성 펫은 남겨야 합니다.");
+            ShowLibraryMessage(InfoBarSeverity.Warning, "내 펫 삭제", "최소 한 마리의 내 펫은 남겨야 합니다.");
+            return;
+        }
+        ActivePetInstance removing = app.CurrentSettings.ActivePetInstances.Single(value =>
+            value.InstanceId == instanceId);
+        if (removing.PetKey is PetBehaviorKey.BuiltIn &&
+            app.CurrentSettings.ActivePetInstances.Count(value =>
+                value.PetKey is PetBehaviorKey.BuiltIn) <= 1)
+        {
+            ShowLibraryMessage(InfoBarSeverity.Warning, "내 펫 삭제", "기본 몽글이는 최소 한 마리 남겨야 합니다.");
             return;
         }
         var dialog = new ContentDialog
         {
             XamlRoot = XamlRoot,
-            Title = "활성 펫 제거",
-            Content = "데스크톱 배치와 이 펫만의 설정을 제거합니다. 펫 보관함의 원본은 유지됩니다.",
-            PrimaryButtonText = "제거",
+            Title = "내 펫을 완전히 삭제할까요?",
+            Content = "이미지·애니메이션과 크기·위치·행동·이동·쓰다듬기·말풍선 설정이 삭제되며 복원할 수 없습니다. 나중에 다시 사용하려면 먼저 패키지로 내보내 주세요.",
+            PrimaryButtonText = "완전히 삭제",
             CloseButtonText = "취소",
             DefaultButton = ContentDialogButton.Close,
         };
         if (await dialog.ShowAsync() == ContentDialogResult.Primary)
         {
-            app.RemovePetInstance(instanceId);
+            try
+            {
+                app.DeletePetCompletely(instanceId);
+            }
+            catch (Exception exception)
+            {
+                ShowLibraryMessage(InfoBarSeverity.Error, "내 펫을 삭제하지 못했습니다", exception.Message);
+            }
         }
     }
 
@@ -2190,56 +2298,39 @@ public sealed partial class MainPage : Page
                     !isActive && app.SettingsStore.IsWritingEnabled));
             }
 
-            string active = app.ActiveInstallationId is Guid activeId
-                ? $" · 현재 설치 {activeId:D}"
-                : " · 현재 bundled 샘플";
-            LibraryStatusText.Text =
-                $"설치 {installed.Count}개{active}\n{app.PetLibrary.LibraryRootPath}";
-            SettingsStatusText.Text =
-                $"설정: {app.SettingsStore.SettingsPath}" +
-                (string.IsNullOrWhiteSpace(app.SettingsStatusMessage)
-                    ? string.Empty
-                    : $"\n{app.SettingsStatusMessage}");
             bool canManage = app.SettingsStore.IsWritingEnabled;
             bool isInstalled = app.ActiveInstallationId is Guid;
-            bool isEditable = isInstalled && TryGetActiveInstalledPet(
-                out _,
-                out InstalledPetPackage activeInstalled) &&
-                app.PetEditor.IsEditable(activeInstalled);
+            bool canEditPet = app.ActivePackage is not null;
             ImportPackageButton.IsEnabled = canManage;
-            ExportPackageButton.IsEnabled = canManage && isInstalled;
-            ExportPackageButton.Visibility = isInstalled ? Visibility.Visible : Visibility.Collapsed;
-            BuiltInPetExportLockPanel.Visibility = isInstalled
-                ? Visibility.Collapsed
-                : Visibility.Visible;
+            ExportPackageButton.IsEnabled = canManage && app.ActivePackage is not null;
+            ExportPackageButton.Visibility = app.ActivePackage is not null
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+            BuiltInPetExportLockPanel.Visibility = Visibility.Collapsed;
             RenderRemotePetImportState();
             InstallSampleButton.IsEnabled = canManage;
             InstalledPetsList.IsEnabled = canManage;
             CreatePetButton.IsEnabled = canManage;
-            EditPetDetailsButton.Visibility = isEditable ? Visibility.Visible : Visibility.Collapsed;
-            EditPetDetailsButton.IsEnabled = canManage && isEditable;
-            CreateEditablePetCopyButton.Visibility = app.ActivePackage is not null
-                ? Visibility.Visible
-                : Visibility.Collapsed;
+            CreatePetButton.Visibility = Visibility.Collapsed;
+            EditPetDetailsButton.Visibility = canEditPet ? Visibility.Visible : Visibility.Collapsed;
+            EditPetDetailsButton.IsEnabled = canManage && canEditPet;
+            CreateEditablePetCopyButton.Visibility = Visibility.Collapsed;
             CreateEditablePetCopyButton.IsEnabled = canManage && app.ActivePackage is not null;
-            DeleteCurrentPetButton.Visibility = isInstalled ? Visibility.Visible : Visibility.Collapsed;
+            DeleteCurrentPetButton.Visibility = Visibility.Collapsed;
             DeleteCurrentPetButton.IsEnabled = canManage && isInstalled;
-            AnimationEditingCaptionText.Text = isEditable
-                ? "애니메이션을 추가하거나 프레임 순서·간격·반복 여부를 수정할 수 있습니다."
-                : isInstalled
-                    ? "가져온 패키지는 원본 보존을 위해 읽기 전용입니다. 편집하려면 사본을 만들어 주세요."
-                    : "기본 몽글이는 읽기 전용입니다. 새 펫을 만들거나 패키지를 가져와 주세요.";
-            PetManagementCaptionText.Text = isEditable
-                ? "MonglePet에서 만든 펫입니다. 정보와 애니메이션을 직접 수정할 수 있습니다."
-                : isInstalled
-                    ? "가져온 펫은 편집 가능한 사본을 만든 뒤 수정할 수 있습니다."
-                    : "기본 몽글이는 삭제하거나 내보낼 수 없습니다.";
+            AnimationEditingCaptionText.Text =
+                "애니메이션을 추가하거나 프레임 순서·간격을 수정할 수 있습니다. 공유 콘텐츠는 저장할 때 선택한 펫만 독립 사본으로 분리됩니다.";
+            PetManagementCaptionText.Text =
+                "모든 내 펫의 정보와 애니메이션을 같은 방식으로 수정할 수 있습니다. 편집창을 취소하면 설치나 설정은 변경되지 않습니다.";
             RefreshPetEditorButtonState();
         }
         catch (Exception exception)
         {
             _isRefreshingPetChoice = false;
-            LibraryStatusText.Text = $"라이브러리를 읽을 수 없습니다: {exception.Message}";
+            ShowLibraryMessage(
+                InfoBarSeverity.Error,
+                "펫 정보를 불러오지 못했습니다",
+                exception.Message);
         }
     }
 
@@ -2249,16 +2340,15 @@ public sealed partial class MainPage : Page
         {
             return;
         }
-        bool isEditable = TryGetActiveInstalledPet(out _, out InstalledPetPackage installed) &&
-            app.PetEditor.IsEditable(installed);
-        bool canEdit = app.SettingsStore.IsWritingEnabled && isEditable;
+        bool canEditPet = app.ActivePackage is not null;
+        bool canEdit = app.SettingsStore.IsWritingEnabled && canEditPet;
         PetAnimationItem? selected = PetAnimationsList.SelectedItem as PetAnimationItem;
-        AddPetAnimationButton.Visibility = isEditable ? Visibility.Visible : Visibility.Collapsed;
-        EditPetAnimationButton.Visibility = isEditable ? Visibility.Visible : Visibility.Collapsed;
-        DuplicatePetAnimationButton.Visibility = isEditable
+        AddPetAnimationButton.Visibility = canEditPet ? Visibility.Visible : Visibility.Collapsed;
+        EditPetAnimationButton.Visibility = canEditPet ? Visibility.Visible : Visibility.Collapsed;
+        DuplicatePetAnimationButton.Visibility = canEditPet
             ? Visibility.Visible
             : Visibility.Collapsed;
-        DeletePetAnimationButton.Visibility = isEditable ? Visibility.Visible : Visibility.Collapsed;
+        DeletePetAnimationButton.Visibility = canEditPet ? Visibility.Visible : Visibility.Collapsed;
         AddPetAnimationButton.IsEnabled = canEdit;
         EditPetAnimationButton.IsEnabled = canEdit && selected is not null;
         DuplicatePetAnimationButton.IsEnabled = canEdit && selected is not null;
@@ -2462,7 +2552,6 @@ public sealed partial class MainPage : Page
         _isRefreshingBehaviorEditor = true;
         try
         {
-            BehaviorTargetPetText.Text = app.ActivePackage?.Manifest.DisplayName ?? "몽글이";
             _behaviorSequences.Clear();
             foreach (BehaviorSequence sequence in profile.Sequences)
             {
@@ -2561,7 +2650,6 @@ public sealed partial class MainPage : Page
             }
 
             PetMovementSettings movement = profile.Movement;
-            MovementTargetPetText.Text = app.ActivePackage?.Manifest.DisplayName ?? "몽글이";
             MovementModeComboBox.SelectedIndex = movement.Mode switch
             {
                 PetMovementMode.Fixed => 0,
@@ -2719,6 +2807,44 @@ public sealed partial class MainPage : Page
         PettingDescriptionText.Text = isAvoiding
             ? "마우스 도망가기 모드에서는 접근 반응과 충돌하지 않도록 쓰다듬기를 실행하지 않습니다. 다른 이동 모드의 선택은 유지됩니다."
             : "펫의 보이는 부분에 마우스를 잠시 올리면 선택한 애니메이션을 한 번 재생한 뒤 기존 행동으로 돌아갑니다. 클릭 통과 중에도 사용할 수 있습니다.";
+        ApplyMovementSectionVisibility();
+    }
+
+    private void ApplyMovementSectionVisibility()
+    {
+        if (MovementSettingsCard is null)
+        {
+            return;
+        }
+        bool interactionOnly = _currentSettingsSection == "interaction";
+        bool movementOnly = _currentSettingsSection == "movement";
+        Visibility movementVisibility = movementOnly
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        MovementModeTitleText.Visibility = movementVisibility;
+        MovementModeChoicesGrid.Visibility = movementVisibility;
+        MovementModeComboBox.Visibility = Visibility.Collapsed;
+        FixedMovementHelpPanel.Visibility = movementOnly
+            ? FixedMovementHelpPanel.Visibility
+            : Visibility.Collapsed;
+        MovementSensePanel.Visibility = movementOnly
+            ? MovementSensePanel.Visibility
+            : Visibility.Collapsed;
+        MovementBoundaryPanel.Visibility = movementOnly
+            ? MovementBoundaryPanel.Visibility
+            : Visibility.Collapsed;
+        CursorFollowingOptionsPanel.Visibility = movementOnly
+            ? CursorFollowingOptionsPanel.Visibility
+            : Visibility.Collapsed;
+        FreeRoamingOptionsPanel.Visibility = movementOnly
+            ? FreeRoamingOptionsPanel.Visibility
+            : Visibility.Collapsed;
+        CursorAvoidingOptionsPanel.Visibility = movementOnly
+            ? CursorAvoidingOptionsPanel.Visibility
+            : Visibility.Collapsed;
+        MovementInteractionPanel.Visibility = interactionOnly
+            ? Visibility.Visible
+            : Visibility.Collapsed;
     }
 
     private static void SelectMotion(ComboBox comboBox, string? motionId)
@@ -2758,11 +2884,6 @@ public sealed partial class MainPage : Page
                     index < sequence.Steps.Count - 1,
                     sequence.Steps.Count > 1));
             }
-            SequenceRepeatsToggle.IsOn = sequence.Repeats;
-        }
-        else
-        {
-            SequenceRepeatsToggle.IsOn = false;
         }
 
         RoutineEditorComboBox.IsEnabled = canEdit && profile.Sequences.Count > 0;
@@ -2772,7 +2893,6 @@ public sealed partial class MainPage : Page
             sequence.Id,
             BehaviorMotionReferences.DefaultSequence,
             StringComparison.Ordinal);
-        SequenceRepeatsToggle.IsEnabled = canEdit && sequence is not null;
         BehaviorStepsList.IsEnabled = canEdit && sequence is not null;
         AddStepButton.IsEnabled = canEdit && sequence is not null;
     }
@@ -2855,7 +2975,6 @@ public sealed partial class MainPage : Page
         try
         {
             PetSpeechSettings speech = profile.Speech;
-            SpeechTargetPetText.Text = app.ActivePackage?.Manifest.DisplayName ?? "몽글이";
             _behaviorSpeechPhrases.Clear();
             _periodicSpeechPhrases.Clear();
             foreach (PetSpeechPhrase phrase in speech.Phrases)
@@ -3712,19 +3831,6 @@ public sealed partial class MainPage : Page
                 _selectedRoutineId = profile.Sequences.FirstOrDefault()?.Id;
                 _selectedRuleId = null;
             });
-    }
-
-    private void SequenceRepeatsToggle_Toggled(object sender, RoutedEventArgs e)
-    {
-        if (!_isLoaded || _isRefreshingBehaviorEditor ||
-            _selectedRoutineId is not { } sequenceId)
-        {
-            return;
-        }
-        ApplyBehaviorProfileEdit(profile => BehaviorProfileEditor.SetSequenceRepeats(
-            profile,
-            sequenceId,
-            SequenceRepeatsToggle.IsOn));
     }
 
     private void AddStepButton_Click(object sender, RoutedEventArgs e)
@@ -4785,6 +4891,22 @@ public sealed partial class MainPage : Page
             PixelArtRendering = PixelArtToggle.IsOn,
         };
 
+    private void UpdateDisplayOptionPresentation()
+    {
+        if (ClickThroughToggle is null || ClickThroughDescriptionText is null ||
+            PointerOverlapFadeToggle is null || PointerOverlapOpacityPanel is null)
+        {
+            return;
+        }
+
+        ClickThroughDescriptionText.Text = ClickThroughToggle.IsOn
+            ? "펫을 직접 드래그할 수 없습니다. 클릭 통과를 끄면 다시 위치를 옮길 수 있습니다."
+            : "켜면 펫 아래의 앱을 바로 클릭할 수 있습니다.";
+        PointerOverlapOpacityPanel.Visibility = PointerOverlapFadeToggle.IsOn
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+    }
+
     private void UpdateDisplayValueLabels()
     {
         if (OverlayWidthSlider is null || OverlayOpacitySlider is null ||
@@ -4849,11 +4971,22 @@ public sealed partial class MainPage : Page
 
     public sealed class ActivePetItem : INotifyPropertyChanged
     {
+        private string _displayName = string.Empty;
+        private string _originalName = string.Empty;
         private string _nickname = string.Empty;
-        private string _detail = string.Empty;
+        private string _savedNickname = string.Empty;
         private string _presentationCommand = string.Empty;
+        private string _pauseCommand = string.Empty;
+        private bool _isAwake;
+        private bool _isPaused;
+        private string _movementStatus = string.Empty;
+        private string _interactionStatus = string.Empty;
         private int _displayOrder;
         private bool _isSelected;
+        private bool _canMoveUp;
+        private bool _canMoveDown;
+        private bool _canExport;
+        private bool _canRemove;
         private BitmapImage? _preview;
         private PetBehaviorKey? _previewPetKey;
         private string? _previewPath;
@@ -4868,26 +5001,82 @@ public sealed partial class MainPage : Page
 
         public Guid InstanceId { get; }
 
-        public string DisplayName => string.IsNullOrWhiteSpace(Nickname)
-            ? "이름 없는 펫"
-            : Nickname;
+        public string DisplayName
+        {
+            get => _displayName;
+            private set => SetProperty(ref _displayName, value);
+        }
+
+        public string OriginalNameText => $"원본: {_originalName}";
+
+        public Visibility OriginalNameVisibility =>
+            !string.IsNullOrWhiteSpace(Nickname) &&
+            !string.Equals(DisplayName, _originalName, StringComparison.Ordinal)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
 
         public string Nickname
         {
             get => _nickname;
-            private set => SetProperty(ref _nickname, value);
+            set
+            {
+                if (SetProperty(ref _nickname, value))
+                {
+                    PropertyChanged?.Invoke(
+                        this,
+                        new PropertyChangedEventArgs(nameof(OriginalNameVisibility)));
+                    PropertyChanged?.Invoke(
+                        this,
+                        new PropertyChangedEventArgs(nameof(CanSaveNickname)));
+                }
+            }
         }
 
-        public string Detail
-        {
-            get => _detail;
-            private set => SetProperty(ref _detail, value);
-        }
+        public bool CanSaveNickname =>
+            !string.Equals(Nickname, _savedNickname, StringComparison.Ordinal);
 
         public string PresentationCommand
         {
             get => _presentationCommand;
             private set => SetProperty(ref _presentationCommand, value);
+        }
+
+        public string PauseCommand
+        {
+            get => _pauseCommand;
+            private set => SetProperty(ref _pauseCommand, value);
+        }
+
+        public bool IsAwake
+        {
+            get => _isAwake;
+            private set => SetProperty(ref _isAwake, value);
+        }
+
+        public string PresentationStatus => IsAwake ? "깨어 있음" : "자는 중";
+
+        public string StatusTitle => IsPaused ? "일시정지" : PresentationStatus;
+
+        public bool IsPaused
+        {
+            get => _isPaused;
+            private set => SetProperty(ref _isPaused, value);
+        }
+
+        public Visibility PauseStatusVisibility => IsPaused
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        public string MovementStatus
+        {
+            get => _movementStatus;
+            private set => SetProperty(ref _movementStatus, value);
+        }
+
+        public string InteractionStatus
+        {
+            get => _interactionStatus;
+            private set => SetProperty(ref _interactionStatus, value);
         }
 
         public int DisplayOrder
@@ -4906,23 +5095,88 @@ public sealed partial class MainPage : Page
             ? Visibility.Visible
             : Visibility.Collapsed;
 
-        public void Update(
-            string nickname,
-            string detail,
-            string presentationCommand,
-            int displayOrder,
-            bool isSelected)
+        public Visibility ExpandedVisibility => SelectionVisibility;
+
+        public bool CanMoveUp
         {
+            get => _canMoveUp;
+            private set => SetProperty(ref _canMoveUp, value);
+        }
+
+        public bool CanMoveDown
+        {
+            get => _canMoveDown;
+            private set => SetProperty(ref _canMoveDown, value);
+        }
+
+        public Visibility ExportVisibility => _canExport
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        public bool CanRemove
+        {
+            get => _canRemove;
+            private set => SetProperty(ref _canRemove, value);
+        }
+
+        public void Update(
+            string displayName,
+            string originalName,
+            string nickname,
+            string presentationCommand,
+            string pauseCommand,
+            bool isAwake,
+            bool isPaused,
+            string movementStatus,
+            string interactionStatus,
+            int displayOrder,
+            bool isSelected,
+            bool canMoveUp,
+            bool canMoveDown,
+            bool canExport,
+            bool canRemove)
+        {
+            DisplayName = displayName;
+            if (!string.Equals(_originalName, originalName, StringComparison.Ordinal))
+            {
+                _originalName = originalName;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(OriginalNameText)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(OriginalNameVisibility)));
+            }
+            if (!string.Equals(_savedNickname, nickname, StringComparison.Ordinal))
+            {
+                _savedNickname = nickname;
+                PropertyChanged?.Invoke(
+                    this,
+                    new PropertyChangedEventArgs(nameof(CanSaveNickname)));
+            }
             Nickname = nickname;
-            Detail = detail;
             PresentationCommand = presentationCommand;
+            PauseCommand = pauseCommand;
+            IsAwake = isAwake;
+            IsPaused = isPaused;
+            MovementStatus = movementStatus;
+            InteractionStatus = interactionStatus;
             DisplayOrder = displayOrder;
+            CanMoveUp = canMoveUp;
+            CanMoveDown = canMoveDown;
+            if (_canExport != canExport)
+            {
+                _canExport = canExport;
+                PropertyChanged?.Invoke(
+                    this,
+                    new PropertyChangedEventArgs(nameof(ExportVisibility)));
+            }
+            CanRemove = canRemove;
             if (_isSelected != isSelected)
             {
                 _isSelected = isSelected;
                 PropertyChanged?.Invoke(
                     this,
                     new PropertyChangedEventArgs(nameof(SelectionVisibility)));
+                PropertyChanged?.Invoke(
+                    this,
+                    new PropertyChangedEventArgs(nameof(ExpandedVisibility)));
             }
         }
 
@@ -4955,19 +5209,26 @@ public sealed partial class MainPage : Page
             }
         }
 
-        private void SetProperty<T>(ref T field, T value, [CallerMemberName] string? name = null)
+        private bool SetProperty<T>(ref T field, T value, [CallerMemberName] string? name = null)
         {
             if (EqualityComparer<T>.Default.Equals(field, value))
             {
-                return;
+                return false;
             }
 
             field = value;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
-            if (name == nameof(Nickname))
+            if (name == nameof(IsAwake))
             {
-                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DisplayName)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(PresentationStatus)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(StatusTitle)));
             }
+            else if (name == nameof(IsPaused))
+            {
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(PauseStatusVisibility)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(StatusTitle)));
+            }
+            return true;
         }
     }
 

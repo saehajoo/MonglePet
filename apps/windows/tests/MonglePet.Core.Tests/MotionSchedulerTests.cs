@@ -97,7 +97,7 @@ public sealed class MotionSchedulerTests
     }
 
     [Fact]
-    public void EquivalentRequestRestartsAfterNonRepeatingSequenceCompletes()
+    public void EquivalentRequestDoesNotRestartAfterSequenceCompletes()
     {
         var scheduler = Scheduler();
         var sequence = new BehaviorSequence("once", [new("idle", 1)], false);
@@ -106,10 +106,41 @@ public sealed class MotionSchedulerTests
         scheduler.Advance(TimeSpan.FromMilliseconds(100));
         Assert.IsType<MotionSchedulerStatus.Completed>(scheduler.Status);
 
-        Assert.True(scheduler.Request(sequence));
-        AssertPlaying(scheduler, "once", 0, "idle");
-        Assert.Equal(TimeSpan.FromMilliseconds(100), scheduler.ActiveCycleRemainingDuration);
-        Assert.Equal(TimeSpan.Zero, scheduler.ActiveCycleElapsedDuration);
+        Assert.False(scheduler.Request(sequence));
+        Assert.Equal(new MotionSchedulerStatus.Completed("once"), scheduler.Status);
+        Assert.Null(scheduler.ActiveCycleRemainingDuration);
+    }
+
+    [Fact]
+    public void OncePlaybackIgnoresStoredRepeatsAndEditedSequenceRestarts()
+    {
+        var scheduler = Scheduler();
+        var legacy = new BehaviorSequence("routine", [new("idle", 1)], true);
+
+        Assert.True(scheduler.Request(legacy, MotionSequencePlayback.Once));
+        scheduler.Advance(TimeSpan.FromMilliseconds(100));
+        Assert.Equal(new MotionSchedulerStatus.Completed("routine"), scheduler.Status);
+        Assert.Equal("idle", scheduler.CompletedMotion?.ResolvedMotionId);
+        Assert.False(scheduler.Request(legacy, MotionSequencePlayback.Once));
+
+        var edited = legacy with { Steps = [new("focus", 1)] };
+        Assert.True(scheduler.Request(edited, MotionSequencePlayback.Once));
+        AssertPlaying(scheduler, "routine", 0, "focus");
+    }
+
+    [Fact]
+    public void MovementPlaybackRepeatsOnlyWhileRequested()
+    {
+        var scheduler = Scheduler();
+        var storedOnce = new BehaviorSequence("move", [new("idle", 1)], false);
+
+        Assert.True(scheduler.Request(storedOnce, MotionSequencePlayback.RepeatWhileRequested));
+        scheduler.Advance(TimeSpan.FromMilliseconds(100));
+        AssertPlaying(scheduler, "move", 0, "idle");
+        Assert.False(scheduler.Request(storedOnce, MotionSequencePlayback.RepeatWhileRequested));
+
+        scheduler.Stop();
+        Assert.IsType<MotionSchedulerStatus.Stopped>(scheduler.Status);
     }
 
     [Fact]
