@@ -146,6 +146,8 @@
 - 2026-09-02: D-115 Windows 핫픽스의 Debug·Release 빌드가 경고·오류 없이 통과했고 각 구성에서 Activity 27, Core 64, Packages 28, PetLibrary 89, Settings 82, Shell 20으로 총 310개 테스트가 모두 통과했다. 같은 Release publish의 DLL을 로컬 `1.6.0.15` 설치본과 일치시켜 다시 실행했으며, 실제 두 순환 이상 재생 확인과 새 설치 버전·릴리스 승격은 남아 있다.
 - 2026-09-02: 마우스 도망가기의 평상시 자유 이동에서 무작위 머무르기가 꺼져 있어도 숨겨진 최소값을 최대값과 비교해 저장을 막는 Windows UI 회귀를 수정했다. 숨겨진 편집값은 무시하고 저장 최소값을 새 최대값 이하로 자동 보정하며, 무작위 범위를 켠 상태의 최소값도 최대값을 넘으면 즉시 맞춘다. 이동 오류 `InfoBar`는 카드 최하단에서 상단으로 옮기고 오류 발생 시 화면에 보이도록 요청한다. 정책 테스트 3개를 추가했고 Debug·Release 빌드와 각 구성 총 313개 테스트가 경고·오류·실패 없이 통과했다.
 - 2026-09-02: 사용자 확인과 릴리스 요청에 따라 기존 Preview 1을 보존하는 Windows 핫픽스 버전을 `1.6.0.16`, 태그 `windows-v1.6.0-preview.2`, 릴리스 이름 `MonglePet Windows 1.6.0 Preview 2`로 확정했다. 마케팅 버전 `1.6.0`, schema-v15와 권장 프로필 v11은 유지한다.
+- 2026-09-02: 실행 중 Preview 1 위 첫 설치 QA에서 Inno Setup Restart Manager가 앱 전용 종료 메시지보다 먼저 실패해 설치 코드 5를 반환하는 경로를 확인했다. 기본 자동 종료를 끄고 전용 종료·원자적 저장·overlay 해제를 최대 30초 기다리도록 보정했으며 Shell Debug·Release 계약 테스트를 통과했다. 최종 실행 중 앱 위 설치는 14.21초·종료 코드 0으로 완료됐고 사용자 데이터 48개·5,827,013 bytes의 inventory digest `4EC2A894F7D0F061448E8CE22D538F8FEC3EEBF7B996B452087632FD8D56DB52`, 설치본 `1.6.0.16`과 publish DLL 일치를 보존했다.
+- 2026-09-02: 소스 커밋 `3f91dec335300f6d29af41046819a9fd48f58e8a`를 `origin/main`에 푸시하고 태그 `windows-v1.6.0-preview.2`, 제목 `MonglePet Windows 1.6.0 Preview 2`의 GitHub Pre-release를 게시했다. 65,279,431 bytes 미서명 x64 설치기의 SHA-256은 `228D1B459F6BA6A9E067294C35A2FDE0CEC9747299791C9F3785B302C594F6EA`다. 원격 설치기와 107 bytes `SHA256SUMS.txt`를 다시 내려받아 크기·digest·체크섬과 태그 대상 커밋 일치를 확인했다.
 
 ## 남은 위험
 

@@ -2,9 +2,9 @@
 
 ## 현재 게시된 Preview
 
-Windows `1.6.0.15`는 Git 태그 `windows-v1.6.0-preview.1`과 GitHub Pre-release `MonglePet Windows 1.6.0 Preview 1`로 게시했다. 최종 설치기 크기는 65,284,653 bytes이고 SHA-256은 `30F0BA24866AA3970842EF037715DCED54788971A12A692F6DAEF45FC1E883EC`이다.
+Windows `1.6.0.16`은 Git 태그 `windows-v1.6.0-preview.2`와 GitHub Pre-release `MonglePet Windows 1.6.0 Preview 2`로 게시했다. 최종 설치기 크기는 65,279,431 bytes이고 SHA-256은 `228D1B459F6BA6A9E067294C35A2FDE0CEC9747299791C9F3785B302C594F6EA`이다.
 
-- 릴리스: <https://github.com/saehajoo/MonglePet/releases/tag/windows-v1.6.0-preview.1>
+- 릴리스: <https://github.com/saehajoo/MonglePet/releases/tag/windows-v1.6.0-preview.2>
 - Windows·macOS 통합 웹 다운로드 화면 전달 자료: [`PREVIEW_DOWNLOAD_HANDOFF.md`](../../../AGENTS/guides/PREVIEW_DOWNLOAD_HANDOFF.md)
 - 자체 웹사이트 반영과 운영 서버 배포는 별도 웹 저장소·서버 담당 범위이며 이 저장소에서 직접 수행하지 않는다.
 
