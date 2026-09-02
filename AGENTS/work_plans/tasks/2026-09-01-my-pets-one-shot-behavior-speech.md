@@ -150,6 +150,7 @@
 - 2026-09-02: 소스 커밋 `3f91dec335300f6d29af41046819a9fd48f58e8a`를 `origin/main`에 푸시하고 태그 `windows-v1.6.0-preview.2`, 제목 `MonglePet Windows 1.6.0 Preview 2`의 GitHub Pre-release를 게시했다. 65,279,431 bytes 미서명 x64 설치기의 SHA-256은 `228D1B459F6BA6A9E067294C35A2FDE0CEC9747299791C9F3785B302C594F6EA`다. 원격 설치기와 107 bytes `SHA256SUMS.txt`를 다시 내려받아 크기·digest·체크섬과 태그 대상 커밋 일치를 확인했다.
 - 2026-09-02: macOS에 D-115 문맥별 재생 정책을 반영했다. 평상시 fixed와 직접 선택은 행동 전체를 계속 순환하고, 랜덤의 개별 행동·조건 규칙·쓰다듬기는 한 번 통과하며, 이동 행동은 실제 이동 runtime에서만 반복한다. 저장 `repeats`, schema-v15, 권장 프로필 v11은 변경하지 않았다. 관련 runtime 42개와 머무는 시간·설정 migration 회귀 26개, 전체 `MonglePetTests` 536개 중 535개 통과·조건부 fixture 1개 skip, Debug 빌드와 `git diff --check`를 통과했다. 실제 앱에서 두 순환 이상 재생, 규칙 마지막 프레임 유지, 외부 앱 창 드래그와 장시간 runtime QA는 남아 있다.
 - 2026-09-02: 사용자가 macOS 실제 앱에서 D-115 행동 순환과 설정창 사용을 다시 확인해 현재 범위의 이상이 없음을 승인했다. 설정창은 실시간 좌표·프레임을 구독하거나 반복 활성화하지 않는 구조임을 확인했고 외부 앱 드래그 문제는 재현되지 않아 이번 범위에서는 완료 처리한다. 새 배포 후보는 기존 Preview 1을 보존하는 `1.6.0 (13)`, 태그 `macos-v1.6.0-preview.2`로 분리한다.
+- 2026-09-02: macOS D-115 소스 커밋 `c886a68e56520ff40e0bec27baf0ca2d9b40d430`을 `origin/main`에 푸시했다. 같은 깨끗한 커밋에서 10,887,529 bytes Universal Preview ZIP을 생성했고 SHA-256 `C74D394A05301EB5BA39F12452FD7AA3D0C3C61769A657B2B287E7A223B430CA`, manifest 커밋, `1.6.0 (13)`·Bundle ID·arm64/x86_64·앱 아이콘과 압축 해제본의 격리된 3초 실행을 확인했다. 태그 `macos-v1.6.0-preview.2`의 GitHub Pre-release에 세 자산을 게시하고 다시 내려받아 바이트 단위 일치와 태그 대상을 검증했다.
 
 ## 남은 위험
 

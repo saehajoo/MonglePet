@@ -43,21 +43,21 @@
 | 항목 | 값 |
 | --- | --- |
 | 제품 버전 | `1.6.0` |
-| macOS 빌드 번호 | `12` |
-| 표시 이름 | `MonglePet macOS 1.6.0 Preview 1` |
-| Git 태그 | `macos-v1.6.0-preview.1` |
-| 기준 커밋 | `617af2e11ff9f404922227d1ca8aa6f60d8e999d` |
-| 게시일 | 2026-09-01 |
-| ZIP 파일 | `MonglePet-1.6.0-build.12-preview.zip` |
-| ZIP 크기 | 10,889,967 bytes (약 10.39 MiB) |
-| ZIP SHA-256 | `B48937FFDD03892B52049E9DC06D7A7698EDF3C59DA1CB589F6F1BC63F650129` |
+| macOS 빌드 번호 | `13` |
+| 표시 이름 | `MonglePet macOS 1.6.0 Preview 2` |
+| Git 태그 | `macos-v1.6.0-preview.2` |
+| 기준 커밋 | `c886a68e56520ff40e0bec27baf0ca2d9b40d430` |
+| 게시일 | 2026-09-02 |
+| ZIP 파일 | `MonglePet-1.6.0-build.13-preview.zip` |
+| ZIP 크기 | 10,887,529 bytes (약 10.38 MiB) |
+| ZIP SHA-256 | `C74D394A05301EB5BA39F12452FD7AA3D0C3C61769A657B2B287E7A223B430CA` |
 | 서명·공증 상태 | Developer ID 미서명·Apple 미공증 Preview |
 | 제공 범위 | 제한된 테스터용 |
 
-- 릴리스 페이지: <https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.6.0-preview.1>
-- ZIP 직접 다운로드: <https://github.com/saehajoo/MonglePet/releases/download/macos-v1.6.0-preview.1/MonglePet-1.6.0-build.12-preview.zip>
-- 체크섬 파일: <https://github.com/saehajoo/MonglePet/releases/download/macos-v1.6.0-preview.1/MonglePet-1.6.0-build.12-preview.zip.sha256>
-- 빌드 manifest: <https://github.com/saehajoo/MonglePet/releases/download/macos-v1.6.0-preview.1/MonglePet-1.6.0-build.12-preview.manifest.txt>
+- 릴리스 페이지: <https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.6.0-preview.2>
+- ZIP 직접 다운로드: <https://github.com/saehajoo/MonglePet/releases/download/macos-v1.6.0-preview.2/MonglePet-1.6.0-build.13-preview.zip>
+- 체크섬 파일: <https://github.com/saehajoo/MonglePet/releases/download/macos-v1.6.0-preview.2/MonglePet-1.6.0-build.13-preview.zip.sha256>
+- 빌드 manifest: <https://github.com/saehajoo/MonglePet/releases/download/macos-v1.6.0-preview.2/MonglePet-1.6.0-build.13-preview.manifest.txt>
 
 macOS ZIP도 GitHub의 버전 고정 URL을 원본으로 사용한다. 자체 서버에 복제한다면 ZIP을 다시 만들지 않고 공개 URL에서 다시 받은 파일의 크기와 SHA-256을 확인한다.
 
@@ -104,20 +104,20 @@ macOS ZIP도 GitHub의 버전 고정 URL을 원본으로 사용한다. 자체 �
 ```
 
 ```markdown
-## MonglePet macOS 1.6.0 Preview 1
+## MonglePet macOS 1.6.0 Preview 2
 
-보관 상태 없는 단일 `내 펫`, 독립 가져오기·사본·편집, 행동 1회 재생과 말풍선 배치 보정을 반영한 MonglePet macOS `1.6.0 (12)` 미서명·미공증 Preview입니다. 현재 파일은 제한된 테스터용으로 제공합니다.
+보관 상태 없는 단일 `내 펫`, 독립 가져오기·사본·편집과 문맥별 행동 반복 보정을 반영한 MonglePet macOS `1.6.0 (13)` 미서명·미공증 Preview입니다. 현재 파일은 제한된 테스터용으로 제공합니다.
 
-[macOS용 Preview ZIP 다운로드](https://github.com/saehajoo/MonglePet/releases/download/macos-v1.6.0-preview.1/MonglePet-1.6.0-build.12-preview.zip)
+[macOS용 Preview ZIP 다운로드](https://github.com/saehajoo/MonglePet/releases/download/macos-v1.6.0-preview.2/MonglePet-1.6.0-build.13-preview.zip)
 
 - 지원 환경: macOS 14 이상, Apple Silicon 및 Intel Mac
-- 파일 크기: 약 10.39 MiB
-- 버전: 1.6.0 (12)
-- SHA-256: `B48937FFDD03892B52049E9DC06D7A7698EDF3C59DA1CB589F6F1BC63F650129`
+- 파일 크기: 약 10.38 MiB
+- 버전: 1.6.0 (13)
+- SHA-256: `C74D394A05301EB5BA39F12452FD7AA3D0C3C61769A657B2B287E7A223B430CA`
 
 ZIP을 압축 해제하고 `MonglePet.app`을 응용 프로그램 폴더로 이동하세요. 이 빌드는 Developer ID로 서명되지 않았고 Apple 공증을 받지 않았으므로 최초 실행이 차단될 수 있습니다. 공식 GitHub Release에서 내려받았고 SHA-256이 위 값과 일치하는 경우에만 `시스템 설정 → 개인정보 보호 및 보안`에서 MonglePet의 개별 실행 허용 여부를 판단해 주세요. Gatekeeper를 끄거나 quarantine을 제거하지 마세요.
 
-[릴리스 정보·체크섬·빌드 manifest 보기](https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.6.0-preview.1)
+[릴리스 정보·체크섬·빌드 manifest 보기](https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.6.0-preview.2)
 ```
 
 ## 복사 가능한 HTML 예시
@@ -157,28 +157,28 @@ ZIP을 압축 해제하고 `MonglePet.app`을 응용 프로그램 폴더로 이�
 </section>
 
 <section aria-labelledby="monglepet-macos-preview-title">
-  <h2 id="monglepet-macos-preview-title">MonglePet macOS 1.6.0 Preview 1</h2>
+  <h2 id="monglepet-macos-preview-title">MonglePet macOS 1.6.0 Preview 2</h2>
   <p>미서명·미공증 상태로 제공하는 제한된 테스터용 Preview입니다.</p>
   <p>
-    <a href="https://github.com/saehajoo/MonglePet/releases/download/macos-v1.6.0-preview.1/MonglePet-1.6.0-build.12-preview.zip">
+    <a href="https://github.com/saehajoo/MonglePet/releases/download/macos-v1.6.0-preview.2/MonglePet-1.6.0-build.13-preview.zip">
       macOS용 Preview ZIP 다운로드
     </a>
   </p>
   <ul>
     <li>macOS 14 이상 · Apple Silicon 및 Intel Mac</li>
-    <li>버전 1.6.0 (12) · 약 10.39 MiB</li>
+    <li>버전 1.6.0 (13) · 약 10.38 MiB</li>
     <li>Developer ID 미서명 · Apple 미공증</li>
   </ul>
   <p>
     SHA-256:
-    <code>B48937FFDD03892B52049E9DC06D7A7698EDF3C59DA1CB589F6F1BC63F650129</code>
+    <code>C74D394A05301EB5BA39F12452FD7AA3D0C3C61769A657B2B287E7A223B430CA</code>
   </p>
   <p>
     공식 GitHub Release 파일과 SHA-256이 일치할 때만 시스템 설정의
     개인정보 보호 및 보안에서 개별 실행 허용 여부를 판단해 주세요.
   </p>
   <p>
-    <a href="https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.6.0-preview.1">
+    <a href="https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.6.0-preview.2">
       릴리스 정보·체크섬·빌드 manifest 보기
     </a>
   </p>
@@ -207,13 +207,13 @@ Get-FileHash `
 
 ```sh
 shasum -a 256 \
-  "$HOME/Downloads/MonglePet-1.6.0-build.12-preview.zip"
+  "$HOME/Downloads/MonglePet-1.6.0-build.13-preview.zip"
 ```
 
 출력된 값이 아래 값과 정확히 같아야 한다.
 
 ```text
-B48937FFDD03892B52049E9DC06D7A7698EDF3C59DA1CB589F6F1BC63F650129
+C74D394A05301EB5BA39F12452FD7AA3D0C3C61769A657B2B287E7A223B430CA
 ```
 
 ## 운영 반영 체크리스트
