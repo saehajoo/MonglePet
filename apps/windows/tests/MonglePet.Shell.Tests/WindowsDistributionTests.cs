@@ -97,6 +97,8 @@ public sealed class WindowsDistributionTests : IDisposable
         Assert.Contains("Software\\Classes\\monglepet", installer, StringComparison.Ordinal);
         Assert.DoesNotContain("uninsdelete", installer, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("RegDeleteKeyIncludingSubkeys", installer, StringComparison.Ordinal);
+        Assert.Contains("CloseApplications=no", installer, StringComparison.Ordinal);
+        Assert.Contains("for Attempt := 1 to 300 do", installer, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -107,13 +109,13 @@ public sealed class WindowsDistributionTests : IDisposable
         XDocument manifest = XDocument.Load(Path.Combine(fixtures, "Package.appxmanifest"));
 
         Assert.Equal("1.6.0", ProjectProperty(project, "Version"));
-        Assert.Equal("1.6.0.15", ProjectProperty(project, "AssemblyVersion"));
-        Assert.Equal("1.6.0.15", ProjectProperty(project, "FileVersion"));
+        Assert.Equal("1.6.0.16", ProjectProperty(project, "AssemblyVersion"));
+        Assert.Equal("1.6.0.16", ProjectProperty(project, "FileVersion"));
 
         XNamespace packageNamespace =
             "http://schemas.microsoft.com/appx/manifest/foundation/windows10";
         Assert.Equal(
-            "1.6.0.15",
+            "1.6.0.16",
             (string?)manifest.Root?.Element(packageNamespace + "Identity")?.Attribute("Version"));
     }
 

@@ -257,14 +257,16 @@ internal sealed class PetBehaviorRuntime : IDisposable
                 Pause("시스템 상태로 일시 정지했습니다", now);
                 break;
             case BehaviorDecision.Sequence sequence:
+                MotionSequencePlayback stationaryPlayback =
+                    BehaviorPlaybackPolicy.ForStationary(profile.StationaryBehaviorMode);
                 bool baseChanged = stationaryDecision is BehaviorDecision.Sequence stationarySequence &&
                     (restartBaseSequence
                         ? _baseScheduler.Restart(
                             stationarySequence.Value,
-                            MotionSequencePlayback.Once)
+                            stationaryPlayback)
                         : _baseScheduler.Request(
                             stationarySequence.Value,
-                            MotionSequencePlayback.Once));
+                            stationaryPlayback));
                 if (stationaryDecision is not BehaviorDecision.Sequence)
                 {
                     _baseScheduler.Stop();

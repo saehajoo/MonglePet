@@ -4609,13 +4609,36 @@ public sealed partial class MainPage : Page
             long dwellMilliseconds = checked((long)Math.Round(
                 RequiredFiniteValue(
                     FreeRoamingDwellNumberBox, 0.5, 300, "머무름 시간") * 1_000));
-            long minimumDwellMilliseconds = checked((long)Math.Round(
-                RequiredFiniteValue(
-                    FreeRoamingDwellMinimumNumberBox, 0.5, 300, "최소 머무름 시간") * 1_000));
-            if (minimumDwellMilliseconds > dwellMilliseconds)
+            bool randomizesDwell = RandomizesDwellToggle.IsOn;
+            FreeRoamingMovementSettings activeRoaming =
+                selectedMode == PetMovementMode.CursorAvoiding
+                    ? current.CursorAvoiding.IdleFreeRoaming
+                    : current.FreeRoaming;
+            long? editedMinimumDwellMilliseconds = randomizesDwell
+                ? checked((long)Math.Round(
+                    RequiredFiniteValue(
+                        FreeRoamingDwellMinimumNumberBox,
+                        0.5,
+                        300,
+                        "최소 머무름 시간") * 1_000))
+                : null;
+            long minimumDwellMilliseconds = FreeRoamingDwellPolicy.ResolveMinimum(
+                dwellMilliseconds,
+                randomizesDwell,
+                activeRoaming.DwellMinimumMilliseconds,
+                editedMinimumDwellMilliseconds);
+            double normalizedMinimumSeconds = minimumDwellMilliseconds / 1_000d;
+            if (FreeRoamingDwellMinimumNumberBox.Value != normalizedMinimumSeconds)
             {
-                throw new InvalidOperationException(
-                    "최소 머무는 시간은 최대 머무는 시간보다 길 수 없습니다.");
+                _isRefreshingMovementControls = true;
+                try
+                {
+                    FreeRoamingDwellMinimumNumberBox.Value = normalizedMinimumSeconds;
+                }
+                finally
+                {
+                    _isRefreshingMovementControls = false;
+                }
             }
             CursorFollowingMovementSettings following = current.CursorFollowing with
             {
@@ -4638,7 +4661,7 @@ public sealed partial class MainPage : Page
                     ? sharedStopRadius
                     : current.FreeRoaming.StopRadius,
                 DwellMilliseconds = dwellMilliseconds,
-                RandomizesDwell = RandomizesDwellToggle.IsOn,
+                RandomizesDwell = randomizesDwell,
                 DwellMinimumMilliseconds = minimumDwellMilliseconds,
                 PrefersFrontmostWindow = PrefersFrontmostWindowToggle.IsOn,
                 Behavior = FreeRoamingAnimationEditor.Settings,
@@ -4650,7 +4673,7 @@ public sealed partial class MainPage : Page
                         ? sharedSpeed
                         : current.CursorAvoiding.IdleFreeRoaming.Speed,
                     DwellMilliseconds = dwellMilliseconds,
-                    RandomizesDwell = RandomizesDwellToggle.IsOn,
+                    RandomizesDwell = randomizesDwell,
                     DwellMinimumMilliseconds = minimumDwellMilliseconds,
                     PrefersFrontmostWindow = PrefersFrontmostWindowToggle.IsOn,
                     Behavior = FreeRoamingAnimationEditor.Settings,
@@ -4742,6 +4765,13 @@ public sealed partial class MainPage : Page
         MovementSettingsInfoBar.Title = "이동 설정을 저장하지 못했습니다";
         MovementSettingsInfoBar.Message = exception.Message;
         MovementSettingsInfoBar.IsOpen = true;
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (MovementSettingsInfoBar.IsOpen)
+            {
+                MovementSettingsInfoBar.StartBringIntoView();
+            }
+        });
     }
 
     private static double RequiredFiniteValue(

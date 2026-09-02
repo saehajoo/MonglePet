@@ -901,3 +901,19 @@
 - 결정: D-111~D-113의 단일 `내 펫` 생명주기, 행동 1회 재생·랜덤 새 cursor, 프레임 알파 기준 말풍선과 Windows 설정 UX·테마 후속 보정을 포함한 Windows Preview를 `1.6.0.15`, 태그 `windows-v1.6.0-preview.1`로 게시한다.
 - 이유: 설치 콘텐츠와 실행 펫을 분리해 노출하던 기존 Windows `1.5.0.15`의 정보 구조와 행동·말풍선 결과가 macOS 1.6 기준에서 달라졌으므로 기존 릴리스를 덮어쓰지 않는 새 minor 기능선과 더 높은 설치 버전으로 구분해야 한다.
 - 비고: schema-v15, 권장 프로필 v11과 `.monglepet` formatVersion은 유지한다. 미서명 x64 EXE와 `SHA256SUMS.txt`를 GitHub Pre-release로 제공하며 기존 설치 위 수동 업데이트에서 `%LOCALAPPDATA%\MonglePet` 데이터를 보존한다. 실제 혼합 DPI·Narrator와 macOS 교차 왕복은 플랫폼 동등성 후속 QA로 유지한다.
+
+## D-115 평상시 하나 선택 행동의 연속 순환
+
+- 상태: accepted
+- 날짜: 2026-09-02
+- 결정: 평상시 행동이 `fixed`(`하나 선택`)이면 선택 행동의 모든 단계와 단계별 `repeatCount`를 소비한 뒤 첫 단계부터 계속 순환한다. 랜덤의 개별 행동, 조건 규칙과 쓰다듬기는 한 번 통과하는 D-111 의미를 유지하고 이동 행동은 실제 이동 중에만 반복한다.
+- 이유: D-111의 1회 재생 의미를 평상시 `fixed`까지 적용하면 행동이 하나뿐인 기본 펫이 첫 순환 뒤 마지막 정지 프레임에 영구적으로 머물러 살아 있는 데스크톱 펫의 기본 기대를 깨뜨린다. 한 순환 내부 길이는 단계 반복 횟수로 유지하면서 평상시 fallback 자체만 계속 순환해야 한다.
+- 비고: 저장 `repeats`는 여전히 레거시·교차 왕복 필드이며 runtime 분기는 저장값이 아니라 `fixed` 문맥을 사용한다. schema-v15, 권장 프로필 v11과 `.monglepet` formatVersion은 바꾸지 않는다. Windows에서 사용자 실제 QA로 먼저 확인된 회귀를 수정하며 macOS는 같은 계약의 후속 구현과 검증이 필요하다.
+
+## D-116 Windows 1.6 Preview 2 핫픽스 릴리스
+
+- 상태: accepted
+- 날짜: 2026-09-02
+- 결정: D-115의 평상시 `하나 선택` 연속 순환과 마우스 도망가기 평상시 자유 이동의 숨겨진 머무르기 최소값 검증 보정을 Windows `1.6.0.16`, 태그 `windows-v1.6.0-preview.2`로 게시한다.
+- 이유: 공개 Preview 1의 고정 행동이 첫 순환 뒤 멈추고, 무작위 머무르기가 꺼진 상태에서도 숨겨진 최소값 때문에 설정 저장이 거부되는 실제 사용자 회귀를 기존 릴리스 자산을 덮어쓰지 않고 수정해야 한다.
+- 비고: 마케팅 버전 `1.6.0`, Inno Setup AppId, `%LOCALAPPDATA%\MonglePet`, schema-v15, 권장 프로필 v11과 `.monglepet` formatVersion은 유지한다. 미서명 x64 EXE와 `SHA256SUMS.txt`를 GitHub Pre-release로 제공하며 macOS에는 D-115 동작을 후속 반영한다.

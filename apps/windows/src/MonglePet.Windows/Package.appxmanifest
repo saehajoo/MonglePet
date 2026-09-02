@@ -11,7 +11,7 @@
   <Identity
     Name="4B7E245F-A59A-4E0F-84D7-52B511356256"
     Publisher="CN=AppPublisher"
-    Version="1.6.0.15" />
+    Version="1.6.0.16" />
 
   <mp:PhoneIdentity PhoneProductId="4B7E245F-A59A-4E0F-84D7-52B511356256" PhonePublisherId="00000000-0000-0000-0000-000000000000"/>
 

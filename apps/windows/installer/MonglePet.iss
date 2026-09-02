@@ -45,7 +45,7 @@ UninstallDisplayName={#AppName}
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
-CloseApplications=yes
+CloseApplications=no
 CloseApplicationsFilter={#AppExeName}
 RestartApplications=no
 ChangesAssociations=yes
@@ -96,7 +96,9 @@ begin
   if QuitMessage = 0 then
     Exit;
 
-  for Attempt := 1 to 100 do
+  { A busy settings shutdown may need more than ten seconds to flush its
+    pending atomic save and release every overlay window. }
+  for Attempt := 1 to 300 do
   begin
     AppWindow := FindWindowByWindowName('{#AppWindowName}');
     if AppWindow = 0 then

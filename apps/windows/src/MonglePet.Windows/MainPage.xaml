@@ -1107,6 +1107,10 @@
                 Style="{StaticResource SettingsCardStyle}"
                 Visibility="Collapsed">
                 <StackPanel Spacing="14">
+                    <InfoBar
+                        x:Name="MovementSettingsInfoBar"
+                        IsClosable="True"
+                        IsOpen="False" />
                     <TextBlock x:Name="MovementModeTitleText" Style="{StaticResource BodyStrongTextBlockStyle}" Text="이동 방식" />
                     <Grid x:Name="MovementModeChoicesGrid" ColumnSpacing="10" RowSpacing="10">
                         <Grid.ColumnDefinitions>
@@ -1330,10 +1334,6 @@
                             SelectionChanged="MovementControls_Changed" />
                         <TextBlock x:Name="PettingDescriptionText" Style="{StaticResource SettingsCaptionStyle}" />
                     </StackPanel>
-                    <InfoBar
-                        x:Name="MovementSettingsInfoBar"
-                        IsClosable="True"
-                        IsOpen="False" />
                 </StackPanel>
             </Border>
 
@@ -1679,7 +1679,7 @@
                                     <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="행동 루틴 편집" />
                                     <TextBlock
                                         Style="{StaticResource SettingsCaptionStyle}"
-                                        Text="각 단계의 반복 횟수로 행동 길이를 조절합니다. 행동이 끝나면 마지막 프레임을 유지합니다."
+                                        Text="각 단계의 반복 횟수로 한 순환의 길이를 조절합니다. 평상시 하나 선택 행동은 펫이 깨어 있는 동안 계속 반복됩니다."
                                         TextWrapping="Wrap" />
                                 </StackPanel>
                                 <Button

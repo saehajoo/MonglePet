@@ -1,12 +1,12 @@
-# Windows 단일 내 펫·행동 1회 재생·말풍선 보정 인계
+# Windows 단일 내 펫·행동 재생·말풍선 보정 인계
 
 ## 목적
 
-macOS에서 확정한 D-111~D-113의 최종 사용자 결과를 Windows WinUI 3·Win32 overlay 구조에 맞게 구현한다. 이 문서는 작업 중간의 분리형 화면과 보관 상태를 폐기하고 최종 구현 기준만 설명한다. SwiftUI/AppKit 코드를 번역하지 말고 공통 데이터 계약, 확정된 동작과 fixture를 기준으로 한다.
+macOS에서 확정한 D-111~D-113과 Windows 실제 QA에서 보정한 D-115의 최종 사용자 결과를 Windows WinUI 3·Win32 overlay 구조에 맞게 구현한다. 이 문서는 작업 중간의 분리형 화면과 보관 상태를 폐기하고 최종 구현 기준만 설명한다. SwiftUI/AppKit 코드를 번역하지 말고 공통 데이터 계약, 확정된 동작과 fixture를 기준으로 한다.
 
 ## 기준 문서
 
-- `../project/DECISIONS.md`: D-076, D-106, D-107, D-110, D-111, D-112, D-113
+- `../project/DECISIONS.md`: D-076, D-106, D-107, D-110, D-111, D-112, D-113, D-115
 - `../specifications/BEHAVIOR_MODEL.md`
 - `../specifications/PET_PACKAGE.md`
 - `../specifications/SETTINGS_SCHEMA.md`
@@ -24,14 +24,14 @@ macOS에서 확정한 D-111~D-113의 최종 사용자 결과를 Windows WinUI 3�
 - Windows의 top-level/child HWND 클릭 통과 복구, Composition frame player와 WinUI 리소스 체계는 유지한다.
 - PFN, exe 이름, HWND, DPI, 로컬 경로를 공통 패키지나 권장 프로필에 추가하지 않는다.
 
-## 1. 행동 전체 반복 제거
+## 1. 행동 전체 반복 편집 제거와 문맥별 재생
 
 ### 사용자 화면
 
 - 행동 편집의 `마지막 단계 후 처음부터 반복` ToggleSwitch를 제거한다.
 - 새 행동 만들기 dialog에서도 같은 토글을 제거한다.
 - 행동 단계마다 애니메이션과 `repeatCount`만 편집한다.
-- 안내 문구는 “각 단계의 반복 횟수로 행동 길이를 조절합니다. 행동이 끝나면 마지막 프레임을 유지합니다.” 정도로 표시한다.
+- 안내 문구는 각 단계의 반복 횟수가 한 순환 길이를 정하며 평상시 하나 선택 행동은 깨어 있는 동안 계속 반복된다는 결과를 설명한다.
 
 ### Domain·저장 호환
 
@@ -39,17 +39,17 @@ macOS에서 확정한 D-111~D-113의 최종 사용자 결과를 Windows WinUI 3�
 - schema-v1~v15, 권장 프로필 v1~v11과 macOS 내보내기 왕복을 위해 기존 값을 읽고 다시 기록한다.
 - 새 행동을 만들 때 저장 기본값은 `false`로 쓴다.
 - 기존 `true`를 로드할 때 마이그레이션으로 파일을 즉시 다시 쓰지 않는다.
-- 패키지 manifest의 모션 `loop`는 이미지 미리보기 힌트이므로 행동 1회 재생 정책과 분리한다.
+- 패키지 manifest의 모션 `loop`는 이미지 미리보기 힌트이므로 행동 문맥별 runtime 반복 정책과 분리한다.
 
 ### Runtime 결과
 
-- 고정 평상시 행동: 단계 목록을 한 번 통과하고 마지막 단계의 마지막 프레임 유지.
+- 고정 평상시 행동: 펫이 깨어 있고 더 높은 표시 계층이 없는 동안 단계 목록을 계속 순환.
 - 앱·입력 없음 규칙 행동: 같은 결과. 동일 규칙 snapshot이 다시 들어와도 재시작 금지.
 - 랜덤 평상시 행동: 한 행동을 한 번 통과하면 shuffle bag 다음 행동을 선택하고 첫 단계·첫 cycle·첫 프레임부터 시작.
 - 선택 항목이 하나뿐인 랜덤도 완료 뒤 같은 행동을 새 cursor로 첫 프레임부터 시작.
 - 쓰다듬기: 한 번 통과하고 기존 중단·복원 의미 유지.
 - 이동 행동: 실제 좌표 이동이 유지되는 동안에만 별도 movement scheduler에서 반복. 정지하면 즉시 중단.
-- 같은 완료 sequence가 activity polling이나 UI 설정 알림으로 다시 resolve되어도 scheduler의 `Request`가 cursor를 다시 만들면 안 된다.
+- 규칙처럼 한 번 완료되는 같은 sequence가 activity polling이나 UI 설정 알림으로 다시 resolve되어도 scheduler의 `Request`가 cursor를 다시 만들면 안 된다.
 - 같은 ID라도 단계·반복 횟수·애니메이션이 편집되어 값이 달라졌다면 첫 프레임부터 새로 시작한다.
 - D-106의 랜덤 이동 중단 의미와 D-107의 규칙 fallback 의미를 유지한다.
 
@@ -166,7 +166,7 @@ installation 제거도 실패하면 조용히 성공 처리하지 말고 `펫 �
 ## 5. 구현 단계
 
 1. 관련 작업 계획을 만들고 현재 branch/status를 기록한다.
-2. Domain scheduler 테스트부터 새 1회 재생 의미로 바꾼다.
+2. Domain scheduler 테스트부터 고정 연속 순환과 랜덤·규칙·상호작용 1회 재생 의미를 분리한다.
 3. 저장 mapper는 `repeats` 왕복을 유지하고 새 편집 기본값만 false로 바꾼다.
 4. movement scheduler와 interaction 회귀를 통과시킨다.
 5. 가져오기 application service에 installation+instance+profile transaction을 추가한다.
@@ -183,8 +183,8 @@ installation 제거도 실패하면 조용히 성공 처리하지 말고 `펫 �
 
 ### 행동
 
-1. `repeats=true` 고정 행동이 한 번 재생 후 마지막 프레임 유지
-2. 같은 완료 행동 resolve 반복이 재시작하지 않음
+1. 저장 `repeats` 값과 관계없이 고정 평상시 행동이 전체 단계를 계속 순환
+2. 같은 완료 규칙 행동 resolve 반복이 재시작하지 않음
 3. 편집된 같은 ID 행동은 즉시 첫 프레임 재시작
 4. 규칙 행동 완료 뒤 같은 규칙 snapshot에서 유지
 5. 랜덤 1개가 완료마다 첫 프레임 재시작
@@ -198,7 +198,7 @@ installation 제거도 실패하면 조용히 성공 처리하지 말고 `펫 �
 10. schema-v1~v15 `repeats` true/false 왕복 보존
 11. 권장 프로필 v1~v11 왕복 보존
 12. 새 행동 저장값 false
-13. 패키지 모션 `loop`와 행동 1회 실행의 독립성
+13. 패키지 모션 `loop`와 행동 문맥별 실행의 독립성
 14. macOS fixture 가져오기와 다시 내보내기의 데이터 손실 없음
 
 ### 내 펫·가져오기
@@ -234,7 +234,7 @@ installation 제거도 실패하면 조용히 성공 처리하지 말고 `펫 �
 ## 7. 실제 Windows QA
 
 - 행동 편집에서 전체 반복 토글이 사라지고 단계 반복만 편집 가능한지 확인
-- 고정 행동과 앱·입력 없음 규칙을 짧게 만든 뒤 마지막 프레임 유지 확인
+- 고정 행동은 여러 순환이 이어지고 앱·입력 없음 규칙은 한 번 완료 뒤 마지막 프레임을 유지하는지 확인
 - 랜덤 1개·여러 개에서 완료 시 중간 프레임 없이 첫 프레임 시작 확인
 - 세 이동 방식에서 이동 모션 연속성과 정지 후 평상시 결과 확인
 - 단일 `내 펫`에 보관 구분 없이 생성·가져오기·사본·내보내기 동선이 있는지 확인
