@@ -481,7 +481,7 @@ struct MovementSettingsView: View {
     private var stationaryBehaviorDescription: String {
         switch settingsSession.settings.stationaryBehaviorMode {
         case .fixed:
-            "펫이 이동하지 않고 적용할 규칙도 없을 때 선택한 행동을 재생한 뒤 마지막 프레임을 유지합니다."
+            "펫이 이동하지 않고 적용할 규칙도 없을 때 선택한 행동의 모든 단계를 계속 반복합니다. 단계별 반복 횟수는 한 순환의 길이를 정합니다."
         case .random:
             randomSequenceIDs.isEmpty
                 ? "행동을 하나 이상 선택해 주세요. 선택 전에는 기본 행동을 표시합니다."

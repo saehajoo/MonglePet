@@ -118,21 +118,21 @@ final class PetMovementBehaviorRuntime {
 
     private func boundaryTimerDidFire() {
         advance(to: clock.now)
-        emitCurrentPlaybackIfNeeded()
+        emitCurrentPlaybackIfNeeded(force: true)
         scheduleNextBoundary()
     }
 
-    private func emitCurrentPlaybackIfNeeded() {
+    private func emitCurrentPlaybackIfNeeded(force: Bool = false) {
         switch motionScheduler.status {
         case let .playing(playback):
-            emit(playback)
+            emit(playback, force: force)
         case .stopped, .unavailable:
-            emit(nil)
+            emit(nil, force: force)
         }
     }
 
-    private func emit(_ playback: ScheduledMotion?) {
-        guard !hasEmittedPlayback || currentPlayback != playback else {
+    private func emit(_ playback: ScheduledMotion?, force: Bool = false) {
+        guard force || !hasEmittedPlayback || currentPlayback != playback else {
             return
         }
         hasEmittedPlayback = true

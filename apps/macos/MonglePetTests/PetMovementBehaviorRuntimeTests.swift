@@ -64,6 +64,34 @@ final class PetMovementBehaviorRuntimeTests: XCTestCase {
         XCTAssertEqual(received, ["left", "right", nil])
     }
 
+    func testSingleStepMovementRestartsEachCycleWhileMoving() {
+        let clock = MovementBehaviorTestClock()
+        let scheduler = MovementBehaviorTestScheduler()
+        var received: [ScheduledMotion?] = []
+        let runtime = PetMovementBehaviorRuntime(
+            petDefinition: makePet(),
+            clock: clock,
+            tickScheduler: scheduler
+        ) { received.append($0) }
+        runtime.updateSequences([
+            BehaviorSequence(
+                id: "walk",
+                displayName: "걷기",
+                steps: [BehaviorStep(motionID: "left", repeatCount: 1)],
+                repeats: false
+            )
+        ])
+
+        runtime.setActivity(
+            PetMovementActivity(isMoving: true, motionID: "walk")
+        )
+        clock.advance(by: .milliseconds(100))
+        scheduler.fire()
+
+        XCTAssertEqual(received.compactMap { $0 }.map(\.motion.id), ["left", "left"])
+        XCTAssertEqual(scheduler.scheduleCount, 2)
+    }
+
     private func makePet() -> PetDefinition {
         PetDefinition(
             id: "test.pet",

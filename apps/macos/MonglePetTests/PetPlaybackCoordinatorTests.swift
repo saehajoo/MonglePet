@@ -58,6 +58,34 @@ final class PetPlaybackCoordinatorTests: XCTestCase {
         XCTAssertEqual(receivedMotionIDs, ["idle"])
     }
 
+    func testVisibleLayerCanRestartIdenticalPlaybackAtCycleBoundary() {
+        var receivedMotionIDs: [String?] = []
+        let coordinator = PetPlaybackCoordinator(
+            petDefinition: makePet()
+        ) { receivedMotionIDs.append($0?.motion.id) }
+        let base = playback(motionID: "idle")
+
+        coordinator.setBehaviorPlayback(base)
+        coordinator.setBehaviorPlayback(base)
+
+        XCTAssertEqual(receivedMotionIDs, ["idle", "idle"])
+    }
+
+    func testHiddenLayerRestartDoesNotRestartVisiblePlayback() {
+        var receivedMotionIDs: [String?] = []
+        let coordinator = PetPlaybackCoordinator(
+            petDefinition: makePet()
+        ) { receivedMotionIDs.append($0?.motion.id) }
+        let base = playback(motionID: "idle")
+        let movement = playback(motionID: "run")
+
+        coordinator.setBehaviorPlayback(base)
+        coordinator.setMovementPlayback(movement)
+        coordinator.setBehaviorPlayback(base)
+
+        XCTAssertEqual(receivedMotionIDs, ["idle", "run"])
+    }
+
     func testInteractionTakesPriorityOverMovement() {
         let coordinator = PetPlaybackCoordinator(
             petDefinition: makePet()

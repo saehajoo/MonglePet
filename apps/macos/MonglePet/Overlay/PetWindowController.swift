@@ -433,7 +433,8 @@ final class PetWindowController: NSWindowController {
         framePlayer.play(
             scheduledMotion.motion,
             playbackSpeed: scheduledMotion.playbackSpeed,
-            cycleElapsedDuration: scheduledMotion.cycleElapsedDuration
+            cycleElapsedDuration: scheduledMotion.cycleElapsedDuration,
+            loops: false
         )
         if !isAwake || isSystemSuspended {
             framePlayer.pause()

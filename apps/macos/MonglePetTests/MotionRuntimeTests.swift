@@ -350,6 +350,27 @@ final class MotionRuntimeTests: XCTestCase {
         XCTAssertNil(scheduler.scheduledDelay)
     }
 
+    @MainActor
+    func testFramePlayerCanIgnoreStoredMotionLoopForRuntimeScheduling() {
+        let scheduler = ManualFrameScheduler()
+        let motion = makeMotion(
+            id: "runtime-owned",
+            loops: true,
+            durations: [.milliseconds(100), .milliseconds(200)]
+        )
+        var publishedFrames: [MotionFrame] = []
+        let player = FramePlayer(scheduler: scheduler) { publishedFrames.append($0) }
+
+        player.play(motion, loops: false)
+        scheduler.fire()
+        scheduler.fire()
+
+        XCTAssertEqual(publishedFrames, motion.frames)
+        XCTAssertFalse(player.isPlaying)
+        XCTAssertEqual(player.currentFrameIndex, 1)
+        XCTAssertNil(scheduler.scheduledDelay)
+    }
+
     private func makeMotion(
         id: String,
         loops: Bool = true,

@@ -24,7 +24,7 @@ Apple 공증과 티켓 부착이 모두 필요합니다.
 - `.monglepet` 패키지 스키마 버전은 앱 마케팅 버전과 별도로 관리합니다.
 
 현재 배포 후보는 단일 `내 펫` 흐름, 보편 편집, 독립 가져오기와 펫 생명주기,
-행동 1회 재생 및 말풍선 배치 보정을 포함한 `1.6.0 (12)`입니다. 코드나 설정이
+문맥별 행동 반복 및 말풍선 배치 보정을 포함한 `1.6.0 (13)`입니다. 코드나 설정이
 다시 바뀌면 빌드 번호와
 `MonglePetVersionTests` 기대값을 함께 올립니다.
 
@@ -33,7 +33,8 @@ Apple 공증과 티켓 부착이 모두 필요합니다.
 게시했습니다. 평상시 행동·조건 규칙 분리는 새 기능선을 구분하는
 `macos-v1.5.0-preview.1`로 게시했으며 기존 GitHub Release 자산이나 태그는
 덮어쓰지 않았습니다. 단일 `내 펫`과 생명주기 보정은 새 기능선
-`macos-v1.6.0-preview.1`로 게시합니다.
+`macos-v1.6.0-preview.1`로 게시했고, D-115 문맥별 행동 반복 보정은
+`macos-v1.6.0-preview.2`로 분리합니다.
 
 ## 현재 배포 상태
 
@@ -89,9 +90,9 @@ apps/macos/Scripts/build-preview-zip.zsh
 
 개인 Mac에서 검증을 마치면 GitHub Release에 다음 세 파일을 함께 올립니다.
 
-- `MonglePet-1.6.0-build.12-preview.zip`
-- `MonglePet-1.6.0-build.12-preview.zip.sha256`
-- `MonglePet-1.6.0-build.12-preview.manifest.txt`
+- `MonglePet-1.6.0-build.13-preview.zip`
+- `MonglePet-1.6.0-build.13-preview.zip.sha256`
+- `MonglePet-1.6.0-build.13-preview.manifest.txt`
 
 Release 설명에는 미서명·미공증 Preview라는 점, 지원 macOS 버전, 설치 후
 첫 실행 확인 방법과 알려진 제한을 명시합니다.

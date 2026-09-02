@@ -258,17 +258,17 @@ final class PetBehaviorRuntime {
             tickScheduler.cancel()
             motionScheduler.pause()
             lastAdvancedAt = now
-        case let .sequence(sequence, _):
+        case let .sequence(sequence, source):
             isDecisionPaused = false
             motionScheduler.resume()
-            // Behavior-level repetition is a legacy storage/package hint.
-            // Stationary and rule behavior runs once and holds its last frame;
-            // movement owns its separate while-moving looping scheduler.
+            // Runtime context, not the legacy stored repeat flag, owns looping.
+            // Only fixed stationary playback repeats here. Random selections and
+            // rule or interaction playback complete after one full sequence.
             let scheduledSequence = BehaviorSequence(
                 id: sequence.id,
                 displayName: sequence.displayName,
                 steps: sequence.steps,
-                repeats: false
+                repeats: shouldRepeatBaseSequence(for: source)
             )
             if restartBaseSequence {
                 _ = motionScheduler.restart(scheduledSequence)
@@ -332,8 +332,25 @@ final class PetBehaviorRuntime {
         if advanceRandomSelectionIfNeeded(at: now) {
             return
         }
-        emitCurrentPlaybackIfNeeded()
+        emitCurrentPlaybackIfNeeded(
+            force: motionScheduler.activeCycleRemainingDuration.map {
+                $0 > .zero
+            } ?? false
+        )
         scheduleNextBoundary()
+    }
+
+    private func shouldRepeatBaseSequence(
+        for source: BehaviorSource
+    ) -> Bool {
+        switch source {
+        case .manual:
+            return true
+        case .defaultBehavior:
+            return latestConfiguration?.stationaryBehaviorMode == .fixed
+        case .random, .automaticRule, .interaction:
+            return false
+        }
     }
 
     private func restartRandomSelectionForMovement(

@@ -2303,7 +2303,7 @@ private struct RecommendedProfileSummaryView: View {
                                 sequence.displayName
                             )
                                 .font(.caption.weight(.semibold))
-                            Text("모든 단계 재생 후 마지막 프레임 유지")
+                            Text("단계 반복 횟수는 한 순환에 적용 · 전체 반복은 사용 문맥에 따라 결정")
                             .foregroundStyle(.secondary)
                             ForEach(
                                 Array(sequence.steps.enumerated()),

@@ -75,12 +75,12 @@ final class PetPlaybackCoordinator {
 
     func setBehaviorPlayback(_ playback: ScheduledMotion?) {
         behaviorPlayback = playback
-        refresh()
+        refresh(restarting: .behavior)
     }
 
     func setMovementPlayback(_ playback: ScheduledMotion?) {
         movementPlayback = playback
-        refresh()
+        refresh(restarting: .movement)
     }
 
     func setMovementTakesPriority(_ takesPriority: Bool) {
@@ -91,7 +91,7 @@ final class PetPlaybackCoordinator {
         refresh()
     }
 
-    private func refresh() {
+    private func refresh(restarting restartedLayer: PetPlaybackLayer? = nil) {
         let movementPresentationActive = movementTakesPriority
             && movementPlayback != nil
         if movementPresentationActive != isMovementPresentationActive {
@@ -99,7 +99,11 @@ final class PetPlaybackCoordinator {
             onMovementPresentationChange(movementPresentationActive)
         }
         let selection = effectivePlaybackSelection
-        emit(selection.playback, layer: selection.layer)
+        emit(
+            selection.playback,
+            layer: selection.layer,
+            force: restartedLayer == selection.layer
+        )
     }
 
     private var effectivePlaybackSelection: (
@@ -123,9 +127,11 @@ final class PetPlaybackCoordinator {
 
     private func emit(
         _ playback: ScheduledMotion?,
-        layer: PetPlaybackLayer?
+        layer: PetPlaybackLayer?,
+        force: Bool = false
     ) {
-        guard !hasEmittedPlayback
+        guard force
+                || !hasEmittedPlayback
                 || playback != currentPlayback
                 || layer != currentPlaybackLayer else {
             return

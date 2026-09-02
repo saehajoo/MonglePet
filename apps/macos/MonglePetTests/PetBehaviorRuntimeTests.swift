@@ -134,9 +134,20 @@ final class PetBehaviorRuntimeTests: XCTestCase {
         tickScheduler.fire()
         XCTAssertEqual(runtime.currentPlayback?.motion.id, "rest")
         XCTAssertEqual(tickScheduler.scheduledDelay, .milliseconds(100))
+
+        clock.advance(by: .milliseconds(100))
+        tickScheduler.fire()
+        XCTAssertEqual(runtime.currentPlayback?.motion.id, "focus")
+        XCTAssertEqual(tickScheduler.scheduledDelay, .milliseconds(100))
     }
 
-    func testFixedBehaviorIgnoresLegacyRepeatFlagAndHoldsLastFrame() {
+    func testFixedBehaviorRepeatsRegardlessOfLegacyRepeatFlag() {
+        for legacyRepeats in [false, true] {
+            assertFixedBehaviorRepeats(legacyRepeats: legacyRepeats)
+        }
+    }
+
+    private func assertFixedBehaviorRepeats(legacyRepeats: Bool) {
         let clock = ManualBehaviorRuntimeClock()
         let tickScheduler = ManualBehaviorTickScheduler()
         let runtime = PetBehaviorRuntime(
@@ -147,7 +158,7 @@ final class PetBehaviorRuntimeTests: XCTestCase {
         let sequence = BehaviorSequence(
             id: "legacy-looping-behavior",
             steps: [BehaviorStep(motionID: "focus", repeatCount: 1)],
-            repeats: true
+            repeats: legacyRepeats
         )
         let settings = AppSettings(
             selectedPetInstallationID: nil,
@@ -164,10 +175,63 @@ final class PetBehaviorRuntimeTests: XCTestCase {
         tickScheduler.fire()
 
         XCTAssertEqual(runtime.currentPlayback?.motion.id, "focus")
-        XCTAssertNil(tickScheduler.scheduledDelay)
+        XCTAssertEqual(tickScheduler.scheduledDelay, .milliseconds(100))
 
         runtime.update(settings: settings, snapshot: snapshot())
         XCTAssertEqual(runtime.currentPlayback?.motion.id, "focus")
+        XCTAssertEqual(tickScheduler.scheduledDelay, .milliseconds(100))
+    }
+
+    func testAutomaticRuleCompletesOnceRegardlessOfLegacyRepeatFlag() {
+        let clock = ManualBehaviorRuntimeClock()
+        let tickScheduler = ManualBehaviorTickScheduler()
+        let runtime = PetBehaviorRuntime(
+            petDefinition: makePet(),
+            clock: clock,
+            tickScheduler: tickScheduler
+        ) { _ in }
+        let ruleID = UUID()
+        let defaultSequence = BehaviorSequence(
+            id: BuiltInBehaviorPresets.defaultSequenceID,
+            steps: [BehaviorStep(motionID: "idle", repeatCount: 1)],
+            repeats: false
+        )
+        let ruleSequence = BehaviorSequence(
+            id: "idle-rule",
+            steps: [BehaviorStep(motionID: "rest", repeatCount: 1)],
+            repeats: true
+        )
+        let settings = AppSettings(
+            selectedPetInstallationID: nil,
+            lastUserPresentation: .awake,
+            behaviorMode: .manual,
+            overlay: .default,
+            manualSequenceID: defaultSequence.id,
+            sequences: [defaultSequence, ruleSequence],
+            automaticRules: [
+                AutomaticRule(
+                    id: ruleID,
+                    isEnabled: true,
+                    priority: 10,
+                    condition: .idleAtLeast(milliseconds: 1_000),
+                    sequenceID: ruleSequence.id
+                )
+            ]
+        )
+
+        runtime.update(
+            settings: settings,
+            snapshot: snapshot(idle: .seconds(2))
+        )
+        clock.advance(by: .milliseconds(100))
+        tickScheduler.fire()
+
+        XCTAssertEqual(runtime.currentPlayback?.motion.id, "rest")
+        XCTAssertNil(tickScheduler.scheduledDelay)
+        runtime.update(
+            settings: settings,
+            snapshot: snapshot(idle: .seconds(2))
+        )
         XCTAssertNil(tickScheduler.scheduledDelay)
     }
 

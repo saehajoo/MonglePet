@@ -46,6 +46,7 @@ final class FramePlayer {
     private let onFrameChange: (MotionFrame) -> Void
     private var motion: PetMotion?
     private var currentFrameRemainingDuration: Duration?
+    private var loopsCurrentMotion = false
     private(set) var currentFrameIndex = 0
     private(set) var isPlaying = false
     private(set) var playbackSpeed = 1.0
@@ -61,10 +62,12 @@ final class FramePlayer {
     func play(
         _ motion: PetMotion,
         playbackSpeed: Double = 1,
-        cycleElapsedDuration: Duration = .zero
+        cycleElapsedDuration: Duration = .zero,
+        loops: Bool? = nil
     ) {
         scheduler.cancel()
         self.motion = motion
+        loopsCurrentMotion = loops ?? motion.loops
         self.playbackSpeed = playbackSpeed.isFinite && playbackSpeed > 0
             ? playbackSpeed
             : 1
@@ -108,6 +111,7 @@ final class FramePlayer {
         motion = nil
         currentFrameIndex = 0
         currentFrameRemainingDuration = nil
+        loopsCurrentMotion = false
         isPlaying = false
         playbackSpeed = 1
     }
@@ -137,7 +141,7 @@ final class FramePlayer {
         let nextFrameIndex = currentFrameIndex + 1
         if nextFrameIndex < motion.frames.count {
             currentFrameIndex = nextFrameIndex
-        } else if motion.loops {
+        } else if loopsCurrentMotion {
             currentFrameIndex = 0
         } else {
             isPlaying = false
