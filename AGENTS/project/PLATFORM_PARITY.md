@@ -237,7 +237,15 @@ Windows 클릭 통과는 다른 프로세스의 뒤쪽 창이 실제 입력을 �
 
 애니메이션 배율은 뷰포트가 아니라 실제 펫 배치를 25~400%로 바꾸고 캔버스 밖 배치는 최종 합성에서 clip한다. 제작기 투명 격자는 저대비 테마 색상, 버튼은 공통 높이·테두리 계층을 사용한다. Debug 빌드는 통과했지만 사용자가 직접 수행할 실제 UI QA와 `MACOS_PET_EDITOR_FOLLOWUP.md`의 macOS 반영 전까지 이 항목은 플랫폼 동등 완료가 아니다.
 
+## 2026-09-03 Windows 첫 실행·DPI·좁은 창 보정
+
+Windows 설치 완료 화면의 `postinstall` 실행은 일반 재실행보다 빠르게 새 프로세스를 시작하므로, settings 창의 XAML content가 Loaded 되고 dispatcher가 첫 메시지 처리를 마친 다음 overlay·행동·이동 runtime을 생성하도록 시작 경계를 옮겼다. 이 경계 이전에 들어온 protocol activation도 초기화 완료 뒤 순서대로 처리한다. atlas surface는 성공 완료만 재생 준비로 취급하고 일시적 디코딩 실패를 동일 프로세스에서 제한 재시도한다.
+
+펫 크기는 Win32 화면·작업 영역과 같은 물리 픽셀 계약으로 유지하고 `DesktopChildSiteBridge`의 monitor DPI 자동 확대가 중복 적용되지 않게 scale을 1로 고정했다. `WM_DPICHANGED`에서 물리 크기를 다시 적용하고 이동 runtime의 display cache와 저장 위치 보정을 갱신한다. 화면 식별자가 없는 첫 좌표는 현재 화면 우하단 안전 위치를 사용하며 레거시 좌표는 가장 가까운 작업 영역 안으로 clamp하고 적용 결과를 instance overlay에 되돌린다.
+
+`내 펫`은 좁은 창과 높은 DPI에서 NavigationView가 자동 compact 모드로 바뀌고, 생성·가져오기와 전체 펫 제어는 균등 열로 줄어든다. 카드도 compact 상태에서 preview와 간격을 줄이고 이동·상호작용 설명을 세로로 배치하며 사본·내보내기 작업은 아이콘과 접근성 이름·tooltip을 유지해 잘림을 피한다. 실제 619px 폭 QA에서 내보내기 버튼이 잘리는 결과를 반영해 settings HWND의 최소 추적 크기는 `800×600` effective pixel을 현재 monitor DPI로 환산하되 작업 영역보다 커지지 않게 제한하고, 실행 시 더 작은 창도 즉시 최소 크기로 넓힌다. Debug·Release 각각 313개 테스트와 두 구성 빌드가 경고·오류 없이 통과했으며 Inno Setup 완료 화면 첫 실행, 100%·150%·200% DPI, 좁은 창 실제 QA 전까지 Windows 상태는 진행 중이다.
+
 ---
 
 문서 상태: active
-마지막 갱신: 2026-08-30
+마지막 갱신: 2026-09-03

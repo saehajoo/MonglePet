@@ -37,7 +37,9 @@ public partial class App : Application
     private readonly WindowsMonitorPlacementService _monitorPlacement = new();
     private WindowsNotificationAreaIcon? _notificationArea;
     private readonly HashSet<Guid> _sessionExcludedInstanceIds = [];
+    private readonly Queue<AppActivationArguments> _pendingActivationArguments = [];
     private Microsoft.UI.Dispatching.DispatcherQueueTimer? _selectionSaveTimer;
+    private bool _isRuntimeInitialized;
     private bool _isQuitting;
 
     public App()
@@ -190,27 +192,58 @@ public partial class App : Application
             commandLineArguments);
         var mainWindow = new MainWindow();
         _window = mainWindow;
+        mainWindow.RunWhenContentReady(() => CompleteInitialLaunch(
+            mainWindow,
+            activationArguments,
+            commandLineArguments,
+            isStartupLaunch));
         mainWindow.Activate();
+        mainWindow.ApplyMinimumSize();
         mainWindow.ApplyWindowIcons();
-        InitializeOverlay();
-        InitializeNotificationArea();
-        InitializationCompleted?.Invoke(this, EventArgs.Empty);
-        if (isStartupLaunch)
-        {
-            Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread().TryEnqueue(
-                Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,
-                mainWindow.HideForStartup);
-        }
-
-        HandleActivation(activationArguments, commandLineArguments);
     }
 
     private void AppInstance_Activated(object? sender, AppActivationArguments args)
     {
-        void Dispatch() => HandleActivation(args, []);
+        void Dispatch()
+        {
+            if (!_isRuntimeInitialized)
+            {
+                _pendingActivationArguments.Enqueue(args);
+                return;
+            }
+
+            HandleActivation(args, []);
+        }
         if (_dispatcherQueue?.TryEnqueue(Dispatch) != true)
         {
             Dispatch();
+        }
+    }
+
+    private void CompleteInitialLaunch(
+        MainWindow mainWindow,
+        AppActivationArguments activationArguments,
+        IReadOnlyList<string> commandLineArguments,
+        bool isStartupLaunch)
+    {
+        if (_isRuntimeInitialized || _isQuitting)
+        {
+            return;
+        }
+
+        InitializeOverlay();
+        InitializeNotificationArea();
+        _isRuntimeInitialized = true;
+        InitializationCompleted?.Invoke(this, EventArgs.Empty);
+        if (isStartupLaunch)
+        {
+            mainWindow.HideForStartup();
+        }
+
+        HandleActivation(activationArguments, commandLineArguments);
+        while (_pendingActivationArguments.TryDequeue(out AppActivationArguments? pending))
+        {
+            HandleActivation(pending, []);
         }
     }
 

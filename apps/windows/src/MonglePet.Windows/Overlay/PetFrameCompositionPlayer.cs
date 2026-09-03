@@ -11,6 +11,9 @@ namespace MonglePet.Windows.Overlay;
 
 internal sealed class PetFrameCompositionPlayer : IDisposable
 {
+    private const int MaximumSurfaceLoadAttempts = 3;
+    private static readonly TimeSpan SurfaceLoadRetryInterval =
+        TimeSpan.FromMilliseconds(250);
     private readonly LoadedPetPackage _package;
     private readonly SpriteVisual _visual;
     private readonly CompositionSurfaceBrush _brush;
@@ -23,6 +26,7 @@ internal sealed class PetFrameCompositionPlayer : IDisposable
     private string? _loadedAtlasId;
     private bool _disposed;
     private bool _requestedSurfaceLoadCompleted;
+    private int _surfaceLoadAttempt;
     private bool _isPaused;
     private bool _alphaMaskObservationEnabled;
     private long _playbackStartedAtTimestamp;
@@ -69,7 +73,8 @@ internal sealed class PetFrameCompositionPlayer : IDisposable
 
     public bool IsPlaying => !_isPaused && _state.IsPlaying && Status == "재생 중";
 
-    public bool IsReady => _requestedSurfaceLoadCompleted;
+    public bool IsReady => _requestedSurfaceLoadCompleted &&
+        _surface?.Status == LoadedImageSourceLoadStatus.Success;
 
     public string AlphaMaskStatus => _alphaMaskLoader.Status;
 
@@ -314,7 +319,17 @@ internal sealed class PetFrameCompositionPlayer : IDisposable
         _requestedSurfaceLoadCompleted = true;
         if (surface.Status != LoadedImageSourceLoadStatus.Success)
         {
-            Status = $"이미지 디코딩 실패: {surface.Status}";
+            surface.StateChanged -= Surface_StateChanged;
+            if (_surfaceLoadAttempt < MaximumSurfaceLoadAttempts)
+            {
+                Status = $"이미지 디코딩 다시 시도 중 ({_surfaceLoadAttempt}/{MaximumSurfaceLoadAttempts})";
+                _timer.Interval = SurfaceLoadRetryInterval;
+                _timer.Start();
+            }
+            else
+            {
+                Status = $"이미지 디코딩 실패: {surface.Status}";
+            }
             StateChanged?.Invoke(this, EventArgs.Empty);
             return;
         }
@@ -346,7 +361,22 @@ internal sealed class PetFrameCompositionPlayer : IDisposable
 
     private void Timer_Tick(DispatcherQueueTimer sender, object args)
     {
-        if (_disposed || _isPaused || !_requestedSurfaceLoadCompleted)
+        if (_disposed)
+        {
+            return;
+        }
+
+        if (_requestedSurfaceLoadCompleted &&
+            _surface?.Status != LoadedImageSourceLoadStatus.Success)
+        {
+            if (_surfaceLoadAttempt < MaximumSurfaceLoadAttempts)
+            {
+                LoadAtlasForCurrentMotion(isRetry: true);
+            }
+            return;
+        }
+
+        if (_isPaused || !_requestedSurfaceLoadCompleted)
         {
             StateChanged?.Invoke(this, EventArgs.Empty);
             return;
@@ -458,11 +488,16 @@ internal sealed class PetFrameCompositionPlayer : IDisposable
         return _package.DefaultMotion;
     }
 
-    private void LoadAtlasForCurrentMotion()
+    private void LoadAtlasForCurrentMotion(bool isRetry = false)
     {
         _timer.Stop();
         _playbackStartedAtTimestamp = 0;
         _requestedSurfaceLoadCompleted = false;
+        if (!isRetry)
+        {
+            _surfaceLoadAttempt = 0;
+        }
+        _surfaceLoadAttempt++;
         if (_surface is not null && !ReferenceEquals(_surface, _displayedSurface))
         {
             _surface.StateChanged -= Surface_StateChanged;

@@ -8,6 +8,7 @@
 
 | 상태 | 작업명 | 파일 | 마지막 갱신 |
 | --- | --- | --- | --- |
+| in_progress | Windows 첫 실행 런타임·DPI·좁은 창 보정 | `tasks/2026-09-03-windows-first-launch-dpi-responsive.md` | 2026-09-03 |
 | in_progress | 내 펫 통합·행동 1회 재생·말풍선 배치 보정 | `tasks/2026-09-01-my-pets-one-shot-behavior-speech.md` | 2026-09-01 |
 | in_progress | 데스크톱 펫과 설치한 펫 역할 분리 | `tasks/2026-09-01-desktop-pet-library-ux.md` | 2026-09-01 |
 | in_progress | macOS 펫 제작기·활성 인스턴스 후속 동등성 | `tasks/2026-08-29-macos-pet-editor-followup.md` | 2026-08-29 |

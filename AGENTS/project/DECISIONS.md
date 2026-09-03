@@ -917,3 +917,11 @@
 - 결정: D-115의 평상시 `하나 선택` 연속 순환과 마우스 도망가기 평상시 자유 이동의 숨겨진 머무르기 최소값 검증 보정을 Windows `1.6.0.16`, 태그 `windows-v1.6.0-preview.2`로 게시한다.
 - 이유: 공개 Preview 1의 고정 행동이 첫 순환 뒤 멈추고, 무작위 머무르기가 꺼진 상태에서도 숨겨진 최소값 때문에 설정 저장이 거부되는 실제 사용자 회귀를 기존 릴리스 자산을 덮어쓰지 않고 수정해야 한다.
 - 비고: 마케팅 버전 `1.6.0`, Inno Setup AppId, `%LOCALAPPDATA%\MonglePet`, schema-v15, 권장 프로필 v11과 `.monglepet` formatVersion은 유지한다. 미서명 x64 EXE와 `SHA256SUMS.txt`를 GitHub Pre-release로 제공하며 macOS에는 D-115 동작을 후속 반영한다.
+
+## D-117 Windows 1.6 Preview 3 첫 실행·DPI 안정화 릴리스
+
+- 상태: accepted
+- 날짜: 2026-09-03
+- 결정: 설치 직후 첫 프로세스의 runtime 준비 순서, atlas 제한 재시도, overlay 물리 픽셀 DPI 정합성, 화면 안쪽 좌표 복구와 좁은 `내 펫` UI·최소 창 크기 보정을 Windows `1.6.0.17`, 태그 `windows-v1.6.0-preview.3`으로 게시한다.
+- 이유: 일부 Windows 환경에서 설치 직후 재실행 전까지 모든 펫의 행동·이동이 멈추거나 혼합 DPI에서 펫 오른쪽·아래쪽이 잘리고, 작은 설정 창에서 카드 작업이 잘리는 문제를 기존 Preview 자산을 덮어쓰지 않고 배포해야 한다.
+- 비고: 마케팅 버전 `1.6.0`, Inno Setup AppId, `%LOCALAPPDATA%\MonglePet`, schema-v15, 권장 프로필 v11과 `.monglepet` formatVersion은 유지한다. 미서명 x64 EXE와 `SHA256SUMS.txt`를 GitHub Pre-release로 제공하며 실제 설치 완료 화면 첫 실행과 혼합 DPI 장시간 QA는 계속 추적한다.

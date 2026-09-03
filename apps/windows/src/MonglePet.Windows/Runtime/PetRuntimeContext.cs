@@ -186,18 +186,30 @@ internal sealed class PetRuntimeContext : IDisposable
     private void RestoreSavedPosition()
     {
         OverlaySettings settings = Instance.Overlay;
+        int width = Math.Max(1, (int)Math.Round(Overlay.Width));
+        int height = Math.Max(1, (int)Math.Round(Overlay.Height));
+        PetScreenPlacement placement;
         if (string.IsNullOrWhiteSpace(settings.ScreenIdentifier))
         {
-            Overlay.MoveTo((int)Math.Round(settings.OriginX), (int)Math.Round(settings.OriginY));
-            return;
+            bool hasStoredOrigin = settings.OriginX != 0 || settings.OriginY != 0;
+            placement = hasStoredOrigin
+                ? _monitorPlacement.ClampPlacement(
+                    (int)Math.Round(settings.OriginX),
+                    (int)Math.Round(settings.OriginY),
+                    width,
+                    height)
+                : _monitorPlacement.PlacementForCursor(width, height);
+        }
+        else
+        {
+            placement = _monitorPlacement.RestorePlacement(
+                settings.ScreenIdentifier,
+                settings.OriginX,
+                settings.OriginY,
+                width,
+                height);
         }
 
-        PetScreenPlacement placement = _monitorPlacement.RestorePlacement(
-            settings.ScreenIdentifier,
-            settings.OriginX,
-            settings.OriginY,
-            Math.Max(1, (int)Math.Round(Overlay.Width)),
-            Math.Max(1, (int)Math.Round(Overlay.Height)));
         Overlay.MoveTo(placement.X, placement.Y);
         if (placement.X != (int)Math.Round(settings.OriginX) ||
             placement.Y != (int)Math.Round(settings.OriginY) ||

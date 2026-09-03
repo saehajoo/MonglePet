@@ -24,6 +24,7 @@ public sealed unsafe class PetOverlayWindow : IDisposable
     private const uint WmMove = 0x0003;
     private const uint WmEnterSizeMove = 0x0231;
     private const uint WmExitSizeMove = 0x0232;
+    private const uint WmDpiChanged = 0x02E0;
     private const uint WmDisplayChange = 0x007E;
     private const uint WmSettingChange = 0x001A;
     private const uint WmEraseBackground = 0x0014;
@@ -70,6 +71,8 @@ public sealed unsafe class PetOverlayWindow : IDisposable
         PetPackageFrame firstFrame = package.DefaultMotion.Frames[0];
         _contentAspectRatio = (float)firstFrame.Height / firstFrame.Width;
         (int width, int height) = CalculateWindowSize(settings.Width);
+        _width = settings.Width;
+        _height = height;
         _window = CreateNativeWindow(width, height);
         UpdateOriginFromWindow();
         Instances[(nint)_window.Value] = this;
@@ -608,6 +611,10 @@ public sealed unsafe class PetOverlayWindow : IDisposable
         Microsoft.UI.WindowId windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow((nint)_window.Value);
         _siteBridge = DesktopChildSiteBridge.Create(compositor, windowId);
         _siteWindow = new HWND(Microsoft.UI.Win32Interop.GetWindowFromWindowId(_siteBridge.WindowId));
+        // OverlaySettings.Width is an explicit desktop-pixel contract. The
+        // parent HWND and movement work areas also use physical pixels, so do
+        // not let the child site apply the monitor DPI scale a second time.
+        _siteBridge.OverrideScale = 1f;
         _siteBridge.ResizePolicy = ContentSizePolicy.ResizeContentToParentWindow;
         _contentIsland = ContentIsland.Create(root);
         _contentIsland.IsHitTestVisibleWhenTransparent = false;
@@ -798,6 +805,17 @@ public sealed unsafe class PetOverlayWindow : IDisposable
             if (message is WmDisplayChange or WmSettingChange)
             {
                 owner.DisplayEnvironmentChanged?.Invoke(owner, EventArgs.Empty);
+            }
+
+            if (message == WmDpiChanged)
+            {
+                // The visual size is intentionally physical-pixel based. Keep
+                // that size stable while allowing the runtime to clamp the
+                // current origin to the new monitor work area.
+                owner.SetSize(owner._width);
+                owner.UpdateOriginFromWindow();
+                owner.DisplayEnvironmentChanged?.Invoke(owner, EventArgs.Empty);
+                return new LRESULT(0);
             }
         }
 

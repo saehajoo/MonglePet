@@ -58,7 +58,7 @@
         IsPaneOpen="True"
         IsSettingsVisible="False"
         OpenPaneLength="220"
-        PaneDisplayMode="Left"
+        PaneDisplayMode="Auto"
         SelectionChanged="SettingsNavigationView_SelectionChanged">
         <NavigationView.MenuItems>
             <NavigationViewItemHeader Content="데스크톱" />
@@ -103,7 +103,27 @@
             HorizontalScrollBarVisibility="Disabled"
             HorizontalScrollMode="Disabled"
             VerticalScrollBarVisibility="Auto">
-            <Grid Padding="28,12,28,48">
+            <Grid x:Name="SettingsContentGrid" Padding="28,12,28,48">
+                <VisualStateManager.VisualStateGroups>
+                    <VisualStateGroup x:Name="SettingsWidthStates">
+                        <VisualState x:Name="CompactSettingsWidth">
+                            <VisualState.StateTriggers>
+                                <AdaptiveTrigger MinWindowWidth="0" />
+                            </VisualState.StateTriggers>
+                            <VisualState.Setters>
+                                <Setter Target="SettingsContentGrid.Padding" Value="16,12,16,40" />
+                            </VisualState.Setters>
+                        </VisualState>
+                        <VisualState x:Name="WideSettingsWidth">
+                            <VisualState.StateTriggers>
+                                <AdaptiveTrigger MinWindowWidth="760" />
+                            </VisualState.StateTriggers>
+                            <VisualState.Setters>
+                                <Setter Target="SettingsContentGrid.Padding" Value="28,12,28,48" />
+                            </VisualState.Setters>
+                        </VisualState>
+                    </VisualStateGroup>
+                </VisualStateManager.VisualStateGroups>
                 <StackPanel
                     MaxWidth="920"
                     HorizontalAlignment="Stretch"
@@ -175,10 +195,15 @@
                     <TextBlock
                         Style="{StaticResource SettingsCaptionStyle}"
                         Text="각 펫은 독립된 이미지, 행동, 이동과 말풍선 설정을 사용합니다. 잠시 숨기려면 삭제하지 말고 재워 주세요." />
-                    <StackPanel Orientation="Horizontal" Spacing="10">
+                    <Grid MaxWidth="320" HorizontalAlignment="Stretch" ColumnSpacing="10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
                         <Button
                             AutomationProperties.Name="펫 만들기"
                             Click="CreatePetButton_Click"
+                            HorizontalAlignment="Stretch"
                             Style="{StaticResource AccentButtonStyle}">
                             <StackPanel Orientation="Horizontal" Spacing="7">
                                 <Viewbox Width="14" Height="14">
@@ -187,7 +212,11 @@
                                 <TextBlock Text="펫 만들기" />
                             </StackPanel>
                         </Button>
-                        <Button AutomationProperties.Name="펫 가져오기" Click="ImportPetFromDashboardButton_Click">
+                        <Button
+                            Grid.Column="1"
+                            AutomationProperties.Name="펫 가져오기"
+                            Click="ImportPetFromDashboardButton_Click"
+                            HorizontalAlignment="Stretch">
                             <StackPanel Orientation="Horizontal" Spacing="7">
                                 <Viewbox Width="14" Height="14">
                                     <SymbolIcon Symbol="Download" />
@@ -195,7 +224,7 @@
                                 <TextBlock Text="펫 가져오기" />
                             </StackPanel>
                         </Button>
-                    </StackPanel>
+                    </Grid>
                     <Border
                         Margin="0,4,0,0"
                         Padding="0,12,0,0"
@@ -203,8 +232,16 @@
                         BorderThickness="0,1,0,0">
                         <StackPanel Spacing="6">
                             <TextBlock Style="{StaticResource SettingsCaptionStyle}" Text="전체 펫 제어" />
-                            <StackPanel Orientation="Horizontal" Spacing="10">
-                                <Button AutomationProperties.Name="모두 깨우기" Click="WakeAllPetsButton_Click">
+                            <Grid MaxWidth="450" HorizontalAlignment="Stretch" ColumnSpacing="10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Button
+                                    AutomationProperties.Name="모두 깨우기"
+                                    Click="WakeAllPetsButton_Click"
+                                    HorizontalAlignment="Stretch">
                                     <StackPanel Orientation="Horizontal" Spacing="7">
                                         <Viewbox Width="14" Height="14">
                                             <SymbolIcon Symbol="Play" />
@@ -212,7 +249,11 @@
                                         <TextBlock Text="모두 깨우기" />
                                     </StackPanel>
                                 </Button>
-                                <Button AutomationProperties.Name="모두 재우기" Click="TuckAwayAllPetsButton_Click">
+                                <Button
+                                    Grid.Column="1"
+                                    AutomationProperties.Name="모두 재우기"
+                                    Click="TuckAwayAllPetsButton_Click"
+                                    HorizontalAlignment="Stretch">
                                     <StackPanel Orientation="Horizontal" Spacing="7">
                                         <Viewbox Width="14" Height="14">
                                             <SymbolIcon Symbol="Stop" />
@@ -220,7 +261,11 @@
                                         <TextBlock Text="모두 재우기" />
                                     </StackPanel>
                                 </Button>
-                                <Button AutomationProperties.Name="모든 펫 일시정지 또는 계속" Click="PauseAllPetsButton_Click">
+                                <Button
+                                    Grid.Column="2"
+                                    AutomationProperties.Name="모든 펫 일시정지 또는 계속"
+                                    Click="PauseAllPetsButton_Click"
+                                    HorizontalAlignment="Stretch">
                                     <StackPanel Orientation="Horizontal" Spacing="7">
                                         <Viewbox Width="14" Height="14">
                                             <SymbolIcon x:Name="PauseAllPetsIcon" Symbol="Pause" />
@@ -228,7 +273,7 @@
                                         <TextBlock x:Name="PauseAllPetsText" Text="모두 일시정지" />
                                     </StackPanel>
                                 </Button>
-                            </StackPanel>
+                            </Grid>
                         </StackPanel>
                     </Border>
                     <ListView
@@ -252,9 +297,41 @@
                             <DataTemplate>
                                 <Grid>
                                     <Border Padding="16" CornerRadius="16" Style="{StaticResource SettingsSubcardStyle}">
-                                        <Grid ColumnSpacing="16" RowSpacing="8">
+                                        <Grid x:Name="ActivePetCardGrid" ColumnSpacing="16" RowSpacing="8">
+                                            <VisualStateManager.VisualStateGroups>
+                                                <VisualStateGroup x:Name="ActivePetCardWidthStates">
+                                                    <VisualState x:Name="CompactActivePetCard">
+                                                        <VisualState.StateTriggers>
+                                                            <AdaptiveTrigger MinWindowWidth="0" />
+                                                        </VisualState.StateTriggers>
+                                                        <VisualState.Setters>
+                                                            <Setter Target="ActivePetPreviewColumn.Width" Value="64" />
+                                                            <Setter Target="ActivePetPreview.Width" Value="64" />
+                                                            <Setter Target="ActivePetPreview.Height" Value="64" />
+                                                            <Setter Target="ActivePetCardGrid.ColumnSpacing" Value="12" />
+                                                            <Setter Target="ActivePetStatusDescriptions.Orientation" Value="Vertical" />
+                                                            <Setter Target="DuplicateActivePetText.Visibility" Value="Collapsed" />
+                                                            <Setter Target="ExportActivePetText.Visibility" Value="Collapsed" />
+                                                        </VisualState.Setters>
+                                                    </VisualState>
+                                                    <VisualState x:Name="WideActivePetCard">
+                                                        <VisualState.StateTriggers>
+                                                            <AdaptiveTrigger MinWindowWidth="760" />
+                                                        </VisualState.StateTriggers>
+                                                        <VisualState.Setters>
+                                                            <Setter Target="ActivePetPreviewColumn.Width" Value="84" />
+                                                            <Setter Target="ActivePetPreview.Width" Value="84" />
+                                                            <Setter Target="ActivePetPreview.Height" Value="84" />
+                                                            <Setter Target="ActivePetCardGrid.ColumnSpacing" Value="16" />
+                                                            <Setter Target="ActivePetStatusDescriptions.Orientation" Value="Horizontal" />
+                                                            <Setter Target="DuplicateActivePetText.Visibility" Value="Visible" />
+                                                            <Setter Target="ExportActivePetText.Visibility" Value="Visible" />
+                                                        </VisualState.Setters>
+                                                    </VisualState>
+                                                </VisualStateGroup>
+                                            </VisualStateManager.VisualStateGroups>
                                             <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="84" />
+                                                <ColumnDefinition x:Name="ActivePetPreviewColumn" Width="84" />
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
@@ -266,6 +343,7 @@
                                                 <RowDefinition Height="Auto" />
                                             </Grid.RowDefinitions>
                                             <Border
+                                                x:Name="ActivePetPreview"
                                                 Grid.RowSpan="5"
                                                 Width="84"
                                                 Height="84"
@@ -391,6 +469,7 @@
                                                 Text="{Binding OriginalNameText}"
                                                 Visibility="{Binding OriginalNameVisibility}" />
                                             <StackPanel
+                                                x:Name="ActivePetStatusDescriptions"
                                                 Grid.Row="2"
                                                 Grid.Column="1"
                                                 Orientation="Horizontal"
@@ -452,24 +531,29 @@
                                                 Grid.Column="1"
                                                 Orientation="Horizontal"
                                                 Spacing="8">
-                                                <Button AutomationProperties.Name="펫 사본 만들기" Click="DuplicateActivePetButton_Click" Tag="{Binding InstanceId}">
+                                                <Button
+                                                    AutomationProperties.Name="펫 사본 만들기"
+                                                    Click="DuplicateActivePetButton_Click"
+                                                    Tag="{Binding InstanceId}"
+                                                    ToolTipService.ToolTip="펫 사본 만들기">
                                                     <StackPanel Orientation="Horizontal" Spacing="7">
                                                         <Viewbox Width="14" Height="14">
                                                             <SymbolIcon Symbol="Copy" />
                                                         </Viewbox>
-                                                        <TextBlock Text="펫 사본 만들기" />
+                                                        <TextBlock x:Name="DuplicateActivePetText" Text="펫 사본 만들기" />
                                                     </StackPanel>
                                                 </Button>
                                                 <Button
                                                     AutomationProperties.Name="패키지로 내보내기"
                                                     Click="ExportActivePetButton_Click"
                                                     Tag="{Binding InstanceId}"
+                                                    ToolTipService.ToolTip="패키지로 내보내기"
                                                     Visibility="{Binding ExportVisibility}">
                                                     <StackPanel Orientation="Horizontal" Spacing="7">
                                                         <Viewbox Width="14" Height="14">
                                                             <SymbolIcon Symbol="Upload" />
                                                         </Viewbox>
-                                                        <TextBlock Text="패키지로 내보내기" />
+                                                        <TextBlock x:Name="ExportActivePetText" Text="패키지로 내보내기" />
                                                     </StackPanel>
                                                 </Button>
                                             </StackPanel>
