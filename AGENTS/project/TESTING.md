@@ -983,6 +983,16 @@ UI 테스트는 앱 실행과 접근성 자동화가 가능한 macOS 세션에�
 - 앱을 새로 시작하고 설정창을 닫은 마우스 도망가기·자유 이동·고정 3펫 Release 대표 workload 5분은 평균 CPU 0.680%, private memory 126.51→126.51MiB·최소 125.44MiB·최대 129.62MiB·증가 0.00MiB, 무응답 0회로 기준을 통과했다.
 - 100% 화면에서 핵심 정보 구조와 취소 원자성은 확인했다. 150%·200% DPI, Narrator·전체 키보드 탐색, 최소 창 높이·큰 이미지 반복 drag, 설치기 생성·업데이트·제거와 Windows→macOS 실제 교차 왕복은 릴리스 전 수동 QA로 남긴다.
 
+### Windows 1.6.0 Preview 3 첫 실행·DPI·반응형 설정 검증
+
+- 측정일: 2026-09-03
+- settings XAML Loaded 다음 dispatcher turn에서 overlay·행동·이동 runtime을 시작하고 초기 activation을 대기하도록 했다. atlas surface는 성공 완료만 준비 상태로 판단하며 일시적 decode 실패를 250ms 간격으로 최대 3회 다시 시도한다.
+- overlay physical pixel과 composition rasterization scale을 일치시키고 `WM_DPICHANGED`, 화면 식별자 없는 시작 좌표와 디스플레이 변경 뒤 화면 안쪽 복구를 적용했다. `내 펫`은 NavigationView 자동 compact, 균등 상단 작업, compact 카드와 settings `800×600` effective pixel 최소 크기를 사용한다.
+- Debug·Release 빌드는 각각 경고·오류 0개로 통과했다. 두 구성 모두 Activity 27개, Core 64개, Packages 28개, PetLibrary 89개, Settings 85개, Shell 20개로 총 313개 xUnit 테스트가 통과했으며 `git diff --check`도 통과했다.
+- 기존 설치 위 `1.6.0.17` 설치가 종료 코드 0으로 끝났고 `%LOCALAPPDATA%\MonglePet` 사용자 데이터 48개·5,827,052 bytes와 inventory digest `12AEB5EC4658F5D66364FB3E7A10A390DA650F4F97CB91587AC253EC39F972D7`를 보존했다. 설치 DLL과 publish DLL 일치 및 설치본 실행 응답을 확인했다.
+- 소스 커밋 `18b13f7e26e70bbd55cd103ac2bbd363dea4521d`를 annotated tag `windows-v1.6.0-preview.3`으로 게시했다. 원격 설치기 65,273,031 bytes의 SHA-256 `4BDA35324A7BDEEC829DD41B943D954A7268BABC7502B67613E88345B2305FA3`와 107 bytes `SHA256SUMS.txt`가 로컬 최종 산출물과 일치한다.
+- 실제 Inno Setup 완료 화면에서의 첫 실행과 100%·150%·200% 혼합 DPI 교차 모니터에서 전체 픽셀·좌표 복구 확인은 후속 사용자 QA로 남아 있다.
+
 ## 변경 유형별 최소 검증
 
 ### 후속 단계 필수 검증
@@ -1010,4 +1020,4 @@ UI 테스트는 앱 실행과 접근성 자동화가 가능한 macOS 세션에�
 ---
 
 문서 상태: active
-마지막 갱신: 2026-08-27
+마지막 갱신: 2026-09-03
