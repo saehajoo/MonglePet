@@ -98,7 +98,7 @@ macOS에서 D-118로 확정한 단일 `펫 추가`와 제작자 설정 자동 �
 - 로컬 파일과 웹 URL은 같은 `ReviewAndImportPackageAsync`를 사용한다. 검토 dialog는 정보용 요약과 단일 `펫 추가`·`취소`만 제공하며 적용 불가 fallback은 성공 InfoBar에서 별도로 알린다.
 - `행동 편집`은 `펫 정보·애니메이션` 바로 다음으로 이동했다. 사용자 화면의 관련 용어는 `제작자 설정`으로 통일하고 내부 JSON 파일명과 C# codec 이름은 유지한다.
 - 브라우저가 시작한 보조 프로세스는 검증된 기존 MonglePet PID에 전면 전환 권한을 넘긴 뒤 protocol payload를 전달한다. 실행 중 앱이 링크를 받았지만 settings 창이 브라우저 뒤에 남아 응답이 없는 것처럼 보이는 경로를 막는다.
-- Debug·Release 각각 Activity 27개, Core 64개, Packages 28개, PetLibrary 90개, Settings 88개, Shell 22개로 총 319개 테스트와 전체 빌드가 경고·오류 없이 통과했다. 실제 WinUI·Narrator·반복 로컬/웹 추가와 macOS 교차 왕복은 아직 남아 있다.
+- Debug·Release 각각 Activity 27개, Core 64개, Packages 28개, PetLibrary 90개, Settings 88개, Shell 23개로 총 320개 테스트와 전체 빌드가 경고·오류 없이 통과했다. 운영 웹의 반복 실행과 설치 업데이트·데이터 보존을 확인해 `windows-v1.6.0-preview.4`로 게시했다. 실제 Narrator·반복 로컬 추가와 macOS 교차 왕복은 아직 남아 있다.
 
 ## 완료 보고
 

@@ -80,10 +80,10 @@
 
 - [x] 기존 Preview 3을 보존하는 `1.6.0.18`, `windows-v1.6.0-preview.4`로 결정한다.
 - [x] Debug·Release 전체 빌드와 자동 테스트를 통과한다.
-- [ ] 소스·문서·버전 변경을 커밋하고 `origin/main`에 푸시한다.
-- [ ] 깨끗한 원격 커밋에서 미서명 x64 설치기와 `SHA256SUMS.txt`를 생성한다.
-- [ ] 기존 설치 위 업데이트·사용자 데이터 보존과 설치본 실행을 확인한다.
-- [ ] GitHub Pre-release를 게시하고 태그·원격 자산 digest를 재검증한다.
+- [x] 소스·문서·버전 변경을 커밋하고 `origin/main`에 푸시한다.
+- [x] 깨끗한 원격 커밋에서 미서명 x64 설치기와 `SHA256SUMS.txt`를 생성한다.
+- [x] 기존 설치 위 업데이트·사용자 데이터 보존과 설치본 실행을 확인한다.
+- [x] GitHub Pre-release를 게시하고 태그·원격 자산 digest를 재검증한다.
 
 ### 플랫폼 동등성
 
@@ -121,6 +121,9 @@
 - 2026-09-04: unpackaged 설치기의 직접 scheme key에 전용 ProgID와 현재 사용자 `RegisteredApplications`/`Capabilities` URL association을 추가하고 일치하는 설치본만 제거하도록 보강했다. 앱이나 설치기는 브라우저 프로필 권한을 변경하지 않으며 웹 실패 시 안내·재시도·직접 패키지 가져오기 fallback을 별도 서버에 요구한다.
 - 2026-09-04: Chrome `Default` 프로필에서 운영 `MonglePet에 추가`가 조용히 무시되는 환경을 확인했다. 명시적 차단은 없었고 사용자가 `https://mapleroom.kr`과 `monglepet` 외부 앱 실행을 허용한 뒤 같은 버튼이 반복해서 설치본의 가져오기 화면을 여는 것을 확인했다.
 - 2026-09-04: 릴리스 후보를 `1.6.0.18`, 태그 `windows-v1.6.0-preview.4`로 확정했다. Debug·Release 모두 Activity 27개, Core 64개, Packages 28개, PetLibrary 90개, Settings 88개, Shell 23개로 총 320개 테스트가 통과했고 두 구성 빌드는 경고·오류 0개였다.
+- 2026-09-04: 소스 커밋 `69e4aaa0a41133ea6315e58640a8e017d5e42bed`를 `origin/main`에 푸시하고 같은 깨끗한 커밋에서 65,276,445 bytes 미서명 x64 설치기를 생성했다. SHA-256은 `B3ADF59C87924EBC75197009511BBC9BF98EA5BCD4591334AE98EC06E7D679D9`다.
+- 2026-09-04: 기존 설치 위 업데이트는 종료 코드 0으로 완료됐고 사용자 데이터 30개·4,511,256 bytes와 inventory digest `5B1F42F40FD7F668656F9D80DC7B322DF185586477D44733DF4823B0872FDCDF`를 보존했다. 설치본 `1.6.0.18`, publish DLL 일치, 실행·응답과 세 protocol 등록 경계를 확인했다.
+- 2026-09-04: annotated tag `windows-v1.6.0-preview.4`와 `MonglePet Windows 1.6.0 Preview 4` GitHub Pre-release를 게시했다. 원격 설치기와 107 bytes `SHA256SUMS.txt`를 다시 내려받아 바이트 크기·digest·체크섬 내용과 태그 대상 커밋이 로컬 최종본과 일치함을 확인했다.
 
 ## 완료 결과
 

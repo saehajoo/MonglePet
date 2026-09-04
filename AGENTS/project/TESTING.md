@@ -1004,6 +1004,8 @@ UI 테스트는 앱 실행과 접근성 자동화가 가능한 macOS 세션에�
 - Debug·Release 빌드는 각각 경고·오류 0개로 통과했다. 두 구성 모두 Activity 27개, Core 64개, Packages 28개, PetLibrary 90개, Settings 88개, Shell 23개로 총 320개 xUnit 테스트가 통과했다.
 - unpackaged 설치기의 전용 ProgID와 현재 사용자 `RegisteredApplications`/`Capabilities` URL association, 일치하는 설치본만 제거하는 계약을 확인했다. 설치 프로그램은 특정 브라우저의 프로필이나 외부 앱 실행 권한을 변경하지 않는다.
 - Chrome `Default` 프로필에서 `https://mapleroom.kr`의 `monglepet` 외부 앱 실행을 사용자가 허용한 뒤 운영 상세 화면의 `MonglePet에 추가`가 반복해서 설치본의 가져오기 화면을 여는 것을 확인했다. 브라우저가 확인창을 표시하지 않는 환경을 위해 웹의 실패 안내·재시도·직접 패키지 가져오기 fallback은 별도 서버 후속으로 남긴다.
+- 기존 설치 위 `1.6.0.18` 설치가 종료 코드 0으로 끝났고 `%LOCALAPPDATA%\MonglePet` 사용자 데이터 30개·4,511,256 bytes와 inventory digest `5B1F42F40FD7F668656F9D80DC7B322DF185586477D44733DF4823B0872FDCDF`를 보존했다. 설치 DLL과 publish DLL 일치, 설치본 실행·응답과 legacy/ProgID/Registered Applications 등록을 확인했다.
+- 소스 커밋 `69e4aaa0a41133ea6315e58640a8e017d5e42bed`를 annotated tag `windows-v1.6.0-preview.4`로 게시했다. 원격 설치기 65,276,445 bytes의 SHA-256 `B3ADF59C87924EBC75197009511BBC9BF98EA5BCD4591334AE98EC06E7D679D9`와 107 bytes `SHA256SUMS.txt`가 로컬 최종 산출물과 일치한다.
 - 실제 로컬·웹 반복 가져오기, 적용 불가 성공 InfoBar, 취소·오류 주입, 키보드·Narrator·테마와 macOS 권장 프로필 v11 교차 왕복은 사용자 QA로 남아 있다.
 
 ## 변경 유형별 최소 검증
