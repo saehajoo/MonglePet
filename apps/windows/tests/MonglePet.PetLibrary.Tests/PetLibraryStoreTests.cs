@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using System.Text.Json.Nodes;
+using MonglePet.Settings;
 
 namespace MonglePet.PetLibrary.Tests;
 
@@ -264,6 +265,10 @@ public sealed class PetLibraryStoreTests
         Assert.True(review.ContainsRecommendedProfile);
         Assert.False(review.CanApplyRecommendedProfile);
         Assert.NotNull(review.RecommendedProfileIssue);
+        InstalledPetPackage installed = importer.ImportReviewed(
+            review,
+            PetPackageInstallMode.InstallSeparately);
+        Assert.Equal("kr.mapleroom.monglepet.sample.readonly", installed.Package.Manifest.Id);
 
         using FileStream stream = new(
             Path.Combine(source, "recommended-profile.json"),
@@ -273,6 +278,34 @@ public sealed class PetLibraryStoreTests
         stream.Dispose();
         PetLibraryException tooLarge = Assert.Throws<PetLibraryException>(() => importer.Review(source));
         Assert.Equal(PetLibraryError.PackageValidationFailed, tooLarge.Error);
+    }
+
+    [Fact]
+    public void FutureCreatorSettingsFallBackWithoutBlockingReviewedInstallation()
+    {
+        using var workspace = new TemporaryDirectory();
+        Guid installationId = Guid.NewGuid();
+        var store = CreateStore(workspace, [installationId]);
+        string source = workspace.CopyFixture("future-profile.monglepet");
+        string creatorSettingsPath = Path.Combine(source, "recommended-profile.json");
+        WriteRecommendedProfile(creatorSettingsPath);
+        JsonObject creatorSettings = JsonNode.Parse(
+            File.ReadAllText(creatorSettingsPath))!.AsObject();
+        creatorSettings["schemaVersion"] = RecommendedPetProfileCodec.CurrentSchemaVersion + 1;
+        File.WriteAllText(creatorSettingsPath, creatorSettings.ToJsonString());
+        var importer = new PetPackageImporter(store);
+
+        PetPackageImportReview review = importer.Review(source);
+        InstalledPetPackage installed = importer.ImportReviewed(
+            review,
+            PetPackageInstallMode.InstallSeparately);
+
+        Assert.True(review.ContainsRecommendedProfile);
+        Assert.Null(review.RecommendedProfile);
+        Assert.Equal(
+            RecommendedPetProfileError.UnsupportedSchema,
+            review.RecommendedProfileIssue);
+        Assert.Equal(installationId, installed.InstallationId);
     }
 
     [Fact]

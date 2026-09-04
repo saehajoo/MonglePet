@@ -933,3 +933,11 @@
 - 결정: 로컬 파일과 웹 URL의 가져오기 검토에서 `기본 설정으로 추가`와 `권장 설정으로 추가` 선택을 제거하고 단일 `펫 추가`로 통합한다. 유효한 `recommended-profile.json`은 사용자 화면에서 `제작자 설정`으로 설명하며 새 installation·instance·profile의 휴대 가능한 행동·평상시 행동·조건 규칙·이동·방향별 행동·쓰다듬기·말풍선·표시 설정에 자동 적용한다. 설정이 없거나 미래 schema·손상으로 적용할 수 없으면 안전한 최소 프로필로 펫을 추가하고, 적용 실패 시 펫 추가 성공과 제작자 설정 미적용을 함께 안내한다.
 - 이유: 내부 데이터 구분인 기본/권장 중 하나를 설치 전에 고르게 하면 무엇이 빠지는지 예측하기 어렵고, 제작자가 펫과 함께 구성한 동작을 받는 사용자가 다시 조립해야 한다. 한 번의 추가 작업으로 완성된 기본 경험을 제공하면서 새 인스턴스에만 적용하면 기존 사용자 설정을 보호할 수 있다.
 - 비고: 같은 펫의 반복 가져오기는 계속 독립 installation·instance·profile을 만든다. 취소는 데이터를 남기지 않고 settings 저장 실패는 새 installation까지 rollback한다. 실행 파일·경로 탈출·자산 손상·지원하지 않는 package format과 제작자 설정 1 MiB 초과는 계속 전체 설치를 차단한다. 기본 애니메이션·최소 행동·참조 fallback 안전장치는 유지한다. schema-v15, 권장 프로필 v11과 `.monglepet` formatVersion은 올리지 않으며 D-033의 수신자 선택 적용 정책을 이 결정이 대체한다. Windows는 네이티브 후속 구현과 실제 QA 전까지 동등 완료로 표시하지 않는다.
+
+## D-119 Windows 1.6 Preview 4 제작자 설정·웹 연결 릴리스
+
+- 상태: accepted
+- 날짜: 2026-09-04
+- 결정: D-118의 단일 `펫 추가`, 제작자 설정 자동 적용·fallback, 탐색 순서와 Windows 웹 protocol 전면 전환·등록 보강을 `1.6.0.18`, 태그 `windows-v1.6.0-preview.4`로 게시한다.
+- 이유: macOS Preview 3에서 확정한 가져오기 결과를 Windows에도 제공하고, 브라우저가 실행 중 앱을 열었지만 설정 창이 뒤에 남거나 unpackaged URL association이 불완전하게 검색될 가능성을 기존 Preview 자산을 덮어쓰지 않고 보완해야 한다.
+- 비고: 마케팅 버전 `1.6.0`, Inno Setup AppId, `%LOCALAPPDATA%\MonglePet`, schema-v15, 권장 프로필 v11과 `.monglepet` formatVersion은 유지한다. 설치기는 브라우저 프로필이나 외부 앱 실행 권한을 수정하지 않으며 웹은 무응답 시 재시도·직접 패키지 가져오기 fallback을 제공해야 한다. 미서명 x64 EXE와 `SHA256SUMS.txt`를 GitHub Pre-release로 제공하고 실제 macOS 교차 왕복은 플랫폼 동등성 후속 QA로 유지한다.

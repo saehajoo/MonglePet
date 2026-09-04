@@ -993,6 +993,19 @@ UI 테스트는 앱 실행과 접근성 자동화가 가능한 macOS 세션에�
 - 소스 커밋 `18b13f7e26e70bbd55cd103ac2bbd363dea4521d`를 annotated tag `windows-v1.6.0-preview.3`으로 게시했다. 원격 설치기 65,273,031 bytes의 SHA-256 `4BDA35324A7BDEEC829DD41B943D954A7268BABC7502B67613E88345B2305FA3`와 107 bytes `SHA256SUMS.txt`가 로컬 최종 산출물과 일치한다.
 - 실제 Inno Setup 완료 화면에서의 첫 실행과 100%·150%·200% 혼합 DPI 교차 모니터에서 전체 픽셀·좌표 복구 확인은 후속 사용자 QA로 남아 있다.
 
+### Windows 제작자 설정 자동 적용 검증
+
+- 측정일: 2026-09-04
+- Settings Domain에서 유효 제작자 설정의 평상시 선택·행동·앱/입력 없음 규칙·종류 순서·전체 이동·방향 행동·쓰다듬기·말풍선·휴대 표시를 새 pet key와 profile UUID로 독립 복사하고 기존 instance/profile을 보존하는지 확인했다.
+- 제작자 설정 없음과 미래·손상 설정은 각각 구분된 fallback 상태와 최소 profile·overlay를 사용한다. 손상 JSON과 미래 schema도 reviewed installation을 허용하고 1 MiB 초과는 계속 전체 review를 차단한다.
+- WinUI 소스 계약은 기본/권장 선택 모델과 두 버튼이 없고 `펫 추가` primary 하나만 사용하며, 로컬·웹 두 진입점이 같은 설치 함수로 합류하고 `행동 편집`이 `펫 정보·애니메이션` 바로 다음인지 확인한다.
+- 운영 웹 링크·현재 사용자 protocol 등록·운영 API 응답과 실행 중 앱의 `WM_COPYDATA` 수신을 실제 환경에서 확인했다. 보조 프로세스가 검증된 기본 프로세스에 전면 전환 권한을 넘긴 뒤 payload를 보내는 순서를 Shell 계약 테스트로 고정했다.
+- 실제 테스트 장비에 남아 있던 개발용 AppX `1.4.0.13` URL 처리기가 설치본 대신 저장소 Release 실행 파일을 시작하는 충돌을 확인했다. 개발 package를 사용자 데이터 보존 방식으로 해제한 뒤 EXE protocol 등록과 설치 경로 기본 프로세스 하나만 남고, 운영 deep link 실행에서 다른 프로세스가 잔류하지 않는지 확인했다.
+- Debug·Release 빌드는 각각 경고·오류 0개로 통과했다. 두 구성 모두 Activity 27개, Core 64개, Packages 28개, PetLibrary 90개, Settings 88개, Shell 23개로 총 320개 xUnit 테스트가 통과했다.
+- unpackaged 설치기의 전용 ProgID와 현재 사용자 `RegisteredApplications`/`Capabilities` URL association, 일치하는 설치본만 제거하는 계약을 확인했다. 설치 프로그램은 특정 브라우저의 프로필이나 외부 앱 실행 권한을 변경하지 않는다.
+- Chrome `Default` 프로필에서 `https://mapleroom.kr`의 `monglepet` 외부 앱 실행을 사용자가 허용한 뒤 운영 상세 화면의 `MonglePet에 추가`가 반복해서 설치본의 가져오기 화면을 여는 것을 확인했다. 브라우저가 확인창을 표시하지 않는 환경을 위해 웹의 실패 안내·재시도·직접 패키지 가져오기 fallback은 별도 서버 후속으로 남긴다.
+- 실제 로컬·웹 반복 가져오기, 적용 불가 성공 InfoBar, 취소·오류 주입, 키보드·Narrator·테마와 macOS 권장 프로필 v11 교차 왕복은 사용자 QA로 남아 있다.
+
 ## 변경 유형별 최소 검증
 
 ### 후속 단계 필수 검증
@@ -1020,4 +1033,4 @@ UI 테스트는 앱 실행과 접근성 자동화가 가능한 macOS 세션에�
 ---
 
 문서 상태: active
-마지막 갱신: 2026-09-03
+마지막 갱신: 2026-09-04

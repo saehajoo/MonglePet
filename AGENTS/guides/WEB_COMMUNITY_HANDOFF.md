@@ -442,6 +442,8 @@ cookie 기반 session을 사용하면 CSRF 방어, `Secure`, `HttpOnly`, 적절�
 - 공개 상세 URL 붙여넣기와 `monglepet://install?url=...` 앱으로 열기
 - 개발·운영 환경의 명시적 host 매핑과 운영 API host 확정
 - 웹 상세 화면의 `MonglePet에서 열기` 링크와 앱 미설치 fallback 안내
+- 브라우저가 custom scheme 실행 확인창을 표시하지 않는 경우를 위한 외부 앱 실행
+  허용 안내, 재시도와 `.monglepet` 직접 다운로드·앱의 로컬 가져오기 대안
 - macOS·Windows 교차 설치 QA
 
 2026-08-23 기준 macOS 앱의 공개 상세 URL 붙여넣기, 실행 중·종료 상태

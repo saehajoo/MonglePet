@@ -10,18 +10,9 @@ using MonglePet.Windows.Runtime;
 
 namespace MonglePet.Windows;
 
-internal sealed record PetRecommendedProfileApplyOptions(
-    bool AppliesProfile,
-    bool IncludesBehavior,
-    bool IncludesApplicationRules,
-    bool IncludesMovement,
-    bool IncludesPetting,
-    bool IncludesSpeech,
-    bool IncludesDisplay)
-{
-    public static readonly PetRecommendedProfileApplyOptions None = new(
-        false, false, false, false, false, false, false);
-}
+internal sealed record ReviewedPetImportResult(
+    InstalledPetPackage InstalledPackage,
+    CreatorSettingsImportStatus CreatorSettingsStatus);
 
 public partial class App : Application
 {
@@ -374,70 +365,28 @@ public partial class App : Application
                 Math.Max(version.Build, 0));
     }
 
-    internal InstalledPetPackage ImportReviewedPackage(
-        PetPackageImportReview review,
-        PetRecommendedProfileApplyOptions options)
+    internal ReviewedPetImportResult ImportReviewedPackage(
+        PetPackageImportReview review)
     {
         EnsureSettingsWritingEnabled();
-        if (options.AppliesProfile && review.RecommendedProfile is null)
-        {
-            throw new PetLibraryException(
-                PetLibraryError.PackageValidationFailed,
-                "이 패키지의 권장 설정은 적용할 수 없습니다.");
-        }
-
         InstalledPetPackage installed = PetImporter.ImportReviewed(
             review,
             PetPackageInstallMode.InstallSeparately);
         try
         {
-            BehaviorProfile? sourceProfile = null;
-            OverlaySettings? sourceOverlay = null;
-            if (options.AppliesProfile && review.RecommendedProfile is { } recommended)
-            {
-                BehaviorProfile applied = BehaviorProfileDefaults.Create(
-                    new PetBehaviorKey.Installed(installed.InstallationId));
-                if (options.IncludesBehavior)
-                {
-                    IReadOnlyList<AutomaticRule> rules = options.IncludesApplicationRules
-                        ? recommended.AutomaticRules
-                        : recommended.AutomaticRules.Where(rule =>
-                            rule.Condition is not RuleCondition.Application).ToArray();
-                    applied = applied with
-                    {
-                        StationaryBehaviorMode = recommended.StationaryBehaviorMode,
-                        StationarySequenceId = recommended.StationarySequenceId,
-                        RandomSequenceIds = recommended.RandomSequences,
-                        Sequences = recommended.Sequences,
-                        AutomaticRules = rules,
-                        AutomaticRulePriorityOrder = recommended.RulePriorityOrder,
-                    };
-                }
-                if (options.IncludesMovement) applied = applied with
-                {
-                    Movement = recommended.Movement,
-                };
-                if (options.IncludesPetting) applied = applied with
-                {
-                    PettingMotionId = null,
-                    PettingBehaviorId = recommended.PettingBehaviorId,
-                };
-                if (options.IncludesSpeech) applied = applied with
-                {
-                    Speech = options.IncludesBehavior
-                        ? recommended.Speech
-                        : WithoutBehaviorTriggeredSpeech(recommended.Speech),
-                };
-                sourceProfile = applied;
-                if (options.IncludesDisplay &&
-                    review.RecommendedProfileIncludesDisplay &&
-                    review.RecommendedDisplay is { } display)
-                {
-                    sourceOverlay = display.ApplyTo(OverlaySettings.Default);
-                }
-            }
-            CommitNewPet(installed, sourceProfile, sourceOverlay);
-            return installed;
+            var petKey = new PetBehaviorKey.Installed(installed.InstallationId);
+            ImportedPetSettingsResult imported =
+                ActivePetSettingsEditor.AddImportedPetInstance(
+                    CurrentSettings,
+                    petKey,
+                    review.RecommendedProfile,
+                    review.ContainsRecommendedProfile,
+                    review.RecommendedDisplay,
+                    review.RecommendedProfileIncludesDisplay);
+            CommitSettingsAndSynchronize(imported.Settings, selectedPetChanged: true);
+            return new ReviewedPetImportResult(
+                installed,
+                imported.CreatorSettingsStatus);
         }
         catch (Exception addException)
         {

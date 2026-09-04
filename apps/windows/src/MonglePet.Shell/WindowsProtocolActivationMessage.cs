@@ -49,8 +49,17 @@ public static class WindowsProtocolActivationMessage
         do
         {
             nint window = FindWindow(WindowClassName, UnpackagedWindowName);
-            if (window != 0 && IsExpectedProcess(window, expectedPath))
+            if (window != 0 && TryGetExpectedProcessId(
+                    window,
+                    expectedPath,
+                    out uint processId))
             {
+                // A browser-launched protocol process is allowed to foreground its
+                // own UI. Transfer that permission to the existing primary
+                // MonglePet process before asking it to show the review window;
+                // otherwise Windows can leave the settings window behind the
+                // browser even though WM_COPYDATA was delivered successfully.
+                _ = AllowSetForegroundWindow(processId);
                 nint dataPointer = Marshal.StringToHGlobalUni(payload);
                 try
                 {
@@ -120,9 +129,12 @@ public static class WindowsProtocolActivationMessage
         return WindowsUrlProtocolCommand.TryGetProtocolUri(value, out protocolUri);
     }
 
-    private static bool IsExpectedProcess(nint window, string expectedPath)
+    private static bool TryGetExpectedProcessId(
+        nint window,
+        string expectedPath,
+        out uint processId)
     {
-        _ = GetWindowThreadProcessId(window, out uint processId);
+        _ = GetWindowThreadProcessId(window, out processId);
         if (processId == 0)
         {
             return false;
@@ -163,6 +175,10 @@ public static class WindowsProtocolActivationMessage
 
     [DllImport("user32.dll")]
     private static extern uint GetWindowThreadProcessId(nint window, out uint processId);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool AllowSetForegroundWindow(uint processId);
 
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern nint OpenProcess(uint desiredAccess, bool inheritHandle, uint processId);

@@ -2,6 +2,17 @@ using MonglePet.Core.Behavior;
 
 namespace MonglePet.Settings;
 
+public enum CreatorSettingsImportStatus
+{
+    Applied,
+    NotIncluded,
+    Unavailable,
+}
+
+public sealed record ImportedPetSettingsResult(
+    AppSettings Settings,
+    CreatorSettingsImportStatus CreatorSettingsStatus);
+
 public static class ActivePetSettingsEditor
 {
     private const double NewInstanceOffset = 24;
@@ -50,6 +61,42 @@ public static class ActivePetSettingsEditor
             sourceProfile,
             sourceOverlay ?? OverlaySettings.Default,
             idGenerator);
+    }
+
+    public static ImportedPetSettingsResult AddImportedPetInstance(
+        AppSettings settings,
+        PetBehaviorKey petKey,
+        BehaviorProfile? creatorProfile,
+        bool containsCreatorSettings,
+        PortablePetDisplaySettings? creatorDisplay,
+        bool creatorProfileIncludesDisplay,
+        Func<Guid>? idGenerator = null)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(petKey);
+
+        CreatorSettingsImportStatus status = creatorProfile is not null
+            ? CreatorSettingsImportStatus.Applied
+            : containsCreatorSettings
+                ? CreatorSettingsImportStatus.Unavailable
+                : CreatorSettingsImportStatus.NotIncluded;
+        BehaviorProfile? sourceProfile = creatorProfile is null
+            ? null
+            : CopyPortableProfile(creatorProfile);
+        OverlaySettings sourceOverlay = creatorProfile is not null &&
+            creatorProfileIncludesDisplay &&
+            creatorDisplay is not null
+                ? creatorDisplay.ApplyTo(OverlaySettings.Default)
+                : OverlaySettings.Default;
+
+        return new ImportedPetSettingsResult(
+            AddPetInstanceCore(
+                settings,
+                petKey,
+                sourceProfile,
+                sourceOverlay,
+                idGenerator),
+            status);
     }
 
     private static AppSettings AddPetInstanceCore(
@@ -456,6 +503,46 @@ public static class ActivePetSettingsEditor
     {
         OriginX = overlay.OriginX + NewInstanceOffset,
         OriginY = overlay.OriginY + NewInstanceOffset,
+    };
+
+    private static BehaviorProfile CopyPortableProfile(BehaviorProfile source) => source with
+    {
+        Sequences = source.Sequences
+            .Select(sequence => sequence with
+            {
+                Steps = sequence.Steps.Select(step => step with { }).ToArray(),
+            })
+            .ToArray(),
+        AutomaticRules = source.AutomaticRules
+            .Select(rule => rule with { Condition = CopyCondition(rule.Condition) })
+            .ToArray(),
+        Movement = source.Movement with { },
+        Speech = source.Speech with
+        {
+            Phrases = source.Speech.Phrases
+                .Select(phrase => phrase with { Trigger = CopyTrigger(phrase.Trigger) })
+                .ToArray(),
+        },
+        RandomSequenceIds = source.RandomSequences.ToArray(),
+        AutomaticRulePriorityOrder = source.RulePriorityOrder.ToArray(),
+    };
+
+    private static RuleCondition CopyCondition(RuleCondition condition) => condition switch
+    {
+        RuleCondition.Application application =>
+            new RuleCondition.Application(application.ApplicationId),
+        RuleCondition.IdleAtLeast idle =>
+            new RuleCondition.IdleAtLeast(idle.Milliseconds),
+        RuleCondition.Unsupported unsupported =>
+            new RuleCondition.Unsupported(unsupported.Type),
+        _ => throw new ArgumentOutOfRangeException(nameof(condition)),
+    };
+
+    private static PetSpeechTrigger CopyTrigger(PetSpeechTrigger trigger) => trigger switch
+    {
+        PetSpeechTrigger.Periodic => new PetSpeechTrigger.Periodic(),
+        PetSpeechTrigger.Sequence sequence => new PetSpeechTrigger.Sequence(sequence.SequenceId),
+        _ => throw new ArgumentOutOfRangeException(nameof(trigger)),
     };
 
     private static Guid NextUniqueId(Func<Guid> idGenerator, IEnumerable<Guid> existingIds)

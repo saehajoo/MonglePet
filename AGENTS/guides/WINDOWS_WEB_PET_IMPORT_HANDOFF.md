@@ -169,6 +169,9 @@ Enter는 값이 있을 때 `주소에서 가져오기`와 같은 동작을 수�
 - unpackaged EXE 설치기는 현재 사용자 범위의 `monglepet` URL protocol 등록과
   제거를 담당한다. command 문자열은 실행 파일과 `%1`을 각각 안전하게 quote하고
   사용자 입력을 shell 명령으로 다시 해석하지 않는다.
+- unpackaged EXE 설치기는 직접 scheme key뿐 아니라 전용 ProgID와 현재 사용자
+  `RegisteredApplications`/`Capabilities`의 URL association도 등록한다. 제거 시에는
+  각 command와 등록값이 제거 대상 설치본과 정확히 일치할 때만 해당 키를 정리한다.
 - 두 배포 채널이 동시에 설치될 수 있는 경우 기본 handler 선택과 제거 후 복구
   정책을 문서화하고 실제 Windows에서 확인한다.
 - 잘못된 activation은 앱을 자동 설치 화면으로 넘기지 않고 `펫 보관함`을 연 뒤
@@ -185,6 +188,11 @@ Enter는 값이 있을 때 `주소에서 가져오기`와 같은 동작을 수�
   area HWND의 class·title·소유 실행 파일을 확인하고 최대 8KiB `WM_COPYDATA`로
   전달한다. 수신 측은 scheme과 공통 deep link 전체를 다시 검증하며 자동 설치하지
   않는다.
+- 브라우저는 origin과 custom scheme 조합별로 외부 앱 실행 동의를 별도로 관리할 수
+  있다. 앱 설치기는 Chrome·Edge 등 특정 브라우저 프로필이나 기업 정책을 수정하지
+  않는다. 웹 상세 화면은 실행 성공을 직접 판정할 수 없음을 전제로, 버튼 클릭 뒤에도
+  앱이 보이지 않을 때 확인할 브라우저 외부 앱 실행 안내, 재시도와 `.monglepet` 직접
+  다운로드·앱의 로컬 가져오기 대안을 함께 제공한다.
 
 ## 권장 구현 경계
 
@@ -232,6 +240,13 @@ Enter는 값이 있을 때 `주소에서 가져오기`와 같은 동작을 수�
 22개 파일을 그대로 보존한 등록 업데이트와 실제 packaged 개발 URL activation을
 확인했다. 검토 화면의 설치·취소 버튼이 표시됐고 취소 뒤 라이브러리 변경과
 `MonglePetRemoteImport-*` 임시 폴더는 0개였다.
+
+2026-09-04 운영 상세 화면의 `MonglePet에 추가` 링크, 현재 사용자 EXE protocol
+등록과 실행 중 기본 프로세스 전달을 확인했다. 테스트 장비의 Chrome `Default`
+프로필에는 명시적인 차단도 허용도 없었지만 외부 앱 확인창이 나타나지 않았고,
+`https://mapleroom.kr`과 `monglepet` 조합을 사용자가 허용한 뒤에는 같은 버튼이
+반복해서 정상 동작했다. 이는 앱 설치기가 브라우저 권한을 강제로 쓰는 근거가 아니며,
+웹의 실패 안내·재시도·직접 패키지 가져오기 fallback 필요성을 확인한 QA 결과다.
 
 ## 완료 조건
 

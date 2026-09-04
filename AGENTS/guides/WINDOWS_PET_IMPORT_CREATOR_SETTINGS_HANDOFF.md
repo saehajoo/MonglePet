@@ -91,6 +91,15 @@ macOS에서 D-118로 확정한 단일 `펫 추가`와 제작자 설정 자동 �
 - macOS에서 내보낸 v11 패키지를 Windows로 가져오고 Windows에서 다시 내보낸 결과를 macOS에 가져와 휴대 설정을 비교한다.
 - keyboard, Narrator, 좁은 설정 창과 라이트·다크 테마에서 dialog 정보 순서와 primary/cancel 동작을 확인한다.
 
+## Windows 구현 체크포인트
+
+- 2026-09-04: `PetRecommendedProfileApplyOptions`를 제거하고 Settings Domain의 `CreatorSettingsImportStatus`·`AddImportedPetInstance`로 유효 제작자 설정 전체와 휴대 표시의 독립 복사, 설정 없음과 적용 불가 fallback을 구분했다.
+- `App.ImportReviewedPackage`는 검토 하나만 받아 같은 패키지를 별도 installation로 설치하고 새 instance/profile settings 저장을 완료한다. 기존 fingerprint 재검증과 settings 실패 시 installation 제거·복합 오류 경계는 유지한다.
+- 로컬 파일과 웹 URL은 같은 `ReviewAndImportPackageAsync`를 사용한다. 검토 dialog는 정보용 요약과 단일 `펫 추가`·`취소`만 제공하며 적용 불가 fallback은 성공 InfoBar에서 별도로 알린다.
+- `행동 편집`은 `펫 정보·애니메이션` 바로 다음으로 이동했다. 사용자 화면의 관련 용어는 `제작자 설정`으로 통일하고 내부 JSON 파일명과 C# codec 이름은 유지한다.
+- 브라우저가 시작한 보조 프로세스는 검증된 기존 MonglePet PID에 전면 전환 권한을 넘긴 뒤 protocol payload를 전달한다. 실행 중 앱이 링크를 받았지만 settings 창이 브라우저 뒤에 남아 응답이 없는 것처럼 보이는 경로를 막는다.
+- Debug·Release 각각 Activity 27개, Core 64개, Packages 28개, PetLibrary 90개, Settings 88개, Shell 22개로 총 319개 테스트와 전체 빌드가 경고·오류 없이 통과했다. 실제 WinUI·Narrator·반복 로컬/웹 추가와 macOS 교차 왕복은 아직 남아 있다.
+
 ## 완료 보고
 
 - 제거한 선택 모델과 변경한 Domain·저장 transaction

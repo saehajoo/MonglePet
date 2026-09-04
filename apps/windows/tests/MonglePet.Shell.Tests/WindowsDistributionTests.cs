@@ -85,6 +85,30 @@ public sealed class WindowsDistributionTests : IDisposable
     }
 
     [Fact]
+    public void BrowserProtocolActivationTransfersForegroundPermissionToPrimaryProcess()
+    {
+        string fixtures = Path.Combine(AppContext.BaseDirectory, "Fixtures");
+        string source = File.ReadAllText(Path.Combine(
+            fixtures,
+            "WindowsProtocolActivationMessage.cs"));
+
+        int permission = source.IndexOf(
+            "AllowSetForegroundWindow(processId)",
+            StringComparison.Ordinal);
+        int delivery = source.IndexOf(
+            "SendMessageTimeout(",
+            permission,
+            StringComparison.Ordinal);
+
+        Assert.True(permission >= 0);
+        Assert.True(delivery > permission);
+        Assert.Contains(
+            "TryGetExpectedProcessId",
+            source,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void PackagedAndUnpackagedDistributionsDeclareProtocolActivation()
     {
         string fixtures = Path.Combine(AppContext.BaseDirectory, "Fixtures");
@@ -95,6 +119,10 @@ public sealed class WindowsDistributionTests : IDisposable
         Assert.Contains("<uap:Protocol Name=\"monglepet\">", manifest, StringComparison.Ordinal);
         Assert.Contains("ChangesAssociations=yes", installer, StringComparison.Ordinal);
         Assert.Contains("Software\\Classes\\monglepet", installer, StringComparison.Ordinal);
+        Assert.Contains("Software\\Classes\\{#ProtocolProgId}", installer, StringComparison.Ordinal);
+        Assert.Contains("{#CapabilitiesPath}\\URLAssociations", installer, StringComparison.Ordinal);
+        Assert.Contains("Software\\RegisteredApplications", installer, StringComparison.Ordinal);
+        Assert.Contains("ValueName: \"monglepet\"; ValueData: \"{#ProtocolProgId}\"", installer, StringComparison.Ordinal);
         Assert.DoesNotContain("uninsdelete", installer, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("RegDeleteKeyIncludingSubkeys", installer, StringComparison.Ordinal);
         Assert.Contains("CloseApplications=no", installer, StringComparison.Ordinal);
@@ -109,13 +137,13 @@ public sealed class WindowsDistributionTests : IDisposable
         XDocument manifest = XDocument.Load(Path.Combine(fixtures, "Package.appxmanifest"));
 
         Assert.Equal("1.6.0", ProjectProperty(project, "Version"));
-        Assert.Equal("1.6.0.17", ProjectProperty(project, "AssemblyVersion"));
-        Assert.Equal("1.6.0.17", ProjectProperty(project, "FileVersion"));
+        Assert.Equal("1.6.0.18", ProjectProperty(project, "AssemblyVersion"));
+        Assert.Equal("1.6.0.18", ProjectProperty(project, "FileVersion"));
 
         XNamespace packageNamespace =
             "http://schemas.microsoft.com/appx/manifest/foundation/windows10";
         Assert.Equal(
-            "1.6.0.17",
+            "1.6.0.18",
             (string?)manifest.Root?.Element(packageNamespace + "Identity")?.Attribute("Version"));
     }
 

@@ -37,6 +37,144 @@ public sealed class ActivePetSettingsEditorTests
     }
 
     [Fact]
+    public void ImportedPetAutomaticallyAppliesAllCreatorSettingsIndependently()
+    {
+        AppSettings original = AppSettings.CreateDefault();
+        Guid installationId = Guid.NewGuid();
+        var petKey = new PetBehaviorKey.Installed(installationId);
+        Guid sequenceRuleId = Guid.NewGuid();
+        Guid phraseId = Guid.NewGuid();
+        var sequences = new[]
+        {
+            new BehaviorSequence(
+                "creator-wave",
+                [new BehaviorStep("wave", 2)],
+                false)
+            {
+                DisplayName = "손 흔들기",
+            },
+        };
+        var rules = new[]
+        {
+            new AutomaticRule(
+                sequenceRuleId,
+                true,
+                0,
+                new RuleCondition.Application("exe:notepad.exe"),
+                "creator-wave"),
+        };
+        var phrases = new[]
+        {
+            new PetSpeechPhrase(
+                phraseId,
+                "안녕하세요",
+                2_500,
+                new PetSpeechTrigger.Sequence("creator-wave"),
+                PetSpeechDisplayMode.Timed),
+        };
+        BehaviorProfile creator = BehaviorProfileDefaults.Create(PetBehaviorKey.BuiltInKey) with
+        {
+            StationaryBehaviorMode = StationaryBehaviorMode.Random,
+            StationarySequenceId = "creator-wave",
+            RandomSequenceIds = ["creator-wave"],
+            Sequences = sequences,
+            AutomaticRules = rules,
+            AutomaticRulePriorityOrder =
+            [
+                AutomaticRuleKind.Application,
+                AutomaticRuleKind.Movement,
+                AutomaticRuleKind.Idle,
+            ],
+            Movement = PetMovementSettings.Default with
+            {
+                Mode = PetMovementMode.CursorAvoiding,
+                CursorAvoidingSpeed = 640,
+            },
+            PettingMotionId = null,
+            PettingBehaviorId = "creator-wave",
+            Speech = PetSpeechSettings.Default with
+            {
+                IsEnabled = true,
+                PeriodicIsEnabled = true,
+                Phrases = phrases,
+            },
+        };
+        var creatorDisplay = new PortablePetDisplaySettings(
+            150,
+            true,
+            0.65,
+            true,
+            0.3,
+            true);
+        Guid instanceId = Guid.NewGuid();
+        Guid profileId = Guid.NewGuid();
+        var ids = new Queue<Guid>([instanceId, profileId]);
+
+        ImportedPetSettingsResult result = ActivePetSettingsEditor.AddImportedPetInstance(
+            original,
+            petKey,
+            creator,
+            containsCreatorSettings: true,
+            creatorDisplay,
+            creatorProfileIncludesDisplay: true,
+            () => ids.Dequeue());
+
+        Assert.Equal(CreatorSettingsImportStatus.Applied, result.CreatorSettingsStatus);
+        Assert.Equal(instanceId, result.Settings.SelectedPetInstanceId);
+        ActivePetInstance importedInstance = result.Settings.SelectedPetInstance!;
+        BehaviorProfile imported = result.Settings.SelectedBehaviorProfile!;
+        Assert.Equal(petKey, importedInstance.PetKey);
+        Assert.Equal(profileId, imported.ProfileId);
+        Assert.Equal(petKey, imported.PetKey);
+        Assert.Equal(StationaryBehaviorMode.Random, imported.StationaryBehaviorMode);
+        Assert.Equal(["creator-wave"], imported.RandomSequences);
+        Assert.Equal("손 흔들기", Assert.Single(imported.Sequences).DisplayName);
+        Assert.Equal("exe:notepad.exe", Assert.IsType<RuleCondition.Application>(
+            Assert.Single(imported.AutomaticRules).Condition).ApplicationId);
+        Assert.Equal(640, imported.Movement.CursorAvoidingSpeed);
+        Assert.Equal("creator-wave", imported.PettingBehaviorId);
+        Assert.True(imported.Speech.IsEnabled);
+        Assert.Equal("안녕하세요", Assert.Single(imported.Speech.Phrases).Text);
+        Assert.Equal(288, importedInstance.Overlay.Width);
+        Assert.True(importedInstance.Overlay.ClickThrough);
+        Assert.Equal(0.65, importedInstance.Overlay.Opacity);
+        Assert.True(importedInstance.Overlay.PointerOverlapFadeEnabled);
+        Assert.Equal(0.3, importedInstance.Overlay.PointerOverlapOpacity);
+        Assert.True(importedInstance.Overlay.PixelArtRendering);
+        Assert.NotSame(sequences, imported.Sequences);
+        Assert.NotSame(rules, imported.AutomaticRules);
+        Assert.NotSame(phrases, imported.Speech.Phrases);
+        Assert.Single(original.ActivePetInstances);
+        Assert.DoesNotContain(original.BehaviorProfiles, profile => profile.ProfileId == profileId);
+    }
+
+    [Theory]
+    [InlineData(false, CreatorSettingsImportStatus.NotIncluded)]
+    [InlineData(true, CreatorSettingsImportStatus.Unavailable)]
+    public void ImportedPetWithoutUsableCreatorSettingsUsesSafeDefaults(
+        bool containsCreatorSettings,
+        CreatorSettingsImportStatus expectedStatus)
+    {
+        AppSettings original = AppSettings.CreateDefault();
+        var petKey = new PetBehaviorKey.Installed(Guid.NewGuid());
+
+        ImportedPetSettingsResult result = ActivePetSettingsEditor.AddImportedPetInstance(
+            original,
+            petKey,
+            creatorProfile: null,
+            containsCreatorSettings,
+            creatorDisplay: null,
+            creatorProfileIncludesDisplay: false);
+
+        Assert.Equal(expectedStatus, result.CreatorSettingsStatus);
+        Assert.Equal(petKey, result.Settings.SelectedPetInstance!.PetKey);
+        Assert.Equal(PetMovementSettings.Default, result.Settings.SelectedBehaviorProfile!.Movement);
+        Assert.Equal(AppSettingsLimits.DefaultOverlayWidth, result.Settings.SelectedPetInstance.Overlay.Width);
+        Assert.False(result.Settings.SelectedPetInstance.Overlay.ClickThrough);
+        Assert.Single(original.ActivePetInstances);
+    }
+
+    [Fact]
     public void EditingOneInstanceDoesNotChangeTheOtherInstance()
     {
         AppSettings original = AppSettings.CreateDefault();

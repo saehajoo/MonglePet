@@ -72,8 +72,18 @@
 ### Windows
 
 - [x] Windows 인계 문서에 Domain·저장·WinUI 변경, 제외 범위와 필수 검증을 기록한다.
-- [ ] Windows 환경에서 단일 추가 UI와 자동 적용·fallback을 네이티브로 구현한다.
-- [ ] Windows 자동 테스트와 실제 앱 QA를 완료한다.
+- [x] Windows 환경에서 단일 추가 UI와 자동 적용·fallback을 네이티브로 구현한다.
+- [x] Windows 관련 테스트와 Debug·Release 전체 자동 검증을 완료한다.
+- [ ] Windows 실제 앱 QA를 완료한다.
+
+### Windows Preview 4 릴리스
+
+- [x] 기존 Preview 3을 보존하는 `1.6.0.18`, `windows-v1.6.0-preview.4`로 결정한다.
+- [x] Debug·Release 전체 빌드와 자동 테스트를 통과한다.
+- [ ] 소스·문서·버전 변경을 커밋하고 `origin/main`에 푸시한다.
+- [ ] 깨끗한 원격 커밋에서 미서명 x64 설치기와 `SHA256SUMS.txt`를 생성한다.
+- [ ] 기존 설치 위 업데이트·사용자 데이터 보존과 설치본 실행을 확인한다.
+- [ ] GitHub Pre-release를 게시하고 태그·원격 자산 digest를 재검증한다.
 
 ### 플랫폼 동등성
 
@@ -101,11 +111,21 @@
 - 2026-09-04: 기능·명세·버전 커밋 `26c18f4`와 탐색 순서·Windows 인계 커밋 `b054e35`를 `origin/main`에 푸시했다.
 - 2026-09-04: 소스 커밋 `b054e35d6ac3edc7cb18e44461bb8f870a6a40a5`에서 10,890,414 bytes Universal ZIP을 생성했다. SHA-256은 `b555b0fa03b7f95c7d6d545bae929a9269605a2fdcf372a3fd039e5eb4f36ef2`이며 압축 해제본의 `1.6.0 (14)`·Bundle ID·arm64/x86_64·앱 아이콘을 확인했다.
 - 2026-09-04: 태그 `macos-v1.6.0-preview.3`의 GitHub Pre-release에 ZIP·SHA-256·manifest를 게시했다. 원격 태그 대상과 다시 내려받은 세 자산의 바이트 단위 일치·digest를 검증했다.
+- 2026-09-04: Windows 환경에서 `main`을 `4d5a89c`에서 `b311133`으로 fast-forward하고 깨끗한 작업 트리를 확인했다. Windows에는 아직 `PetRecommendedProfileApplyOptions`, 기본/권장 두 추가 버튼, 앱 규칙 제외 적용과 기존 NavigationView 순서가 남아 있어 인계 문서와 차이가 있음을 확인했다.
+- 2026-09-04: Windows 구현은 제작자 설정 적용 상태와 새 profile·overlay 구성을 Settings Domain의 테스트 가능한 경계로 옮기고, 기존 `ImportReviewedPackage`의 installation rollback과 검토 후 fingerprint 재검증을 유지하는 방식으로 진행한다.
+- 2026-09-04: Windows의 `PetRecommendedProfileApplyOptions`와 기본/권장 선택 분기를 제거했다. `CreatorSettingsImportStatus`와 `AddImportedPetInstance`가 유효 제작자 설정 전체와 휴대 표시를 새 profile·overlay에 독립 복사하고, 없음·미래·손상 상태를 안전한 최소값으로 구분한다. 앱 사용 규칙도 codec을 통과한 profile에서 더 이상 조용히 제외하지 않는다.
+- 2026-09-04: 로컬 파일과 웹 URL의 공통 검토 화면을 `펫 추가` primary와 `취소`만 제공하도록 바꾸고 정보용 제작자 설정 요약·자동 적용·fallback 문구와 성공 InfoBar를 반영했다. NavigationView의 `행동 편집`은 `펫 정보·애니메이션` 바로 다음으로 옮겼다.
+- 2026-09-04: 손상·미래 제작자 설정의 패키지 설치 가능성, 1 MiB 보안 차단, 전체 설정·앱 규칙·표시 자동 적용과 기존 펫 독립성, 단일 버튼·로컬/웹 공통 함수·탐색 순서 계약 테스트를 추가했다. Debug·Release 모두 Activity 27개, Core 64개, Packages 28개, PetLibrary 90개, Settings 88개, Shell 21개로 총 318개 테스트와 전체 빌드가 경고·오류 없이 통과했다.
+- 2026-09-04: 실제 웹 버튼 점검에서 링크·현재 사용자 protocol 등록·운영 API와 실행 중 앱의 `WM_COPYDATA` 수신은 정상이지만 브라우저가 전면인 상태에서 기존 settings 창이 뒤에 남을 수 있음을 확인했다. 브라우저가 시작한 보조 프로세스가 검증된 기존 MonglePet PID에 `AllowSetForegroundWindow` 권한을 전달한 뒤 protocol payload를 보내도록 보정했다. Debug·Release 모두 Shell 22개, 전체 319개 테스트와 빌드가 경고·오류 없이 통과했다.
+- 2026-09-04: 이 Windows 장비에는 과거 개발용 AppX `1.4.0.13`의 `monglepet:` 처리기도 남아 있어 웹 클릭이 설치본 대신 저장소 `bin\x64\Release` 실행 파일을 계속 시작했다. 사용자 데이터 보존 옵션으로 해당 개발 package와 AppX protocol class만 해제하고, 현재 사용자 EXE 등록·설치 경로 프로세스만 남은 상태에서 운영 deep link가 보조 프로세스를 남기지 않고 기본 설치본으로 전달되는지 확인했다. 최종 dialog의 시각 확인은 사용자 QA를 기다린다.
+- 2026-09-04: unpackaged 설치기의 직접 scheme key에 전용 ProgID와 현재 사용자 `RegisteredApplications`/`Capabilities` URL association을 추가하고 일치하는 설치본만 제거하도록 보강했다. 앱이나 설치기는 브라우저 프로필 권한을 변경하지 않으며 웹 실패 시 안내·재시도·직접 패키지 가져오기 fallback을 별도 서버에 요구한다.
+- 2026-09-04: Chrome `Default` 프로필에서 운영 `MonglePet에 추가`가 조용히 무시되는 환경을 확인했다. 명시적 차단은 없었고 사용자가 `https://mapleroom.kr`과 `monglepet` 외부 앱 실행을 허용한 뒤 같은 버튼이 반복해서 설치본의 가져오기 화면을 여는 것을 확인했다.
+- 2026-09-04: 릴리스 후보를 `1.6.0.18`, 태그 `windows-v1.6.0-preview.4`로 확정했다. Debug·Release 모두 Activity 27개, Core 64개, Packages 28개, PetLibrary 90개, Settings 88개, Shell 23개로 총 320개 테스트가 통과했고 두 구성 빌드는 경고·오류 0개였다.
 
 ## 완료 결과
 
 - macOS 구현·자동 검증·Preview 3 배포를 완료했다.
-- 실제 macOS 가져오기 동작은 사용자가 확인했다. Windows 구현·교차 왕복은 후속이므로 전체 계획 상태는 `in_progress`를 유지한다.
+- 실제 macOS 가져오기 동작은 사용자가 확인했고 Windows 구현·자동 검증도 완료했다. Windows 실제 UI QA와 교차 왕복은 후속이므로 전체 계획 상태는 `in_progress`를 유지한다.
 
 ## 남은 위험 / 후속 작업
 

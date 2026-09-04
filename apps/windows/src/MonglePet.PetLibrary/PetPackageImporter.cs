@@ -62,7 +62,7 @@ public sealed class PetPackageImporter
             {
                 throw new PetLibraryException(
                     PetLibraryError.PackageValidationFailed,
-                    "recommended-profile.json exceeds the 1 MiB security limit.");
+                    "제작자 설정 파일이 1 MiB 보안 제한을 초과합니다.");
             }
 
             try

@@ -72,6 +72,9 @@
             <NavigationViewItem Content="펫 정보·애니메이션" Tag="pet">
                 <NavigationViewItem.Icon><SymbolIcon Symbol="Folder" /></NavigationViewItem.Icon>
             </NavigationViewItem>
+            <NavigationViewItem Content="행동 편집" Tag="routines">
+                <NavigationViewItem.Icon><SymbolIcon Symbol="Bullets" /></NavigationViewItem.Icon>
+            </NavigationViewItem>
             <NavigationViewItem Content="화면 표시" Tag="display">
                 <NavigationViewItem.Icon><SymbolIcon Symbol="Map" /></NavigationViewItem.Icon>
             </NavigationViewItem>
@@ -83,9 +86,6 @@
             </NavigationViewItem>
             <NavigationViewItem Content="상호작용" Tag="interaction">
                 <NavigationViewItem.Icon><SymbolIcon Symbol="Edit" /></NavigationViewItem.Icon>
-            </NavigationViewItem>
-            <NavigationViewItem Content="행동 편집" Tag="routines">
-                <NavigationViewItem.Icon><SymbolIcon Symbol="Bullets" /></NavigationViewItem.Icon>
             </NavigationViewItem>
             <NavigationViewItem Content="말풍선" Tag="speech">
                 <NavigationViewItem.Icon><SymbolIcon Symbol="Comment" /></NavigationViewItem.Icon>
@@ -1640,7 +1640,7 @@
                         <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="현재 펫 내보내기" />
                         <TextBlock
                             Style="{StaticResource SettingsCaptionStyle}"
-                            Text="선택한 펫과 선택적인 권장 설정을 .monglepet 파일로 저장합니다."
+                            Text="선택한 펫과 제작자 설정을 .monglepet 파일로 저장합니다."
                             TextWrapping="Wrap" />
                         <Button
                             x:Name="ExportPackageButton"

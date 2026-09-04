@@ -80,13 +80,13 @@ public static class RecommendedPetProfileCodec
     {
         if (data.Length > MaximumFileSize)
         {
-            throw Error(RecommendedPetProfileError.TooLarge, "권장 설정 파일이 1 MiB를 초과합니다.");
+            throw Error(RecommendedPetProfileError.TooLarge, "제작자 설정 파일이 1 MiB를 초과합니다.");
         }
         JsonObject source;
         try
         {
             source = JsonNode.Parse(data)?.AsObject()
-                ?? throw Error(RecommendedPetProfileError.InvalidJson, "권장 설정 JSON이 올바르지 않습니다.");
+                ?? throw Error(RecommendedPetProfileError.InvalidJson, "제작자 설정 JSON이 올바르지 않습니다.");
         }
         catch (RecommendedPetProfileException)
         {
@@ -94,7 +94,7 @@ public static class RecommendedPetProfileCodec
         }
         catch (Exception exception) when (exception is JsonException or InvalidOperationException)
         {
-            throw Error(RecommendedPetProfileError.InvalidJson, "권장 설정 JSON이 올바르지 않습니다.", exception);
+            throw Error(RecommendedPetProfileError.InvalidJson, "제작자 설정 JSON이 올바르지 않습니다.", exception);
         }
 
         int schemaVersion;
@@ -113,11 +113,11 @@ public static class RecommendedPetProfileCodec
         {
             throw Error(
                 RecommendedPetProfileError.UnsupportedSchema,
-                $"지원하지 않는 권장 설정 버전입니다: {schemaVersion}");
+                $"지원하지 않는 제작자 설정 버전입니다: {schemaVersion}");
         }
         if (source["behavior"] is not JsonObject behavior)
         {
-            throw Error(RecommendedPetProfileError.InvalidContent, "권장 행동 설정이 없습니다.");
+            throw Error(RecommendedPetProfileError.InvalidContent, "제작자 행동 설정이 없습니다.");
         }
 
         NormalizeLegacyProfile(source, schemaVersion);
@@ -166,7 +166,7 @@ public static class RecommendedPetProfileCodec
             throw Error(
                 RecommendedPetProfileError.InvalidContent,
                 mapping.Issues.Count == 0
-                    ? "권장 설정을 읽을 수 없습니다."
+                    ? "제작자 설정을 읽을 수 없습니다."
                     : string.Join(" ", mapping.Issues));
         }
 
@@ -245,7 +245,7 @@ public static class RecommendedPetProfileCodec
             new JsonSerializerOptions { WriteIndented = true });
         if (data.Length > MaximumFileSize)
         {
-            throw Error(RecommendedPetProfileError.TooLarge, "권장 설정 파일이 1 MiB를 초과합니다.");
+            throw Error(RecommendedPetProfileError.TooLarge, "제작자 설정 파일이 1 MiB를 초과합니다.");
         }
         return data;
     }
@@ -326,7 +326,7 @@ public static class RecommendedPetProfileCodec
             if (!string.Equals(step.MotionId, BehaviorMotionReferences.CurrentPetDefault, StringComparison.Ordinal) &&
                 !motions.Contains(step.MotionId))
             {
-                throw Error(RecommendedPetProfileError.MissingMotion, $"권장 설정 모션을 찾을 수 없습니다: {step.MotionId}");
+                throw Error(RecommendedPetProfileError.MissingMotion, $"제작자 설정 모션을 찾을 수 없습니다: {step.MotionId}");
             }
         }
         var behaviorIds = profile.Sequences
@@ -350,7 +350,7 @@ public static class RecommendedPetProfileCodec
         {
             throw Error(
                 RecommendedPetProfileError.InvalidContent,
-                $"권장 설정 행동을 찾을 수 없습니다: {missingBehavior}");
+                $"제작자 설정 행동을 찾을 수 없습니다: {missingBehavior}");
         }
         IEnumerable<string?> movementMotions =
         [
@@ -365,7 +365,7 @@ public static class RecommendedPetProfileCodec
         string? missing = movementMotions.FirstOrDefault(id => !Available(id));
         if (missing is not null)
         {
-            throw Error(RecommendedPetProfileError.MissingMotion, $"권장 설정 모션을 찾을 수 없습니다: {missing}");
+            throw Error(RecommendedPetProfileError.MissingMotion, $"제작자 설정 모션을 찾을 수 없습니다: {missing}");
         }
     }
 

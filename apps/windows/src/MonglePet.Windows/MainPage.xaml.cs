@@ -689,21 +689,22 @@ public sealed partial class MainPage : Page
         PetPackageImportReview review,
         bool usesRemoteErrorSurface)
     {
-        PetRecommendedProfileApplyOptions? options = await ShowImportReview(review);
-        if (options is null)
+        if (!await ShowImportReview(review))
         {
             return;
         }
 
         try
         {
-            InstalledPetPackage installed = app.ImportReviewedPackage(
-                review,
-                options);
+            ReviewedPetImportResult result = app.ImportReviewedPackage(review);
+            string message = result.CreatorSettingsStatus ==
+                CreatorSettingsImportStatus.Unavailable
+                    ? "제작자 설정은 적용하지 못했지만 펫은 정상적으로 추가했습니다."
+                    : $"'{result.InstalledPackage.Package.Manifest.DisplayName}'을(를) 새 내 펫으로 추가했습니다.";
             ShowLibraryMessage(
                 InfoBarSeverity.Success,
-                "가져오기 완료",
-                $"'{installed.Package.Manifest.DisplayName}'을(를) 새 내 펫으로 추가했습니다.");
+                "펫 추가 완료",
+                message);
         }
         catch (Exception exception)
         {
@@ -727,10 +728,17 @@ public sealed partial class MainPage : Page
         ShowLibraryMessage(InfoBarSeverity.Error, "가져오기 실패", message);
     }
 
-    private async Task<PetRecommendedProfileApplyOptions?> ShowImportReview(
+    private async Task<bool> ShowImportReview(
         PetPackageImportReview review)
     {
+        bool canInstall =
+            (Application.Current as App)?.SettingsStore.IsWritingEnabled == true;
         var content = new StackPanel { Spacing = 10, MaxWidth = 520 };
+        content.Children.Add(new TextBlock
+        {
+            Text = "펫과 제작자가 구성한 행동·이동·말풍선 설정을 함께 추가합니다. 추가한 뒤 모든 설정을 자유롭게 변경할 수 있습니다.",
+            TextWrapping = TextWrapping.Wrap,
+        });
         content.Children.Add(new TextBlock
         {
             Text = $"{review.Manifest.DisplayName}  v{review.Manifest.Version}\n" +
@@ -771,7 +779,7 @@ public sealed partial class MainPage : Page
             });
             content.Children.Add(new TextBlock
             {
-                Text = "기본 설정으로 추가하거나 제작자가 함께 저장한 권장 설정으로 추가할 수 있습니다. 앱 사용 규칙과 화면 절대 위치는 가져오지 않습니다.",
+                Text = "제작자가 구성한 표시·행동·이동·말풍선 설정이 이 펫에 자동으로 적용됩니다. 화면 위치·모니터·모든 펫 공통 이동 범위·깨움 상태와 시작 프로그램 설정은 가져오지 않습니다.",
                 TextWrapping = TextWrapping.Wrap,
             });
         }
@@ -779,44 +787,41 @@ public sealed partial class MainPage : Page
         {
             content.Children.Add(new TextBlock
             {
-                Text = $"권장 설정은 적용할 수 없습니다. 펫만 설치할 수 있습니다.\n{review.RecommendedProfileIssueDetail}",
+                Text = "제작자 설정은 적용할 수 없지만 펫은 안전한 기본 설정으로 추가할 수 있습니다." +
+                    (string.IsNullOrWhiteSpace(review.RecommendedProfileIssueDetail)
+                        ? string.Empty
+                        : $"\n{review.RecommendedProfileIssueDetail}"),
                 TextWrapping = TextWrapping.Wrap,
             });
         }
         else
         {
-            content.Children.Add(new TextBlock { Text = "권장 설정이 포함되지 않았습니다." });
+            content.Children.Add(new TextBlock
+            {
+                Text = "이 펫에는 제작자 설정이 포함되어 있지 않습니다. 추가한 뒤 원하는 방식으로 설정할 수 있습니다.",
+                TextWrapping = TextWrapping.Wrap,
+            });
+        }
+        if (!canInstall)
+        {
+            content.Children.Add(new TextBlock
+            {
+                Text = "현재 설정 파일을 보호하기 위해 펫 추가가 비활성화되어 있습니다.",
+                TextWrapping = TextWrapping.Wrap,
+            });
         }
 
         var dialog = new ContentDialog
         {
             XamlRoot = XamlRoot,
-            Title = "가져오기 검토",
+            Title = "펫 추가",
             Content = content,
-            PrimaryButtonText = "기본 설정으로 추가",
-            SecondaryButtonText = review.CanApplyRecommendedProfile
-                ? "권장 설정으로 추가"
-                : string.Empty,
+            PrimaryButtonText = "펫 추가",
             CloseButtonText = "취소",
+            IsPrimaryButtonEnabled = canInstall,
             DefaultButton = ContentDialogButton.Primary,
         };
-        ContentDialogResult result = await dialog.ShowAsync();
-        if (result == ContentDialogResult.None)
-        {
-            return null;
-        }
-        if (result == ContentDialogResult.Primary)
-        {
-            return PetRecommendedProfileApplyOptions.None;
-        }
-        return new PetRecommendedProfileApplyOptions(
-            true,
-            true,
-            false,
-            true,
-            true,
-            true,
-            true);
+        return await dialog.ShowAsync() == ContentDialogResult.Primary;
     }
 
     private async void ExportPackageButton_Click(object sender, RoutedEventArgs e)
@@ -1013,7 +1018,7 @@ public sealed partial class MainPage : Page
             AutomaticRuleKind.Application => "앱 사용",
             _ => "알 수 없음",
         }));
-        return $"권장 설정: {mode}{selectedDetail} · 행동 {profile.Sequences.Count}개/단계 {stepCount}개 · " +
+        return $"제작자 설정: {mode}{selectedDetail} · 행동 {profile.Sequences.Count}개/단계 {stepCount}개 · " +
                $"조건 규칙 {profile.AutomaticRules.Count}개/사용 {enabledRules}개 · 우선순위 {priority} · 이동 {movement} · " +
                $"말풍선 {(profile.Speech.IsEnabled ? "사용" : "사용 안 함")}, 주기 대사 {periodicPhrases}개";
     }

@@ -41,8 +41,8 @@ macOS에서 개발을 시작했다는 이유만으로 AppKit 타입, Bundle Iden
 | 설정·펫 라이브러리 | 진행 중 | 진행 중 | macOS와 Windows는 보관 상태 없이 모든 설치를 독립 설정을 가진 단일 `내 펫` 목록으로 표시한다. 재우기는 설정과 콘텐츠를 보존하고 완전 삭제는 instance·profile과 마지막 installation을 transaction으로 제거하며 과거 비활성 설치는 잠든 펫으로 한 번 복구한다. Windows 로컬·웹 가져오기는 항상 새 installation·instance·profile을 만들고 settings 실패 시 설치를 정리한다. 생성·통합 가져오기·사본·내보내기를 card 문맥에 두고 선택 펫 `펫 정보·애니메이션`에서 읽기 전용 구분 없이 단독 설치는 in-place, 내장·공유 설치는 instance/profile/overlay를 유지한 copy-on-write로 편집한다. Windows 선택 펫 화면은 상단의 반복적인 `설정 대상 펫` 요약을 제거하고, 펫 정보 수정·화면 표시·평상시 행동·이동의 정보 구조를 macOS 기준에 맞췄다. 같은 대상 요약 제거는 macOS 후속 반영이 필요하다. Debug·Release 전체 308개 테스트가 통과했으며 실제 transaction 오류 주입 QA와 양 플랫폼 v11 교차 왕복 전까지 진행 중이다. |
 | 이동·다중 모니터 | 기준 구현 | 진행 중 | macOS는 33ms 이동 cadence·속도를 유지하면서 이동 Timer 재사용, 화면·이동 범위 cache와 기능 수요 기반 30Hz 포인터 감시를 적용했다. Windows는 16ms 논리 소수점 위치 누적과 공유 포인터·화면 snapshot으로 저속 끊김과 모니터 경계 고착을 수정했다. `마우스 도망가기 + 평상시 자유 이동`은 escape/idle 상태 전환 한 번에만 목표를 초기화하고 평상시 100회 반복 tick 동안 목표를 유지하는 테스트와 설치 Release 사용자 확인을 통과했다. 네 모드·공통/4/8방향 행동·사용자 영역의 혼합 DPI 물리 횡단은 계속 확인한다. |
 | 쓰다듬기·말풍선 | 기준 구현 | 진행 중 | 실제 frame 알파 쓰다듬기와 행동 우선·주기 runtime, 행동/주기 대사 분리, draft·즉시 저장·위치 미리보기를 구현했다. macOS와 Windows 말풍선은 현재 프레임의 캐시된 불투명 경계를 anchor로 사용하고 표시 중 자동 위·아래 방향을 가능한 동안 고정한다. Windows는 mask 미준비 시 aspect-fit 콘텐츠와 HWND 순서로 fallback하고 이동 중 XAML tree를 재생성하지 않는다. 실제 이동·투명 여백 프레임의 장시간 시각 QA, 혼합 DPI와 성능 검증이 남았다. |
-| 로컬 가져오기·내보내기 | 진행 중 | 진행 중 | macOS는 설치 전 메타데이터·모션·제작자 설정 검토, 권장 프로필 schema-v1~v11 호환, 패키지 저장 시 앱 규칙을 제외한 모든 휴대 옵션의 상시 포함, canonical 자산 선별·권리 확인·ZIP 왕복·원자적 저장을 구현했다. D-118부터 검토의 기본/권장 선택을 제거하고 단일 `펫 추가`에서 유효한 제작자 설정을 새 installation·instance·profile에 자동 적용한다. 설정 없음은 최소 프로필, 미래·손상 설정은 최소 프로필과 성공 안내로 처리하고 settings 실패 시 installation까지 되돌린다. 기존 펫과 전역 설정은 바뀌지 않는다. macOS 전체 단위 테스트 537개 중 536개 성공·선택형 WebP fixture 1개 건너뜀·실패 0개와 Debug 빌드가 통과했고 사용자가 실제 가져오기 동작을 확인했다. Windows 후속 구현·v11 교차 왕복이 남았다. |
-| 웹 URL 가져오기 | 진행 중 | 진행 중 | macOS URL 다운로드는 로컬 파일과 같은 D-118 검토·자동 적용·fallback·rollback을 사용한다. Windows도 게시·manifest 최소 앱 버전을 합쳐 높은 값은 설치 가능한 권장 안내와 운영 다운로드 페이지 버튼으로 표시하지만 아직 기본/권장 선택 UI를 단일 추가로 바꿔야 한다. 기존 URL allowlist·20MiB·크기·SHA-256·redirect·임시 수명 검증은 유지한다. 실제 운영 패키지 검토·설치 QA가 남았다. |
+| 로컬 가져오기·내보내기 | 진행 중 | 진행 중 | 두 플랫폼 모두 D-118 단일 `펫 추가`에서 유효한 제작자 설정을 새 installation·instance·profile에 자동 적용하고 설정 없음·미래·손상은 안전한 최소값으로 처리한다. Windows는 앱 규칙을 포함한 profile 전체와 휴대 표시를 독립 복사하고 기존 fingerprint·rollback·1 MiB 보안 경계를 유지하며 Debug·Release 각 320개 테스트를 통과했다. 로컬 fallback 실제 UI와 권장 프로필 v11 교차 왕복이 남았다. |
+| 웹 URL 가져오기 | 진행 중 | 진행 중 | macOS와 Windows URL 다운로드는 로컬 파일과 같은 D-118 검토·자동 적용·fallback 정책을 사용한다. Windows의 기존 URL allowlist·20MiB·크기·SHA-256·redirect·임시 수명 검증은 유지하며 운영 `MonglePet에 추가`의 반복 실행을 확인했다. 브라우저별 외부 앱 권한 안내·재시도·직접 가져오기 웹 fallback과 교차 QA가 남았다. |
 | 배포·업데이트 | 진행 중 | 진행 중 | macOS 1.6.0 (14)와 Windows 1.6.0.17 GitHub Pre-release를 게시하고 원격 digest 검증을 통과했다. macOS ZIP은 Developer ID 미서명·Apple 미공증 제한 Preview이고 Windows 설치기는 미서명 x64 Preview다. 업데이트 확인·자동 업데이트는 D-087에 따라 보류 |
 | 멀티펫 | 기준 구현 (`1.1.0`) | 진행 중 (`1.1.0`) | Windows 10~11단계 schema-v11 계약, `PetInstanceManager`, instance별 HWND/runtime, NavigationView 활성 펫·notification area·일시정지·자원 경고·안전 시작 완료; 실제 환경 QA는 12단계 |
 
@@ -249,7 +249,13 @@ Windows 설치 완료 화면의 `postinstall` 실행은 일반 재실행보다 �
 
 `내 펫`은 좁은 창과 높은 DPI에서 NavigationView가 자동 compact 모드로 바뀌고, 생성·가져오기와 전체 펫 제어는 균등 열로 줄어든다. 카드도 compact 상태에서 preview와 간격을 줄이고 이동·상호작용 설명을 세로로 배치하며 사본·내보내기 작업은 아이콘과 접근성 이름·tooltip을 유지해 잘림을 피한다. 실제 619px 폭 QA에서 내보내기 버튼이 잘리는 결과를 반영해 settings HWND의 최소 추적 크기는 `800×600` effective pixel을 현재 monitor DPI로 환산하되 작업 영역보다 커지지 않게 제한하고, 실행 시 더 작은 창도 즉시 최소 크기로 넓힌다. Debug·Release 각각 313개 테스트와 두 구성 빌드가 경고·오류 없이 통과했다. `1.6.0.17` 설치본 업데이트·데이터 보존·실행 응답과 GitHub 원격 digest를 확인했으며 Inno Setup 완료 화면 첫 실행 및 100%·150%·200% 혼합 DPI 교차 모니터 QA 전까지 Windows 상태는 진행 중이다.
 
+## 2026-09-04 Windows 제작자 설정 자동 적용
+
+Windows는 가져오기 사용자 선택 모델을 제거하고 유효한 제작자 설정의 평상시 행동·행동·조건 규칙·전체 이동·방향 행동·쓰다듬기·말풍선과 휴대 표시를 새 펫의 독립 profile·overlay에 자동 적용한다. 제작자 설정이 없으면 최소값을 사용하고 미래 schema·손상은 펫 설치 성공과 설정 미적용을 함께 안내한다. 앱 규칙을 포함한 codec 유효 profile을 더 이상 부분 선택 분기에서 제외하지 않는다.
+
+로컬 파일과 웹 URL은 같은 `펫 추가` 확인·설치 경계를 사용하며 기존 source fingerprint 재검증, 별도 installation, settings 원자 저장과 installation rollback을 유지한다. NavigationView의 `행동 편집`은 `펫 정보·애니메이션` 다음으로 이동했다. 실행 중 앱을 웹에서 여는 보조 프로세스는 검증된 기본 프로세스에 전면 전환 권한을 넘겨 settings 창이 브라우저 뒤에 남지 않게 한다. unpackaged 설치기는 전용 ProgID와 현재 사용자 URL association도 등록한다. Debug·Release 각 320개 테스트와 두 구성 전체 빌드가 경고·오류 없이 통과했고 운영 웹 버튼의 반복 실행을 확인했다. 실제 로컬 반복 추가, fallback InfoBar, 키보드·Narrator와 macOS v11 교차 왕복 전까지 Windows 상태는 진행 중이다.
+
 ---
 
 문서 상태: active
-마지막 갱신: 2026-09-03
+마지막 갱신: 2026-09-04

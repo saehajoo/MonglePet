@@ -20,6 +20,8 @@
 #define AppWebsite "https://dev.mapleroom.kr/monglepet"
 #define AppWindowName "MonglePet Unpackaged Notification Area"
 #define QuitMessageName "MonglePet.Quit.1"
+#define ProtocolProgId "MonglePet.Url"
+#define CapabilitiesPath "Software\MonglePet\Capabilities"
 
 [Setup]
 AppId={{D8FC2ADD-4E8D-45E6-8246-AD6F951A1B1A}
@@ -74,6 +76,14 @@ Root: HKCU; Subkey: "Software\Classes\monglepet"; ValueType: string; ValueName: 
 Root: HKCU; Subkey: "Software\Classes\monglepet"; ValueType: string; ValueName: "URL Protocol"; ValueData: ""
 Root: HKCU; Subkey: "Software\Classes\monglepet\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#AppExeName},0"
 Root: HKCU; Subkey: "Software\Classes\monglepet\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#AppExeName}"" ""%1"""
+Root: HKCU; Subkey: "Software\Classes\{#ProtocolProgId}"; ValueType: string; ValueName: ""; ValueData: "MonglePet URL"
+Root: HKCU; Subkey: "Software\Classes\{#ProtocolProgId}"; ValueType: string; ValueName: "URL Protocol"; ValueData: ""
+Root: HKCU; Subkey: "Software\Classes\{#ProtocolProgId}\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#AppExeName},0"
+Root: HKCU; Subkey: "Software\Classes\{#ProtocolProgId}\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#AppExeName}"" ""%1"""
+Root: HKCU; Subkey: "{#CapabilitiesPath}"; ValueType: string; ValueName: "ApplicationName"; ValueData: "{#AppName}"
+Root: HKCU; Subkey: "{#CapabilitiesPath}"; ValueType: string; ValueName: "ApplicationDescription"; ValueData: "MonglePet 데스크톱 펫"
+Root: HKCU; Subkey: "{#CapabilitiesPath}\URLAssociations"; ValueType: string; ValueName: "monglepet"; ValueData: "{#ProtocolProgId}"
+Root: HKCU; Subkey: "Software\RegisteredApplications"; ValueType: string; ValueName: "{#AppName}"; ValueData: "{#CapabilitiesPath}"
 
 [Run]
 Filename: "{app}\{#AppExeName}"; Description: "MonglePet 실행"; WorkingDir: "{app}"; Flags: nowait postinstall skipifsilent
@@ -84,6 +94,10 @@ const
   RunValueName = 'MonglePet';
   ProtocolKey = 'Software\Classes\monglepet';
   ProtocolCommandKey = 'Software\Classes\monglepet\shell\open\command';
+  ProtocolProgIdKey = 'Software\Classes\{#ProtocolProgId}';
+  ProtocolProgIdCommandKey = 'Software\Classes\{#ProtocolProgId}\shell\open\command';
+  CapabilitiesKey = '{#CapabilitiesPath}';
+  RegisteredApplicationsKey = 'Software\RegisteredApplications';
 
 function RequestRunningAppToQuit: Boolean;
 var
@@ -139,6 +153,8 @@ var
   InstalledCommand: String;
   ExistingProtocolCommand: String;
   InstalledProtocolCommand: String;
+  ExistingProgIdCommand: String;
+  ExistingCapabilitiesPath: String;
 begin
   if CurUninstallStep <> usPostUninstall then
     Exit;
@@ -159,5 +175,27 @@ begin
      (CompareText(ExistingProtocolCommand, InstalledProtocolCommand) = 0) then
   begin
     RegDeleteKeyIncludingSubkeys(HKCU, ProtocolKey);
+  end;
+
+
+  if RegQueryStringValue(
+       HKCU,
+       ProtocolProgIdCommandKey,
+       '',
+       ExistingProgIdCommand) and
+     (CompareText(ExistingProgIdCommand, InstalledProtocolCommand) = 0) then
+  begin
+    RegDeleteKeyIncludingSubkeys(HKCU, ProtocolProgIdKey);
+  end;
+
+  if RegQueryStringValue(
+       HKCU,
+       RegisteredApplicationsKey,
+       '{#AppName}',
+       ExistingCapabilitiesPath) and
+     (CompareText(ExistingCapabilitiesPath, CapabilitiesKey) = 0) then
+  begin
+    RegDeleteValue(HKCU, RegisteredApplicationsKey, '{#AppName}');
+    RegDeleteKeyIncludingSubkeys(HKCU, CapabilitiesKey);
   end;
 end;
