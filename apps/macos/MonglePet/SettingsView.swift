@@ -34,6 +34,11 @@ struct SettingsView: View {
                         destination: .petContent
                     )
                     navigationRow(
+                        "행동 편집",
+                        systemImage: "list.bullet.rectangle",
+                        destination: .behavior
+                    )
+                    navigationRow(
                         "화면 표시",
                         systemImage: "rectangle.on.rectangle",
                         destination: .display
@@ -52,11 +57,6 @@ struct SettingsView: View {
                         "상호작용",
                         systemImage: "hand.point.up.left",
                         destination: .interaction
-                    )
-                    navigationRow(
-                        "행동 편집",
-                        systemImage: "list.bullet.rectangle",
-                        destination: .behavior
                     )
                     navigationRow(
                         "말풍선",

@@ -66,6 +66,7 @@ macOS에서 확정한 D-111~D-113과 Windows 실제 QA에서 보정한 D-115의 
 - 완전 삭제는 instance와 전용 profile을 제거한다. 같은 installation을 참조하는 다른 instance가 없으면 installation 파일도 같은 사용자 작업에서 제거한다.
 - 내장 펫은 최소 한 instance를 유지하되 중복 내장 instance는 삭제할 수 있다.
 - 선택한 active pet의 메타데이터와 애니메이션 추가·수정·복제·삭제는 별도 NavigationView 항목인 `선택한 펫 > 펫 정보·애니메이션`에서 수행한다.
+- `행동 편집`은 `펫 정보·애니메이션` 바로 다음에 배치해 애니메이션 준비 → 행동 구성 순서를 드러낸다.
 - 사용자가 내부 용어인 installation/profile을 이해해야만 작업할 수 있게 만들지 않는다. 오류 상세 로그가 아닌 일반 안내에는 `콘텐츠`, `독립 설정`, `내 펫`을 사용한다.
 
 ### active card와 제거
