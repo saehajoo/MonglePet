@@ -21,7 +21,7 @@ extension PetPackageExportError: LocalizedError {
         case let .packageValidationFailed(error):
             "내보내기 전 펫 패키지 검증에 실패했습니다: \(error.localizedDescription)"
         case let .recommendedProfileInvalid(error):
-            "함께 공유할 권장 설정을 검증하지 못했습니다: \(error.localizedDescription)"
+            "함께 공유할 제작자 설정을 검증하지 못했습니다: \(error.localizedDescription)"
         case let .archiveValidationFailed(error):
             "만든 공유 패키지 검증에 실패했습니다: \(error.localizedDescription)"
         case .archiveTooLarge:

@@ -29,6 +29,7 @@
 | `guides/WEB_COMMUNITY_HANDOFF.md` | 별도 웹 커뮤니티 저장소의 초기 설계·보안·인계 지침 | draft |
 | `guides/WEB_COMMUNITY_SERVER_PROMPT.md` | 별도 웹 서버 담당자에게 전달할 복사 가능한 구현 프롬프트 | active |
 | `guides/WINDOWS_WEB_PET_IMPORT_HANDOFF.md` | macOS 웹 펫 가져오기와 보관함 UI의 Windows 구현·QA 인계 | active |
+| `guides/WINDOWS_PET_IMPORT_CREATOR_SETTINGS_HANDOFF.md` | 단일 펫 추가와 제작자 설정 자동 적용의 Windows 구현·QA 인계 | active |
 | `guides/WINDOWS_BUILTIN_MONGLE_HANDOFF.md` | 새 내장 몽글이 자산·기본 프로필의 Windows 구현·QA 인계 | active |
 | `guides/WINDOWS_BUILTIN_MONGLE_PROMPT.md` | Windows 작업 공간에 전달할 내장 몽글이 구현 프롬프트 | active |
 | `guides/WINDOWS_MACOS_1_3_HANDOFF.md` | macOS 1.3 펫 호환성·이미지 편집기·내장 펫 Windows 구현 인계 | active |

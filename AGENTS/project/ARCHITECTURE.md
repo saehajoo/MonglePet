@@ -159,7 +159,7 @@ MonglePetApp
 - 라이브러리와 같은 볼륨의 staging에서 다시 검증한 뒤 UUID 최종 경로로 rename 또는 replace한다.
 - 사용자 펫 편집은 설치 디렉터리에 직접 쓰지 않고 임시 사본을 수정·재검증한 뒤 같은 설치 UUID로 원자적 교체한다.
 - 사용자 UI는 모든 펫에 동일한 편집 기능을 제공한다. 단독으로 사용 중인 가져온 installation은 최초 저장 때 같은 UUID로 편집 가능 상태를 원자적으로 전환하고, 내장 또는 공유 installation은 선택 instance만 새 editable installation에 연결하는 copy-on-write를 사용한다.
-- 공유 내보내기는 편집 marker와 설치 식별자를 제외한 표준 `.monglepet` 아카이브를 생성한다. 사용자가 선택하면 펫 데이터와 분리된 버전 지정 `recommended-profile.json`에 공유 가능한 행동·이동·말풍선 권장 설정을 추가한다.
+- 공유 내보내기는 편집 marker와 설치 식별자를 제외한 표준 `.monglepet` 아카이브를 생성하고 펫 데이터와 분리된 버전 지정 `recommended-profile.json`에 공유 가능한 행동·이동·말풍선 제작자 설정을 포함한다. 가져오기는 유효한 제작자 설정을 새 instance/profile에 자동 적용하며 기존 instance나 전역 설정을 변경하지 않는다.
 - `pet.json`의 선택적 호환 정보는 펫 자체 버전과 분리해 제작에 사용한 앱 버전과 필수 최소 앱 버전을 기록한다. 필드가 없는 기존 패키지는 허용하고 최소 버전 미충족만 설치를 차단한다.
 - 상세 형식과 보안 제한은 `../specifications/PET_PACKAGE.md`를 따른다.
 

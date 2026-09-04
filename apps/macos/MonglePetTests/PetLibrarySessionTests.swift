@@ -144,7 +144,7 @@ final class PetLibrarySessionTests: XCTestCase {
         XCTAssertNil(session.errorMessage)
     }
 
-    func testReviewedImportAddsContentAndRequestsIndependentActivePet() {
+    func testReviewedImportAutomaticallyAppliesCreatorSettings() {
         let sourceURL = URL(fileURLWithPath: "/tmp/recommended.monglepet")
         let installed = makeInstalled(id: firstID, name: "추천 펫")
         let profile = makeRecommendedProfile()
@@ -190,8 +190,48 @@ final class PetLibrarySessionTests: XCTestCase {
         XCTAssertEqual(selectedIDs, [firstID])
         XCTAssertEqual(
             purposes,
-            [.imported(recommendedProfile: nil)]
+            [.imported(recommendedProfile: profile)]
         )
+        XCTAssertNil(session.errorMessage)
+        XCTAssertNil(session.importNoticeMessage)
+    }
+
+    func testCancellingAfterReviewLeavesExistingLibraryAndSettingsUntouched() {
+        let sourceURL = URL(fileURLWithPath: "/tmp/cancelled.monglepet")
+        let existing = makeInstalled(id: firstID, name: "기존 펫")
+        let incoming = makeInstalled(id: secondID, name: "취소할 펫")
+        let review = makeImportReview(
+            sourceURL: sourceURL,
+            installed: incoming,
+            profile: makeRecommendedProfile()
+        )
+        let packages = [existing]
+        var installedContentChanges: [PetLibrarySelection] = []
+        var installationPurposes: [NewUserPetInstallationPurpose] = []
+        let session = PetLibrarySession(
+            builtInDefinition: builtInDefinition,
+            installedPackagesProvider: { packages },
+            installationRemover: { _ in XCTFail("취소 시 설치를 제거하면 안 됩니다.") },
+            packageImportReviewer: { _ in review },
+            reviewedPackageInstaller: { _, _, _ in
+                XCTFail("취소 시 설치를 시작하면 안 됩니다.")
+                throw PetLibraryError.fileOperationFailed
+            }
+        )
+        _ = session.reload(preferredInstallationID: firstID)
+        session.onInstalledContentChange = {
+            installedContentChanges.append($0.selection)
+        }
+        session.onNewUserPetInstallation = { _, purpose in
+            installationPurposes.append(purpose)
+        }
+
+        XCTAssertEqual(session.reviewPackageForImport(from: sourceURL), review)
+
+        XCTAssertEqual(session.selection, .installed(firstID))
+        XCTAssertEqual(session.items.map(\.selection), [.builtIn, .installed(firstID)])
+        XCTAssertTrue(installedContentChanges.isEmpty)
+        XCTAssertTrue(installationPurposes.isEmpty)
         XCTAssertNil(session.errorMessage)
     }
 
@@ -204,6 +244,7 @@ final class PetLibrarySessionTests: XCTestCase {
             profile: nil
         )
         var packages: [InstalledPetPackage] = []
+        var purposes: [NewUserPetInstallationPurpose] = []
         let session = PetLibrarySession(
             builtInDefinition: builtInDefinition,
             installedPackagesProvider: { packages },
@@ -216,44 +257,55 @@ final class PetLibrarySessionTests: XCTestCase {
                 )
             }
         )
+        session.onNewUserPetInstallation = { _, purpose in
+            purposes.append(purpose)
+        }
         XCTAssertTrue(session.installReviewedPackage(review))
         XCTAssertEqual(session.selection, .installed(firstID))
+        XCTAssertEqual(purposes, [.imported(recommendedProfile: nil)])
+        XCTAssertNil(session.importNoticeMessage)
     }
 
-    func testReviewedImportRejectsUnavailableRecommendedProfile() {
+    func testReviewedImportFallsBackWhenCreatorSettingsAreInvalid() {
         let sourceURL = URL(fileURLWithPath: "/tmp/no-profile.monglepet")
         let installed = makeInstalled(id: firstID, name: "권장 설정 없음")
         let review = makeImportReview(
             sourceURL: sourceURL,
             installed: installed,
-            profile: nil
+            profile: nil,
+            profileIssue: .invalidField("behavior.sequences")
         )
-        var didInstall = false
+        var packages: [InstalledPetPackage] = []
+        var purposes: [NewUserPetInstallationPurpose] = []
         let session = PetLibrarySession(
             builtInDefinition: builtInDefinition,
-            installedPackagesProvider: { [] },
+            installedPackagesProvider: { packages },
             installationRemover: { _ in },
             reviewedPackageInstaller: { _, _, _ in
-                didInstall = true
+                packages = [installed]
                 return PetPackageInstallationResult(
                     installedPackage: installed,
                     importReview: review
                 )
             }
         )
+        session.onNewUserPetInstallation = { _, purpose in
+            purposes.append(purpose)
+        }
 
-        XCTAssertFalse(
-            session.installReviewedPackage(
-                review,
-                appliesRecommendedProfile: true
-            )
-        )
-        XCTAssertFalse(didInstall)
+        XCTAssertTrue(session.installReviewedPackage(review))
         XCTAssertEqual(
-            session.errorMessage,
-            PetPackageImportError.recommendedProfileUnavailable
-                .localizedDescription
+            purposes,
+            [.imported(recommendedProfile: nil)]
         )
+        XCTAssertEqual(
+            session.importNoticeMessage,
+            "제작자 설정은 적용하지 못했지만 펫은 정상적으로 추가했습니다."
+        )
+        XCTAssertNil(session.errorMessage)
+
+        session.clearImportNotice()
+        XCTAssertNil(session.importNoticeMessage)
     }
 
     func testDuplicateReviewedImportInstallsSeparately() {
@@ -369,12 +421,7 @@ final class PetLibrarySessionTests: XCTestCase {
             purposes.append(purpose)
         }
 
-        XCTAssertTrue(
-            session.installReviewedPackage(
-                review,
-                appliesRecommendedProfile: true
-            )
-        )
+        XCTAssertTrue(session.installReviewedPackage(review))
         XCTAssertEqual(
             purposes,
             [.imported(recommendedProfile: profile)]
@@ -1010,15 +1057,16 @@ final class PetLibrarySessionTests: XCTestCase {
     private func makeImportReview(
         sourceURL: URL,
         installed: InstalledPetPackage,
-        profile: RecommendedPetProfile?
+        profile: RecommendedPetProfile?,
+        profileIssue: RecommendedPetProfileError? = nil
     ) -> PetPackageImportReview {
         PetPackageImportReview(
             sourceURL: sourceURL,
             metadata: installed.package.metadata,
             definition: installed.package.definition,
-            containsRecommendedProfile: profile != nil,
+            containsRecommendedProfile: profile != nil || profileIssue != nil,
             recommendedProfile: profile,
-            recommendedProfileIssue: nil
+            recommendedProfileIssue: profileIssue
         )
     }
 

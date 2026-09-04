@@ -88,7 +88,7 @@ extension PetPackageSharingError: LocalizedError {
         case .reviewOutdated:
             "펫 정보가 변경되었습니다. 최신 정보를 다시 확인해 주세요."
         case .recommendedProfileUnavailable:
-            "현재 펫 설정은 공유 가능한 권장 설정으로 만들 수 없습니다."
+            "현재 펫 설정은 공유 가능한 제작자 설정으로 만들 수 없습니다."
         case .applicationRulesUnavailable:
             "현재 앱 사용 규칙은 공유 가능한 형식으로 만들 수 없습니다."
         }

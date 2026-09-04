@@ -107,7 +107,6 @@ nonisolated struct PetPackageInstallationResult: Equatable, Sendable {
 
 nonisolated enum PetPackageImportError: Error, Equatable, Sendable {
     case recommendedProfileFileTooLarge
-    case recommendedProfileUnavailable
     case reviewedContentChanged
 }
 
@@ -115,9 +114,7 @@ extension PetPackageImportError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .recommendedProfileFileTooLarge:
-            "권장 설정 파일이 1 MiB 보안 제한을 초과하여 패키지를 가져올 수 없습니다."
-        case .recommendedProfileUnavailable:
-            "이 패키지의 권장 설정은 적용할 수 없습니다. 펫만 설치해 주세요."
+            "제작자 설정 파일이 1 MiB 보안 제한을 초과하여 패키지를 가져올 수 없습니다."
         case .reviewedContentChanged:
             "확인한 뒤 패키지 내용이 변경되었습니다. 다시 가져와 내용을 확인해 주세요."
         }

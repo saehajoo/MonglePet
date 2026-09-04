@@ -1,5 +1,7 @@
 # Windows 웹 펫 가져오기와 보관함 UI 인계
 
+> 가져오기 검토와 설정 적용 방식은 D-118 및 `WINDOWS_PET_IMPORT_CREATOR_SETTINGS_HANDOFF.md`가 이 문서의 과거 선택형 설명을 대체한다. URL 검증·다운로드·임시 파일 수명과 보관함 정보 구조는 이 문서를 계속 따른다.
+
 ## 목적
 
 이 문서는 macOS에서 확정한 공개 웹 펫 가져오기와 정리된 펫 보관함 UI를
@@ -46,7 +48,7 @@ QA는 Windows 환경에서 진행한다.
   허용한다. HTTPS downgrade, 다른 origin redirect, cookie와 credential 저장을
   허용하지 않는다.
 - 실제 파일 크기와 SHA-256을 다시 확인한 뒤에만 기존 Windows
-  `ReviewPackage`와 `ShowImportReview`로 넘긴다.
+  `ReviewPackage`와 D-118의 단일 `펫 추가` 검토로 넘긴다.
 - 다운로드만으로 자동 설치하거나 현재 펫을 바꾸지 않는다.
 
 ## macOS에서 확정한 펫 보관함 정보 구조
@@ -101,8 +103,8 @@ Enter는 값이 있을 때 `주소에서 가져오기`와 같은 동작을 수�
 - 제목: `Windows의 패키지 가져오기`
 - 설명: `PC에 저장된 .monglepet 파일을 선택해 설치 내용을 확인합니다.`
 - 버튼: `패키지 파일 선택…`
-- 기존 `FileOpenPicker`, `ReviewPackage`, `ShowImportReview`, 중복 설치 처리와
-  권장 설정 적용 동작은 재사용한다.
+- 기존 `FileOpenPicker`, `ReviewPackage`, 중복 설치 처리와 원자적 rollback은
+  재사용하고, 제작자 설정 적용은 D-118에 따라 자동화한다.
 
 기존 파일 선택 기능을 웹 URL 서비스에 합치지 않는다. URL과 로컬 파일 모두 최종
 검토 대화상자는 공유하지만 입력·다운로드 단계는 독립적이다.

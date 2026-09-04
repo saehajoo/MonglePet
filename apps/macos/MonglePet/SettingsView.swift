@@ -320,6 +320,14 @@ private struct MyPetsSettingsView: View {
         } message: {
             Text(petPackageExportErrorMessage ?? "펫 공유 파일을 준비하지 못했습니다.")
         }
+        .alert(
+            "펫 추가 완료",
+            isPresented: importNoticeAlertBinding
+        ) {
+            Button("확인", role: .cancel) {}
+        } message: {
+            Text(petLibrarySession.importNoticeMessage ?? "")
+        }
         .onAppear(perform: presentImportIfNeeded)
         .onChange(of: remotePetImportRequestCenter.request?.id) {
             _, _ in presentImportIfNeeded()
@@ -464,6 +472,13 @@ private struct MyPetsSettingsView: View {
         )
     }
 
+    private var importNoticeAlertBinding: Binding<Bool> {
+        Binding(
+            get: { petLibrarySession.importNoticeMessage != nil },
+            set: { if !$0 { petLibrarySession.clearImportNotice() } }
+        )
+    }
+
     private func presentImportIfNeeded() {
         if remotePetImportRequestCenter.request != nil
             || remotePetImportRequestCenter.errorMessage != nil {
@@ -523,7 +538,7 @@ private struct PetImportSheetView: View {
                 }
 
                 Section("Mac의 패키지 파일") {
-                    Text(".monglepet 파일을 선택하면 설치할 내용과 권장 설정을 먼저 보여드립니다.")
+                    Text(".monglepet 파일을 선택하면 펫 정보와 제작자가 구성한 설정을 먼저 보여드립니다.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
@@ -543,13 +558,9 @@ private struct PetImportSheetView: View {
         ) { review in
             PetPackageImportReviewView(
                 review: review,
-                allowsRecommendedProfileApplication:
-                    settingsSession.isWritingEnabled,
-                onInstall: { appliesRecommendedProfile in
-                    pendingImportAction = PetImportAction(
-                        review: review,
-                        appliesRecommendedProfile: appliesRecommendedProfile
-                    )
+                allowsInstallation: settingsSession.isWritingEnabled,
+                onInstall: {
+                    pendingImportAction = PetImportAction(review: review)
                 }
             )
         }
@@ -688,8 +699,7 @@ private struct PetImportSheetView: View {
         }
         pendingImportAction = nil
         let succeeded = petLibrarySession.installReviewedPackage(
-            action.review,
-            appliesRecommendedProfile: action.appliesRecommendedProfile
+            action.review
         )
         cleanupRemoteImportIfFinished()
         if succeeded {
@@ -1330,8 +1340,7 @@ private struct PetSettingsView: View {
         }
         pendingImportAction = nil
         _ = petLibrarySession.installReviewedPackage(
-            action.review,
-            appliesRecommendedProfile: action.appliesRecommendedProfile
+            action.review
         )
         cleanupRemoteImportIfFinished()
     }
@@ -1784,7 +1793,6 @@ private enum PetSharingFollowUp {
 
 private struct PetImportAction {
     let review: PetPackageImportReview
-    let appliesRecommendedProfile: Bool
 }
 
 private struct PetPackageImportReviewView: View {
@@ -1792,17 +1800,17 @@ private struct PetPackageImportReviewView: View {
     @Environment(\.openURL) private var openURL
 
     let review: PetPackageImportReview
-    let allowsRecommendedProfileApplication: Bool
-    let onInstall: (Bool) -> Void
+    let allowsInstallation: Bool
+    let onInstall: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("가져오기 내용 확인")
+                        Text("펫 추가")
                             .font(.title2.weight(.semibold))
-                        Text("펫 정보와 함께 제공된 권장 설정을 확인합니다.")
+                        Text("펫과 제작자가 구성한 행동·이동·말풍선 설정을 함께 추가합니다. 추가한 뒤 모든 설정을 자유롭게 변경할 수 있습니다.")
                             .foregroundStyle(.secondary)
                     }
 
@@ -1843,27 +1851,14 @@ private struct PetPackageImportReviewView: View {
                     dismiss()
                 }
                 Spacer()
-                Button("기본 설정으로 추가") {
-                    onInstall(false)
+                Button("펫 추가") {
+                    onInstall()
                     dismiss()
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(!review.canInstall)
-                .accessibilityIdentifier("monglepet.import.petOnly")
-                if review.recommendedProfile != nil {
-                    Button("권장 설정으로 추가") {
-                        onInstall(true)
-                        dismiss()
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(
-                        !review.canInstall
-                            || !allowsRecommendedProfileApplication
-                    )
-                    .accessibilityIdentifier(
-                        "monglepet.import.withRecommendedProfile"
-                    )
-                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(!review.canInstall || !allowsInstallation)
+                .accessibilityIdentifier("monglepet.import.addPet")
             }
             .padding(16)
         }
@@ -1963,21 +1958,12 @@ private struct PetPackageImportReviewView: View {
                     summary: RecommendedProfileSummary(profile: profile)
                 )
 
-                Text("권장 설정으로 추가하면 이 펫의 표시·행동·이동·말풍선 설정을 함께 적용합니다.")
+                Text("제작자가 구성한 표시·행동·이동·말풍선 설정이 이 펫에 자동으로 적용됩니다.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-
-                if !allowsRecommendedProfileApplication {
-                    Label(
-                        "현재 설정 파일을 보호하기 위해 내 펫 추가가 비활성화되어 있습니다.",
-                        systemImage: "lock.fill"
-                    )
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-                }
             } else if let issue = review.recommendedProfileIssue {
                 Label(
-                    "권장 설정을 적용할 수 없습니다. 펫 자체는 설치할 수 있습니다.",
+                    "제작자 설정은 적용할 수 없지만 펫은 안전한 기본 설정으로 추가할 수 있습니다.",
                     systemImage: "exclamationmark.triangle.fill"
                 )
                 .foregroundStyle(.orange)
@@ -1986,10 +1972,19 @@ private struct PetPackageImportReviewView: View {
                     .foregroundStyle(.secondary)
             } else {
                 Label(
-                    "이 패키지에는 별도의 권장 설정이 없습니다.",
+                    "이 펫에는 제작자 설정이 포함되어 있지 않습니다. 추가한 뒤 원하는 방식으로 설정할 수 있습니다.",
                     systemImage: "info.circle"
                 )
                 .foregroundStyle(.secondary)
+            }
+
+            if !allowsInstallation {
+                Label(
+                    "현재 설정 파일을 보호하기 위해 펫 추가가 비활성화되어 있습니다.",
+                    systemImage: "lock.fill"
+                )
+                .font(.caption)
+                .foregroundStyle(.orange)
             }
         }
     }
@@ -2120,7 +2115,7 @@ private struct PetPackageShareReviewView: View {
                     .font(.caption)
                     .foregroundStyle(.orange)
                 } else if review.recommendedProfile == nil {
-                    Text("선택한 설치 펫에 공유할 평상시 행동·규칙·이동·말풍선 권장 설정이 없습니다.")
+                    Text("선택한 설치 펫에 공유할 평상시 행동·규칙·이동·말풍선 제작자 설정이 없습니다.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {

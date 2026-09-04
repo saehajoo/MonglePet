@@ -69,6 +69,7 @@ final class PetLibrarySession: ObservableObject {
     @Published private(set) var items: [PetLibraryItem]
     @Published private(set) var selection: PetLibrarySelection = .builtIn
     @Published private(set) var errorMessage: String?
+    @Published private(set) var importNoticeMessage: String?
     @Published private(set) var isImporting = false
     @Published private(set) var isExporting = false
 
@@ -383,6 +384,7 @@ final class PetLibrarySession: ObservableObject {
         guard !isImporting, !isExporting else {
             return nil
         }
+        importNoticeMessage = nil
         isImporting = true
         defer { isImporting = false }
 
@@ -397,27 +399,23 @@ final class PetLibrarySession: ObservableObject {
     }
 
     @discardableResult
-    func installReviewedPackage(
-        _ review: PetPackageImportReview,
-        appliesRecommendedProfile: Bool = false
-    ) -> Bool {
-        if appliesRecommendedProfile, review.recommendedProfile == nil {
-            errorMessage = PetPackageImportError
-                .recommendedProfileUnavailable
-                .localizedDescription
-            return false
-        }
-
+    func installReviewedPackage(_ review: PetPackageImportReview) -> Bool {
+        let successNotice = review.recommendedProfileIssue == nil
+            ? nil
+            : "제작자 설정은 적용하지 못했지만 펫은 정상적으로 추가했습니다."
         return performPackageInstallation(
             from: review.sourceURL,
             mode: .installSeparately,
             reviewedImport: review,
             purpose: .imported(
-                recommendedProfile: appliesRecommendedProfile
-                    ? review.recommendedProfile
-                    : nil
-            )
+                recommendedProfile: review.recommendedProfile
+            ),
+            successNotice: successNotice
         )
+    }
+
+    func clearImportNotice() {
+        importNoticeMessage = nil
     }
 
     @discardableResult
@@ -425,7 +423,8 @@ final class PetLibrarySession: ObservableObject {
         from sourceURL: URL,
         mode: PetPackageInstallationMode,
         reviewedImport: PetPackageImportReview?,
-        purpose: NewUserPetInstallationPurpose
+        purpose: NewUserPetInstallationPurpose,
+        successNotice: String? = nil
     ) -> Bool {
         guard !isImporting else {
             return false
@@ -434,6 +433,7 @@ final class PetLibrarySession: ObservableObject {
         defer { isImporting = false }
 
         let previousSelection = selection
+        importNoticeMessage = nil
         do {
             let installed: InstalledPetPackage
             if let reviewedImport {
@@ -468,6 +468,7 @@ final class PetLibrarySession: ObservableObject {
                 return false
             }
             errorMessage = nil
+            importNoticeMessage = successNotice
             onInstalledContentChange?(selectedItem)
             return true
         } catch {

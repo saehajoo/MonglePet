@@ -312,11 +312,11 @@ schema-v2는 schema-v1의 최상위 전역 행동 필드를 펫별 `behaviorProf
 - 행동의 `mode`, `manualSequenceID`, `sequences`, `automaticRules`, 쓰다듬기 애니메이션과 이동의 `movement` 전체가 프로필에 속한다.
 - 선택한 펫의 프로필이 없으면 시스템 `기본` 루틴 하나와 자동 규칙 0개로 생성한다.
 - 같은 설치 UUID를 업데이트하거나 편집해도 프로필을 유지한다.
-- 일반 가져오기는 기존 프로필을 바꾸지 않고 항상 새 installation·instance·profile UUID를 한 작업으로 만든다. 권장 프로필 v11의 휴대 설정은 새 profile·overlay에만 복사한다.
+- 일반 가져오기는 기존 프로필을 바꾸지 않고 항상 새 installation·instance·profile UUID를 한 작업으로 만든다. 유효한 제작자 설정(`recommended-profile.json`)의 v11 휴대 설정은 사용자 선택 없이 새 profile·overlay에만 자동 복사한다. 제작자 설정이 없거나 미래 schema·손상으로 적용할 수 없으면 새 profile·overlay는 안전한 최소값을 사용한다.
 - 가져오기, 콘텐츠 재추가, 별도 사본 설치와 새 사용자 펫은 모두 독립 프로필을 만든다.
 - 재우기는 instance·profile·installation을 모두 유지한다. 완전 삭제는 해당 instance와 전용 profile을 제거하고 같은 installation을 참조하는 다른 instance가 없으면 installation 콘텐츠도 함께 제거한다. 파일 정리가 실패하면 이전 settings를 다시 저장하고 instance를 복원한다.
 - 앱 시작 시 설치 폴더 누락·손상 등으로 선택 펫을 찾지 못하면 내장 몽글이를 선택하되, 연결이 끊긴 행동 설정은 자동 삭제하지 않는다. 사용자가 앱에서 명시적으로 삭제한 경우에만 제거한다.
-- `.monglepet` 공유 권장 프로필은 화면 좌표와 설치 식별자를 제외한 별도 DTO를 사용한다. 새 설치에서 사용자가 적용을 선택하면 설치 UUID를 키로 하는 로컬 `BehaviorProfile`과 휴대 표시 옵션으로 변환해 원자적으로 저장한다.
+- `.monglepet` 공유 제작자 설정은 화면 좌표와 설치 식별자를 제외한 별도 DTO를 사용한다. 새 설치에서 유효한 값은 설치 UUID를 키로 하는 로컬 `BehaviorProfile`과 휴대 표시 옵션으로 변환해 installation·instance 생성과 함께 원자적으로 저장한다. 기존 profile·overlay와 mutable 설정 객체를 공유하지 않는다.
 
 schema-v3의 행동 단계는 schema-v2와 동일하게 `motionID`와 `repeatCount`를 저장한다. schema-v1의 `durationMilliseconds`, `playbackSpeed`는 기록하지 않는다. v1 마이그레이션은 선택 펫 패키지에 저장된 프레임 시간으로 애니메이션 한 사이클을 계산하고, 기존 유지 시간에 가장 가까운 반복 횟수를 사용한다. 단계별 `playbackSpeed`는 패키지 프레임 시간을 단일 속도 원본으로 삼기 위해 변환에 반영하지 않는다. 참조 애니메이션을 찾지 못하면 현재 펫 기본 애니메이션과 반복 1회로 복구한다.
 

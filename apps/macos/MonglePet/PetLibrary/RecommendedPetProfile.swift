@@ -183,13 +183,13 @@ extension RecommendedPetProfileError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .fileTooLarge:
-            "권장 설정 파일이 1 MiB 제한을 초과합니다."
+            "제작자 설정 파일이 1 MiB 제한을 초과합니다."
         case .unreadable:
-            "권장 설정 파일 형식을 읽을 수 없습니다."
+            "제작자 설정 파일 형식을 읽을 수 없습니다."
         case let .unsupportedSchemaVersion(version):
-            "지원하지 않는 권장 설정 스키마 버전입니다: \(version)"
+            "현재 앱에서 지원하지 않는 제작자 설정 버전입니다: \(version)"
         case let .invalidField(field):
-            "권장 설정 값 또는 참조가 올바르지 않습니다: \(field)"
+            "제작자 설정 값 또는 참조가 올바르지 않습니다: \(field)"
         }
     }
 }

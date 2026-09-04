@@ -27,7 +27,7 @@ macOS에서 개발을 시작했다는 이유만으로 AppKit 타입, Bundle Iden
 
 ## 현재 진행 현황
 
-기준일: 2026-09-02
+기준일: 2026-09-04
 
 | 영역 | macOS | Windows | 비고 |
 | --- | --- | --- | --- |
@@ -41,8 +41,8 @@ macOS에서 개발을 시작했다는 이유만으로 AppKit 타입, Bundle Iden
 | 설정·펫 라이브러리 | 진행 중 | 진행 중 | macOS와 Windows는 보관 상태 없이 모든 설치를 독립 설정을 가진 단일 `내 펫` 목록으로 표시한다. 재우기는 설정과 콘텐츠를 보존하고 완전 삭제는 instance·profile과 마지막 installation을 transaction으로 제거하며 과거 비활성 설치는 잠든 펫으로 한 번 복구한다. Windows 로컬·웹 가져오기는 항상 새 installation·instance·profile을 만들고 settings 실패 시 설치를 정리한다. 생성·통합 가져오기·사본·내보내기를 card 문맥에 두고 선택 펫 `펫 정보·애니메이션`에서 읽기 전용 구분 없이 단독 설치는 in-place, 내장·공유 설치는 instance/profile/overlay를 유지한 copy-on-write로 편집한다. Windows 선택 펫 화면은 상단의 반복적인 `설정 대상 펫` 요약을 제거하고, 펫 정보 수정·화면 표시·평상시 행동·이동의 정보 구조를 macOS 기준에 맞췄다. 같은 대상 요약 제거는 macOS 후속 반영이 필요하다. Debug·Release 전체 308개 테스트가 통과했으며 실제 transaction 오류 주입 QA와 양 플랫폼 v11 교차 왕복 전까지 진행 중이다. |
 | 이동·다중 모니터 | 기준 구현 | 진행 중 | macOS는 33ms 이동 cadence·속도를 유지하면서 이동 Timer 재사용, 화면·이동 범위 cache와 기능 수요 기반 30Hz 포인터 감시를 적용했다. Windows는 16ms 논리 소수점 위치 누적과 공유 포인터·화면 snapshot으로 저속 끊김과 모니터 경계 고착을 수정했다. `마우스 도망가기 + 평상시 자유 이동`은 escape/idle 상태 전환 한 번에만 목표를 초기화하고 평상시 100회 반복 tick 동안 목표를 유지하는 테스트와 설치 Release 사용자 확인을 통과했다. 네 모드·공통/4/8방향 행동·사용자 영역의 혼합 DPI 물리 횡단은 계속 확인한다. |
 | 쓰다듬기·말풍선 | 기준 구현 | 진행 중 | 실제 frame 알파 쓰다듬기와 행동 우선·주기 runtime, 행동/주기 대사 분리, draft·즉시 저장·위치 미리보기를 구현했다. macOS와 Windows 말풍선은 현재 프레임의 캐시된 불투명 경계를 anchor로 사용하고 표시 중 자동 위·아래 방향을 가능한 동안 고정한다. Windows는 mask 미준비 시 aspect-fit 콘텐츠와 HWND 순서로 fallback하고 이동 중 XAML tree를 재생성하지 않는다. 실제 이동·투명 여백 프레임의 장시간 시각 QA, 혼합 DPI와 성능 검증이 남았다. |
-| 로컬 가져오기·내보내기 | 진행 중 | 진행 중 | macOS는 설치 전 메타데이터·모션·권장 설정 검토, 권장 프로필 schema-v1~v11 호환, 패키지 저장 시 앱 규칙을 제외한 모든 휴대 옵션의 상시 포함, canonical 자산 선별·권리 확인·ZIP 왕복·원자적 저장을 구현했다. 일반 가져오기는 중복과 관계없이 새 installation·instance·profile을 추가하고 검토에서 기본/권장 설정을 선택하며 settings 실패 시 installation까지 되돌린다. 공통 확인 화면은 평상시 선택·조건 규칙 전체/사용 수·이동/입력 없음/앱 사용 우선순위·네 독립 이동 설정과 정확한 휴대/기기 전용 범위를 보여준다. 실제 대화상자와 Windows v11 교차 왕복 QA가 남았다. |
-| 웹 URL 가져오기 | 기준 구현 | 진행 중 | Windows도 게시·manifest 최소 앱 버전을 합쳐 높은 값은 설치 가능한 권장 안내와 운영 다운로드 페이지 버튼으로 표시한다. 기존 URL allowlist·20MiB·크기·SHA-256·redirect·임시 수명 검증은 유지한다. 실제 운영 고버전 패키지 검토·설치 QA가 남았다. |
+| 로컬 가져오기·내보내기 | 진행 중 | 진행 중 | macOS는 설치 전 메타데이터·모션·제작자 설정 검토, 권장 프로필 schema-v1~v11 호환, 패키지 저장 시 앱 규칙을 제외한 모든 휴대 옵션의 상시 포함, canonical 자산 선별·권리 확인·ZIP 왕복·원자적 저장을 구현했다. D-118부터 검토의 기본/권장 선택을 제거하고 단일 `펫 추가`에서 유효한 제작자 설정을 새 installation·instance·profile에 자동 적용한다. 설정 없음은 최소 프로필, 미래·손상 설정은 최소 프로필과 성공 안내로 처리하고 settings 실패 시 installation까지 되돌린다. 기존 펫과 전역 설정은 바뀌지 않는다. macOS 전체 단위 테스트 537개 중 536개 성공·선택형 WebP fixture 1개 건너뜀·실패 0개와 Debug 빌드가 통과했다. 실제 대화상자 QA와 Windows 후속 구현·v11 교차 왕복이 남았다. |
+| 웹 URL 가져오기 | 진행 중 | 진행 중 | macOS URL 다운로드는 로컬 파일과 같은 D-118 검토·자동 적용·fallback·rollback을 사용한다. Windows도 게시·manifest 최소 앱 버전을 합쳐 높은 값은 설치 가능한 권장 안내와 운영 다운로드 페이지 버튼으로 표시하지만 아직 기본/권장 선택 UI를 단일 추가로 바꿔야 한다. 기존 URL allowlist·20MiB·크기·SHA-256·redirect·임시 수명 검증은 유지한다. 실제 운영 패키지 검토·설치 QA가 남았다. |
 | 배포·업데이트 | 진행 중 | 진행 중 | macOS 1.6.0 (12)와 Windows 1.6.0.17 GitHub Pre-release를 게시하고 원격 digest 검증을 통과했다. macOS ZIP은 Developer ID 미서명·Apple 미공증 제한 Preview이고 Windows 설치기는 미서명 x64 Preview다. 업데이트 확인·자동 업데이트는 D-087에 따라 보류 |
 | 멀티펫 | 기준 구현 (`1.1.0`) | 진행 중 (`1.1.0`) | Windows 10~11단계 schema-v11 계약, `PetInstanceManager`, instance별 HWND/runtime, NavigationView 활성 펫·notification area·일시정지·자원 경고·안전 시작 완료; 실제 환경 QA는 12단계 |
 

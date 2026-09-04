@@ -80,10 +80,10 @@ macOS에서 확정한 D-111~D-113과 Windows 실제 QA에서 보정한 D-115의 
 
 - 로컬 파일과 웹 URL은 같은 application service를 사용한다.
 - 같은 package ID·slug·이름·버전이어도 항상 새 installation UUID를 만든다.
-- 가져오기 검토에서 `기본 설정으로 추가`와 권장 프로필이 유효할 때 `권장 설정으로 추가`를 제공한다.
+- 가져오기 검토는 D-118에 따라 단일 `펫 추가`를 제공하고 유효한 제작자 설정을 자동 적용한다. 설정이 없거나 적용할 수 없으면 최소 프로필로 추가하며, 적용 실패는 성공 안내에 명시한다.
 - 성공하면 새 installation UUID, 새 instance UUID, 새 profile UUID를 만들고 active 목록에 추가한 뒤 선택한다.
 - 기존 인스턴스·프로필·선택되지 않은 설치는 변경하지 않는다.
-- 권장 설정은 새 profile과 새 instance overlay에만 적용하며 화면 절대 좌표·display ID·Windows 앱 규칙은 휴대하지 않는다.
+- 제작자 설정은 새 profile과 새 instance overlay에만 적용하며 화면 절대 좌표·display ID는 휴대하지 않는다. 앱 규칙은 패키지에 포함되고 현재 플랫폼 codec에서 유효한 항목만 적용한다.
 
 ### 모든 펫 편집과 자동 copy-on-write
 
