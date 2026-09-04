@@ -63,11 +63,11 @@
 
 - [x] 앱 버전과 버전 테스트를 `1.6.0 (14)`로 올린다.
 - [x] 최종 전체 단위 테스트와 Debug 빌드를 통과한다.
-- [ ] 소스·명세·버전 변경을 커밋하고 `origin/main`에 푸시한다.
-- [ ] 깨끗한 원격 커밋에서 Universal Preview ZIP·SHA-256·manifest를 생성한다.
-- [ ] `macos-v1.6.0-preview.3` GitHub Pre-release를 게시한다.
-- [ ] 원격 태그 대상과 세 자산의 크기·digest를 재검증한다.
-- [ ] 배포 문서·다운로드 인계·플랫폼 현황에 최종 결과를 기록하고 푸시한다.
+- [x] 소스·명세·버전 변경을 커밋하고 `origin/main`에 푸시한다.
+- [x] 깨끗한 원격 커밋에서 Universal Preview ZIP·SHA-256·manifest를 생성한다.
+- [x] `macos-v1.6.0-preview.3` GitHub Pre-release를 게시한다.
+- [x] 원격 태그 대상과 세 자산의 크기·digest를 재검증한다.
+- [x] 배포 문서·다운로드 인계·플랫폼 현황에 최종 결과를 기록하고 푸시한다.
 
 ### Windows
 
@@ -98,10 +98,13 @@
 - 2026-09-04: 사용자가 실제 가져오기 동작을 확인하고 릴리스를 요청해 `1.6.0 (14)`, `macos-v1.6.0-preview.3`으로 확정했다.
 - 2026-09-04: `1.6.0 (14)` 기준 전체 단위 테스트 537개 중 536개 성공·선택형 WebP fixture 1개 건너뜀·실패 0개와 Debug 빌드, `git diff --check`를 통과했다.
 - 2026-09-04: 사용자 확인에 따라 macOS `선택한 펫` 사이드바의 `행동 편집`을 `펫 정보·애니메이션` 바로 다음으로 옮겼고 Debug 빌드를 통과했다. Windows도 같은 정보 순서로 조정하도록 인계 문서에 추가했다.
+- 2026-09-04: 기능·명세·버전 커밋 `26c18f4`와 탐색 순서·Windows 인계 커밋 `b054e35`를 `origin/main`에 푸시했다.
+- 2026-09-04: 소스 커밋 `b054e35d6ac3edc7cb18e44461bb8f870a6a40a5`에서 10,890,414 bytes Universal ZIP을 생성했다. SHA-256은 `b555b0fa03b7f95c7d6d545bae929a9269605a2fdcf372a3fd039e5eb4f36ef2`이며 압축 해제본의 `1.6.0 (14)`·Bundle ID·arm64/x86_64·앱 아이콘을 확인했다.
+- 2026-09-04: 태그 `macos-v1.6.0-preview.3`의 GitHub Pre-release에 ZIP·SHA-256·manifest를 게시했다. 원격 태그 대상과 다시 내려받은 세 자산의 바이트 단위 일치·digest를 검증했다.
 
 ## 완료 결과
 
-- macOS 구현과 자동 검증은 완료했다.
+- macOS 구현·자동 검증·Preview 3 배포를 완료했다.
 - 실제 macOS 가져오기 동작은 사용자가 확인했다. Windows 구현·교차 왕복은 후속이므로 전체 계획 상태는 `in_progress`를 유지한다.
 
 ## 남은 위험 / 후속 작업
