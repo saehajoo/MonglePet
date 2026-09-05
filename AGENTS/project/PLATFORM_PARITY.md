@@ -288,7 +288,7 @@ Windows는 D-121의 호환성 disposition과 설치 직전 재검사를 구현�
 
 `지원 > 이용 가이드`와 상시 도움말에는 5단계 작업 순서, 핵심 용어, 설정 바로가기와 고정 운영 웹 가이드를 추가했다. 가이드 진입은 설정이나 선택 펫을 갱신·저장하지 않으며 compact 1열·wide 2열 배치를 사용한다. Debug·Release에서 Activity 27개·Core 69개·Packages 28개·PetLibrary 91개·Settings 95개·Shell 27개로 각각 총 337개 테스트와 두 구성 전체 빌드가 통과했다. NuGet 취약성 피드 연결 실패 `NU1900` 경고는 있었지만 빌드 오류는 없었다. 실제 로컬·웹 차단 화면, 업데이트 링크, 테마·좁은 창·DPI·키보드·Narrator·대용량 이미지 drag와 macOS 교차 왕복 전까지 플랫폼 동등 완료로 표시하지 않는다.
 
-Windows `1.8.1.20` 릴리스 후보는 macOS의 시스템 강조 의미를 Fluent 파란색으로 대응하고 `내 펫`의 primary action·선택 카드에 같은 강조 token을 사용한다. Debug·Release 각 337개 테스트와 경고·오류 없는 전체 빌드를 통과했다. 기존 `1.7.0.19` 위 실제 설치에서 사용자 데이터 84개·8,453,674 bytes와 inventory digest `ED26BE94D844DA1FA0A709061366DEE4A186A8CABCCC3274136B8DE949D16061`을 보존했고 설치 DLL·publish DLL 일치와 실행 응답을 확인했다. 색상 세부 조정과 실제 DPI·키보드·Narrator·대용량 이미지·macOS 교차 왕복은 후속 QA로 유지한다.
+Windows `1.8.1.20`은 macOS의 시스템 강조 의미를 Fluent 파란색으로 대응하고 `내 펫`의 primary action·선택 카드에 같은 강조 token을 사용한다. Debug·Release 각 337개 테스트와 경고·오류 없는 전체 빌드를 통과했다. 기존 `1.7.0.19` 위 실제 설치에서 사용자 데이터 84개·8,453,674 bytes와 inventory digest `ED26BE94D844DA1FA0A709061366DEE4A186A8CABCCC3274136B8DE949D16061`을 보존했고 설치 DLL·publish DLL 일치와 실행 응답을 확인했다. 소스 커밋 `9d6d4e60a8877e30d467c756ac7b1caf47b928e3`을 `windows-v1.8.1-preview.1`로 게시하고 원격 설치기 65,300,153 bytes와 SHA-256 `AB2C1FE31835BCD2B928D1D22CD26F08DD1E75D8F269490BBF459B41EE9EE1E2`를 재검증했다. 색상 세부 조정과 실제 DPI·키보드·Narrator·대용량 이미지·macOS 교차 왕복은 후속 QA로 유지한다.
 
 ---
 
