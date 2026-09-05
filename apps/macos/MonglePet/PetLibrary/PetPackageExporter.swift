@@ -101,12 +101,15 @@ nonisolated struct PetPackageExporter {
             )
 
             let sanitizedPackage = try loadPackage(at: payloadURL)
+            let minimumAppVersion = PetPackageCompatibilityRequirements.minimumVersion(
+                includesRecommendedProfile: recommendedProfile != nil
+            )
             guard
                 sanitizedPackage.metadata == sourcePackage.metadata,
                 sanitizedPackage.definition == sourcePackage.definition,
                 sanitizedPackage.compatibility == PetPackageCompatibility(
                     createdWithMonglePetVersion: currentAppVersion,
-                    minimumMonglePetVersion: currentAppVersion
+                    minimumMonglePetVersion: minimumAppVersion
                 )
             else {
                 throw PetPackageExportError.sourcePackageChanged
@@ -162,6 +165,9 @@ nonisolated struct PetPackageExporter {
 
         let manifestData: Data
         do {
+            let minimumAppVersion = PetPackageCompatibilityRequirements.minimumVersion(
+                includesRecommendedProfile: recommendedProfile != nil
+            )
             let encoder = JSONEncoder()
             encoder.outputFormatting = [
                 .prettyPrinted,
@@ -169,7 +175,10 @@ nonisolated struct PetPackageExporter {
                 .withoutEscapingSlashes
             ]
             manifestData = try encoder.encode(
-                manifest.recordingCompatibility(with: currentAppVersion)
+                manifest.recordingCompatibility(
+                    createdWith: currentAppVersion,
+                    minimumRequired: minimumAppVersion
+                )
             )
         } catch {
             throw PetPackageExportError.fileOperationFailed

@@ -266,7 +266,7 @@ final class PetLibrarySessionTests: XCTestCase {
         XCTAssertNil(session.importNoticeMessage)
     }
 
-    func testReviewedImportFallsBackWhenCreatorSettingsAreInvalid() {
+    func testReviewedImportRejectsInvalidCreatorSettingsBeforeInstallation() {
         let sourceURL = URL(fileURLWithPath: "/tmp/no-profile.monglepet")
         let installed = makeInstalled(id: firstID, name: "권장 설정 없음")
         let review = makeImportReview(
@@ -277,11 +277,13 @@ final class PetLibrarySessionTests: XCTestCase {
         )
         var packages: [InstalledPetPackage] = []
         var purposes: [NewUserPetInstallationPurpose] = []
+        var attemptedInstall = false
         let session = PetLibrarySession(
             builtInDefinition: builtInDefinition,
             installedPackagesProvider: { packages },
             installationRemover: { _ in },
             reviewedPackageInstaller: { _, _, _ in
+                attemptedInstall = true
                 packages = [installed]
                 return PetPackageInstallationResult(
                     installedPackage: installed,
@@ -293,18 +295,14 @@ final class PetLibrarySessionTests: XCTestCase {
             purposes.append(purpose)
         }
 
-        XCTAssertTrue(session.installReviewedPackage(review))
+        XCTAssertFalse(session.installReviewedPackage(review))
+        XCTAssertFalse(attemptedInstall)
+        XCTAssertTrue(packages.isEmpty)
+        XCTAssertTrue(purposes.isEmpty)
         XCTAssertEqual(
-            purposes,
-            [.imported(recommendedProfile: nil)]
+            session.errorMessage,
+            "펫 파일의 행동과 이동 설정에 문제가 있어 추가할 수 없습니다. 파일을 다시 내려받거나 제작자에게 알려 주세요."
         )
-        XCTAssertEqual(
-            session.importNoticeMessage,
-            "제작자 설정은 적용하지 못했지만 펫은 정상적으로 추가했습니다."
-        )
-        XCTAssertNil(session.errorMessage)
-
-        session.clearImportNotice()
         XCTAssertNil(session.importNoticeMessage)
     }
 

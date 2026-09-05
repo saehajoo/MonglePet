@@ -45,7 +45,7 @@ final class MonglePetVersionTests: XCTestCase {
         }
     }
 
-    func testCompatibilityPolicyRecommendsUpdateAndWarnsForNewerCreator() throws {
+    func testCompatibilityPolicyRequiresUpdateAndWarnsForNewerCreator() throws {
         let current = try XCTUnwrap(SemanticVersion("0.1.0"))
 
         XCTAssertEqual(
@@ -60,7 +60,7 @@ final class MonglePetVersionTests: XCTestCase {
                 ),
                 currentVersion: current
             ),
-            .updateRecommended(try XCTUnwrap(SemanticVersion("0.2.0")))
+            .updateRequired(try XCTUnwrap(SemanticVersion("0.2.0")))
         )
         XCTAssertEqual(
             PetPackageCompatibilityPolicy.assess(
@@ -82,15 +82,54 @@ final class MonglePetVersionTests: XCTestCase {
         )
     }
 
+    func testCompatibilityPolicyBlocksOnlyWhenMinimumVersionExceedsCurrent() throws {
+        let current = try XCTUnwrap(SemanticVersion("1.7.0"))
+        let required = try XCTUnwrap(SemanticVersion("1.8.0"))
+
+        XCTAssertFalse(
+            PetPackageCompatibilityPolicy.assess(
+                PetPackageCompatibility(
+                    createdWithMonglePetVersion: required,
+                    minimumMonglePetVersion: required
+                ),
+                currentVersion: current
+            ).canInstall
+        )
+        XCTAssertTrue(
+            PetPackageCompatibilityPolicy.assess(
+                PetPackageCompatibility(
+                    createdWithMonglePetVersion: required,
+                    minimumMonglePetVersion: current
+                ),
+                currentVersion: current
+            ).canInstall
+        )
+    }
+
+    func testCompatibilityRequirementsUsePackageAndCreatorSettingsSchemaMinimums() throws {
+        XCTAssertEqual(
+            PetPackageCompatibilityRequirements.minimumVersion(
+                includesRecommendedProfile: true
+            ),
+            try XCTUnwrap(SemanticVersion("1.7.0"))
+        )
+        XCTAssertEqual(
+            PetPackageCompatibilityRequirements.minimumVersion(
+                includesRecommendedProfile: false
+            ),
+            try XCTUnwrap(SemanticVersion("0.1.0"))
+        )
+    }
+
     func testBuiltApplicationBundleUsesPlannedVersion() throws {
         let version = MonglePetAppVersion.current
 
         XCTAssertEqual(
             version.semanticVersion,
-            try XCTUnwrap(SemanticVersion("1.7.0"))
+            try XCTUnwrap(SemanticVersion("1.8.0"))
         )
-        XCTAssertEqual(version.buildNumber, "15")
-        XCTAssertEqual(version.displayText, "MonglePet 1.7.0 (15)")
+        XCTAssertEqual(version.buildNumber, "16")
+        XCTAssertEqual(version.displayText, "MonglePet 1.8.0 (16)")
     }
 
     func testAppIconCatalogContainsEveryMacRendition() throws {

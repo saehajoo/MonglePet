@@ -62,6 +62,8 @@ struct MovementSettingsView: View {
                 Text(modeDescription)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+
+                movementSummaryCard
             }
 
             if movement.mode != .fixed {
@@ -105,7 +107,7 @@ struct MovementSettingsView: View {
                 Section {
                     Text(
                         settingsSession.settings.overlay.clickThrough
-                            ? "클릭 통과가 켜져 있어 펫을 드래그할 수 없습니다. 일반 탭에서 클릭 통과를 끄면 위치를 옮길 수 있습니다."
+                            ? "클릭 통과가 켜져 있어 펫을 드래그할 수 없습니다. 화면 표시에서 클릭 통과를 끄면 위치를 옮길 수 있습니다."
                             : "펫을 직접 드래그한 위치에 그대로 둡니다."
                     )
                     .font(.caption)
@@ -123,16 +125,17 @@ struct MovementSettingsView: View {
                         accessibilityIdentifier: "monglepet.settings.cursorDistance"
                     )
 
-                    movementAnimationEditor(
-                        for: .cursorFollowing,
-                        accessibilityPrefix:
-                            "monglepet.settings.cursorFollowing"
-                    )
-
                     Text("마우스 포인터와 지정한 거리를 유지하며 화면 안에서 따라갑니다.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+
+                movementBehaviorSection(
+                    mode: .cursorFollowing,
+                    editorTitle: "마우스 따라가기 행동",
+                    accessibilityPrefix:
+                        "monglepet.settings.cursorFollowing"
+                )
             case .freeRoaming:
                 Section("자유 이동") {
                     dwellEditor(
@@ -149,18 +152,19 @@ struct MovementSettingsView: View {
                         "monglepet.settings.prefersFrontmostWindow"
                     )
 
-                    movementAnimationEditor(
-                        for: .freeRoaming,
-                        accessibilityPrefix:
-                            "monglepet.settings.freeRoaming"
-                    )
-
                     Text("창 정보를 얻을 수 없거나 전체 화면이면 현재 화면 안에서 안전한 위치를 선택합니다.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+
+                movementBehaviorSection(
+                    mode: .freeRoaming,
+                    editorTitle: "자유 이동 행동",
+                    accessibilityPrefix:
+                        "monglepet.settings.freeRoaming"
+                )
             case .cursorAvoiding:
-                Section("마우스 도망가기") {
+                Section("평상시") {
                     Picker(
                         "평상시 행동",
                         selection: cursorAvoidingIdleBehaviorBinding
@@ -175,6 +179,28 @@ struct MovementSettingsView: View {
                         "monglepet.settings.cursorAvoidingIdleBehavior"
                     )
 
+                    if movement.cursorAvoidingIdleBehavior == .freeRoaming {
+                        dwellEditor(
+                            title: "평상시 머무는 시간",
+                            accessibilityPrefix:
+                                "monglepet.settings.cursorAvoidingDwell"
+                        )
+                        Toggle(
+                            "현재 사용 중인 앱의 창 근처를 우선",
+                            isOn: prefersFrontmostWindowBinding
+                        )
+                    }
+
+                    Text(
+                        movement.cursorAvoidingIdleBehavior == .freeRoaming
+                            ? "마우스가 멀리 있을 때에는 자유롭게 이동합니다."
+                            : "마우스가 멀리 있을 때에는 현재 위치에서 평상시 행동을 재생합니다."
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+
+                Section("마우스가 가까울 때") {
                     movementSlider(
                         title: "마우스 감지 거리",
                         value: cursorAvoidingDetectionDistanceBinding,
@@ -201,32 +227,31 @@ struct MovementSettingsView: View {
                             "monglepet.settings.cursorAvoidingSpeed"
                     )
 
+                    Text("마우스가 감지 범위에 들어오면 안전한 거리까지 반대 방향으로 이동합니다.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Section("이동할 때 행동") {
                     if movement.cursorAvoidingIdleBehavior == .freeRoaming {
-                        dwellEditor(
-                            title: "평상시 머무는 시간",
-                            accessibilityPrefix:
-                                "monglepet.settings.cursorAvoidingDwell"
-                        )
-                        Toggle(
-                            "현재 사용 중인 앱의 창 근처를 우선",
-                            isOn: prefersFrontmostWindowBinding
-                        )
                         movementAnimationEditor(
                             for: .freeRoaming,
-                            title: "평상시 자유 이동 행동",
+                            title: "평상시 자유 이동",
                             accessibilityPrefix:
                                 "monglepet.settings.cursorAvoidingRoaming"
                         )
+
+                        Divider()
                     }
 
                     movementAnimationEditor(
                         for: .cursorAvoiding,
-                        title: "도망가기 행동",
+                        title: "도망가기",
                         accessibilityPrefix:
                             "monglepet.settings.cursorAvoiding"
                     )
 
-                    Text("클릭 통과 여부와 관계없이 마우스를 피해 이동합니다. 안전한 거리까지 멀어지면 선택한 평상시 행동으로 돌아갑니다.")
+                    Text("각 상황에서 공통 행동 하나를 쓰거나 이동 방향마다 다른 행동을 지정할 수 있습니다.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -343,6 +368,83 @@ struct MovementSettingsView: View {
 
     private var movementBoundary: MovementBoundarySettings {
         settingsSession.settings.overlay.movementBoundary
+    }
+
+    private var movementSummaryCard: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text("현재 설정")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: 10) {
+                Label(
+                    movementModeTitle(movement.mode),
+                    systemImage: movementModeSymbol(movement.mode)
+                )
+                .font(.subheadline.weight(.semibold))
+
+                Spacer(minLength: 12)
+
+                Text(movementSummaryDetail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+                    .multilineTextAlignment(.trailing)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            Color.secondary.opacity(0.06),
+            in: RoundedRectangle(cornerRadius: 10)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(Color.secondary.opacity(0.16), lineWidth: 1)
+        )
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("monglepet.settings.movementSummary")
+    }
+
+    private var movementSummaryDetail: String {
+        switch movement.mode {
+        case .fixed:
+            "현재 위치 유지"
+        case .cursorFollowing, .freeRoaming:
+            "\(movementBoundarySummary) · \(Int(movement.speed.rounded())) pt/s"
+        case .cursorAvoiding:
+            "\(movementBoundarySummary) · 도망 \(Int(movement.cursorAvoidingSpeed.rounded())) pt/s"
+        }
+    }
+
+    private var movementBoundarySummary: String {
+        switch movementBoundary.mode {
+        case .allDisplays:
+            "모든 화면"
+        case .selectedDisplay:
+            "선택 모니터"
+        case .customArea:
+            "사용자 지정 영역"
+        }
+    }
+
+    @ViewBuilder
+    private func movementBehaviorSection(
+        mode: PetMovementMode,
+        editorTitle: String,
+        accessibilityPrefix: String
+    ) -> some View {
+        Section("이동할 때 행동") {
+            movementAnimationEditor(
+                for: mode,
+                title: editorTitle,
+                accessibilityPrefix: accessibilityPrefix
+            )
+
+            Text("공통 행동 하나를 쓰거나 이동 방향마다 다른 행동을 지정할 수 있습니다.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
     }
 
     @ViewBuilder

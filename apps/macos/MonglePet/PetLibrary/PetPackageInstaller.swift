@@ -42,15 +42,46 @@ nonisolated struct PetPackageImportReview: Equatable, Identifiable, Sendable {
 
     var canInstall: Bool {
         effectiveCompatibilityAssessment.canInstall
+            && recommendedProfileIssue == nil
+    }
+
+    var requiredAppVersion: SemanticVersion? {
+        if case let .updateRequired(version) = effectiveCompatibilityAssessment {
+            return version
+        }
+        return nil
+    }
+
+    var requiresAppUpdate: Bool {
+        if requiredAppVersion != nil {
+            return true
+        }
+        if case .unsupportedSchemaVersion = recommendedProfileIssue {
+            return true
+        }
+        return false
+    }
+
+    var installationBlockMessage: String? {
+        if let requiredAppVersion {
+            return "이 펫을 사용하려면 MonglePet \(requiredAppVersion) 이상이 필요합니다. 앱을 업데이트한 뒤 다시 추가해 주세요."
+        }
+        if case .unsupportedSchemaVersion = recommendedProfileIssue {
+            return "이 펫의 행동과 이동 설정은 현재 앱에서 지원하지 않습니다. 앱을 업데이트한 뒤 다시 추가해 주세요."
+        }
+        if recommendedProfileIssue != nil {
+            return "펫 파일의 행동과 이동 설정에 문제가 있어 추가할 수 없습니다. 파일을 다시 내려받거나 제작자에게 알려 주세요."
+        }
+        return nil
     }
 
     var effectiveCompatibilityAssessment: PetPackageCompatibilityAssessment {
         if let publishedMinimumMonglePetVersion,
            currentMonglePetVersion < publishedMinimumMonglePetVersion {
-            if case let .updateRecommended(packageMinimum) = compatibilityAssessment {
-                return .updateRecommended(max(packageMinimum, publishedMinimumMonglePetVersion))
+            if case let .updateRequired(packageMinimum) = compatibilityAssessment {
+                return .updateRequired(max(packageMinimum, publishedMinimumMonglePetVersion))
             }
-            return .updateRecommended(publishedMinimumMonglePetVersion)
+            return .updateRequired(publishedMinimumMonglePetVersion)
         }
         return compatibilityAssessment
     }
@@ -108,6 +139,7 @@ nonisolated struct PetPackageInstallationResult: Equatable, Sendable {
 nonisolated enum PetPackageImportError: Error, Equatable, Sendable {
     case recommendedProfileFileTooLarge
     case reviewedContentChanged
+    case installationBlocked(String)
 }
 
 extension PetPackageImportError: LocalizedError {
@@ -117,6 +149,8 @@ extension PetPackageImportError: LocalizedError {
             "제작자 설정 파일이 1 MiB 보안 제한을 초과하여 패키지를 가져올 수 없습니다."
         case .reviewedContentChanged:
             "확인한 뒤 패키지 내용이 변경되었습니다. 다시 가져와 내용을 확인해 주세요."
+        case let .installationBlocked(message):
+            message
         }
     }
 }
@@ -188,6 +222,10 @@ nonisolated struct PetPackageInstaller {
                 if let expectedReview,
                    !currentReview.hasSameReviewedContent(as: expectedReview) {
                     throw PetPackageImportError.reviewedContentChanged
+                }
+                let effectiveReview = expectedReview ?? currentReview
+                if let blockMessage = effectiveReview.installationBlockMessage {
+                    throw PetPackageImportError.installationBlocked(blockMessage)
                 }
                 let installedPackage = try libraryStore.install(
                     packageAt: packageRootURL,

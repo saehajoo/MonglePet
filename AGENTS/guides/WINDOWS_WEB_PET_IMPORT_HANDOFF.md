@@ -1,6 +1,6 @@
 # Windows 웹 펫 가져오기와 보관함 UI 인계
 
-> 가져오기 검토와 설정 적용 방식은 D-118 및 `WINDOWS_PET_IMPORT_CREATOR_SETTINGS_HANDOFF.md`가 이 문서의 과거 선택형 설명을 대체한다. URL 검증·다운로드·임시 파일 수명과 보관함 정보 구조는 이 문서를 계속 따른다.
+> 가져오기 검토와 설정 적용 방식은 D-121 및 `WINDOWS_PET_IMPORT_CREATOR_SETTINGS_HANDOFF.md`가 이 문서의 과거 선택형·fallback 설명을 대체한다. URL 검증·다운로드·임시 파일 수명과 보관함 정보 구조는 이 문서를 계속 따른다.
 
 ## 목적
 
@@ -48,7 +48,9 @@ QA는 Windows 환경에서 진행한다.
   허용한다. HTTPS downgrade, 다른 origin redirect, cookie와 credential 저장을
   허용하지 않는다.
 - 실제 파일 크기와 SHA-256을 다시 확인한 뒤에만 기존 Windows
-  `ReviewPackage`와 D-118의 단일 `펫 추가` 검토로 넘긴다.
+  `ReviewPackage`와 D-121의 호환성 검토로 넘긴다. package·게시 metadata 최소
+  버전 중 높은 값이 현재 앱보다 크면 설치하지 않고 공식 앱 다운로드 페이지
+  이동을 제공한다.
 - 다운로드만으로 자동 설치하거나 현재 펫을 바꾸지 않는다.
 
 ## macOS에서 확정한 펫 보관함 정보 구조

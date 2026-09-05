@@ -92,10 +92,13 @@ nonisolated struct PetPackageCompatibility: Equatable, Sendable {
 nonisolated enum PetPackageCompatibilityAssessment: Equatable, Sendable {
     case compatible
     case createdWithNewerVersion(SemanticVersion)
-    case updateRecommended(SemanticVersion)
+    case updateRequired(SemanticVersion)
 
     var canInstall: Bool {
-        true
+        if case .updateRequired = self {
+            return false
+        }
+        return true
     }
 }
 
@@ -106,12 +109,36 @@ nonisolated enum PetPackageCompatibilityPolicy {
     ) -> PetPackageCompatibilityAssessment {
         if let minimumVersion = compatibility?.minimumMonglePetVersion,
            currentVersion < minimumVersion {
-            return .updateRecommended(minimumVersion)
+            return .updateRequired(minimumVersion)
         }
         if let createdWithVersion = compatibility?.createdWithMonglePetVersion,
            currentVersion < createdWithVersion {
             return .createdWithNewerVersion(createdWithVersion)
         }
         return .compatible
+    }
+}
+
+nonisolated enum PetPackageCompatibilityRequirements {
+    // Raise these only when the corresponding serialized contract changes.
+    // App patch versions that keep the same contract remain compatible.
+    static let currentPackageFormatMinimum = SemanticVersion(
+        major: 0,
+        minor: 1,
+        patch: 0
+    )
+    static let currentRecommendedProfileMinimum = SemanticVersion(
+        major: 1,
+        minor: 7,
+        patch: 0
+    )
+
+    static func minimumVersion(
+        includesRecommendedProfile: Bool
+    ) -> SemanticVersion {
+        guard includesRecommendedProfile else {
+            return currentPackageFormatMinimum
+        }
+        return currentRecommendedProfileMinimum
     }
 }

@@ -23,9 +23,9 @@ Apple 공증과 티켓 부착이 모두 필요합니다.
 - 두 값이 바뀌면 `MonglePetVersionTests`의 기대값도 같은 커밋에서 갱신합니다.
 - `.monglepet` 패키지 스키마 버전은 앱 마케팅 버전과 별도로 관리합니다.
 
-현재 최신 배포본은 단일 `내 펫` 흐름, 제작자 설정 자동 적용과 자유 이동의
-`행동 완료 후` 시간 방식을 포함한 `1.7.0 (15)`입니다. 코드나 설정이
-다시 바뀌면 빌드 번호와
+현재 배포 후보는 완전하게 재현할 수 없는 펫의 설치 차단, 단순화된 가져오기
+검토 화면과 화면 표시·이동 설정 정보 구조 개선을 포함한 `1.8.0 (16)`입니다.
+코드나 설정이 다시 바뀌면 빌드 번호와
 `MonglePetVersionTests` 기대값을 함께 올립니다.
 
 `macos-v1.4.0-preview.1` 게시 뒤 펫 제작기·활성 인스턴스 후속 보정과
@@ -38,6 +38,8 @@ Apple 공증과 티켓 부착이 모두 필요합니다.
 자동 적용은 `macos-v1.6.0-preview.3`으로 구분해 게시했습니다.
 자유 이동의 행동 완료 후 이동과 schema-v16·제작자 설정 v12는 새 기능선
 `macos-v1.7.0-preview.1`로 구분해 게시했습니다.
+가져오기 호환성 차단과 화면 표시·이동 정보 구조 개선은 새 기능선
+`macos-v1.8.0-preview.1` 배포 후보로 구분합니다.
 
 ## 현재 배포 상태
 
@@ -50,7 +52,8 @@ Apple 공증과 티켓 부착이 모두 필요합니다.
 - macOS `1.6.0 (12)` 단일 `내 펫`·행동 런타임 보정 Preview는 태그 [`macos-v1.6.0-preview.1`](https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.6.0-preview.1)로 보존합니다.
 - macOS `1.6.0 (13)` 문맥별 행동 반복 보정 Preview는 태그 [`macos-v1.6.0-preview.2`](https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.6.0-preview.2)로 보존합니다.
 - macOS `1.6.0 (14)` 제작자 설정 자동 적용·행동 편집 탐색 순서 보정 Preview는 태그 [`macos-v1.6.0-preview.3`](https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.6.0-preview.3)로 보존합니다.
-- 최신 macOS `1.7.0 (15)` 행동 완료 후 이동 Preview는 태그 [`macos-v1.7.0-preview.1`](https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.7.0-preview.1)로 게시했으며 Universal ZIP·SHA-256·manifest의 원격 일치를 확인했습니다.
+- 최신 게시 macOS `1.7.0 (15)` 행동 완료 후 이동 Preview는 태그 [`macos-v1.7.0-preview.1`](https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.7.0-preview.1)로 보존합니다.
+- macOS `1.8.0 (16)` 가져오기 호환성·설정 UI Preview는 `macos-v1.8.0-preview.1` 게시를 준비합니다.
 - 자체 웹사이트의 Windows·macOS 다운로드 화면 반영에는 `../../AGENTS/guides/PREVIEW_DOWNLOAD_HANDOFF.md`의 버전 고정 링크와 사용자 안내를 사용합니다.
 - 회사 Mac에서는 소스·문서·자동 검증까지만 완료합니다.
 - 실제 Preview ZIP 또는 Developer ID DMG 생성과 최종 설치 검증은 개인
@@ -96,9 +99,9 @@ apps/macos/Scripts/build-preview-zip.zsh
 
 개인 Mac에서 검증을 마치면 GitHub Release에 다음 세 파일을 함께 올립니다.
 
-- `MonglePet-1.7.0-build.15-preview.zip`
-- `MonglePet-1.7.0-build.15-preview.zip.sha256`
-- `MonglePet-1.7.0-build.15-preview.manifest.txt`
+- `MonglePet-1.8.0-build.16-preview.zip`
+- `MonglePet-1.8.0-build.16-preview.zip.sha256`
+- `MonglePet-1.8.0-build.16-preview.manifest.txt`
 
 Release 설명에는 미서명·미공증 Preview라는 점, 지원 macOS 버전, 설치 후
 첫 실행 확인 방법과 알려진 제한을 명시합니다.

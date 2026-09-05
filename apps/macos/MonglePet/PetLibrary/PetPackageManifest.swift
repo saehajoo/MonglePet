@@ -69,6 +69,16 @@ nonisolated struct PetPackageManifest: Codable, Equatable, Sendable {
     func recordingCompatibility(
         with version: SemanticVersion
     ) -> PetPackageManifest {
+        recordingCompatibility(
+            createdWith: version,
+            minimumRequired: version
+        )
+    }
+
+    func recordingCompatibility(
+        createdWith version: SemanticVersion,
+        minimumRequired minimumVersion: SemanticVersion
+    ) -> PetPackageManifest {
         PetPackageManifest(
             formatVersion: formatVersion,
             id: id,
@@ -82,7 +92,7 @@ nonisolated struct PetPackageManifest: Codable, Equatable, Sendable {
             motions: motions,
             compatibility: Compatibility(
                 createdWithMonglePetVersion: version.description,
-                minimumMonglePetVersion: version.description
+                minimumMonglePetVersion: minimumVersion.description
             )
         )
     }

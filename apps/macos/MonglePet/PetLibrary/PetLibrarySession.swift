@@ -400,17 +400,17 @@ final class PetLibrarySession: ObservableObject {
 
     @discardableResult
     func installReviewedPackage(_ review: PetPackageImportReview) -> Bool {
-        let successNotice = review.recommendedProfileIssue == nil
-            ? nil
-            : "제작자 설정은 적용하지 못했지만 펫은 정상적으로 추가했습니다."
+        guard review.canInstall else {
+            errorMessage = review.installationBlockMessage
+            return false
+        }
         return performPackageInstallation(
             from: review.sourceURL,
             mode: .installSeparately,
             reviewedImport: review,
             purpose: .imported(
                 recommendedProfile: review.recommendedProfile
-            ),
-            successNotice: successNotice
+            )
         )
     }
 

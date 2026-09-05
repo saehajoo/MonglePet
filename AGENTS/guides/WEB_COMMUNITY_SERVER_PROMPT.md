@@ -60,7 +60,8 @@ MonglePet 펫 공유 커뮤니티의 서버와 웹 UI를 별도 Git 저장소에
 - 격리된 임시 공간에 허용 엔트리만 개별 해제하세요.
 - `pet.json`, 선택적 `recommended-profile.json`, PNG·정적 WebP, 픽셀 크기, 알파, 프레임 영역과 시간을 MonglePet 계약과 동일하게 검증하세요.
 - `recommended-profile.json` schema-v12의 `freeRoaming.dwellMode`와 `cursorAvoiding.idleFreeRoaming.dwellMode`는 `fixed`, `random`, `behaviorCompletion`만 허용하세요. v11 이하의 `randomizesDwell`은 레거시 입력으로 계속 허용하되 서버가 공개 원본을 다시 쓰거나 임의 승격하지 마세요.
-- 지원하는 v12는 정상 제작자 설정으로 처리하고 v13 이상은 미래 제작자 설정으로 분류하세요. 패키지 자산이 안전하면 미래·손상 제작자 설정만 사용 불가로 기록하고 업로드 전체를 거부하지 않는 데스크톱 정책과 서버 게시 정책의 차이가 있다면 관리자 검토 결과에 명시하세요.
+- 지원하는 v12는 정상 제작자 설정으로 처리하고 v13 이상은 미래 제작자 설정으로 분류하세요. D-121부터 일반 사용자가 불완전한 펫을 받지 않도록 제작자 설정 파일이 있으나 미래·손상 상태인 버전은 공개 승인하지 않습니다. 원본은 quarantine에 보존하고 제작자에게 지원 앱에서 다시 내보내도록 안내하세요. 제작자 설정 파일이 아예 없는 레거시 패키지는 별도 호환 상태로 공개할 수 있습니다.
+- `createdWithMonglePetVersion`은 제작 정보일 뿐 게시·설치 차단 기준이 아닙니다. `minimumMonglePetVersion`은 package와 제작자 설정을 완전히 적용하는 데 필요한 버전이어야 하며, 현재 schema-v12 제작자 설정을 포함하면 최소 `1.7.0`인지 검사하세요. metadata의 최소 버전은 package manifest보다 낮을 수 없게 하고 불일치는 승인 전에 반려하세요.
 - 관리자 승인 전에는 검색·상세·다운로드 API에 노출하지 마세요.
 - 다운로드 시 SHA-256, 파일 크기, package version과 최소 MonglePet 앱 버전을 제공하세요.
 

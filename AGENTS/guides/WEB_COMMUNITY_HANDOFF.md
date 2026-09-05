@@ -319,6 +319,8 @@ SVG, HTML 또는 사용자 제공 스크립트를 미리보기 자산으로 허�
 - 다운로드 파일은 검증·승인된 immutable 원본 `.monglepet`이다.
 - 응답은 안전한 `Content-Disposition: attachment` 파일명을 사용한다.
 - SHA-256, 파일 크기, 패키지 버전과 최소 앱 버전을 상세 페이지와 API에 표시한다.
+- 공개 승인할 새 패키지는 제작자 설정 파일이 있으면 현재 지원 schema로 완전히 검증되어야 한다. 미래·손상 제작자 설정을 가진 버전은 원본을 quarantine에 보존하되 일반 다운로드로 게시하지 않고 제작자에게 다시 내보내도록 안내한다. 제작자 설정 파일이 없는 레거시 패키지는 별도 호환 상태로 구분할 수 있다.
+- `createdWithMonglePetVersion`은 차단 기준이 아니며, `minimumMonglePetVersion`은 package와 제작자 설정을 완전히 적용할 수 있는 최초 앱 버전이어야 한다. 현재 제작자 설정 schema-v12가 있으면 최소 `1.7.0`인지 검사하고 API metadata가 manifest보다 낮지 않게 한다.
 - object storage의 공개 URL 또는 짧은 수명의 signed URL을 사용할 수 있지만 내부 object key는 API 계약으로 취급하지 않는다.
 - 다운로드 집계는 요청 실패·봇·중복 요청 정책을 정하고 비동기적으로 처리한다.
 - 악용 방지를 위한 IP 기반 rate limit은 원본 IP의 장기 분석 저장과 분리한다.

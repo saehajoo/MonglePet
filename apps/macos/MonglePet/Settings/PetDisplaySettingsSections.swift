@@ -33,7 +33,7 @@ struct PetDisplaySettingsSections: View {
                     .foregroundStyle(.secondary)
             }
 
-            Section("화면 표시") {
+            Section("크기") {
                 HStack {
                     Text("펫 크기")
                     Slider(
@@ -103,7 +103,9 @@ struct PetDisplaySettingsSections: View {
                 Text("100%는 192pt이며 10%~200% 범위에서 펫마다 따로 저장됩니다.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
 
+            Section("화면 표현") {
                 HStack {
                     Text("기본 투명도")
                     Slider(
@@ -132,9 +134,9 @@ struct PetDisplaySettingsSections: View {
                 Text("픽셀 아트의 확대 경계를 또렷하게 표시합니다. 일반 일러스트에서는 계단 현상이 보일 수 있습니다.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
 
-                Divider()
-
+            Section("마우스 반응") {
                 Toggle("클릭 통과", isOn: clickThroughBinding)
                     .accessibilityIdentifier(
                         "monglepet.settings.clickThrough"
@@ -147,8 +149,6 @@ struct PetDisplaySettingsSections: View {
                 )
                 .font(.caption)
                 .foregroundStyle(.secondary)
-
-                Divider()
 
                 Toggle(
                     "마우스가 펫과 겹치면 더 투명하게",

@@ -1798,6 +1798,7 @@ private struct PetImportAction {
 private struct PetPackageImportReviewView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
+    @State private var showsDetails = false
 
     let review: PetPackageImportReview
     let allowsInstallation: Bool
@@ -1834,8 +1835,19 @@ private struct PetPackageImportReviewView: View {
                         )
                     }
 
-                    compatibilitySection
-                    recommendedProfileSection
+                    importOutcomeSection
+
+                    DisclosureGroup(
+                        "자세히 보기",
+                        isExpanded: $showsDetails
+                    ) {
+                        VStack(alignment: .leading, spacing: 16) {
+                            compatibilityDetails
+                            creatorSettingsDetails
+                        }
+                        .padding(.top, 10)
+                    }
+                    .accessibilityIdentifier("monglepet.import.details")
 
                     Text("가져오면 독립된 설정을 가진 새 펫으로 내 펫에 추가됩니다. 같은 펫을 다시 가져와도 기존 펫과 설정은 바뀌지 않습니다.")
                     .font(.caption)
@@ -1847,18 +1859,34 @@ private struct PetPackageImportReviewView: View {
             Divider()
 
             HStack {
-                Button("취소", role: .cancel) {
+                Button(review.canInstall ? "취소" : "닫기", role: .cancel) {
                     dismiss()
                 }
                 Spacer()
-                Button("펫 추가") {
-                    onInstall()
-                    dismiss()
+                if review.requiresAppUpdate {
+                    Button {
+                        openURL(
+                            URL(string: "https://mapleroom.kr/monglepet/download")!
+                        )
+                    } label: {
+                        Label(
+                            "MonglePet 업데이트",
+                            systemImage: "arrow.up.right.square"
+                        )
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+                    .accessibilityIdentifier("monglepet.import.updateApp")
+                } else if review.canInstall {
+                    Button("펫 추가") {
+                        onInstall()
+                        dismiss()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(!allowsInstallation)
+                    .accessibilityIdentifier("monglepet.import.addPet")
                 }
-                .buttonStyle(.borderedProminent)
-                .keyboardShortcut(.defaultAction)
-                .disabled(!review.canInstall || !allowsInstallation)
-                .accessibilityIdentifier("monglepet.import.addPet")
             }
             .padding(16)
         }
@@ -1868,7 +1896,59 @@ private struct PetPackageImportReviewView: View {
     }
 
     @ViewBuilder
-    private var compatibilitySection: some View {
+    private var importOutcomeSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if review.requiresAppUpdate {
+                Label(
+                    review.installationBlockMessage
+                        ?? "이 펫을 사용하려면 MonglePet 업데이트가 필요합니다.",
+                    systemImage: "arrow.triangle.2.circlepath.circle.fill"
+                )
+                .foregroundStyle(.orange)
+                .accessibilityIdentifier("monglepet.import.updateRequired")
+
+                Text("제작자가 구성한 움직임과 행동을 그대로 적용하기 위해 앱을 업데이트한 뒤 다시 추가해 주세요.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else if let blockMessage = review.installationBlockMessage {
+                Label(
+                    blockMessage,
+                    systemImage: "exclamationmark.octagon.fill"
+                )
+                .foregroundStyle(.red)
+                .accessibilityIdentifier("monglepet.import.invalidCreatorSettings")
+            } else if review.recommendedProfile != nil {
+                Label(
+                    "제작자가 구성한 행동·이동·말풍선 설정이 함께 적용됩니다.",
+                    systemImage: "checkmark.circle.fill"
+                )
+                .foregroundStyle(.green)
+            } else {
+                Label(
+                    "이전 방식으로 만든 펫이라 움직임과 행동 설정이 포함되어 있지 않습니다. MonglePet 기본 동작으로 추가됩니다.",
+                    systemImage: "info.circle"
+                )
+                .foregroundStyle(.secondary)
+            }
+
+            if !allowsInstallation && review.canInstall {
+                Label(
+                    "현재 설정 파일을 보호하기 위해 펫 추가가 비활성화되어 있습니다.",
+                    systemImage: "lock.fill"
+                )
+                .font(.caption)
+                .foregroundStyle(.orange)
+            }
+        }
+        .padding(12)
+        .background(
+            .quaternary.opacity(0.35),
+            in: RoundedRectangle(cornerRadius: 10)
+        )
+    }
+
+    @ViewBuilder
+    private var compatibilityDetails: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("MonglePet 호환성")
                 .font(.headline)
@@ -1918,39 +1998,24 @@ private struct PetPackageImportReviewView: View {
                 }
             case let .createdWithNewerVersion(createdWithVersion):
                 Label(
-                    "MonglePet \(createdWithVersion.description)에서 만든 펫입니다. 일부 표현이 다를 수 있지만 설치할 수 있습니다.",
+                    "MonglePet \(createdWithVersion.description)에서 만들었지만 현재 앱에서 필요한 내용을 모두 읽을 수 있습니다.",
                     systemImage: "exclamationmark.triangle.fill"
                 )
                 .foregroundStyle(.orange)
-            case let .updateRecommended(requiredVersion):
-                VStack(alignment: .leading, spacing: 8) {
-                    Label(
-                        "MonglePet \(requiredVersion.description) 이상으로 업데이트를 권장합니다. 지금도 설치할 수 있지만 일부 기능이 적용되지 않거나 다르게 보일 수 있습니다.",
-                        systemImage: "exclamationmark.triangle.fill"
-                    )
-                    .foregroundStyle(.orange)
-                    .accessibilityIdentifier("monglepet.import.updateRecommended")
-
-                    Button {
-                        openURL(
-                            URL(string: "https://mapleroom.kr/monglepet/download")!
-                        )
-                    } label: {
-                        Label(
-                            "MonglePet 다운로드 페이지",
-                            systemImage: "arrow.up.right.square"
-                        )
-                    }
-                    .accessibilityIdentifier("monglepet.import.openDownloadPage")
-                }
+            case let .updateRequired(requiredVersion):
+                Label(
+                    "이 펫에는 MonglePet \(requiredVersion.description) 이상이 필요합니다.",
+                    systemImage: "exclamationmark.triangle.fill"
+                )
+                .foregroundStyle(.orange)
             }
         }
     }
 
     @ViewBuilder
-    private var recommendedProfileSection: some View {
+    private var creatorSettingsDetails: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("펫별 표시·평상시 행동·규칙·이동·말풍선 설정")
+            Text("제작자가 구성한 내용")
                 .font(.headline)
 
             if let profile = review.recommendedProfile {
@@ -1958,34 +2023,34 @@ private struct PetPackageImportReviewView: View {
                     summary: RecommendedProfileSummary(profile: profile)
                 )
 
-                Text("제작자가 구성한 표시·행동·이동·말풍선 설정이 이 펫에 자동으로 적용됩니다.")
+                Text("표시·행동·이동·말풍선 설정이 새 펫에 적용됩니다.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             } else if let issue = review.recommendedProfileIssue {
                 Label(
-                    "제작자 설정은 적용할 수 없지만 펫은 안전한 기본 설정으로 추가할 수 있습니다.",
+                    creatorSettingsIssueDescription(issue),
                     systemImage: "exclamationmark.triangle.fill"
                 )
                 .foregroundStyle(.orange)
-                Text(issue.localizedDescription)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             } else {
-                Label(
-                    "이 펫에는 제작자 설정이 포함되어 있지 않습니다. 추가한 뒤 원하는 방식으로 설정할 수 있습니다.",
-                    systemImage: "info.circle"
-                )
+                Text("이 펫에는 제작자가 구성한 움직임과 행동 설정이 없습니다.")
                 .foregroundStyle(.secondary)
             }
+        }
+    }
 
-            if !allowsInstallation {
-                Label(
-                    "현재 설정 파일을 보호하기 위해 펫 추가가 비활성화되어 있습니다.",
-                    systemImage: "lock.fill"
-                )
-                .font(.caption)
-                .foregroundStyle(.orange)
-            }
+    private func creatorSettingsIssueDescription(
+        _ issue: RecommendedPetProfileError
+    ) -> String {
+        switch issue {
+        case .fileTooLarge:
+            "제작자가 구성한 내용이 허용된 크기를 초과했습니다."
+        case .unreadable:
+            "제작자가 구성한 행동과 이동 설정 파일을 읽을 수 없습니다."
+        case .unsupportedSchemaVersion:
+            "현재 앱보다 새로운 방식으로 만든 행동과 이동 설정입니다."
+        case .invalidField:
+            "행동과 이동 설정의 필수 값이나 연결된 애니메이션을 확인할 수 없습니다."
         }
     }
 

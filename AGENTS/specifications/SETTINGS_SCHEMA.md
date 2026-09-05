@@ -323,7 +323,7 @@ schema-v2는 schema-v1의 최상위 전역 행동 필드를 펫별 `behaviorProf
 - 행동의 `mode`, `manualSequenceID`, `sequences`, `automaticRules`, 쓰다듬기 애니메이션과 이동의 `movement` 전체가 프로필에 속한다.
 - 선택한 펫의 프로필이 없으면 시스템 `기본` 루틴 하나와 자동 규칙 0개로 생성한다.
 - 같은 설치 UUID를 업데이트하거나 편집해도 프로필을 유지한다.
-- 일반 가져오기는 기존 프로필을 바꾸지 않고 항상 새 installation·instance·profile UUID를 한 작업으로 만든다. 유효한 제작자 설정(`recommended-profile.json`)의 v12 휴대 설정은 사용자 선택 없이 새 profile·overlay에만 자동 복사한다. 제작자 설정이 없거나 미래 schema·손상으로 적용할 수 없으면 새 profile·overlay는 안전한 최소값을 사용한다.
+- 일반 가져오기는 기존 프로필을 바꾸지 않고 항상 새 installation·instance·profile UUID를 한 작업으로 만든다. 유효한 제작자 설정(`recommended-profile.json`)의 v12 휴대 설정은 사용자 선택 없이 새 profile·overlay에만 자동 복사한다. 제작자 설정 파일이 없는 레거시 패키지는 새 profile·overlay에 안전한 최소값을 사용하지만, 파일이 있는데 미래 schema이거나 손상되어 적용할 수 없으면 installation·instance·profile을 만들기 전에 가져오기를 차단한다.
 - 가져오기, 콘텐츠 재추가, 별도 사본 설치와 새 사용자 펫은 모두 독립 프로필을 만든다.
 - 재우기는 instance·profile·installation을 모두 유지한다. 완전 삭제는 해당 instance와 전용 profile을 제거하고 같은 installation을 참조하는 다른 instance가 없으면 installation 콘텐츠도 함께 제거한다. 파일 정리가 실패하면 이전 settings를 다시 저장하고 instance를 복원한다.
 - 앱 시작 시 설치 폴더 누락·손상 등으로 선택 펫을 찾지 못하면 내장 몽글이를 선택하되, 연결이 끊긴 행동 설정은 자동 삭제하지 않는다. 사용자가 앱에서 명시적으로 삭제한 경우에만 제거한다.

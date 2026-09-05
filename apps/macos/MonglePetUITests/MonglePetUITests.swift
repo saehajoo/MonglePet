@@ -164,6 +164,12 @@ final class MonglePetUITests: XCTestCase {
             app.descendants(matching: .any)["monglepet.settings.movementMode"]
                 .waitForExistence(timeout: 5)
         )
+        XCTAssertTrue(
+            app.descendants(matching: .any)[
+                "monglepet.settings.movementSummary"
+            ]
+            .exists
+        )
         selectSettingsDestination(
             "monglepet.settings.navigation.interaction",
             in: app

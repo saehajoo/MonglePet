@@ -63,7 +63,7 @@ final class PetPackageExporterTests: XCTestCase {
             manifestObject["compatibility"] as? [String: String],
             [
                 "createdWithMonglePetVersion": "1.2.0",
-                "minimumMonglePetVersion": "1.2.0"
+                "minimumMonglePetVersion": "0.1.0"
             ]
         )
 
@@ -85,7 +85,7 @@ final class PetPackageExporterTests: XCTestCase {
                     SemanticVersion("1.2.0")
                 ),
                 minimumMonglePetVersion: try XCTUnwrap(
-                    SemanticVersion("1.2.0")
+                    SemanticVersion("0.1.0")
                 )
             )
         )
@@ -138,6 +138,36 @@ final class PetPackageExporterTests: XCTestCase {
         ] {
             XCTAssertFalse(json.contains(forbiddenKey))
         }
+    }
+
+    func testExportUsesCreatorSettingsSchemaMinimumInsteadOfNewerAppVersion() throws {
+        let installedPackage = try makeInstalledPackage()
+        let destinationURL = temporaryDirectoryURL.appendingPathComponent(
+            "Shared From Newer App.monglepet"
+        )
+
+        try makeExporter(
+            currentAppVersion: try XCTUnwrap(SemanticVersion("1.9.3"))
+        ).export(
+            installedPackage,
+            recommendedProfile: makeRecommendedProfile(),
+            to: destinationURL
+        )
+
+        let package = try PetPackageLoader().loadPackage(
+            at: extract(destinationURL)
+        )
+        XCTAssertEqual(
+            package.compatibility,
+            PetPackageCompatibility(
+                createdWithMonglePetVersion: try XCTUnwrap(
+                    SemanticVersion("1.9.3")
+                ),
+                minimumMonglePetVersion: try XCTUnwrap(
+                    SemanticVersion("1.7.0")
+                )
+            )
+        )
     }
 
     func testInvalidRecommendedProfilePreservesExistingDestination() throws {
@@ -675,14 +705,16 @@ final class PetPackageExporterTests: XCTestCase {
         }
     }
 
-    private func makeExporter() -> PetPackageExporter {
+    private func makeExporter(
+        currentAppVersion: SemanticVersion = SemanticVersion(
+            major: 1,
+            minor: 2,
+            patch: 0
+        )
+    ) -> PetPackageExporter {
         PetPackageExporter(
             temporaryDirectoryURL: temporaryDirectoryURL,
-            currentAppVersion: SemanticVersion(
-                major: 1,
-                minor: 2,
-                patch: 0
-            )
+            currentAppVersion: currentAppVersion
         )
     }
 

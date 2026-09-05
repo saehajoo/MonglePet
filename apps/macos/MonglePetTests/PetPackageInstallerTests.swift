@@ -45,7 +45,7 @@ final class PetPackageInstallerTests: XCTestCase {
         XCTAssertTrue(try visibleChildren(of: environment.importsURL).isEmpty)
     }
 
-    func testInvalidRecommendedProfileDoesNotBlockPetInstallation() throws {
+    func testFutureRecommendedProfileRequiresUpdateAndBlocksInstallation() throws {
         let environment = try makeEnvironment()
         let packageURL = try makePackage(in: environment.temporaryURL)
         try Data(#"{"schemaVersion":999}"#.utf8).write(
@@ -54,25 +54,27 @@ final class PetPackageInstallerTests: XCTestCase {
         let installer = makeInstaller(environment: environment)
 
         let review = try installer.review(from: packageURL)
-        let result = try installer.installReviewed(
-            from: packageURL,
-            mode: .rejectDuplicate,
-            expectedReview: review
-        )
-
         XCTAssertTrue(review.containsRecommendedProfile)
         XCTAssertNil(review.recommendedProfile)
         XCTAssertEqual(
             review.recommendedProfileIssue,
             .unsupportedSchemaVersion(999)
         )
-        XCTAssertEqual(
-            result.installedPackage.package.metadata.id,
-            "com.example.installable"
+        XCTAssertTrue(review.requiresAppUpdate)
+        XCTAssertFalse(review.canInstall)
+        XCTAssertThrowsError(
+            try installer.installReviewed(
+                from: packageURL,
+                mode: .rejectDuplicate,
+                expectedReview: review
+            )
+        )
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: environment.libraryURL.path)
         )
     }
 
-    func testMalformedRecommendedProfileDoesNotBlockPetInstallation() throws {
+    func testMalformedRecommendedProfileBlocksInstallation() throws {
         let environment = try makeEnvironment()
         let packageURL = try makePackage(in: environment.temporaryURL)
         try Data(#"{"schemaVersion":"#.utf8).write(
@@ -81,18 +83,20 @@ final class PetPackageInstallerTests: XCTestCase {
         let installer = makeInstaller(environment: environment)
 
         let review = try installer.review(from: packageURL)
-        let result = try installer.installReviewed(
-            from: packageURL,
-            mode: .rejectDuplicate,
-            expectedReview: review
-        )
-
         XCTAssertTrue(review.containsRecommendedProfile)
         XCTAssertNil(review.recommendedProfile)
         XCTAssertEqual(review.recommendedProfileIssue, .unreadable)
-        XCTAssertEqual(
-            result.installedPackage.package.metadata.id,
-            "com.example.installable"
+        XCTAssertFalse(review.requiresAppUpdate)
+        XCTAssertFalse(review.canInstall)
+        XCTAssertThrowsError(
+            try installer.installReviewed(
+                from: packageURL,
+                mode: .rejectDuplicate,
+                expectedReview: review
+            )
+        )
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: environment.libraryURL.path)
         )
     }
 
@@ -124,7 +128,7 @@ final class PetPackageInstallerTests: XCTestCase {
         )
     }
 
-    func testMinimumAppVersionRecommendsUpdateButAllowsInstallation() throws {
+    func testMinimumAppVersionRequiresUpdateAndBlocksInstallation() throws {
         let environment = try makeEnvironment()
         let packageURL = try makePackage(
             in: environment.temporaryURL,
@@ -144,17 +148,18 @@ final class PetPackageInstallerTests: XCTestCase {
 
         XCTAssertEqual(
             review.compatibilityAssessment,
-            .updateRecommended(requiredVersion)
+            .updateRequired(requiredVersion)
         )
-        XCTAssertTrue(review.canInstall)
-        let result = try installer.installReviewed(
-            from: packageURL,
-            mode: .rejectDuplicate,
-            expectedReview: review
+        XCTAssertFalse(review.canInstall)
+        XCTAssertThrowsError(
+            try installer.installReviewed(
+                from: packageURL,
+                mode: .rejectDuplicate,
+                expectedReview: review
+            )
         )
-        XCTAssertEqual(result.importReview.compatibilityAssessment, .updateRecommended(requiredVersion))
-        XCTAssertTrue(
-            FileManager.default.fileExists(atPath: result.installedPackage.rootURL.path)
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: environment.libraryURL.path)
         )
     }
 
@@ -192,7 +197,7 @@ final class PetPackageInstallerTests: XCTestCase {
         )
     }
 
-    func testPublishedMinimumVersionAddsAdvisoryWithoutChangingReviewedContent() throws {
+    func testPublishedMinimumVersionRequiresUpdateWithoutChangingReviewedContent() throws {
         let environment = try makeEnvironment()
         let packageURL = try makePackage(in: environment.temporaryURL)
         let currentVersion = try XCTUnwrap(SemanticVersion("0.1.0"))
@@ -208,16 +213,19 @@ final class PetPackageInstallerTests: XCTestCase {
 
         XCTAssertEqual(
             publishedReview.effectiveCompatibilityAssessment,
-            .updateRecommended(publishedMinimum)
+            .updateRequired(publishedMinimum)
         )
-        XCTAssertTrue(publishedReview.canInstall)
+        XCTAssertFalse(publishedReview.canInstall)
         XCTAssertTrue(publishedReview.hasSameReviewedContent(as: review))
-        XCTAssertNoThrow(
+        XCTAssertThrowsError(
             try installer.installReviewed(
                 from: packageURL,
                 mode: .rejectDuplicate,
                 expectedReview: publishedReview
             )
+        )
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: environment.libraryURL.path)
         )
     }
 
