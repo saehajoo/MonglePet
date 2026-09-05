@@ -39,7 +39,7 @@ Apple 공증과 티켓 부착이 모두 필요합니다.
 자유 이동의 행동 완료 후 이동과 schema-v16·제작자 설정 v12는 새 기능선
 `macos-v1.7.0-preview.1`로 구분해 게시했습니다.
 가져오기 호환성 차단과 화면 표시·이동 정보 구조 개선은 새 기능선
-`macos-v1.8.0-preview.1` 배포 후보로 구분합니다.
+`macos-v1.8.0-preview.1`로 구분해 게시했습니다.
 
 ## 현재 배포 상태
 
@@ -52,8 +52,8 @@ Apple 공증과 티켓 부착이 모두 필요합니다.
 - macOS `1.6.0 (12)` 단일 `내 펫`·행동 런타임 보정 Preview는 태그 [`macos-v1.6.0-preview.1`](https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.6.0-preview.1)로 보존합니다.
 - macOS `1.6.0 (13)` 문맥별 행동 반복 보정 Preview는 태그 [`macos-v1.6.0-preview.2`](https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.6.0-preview.2)로 보존합니다.
 - macOS `1.6.0 (14)` 제작자 설정 자동 적용·행동 편집 탐색 순서 보정 Preview는 태그 [`macos-v1.6.0-preview.3`](https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.6.0-preview.3)로 보존합니다.
-- 최신 게시 macOS `1.7.0 (15)` 행동 완료 후 이동 Preview는 태그 [`macos-v1.7.0-preview.1`](https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.7.0-preview.1)로 보존합니다.
-- macOS `1.8.0 (16)` 가져오기 호환성·설정 UI Preview는 `macos-v1.8.0-preview.1` 게시를 준비합니다.
+- macOS `1.7.0 (15)` 행동 완료 후 이동 Preview는 태그 [`macos-v1.7.0-preview.1`](https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.7.0-preview.1)로 보존합니다.
+- 최신 macOS `1.8.0 (16)` 가져오기 호환성·설정 UI Preview는 태그 [`macos-v1.8.0-preview.1`](https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.8.0-preview.1)로 게시했으며 Universal ZIP·SHA-256·manifest의 원격 일치를 확인했습니다.
 - 자체 웹사이트의 Windows·macOS 다운로드 화면 반영에는 `../../AGENTS/guides/PREVIEW_DOWNLOAD_HANDOFF.md`의 버전 고정 링크와 사용자 안내를 사용합니다.
 - 회사 Mac에서는 소스·문서·자동 검증까지만 완료합니다.
 - 실제 Preview ZIP 또는 Developer ID DMG 생성과 최종 설치 검증은 개인

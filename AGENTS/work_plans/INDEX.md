@@ -8,7 +8,6 @@
 
 | 상태 | 작업명 | 파일 | 마지막 갱신 |
 | --- | --- | --- | --- |
-| in_progress | macOS 1.8.0 가져오기 호환성·설정 UI Preview 릴리스 | `tasks/2026-09-05-macos-1-8-import-settings-release.md` | 2026-09-05 |
 | in_progress | 화면 표시·이동 설정 정보 구조 다듬기 | `tasks/2026-09-05-settings-display-movement-polish.md` | 2026-09-05 |
 | in_progress | 펫 가져오기 호환성 차단과 검토 화면 단순화 | `tasks/2026-09-05-pet-import-compatibility-ux.md` | 2026-09-05 |
 | in_progress | 평상시 행동 완료 후 이동 | `tasks/2026-09-05-move-after-stationary-behavior.md` | 2026-09-05 |
@@ -40,6 +39,7 @@
 
 | 상태 | 작업명 | 파일 | 완료일 |
 | --- | --- | --- | --- |
+| completed | macOS 1.8.0 가져오기 호환성·설정 UI Preview 릴리스 | `tasks/2026-09-05-macos-1-8-import-settings-release.md` | 2026-09-05 |
 | completed | macOS 1.6.0 내 펫·런타임 보정 Preview 릴리스 | `tasks/2026-09-01-macos-1-6-my-pets-release.md` | 2026-09-01 |
 | completed | macOS 1.4.0 펫 제작기 후속 Preview 2 릴리스 | `tasks/2026-08-29-macos-1-4-preview-2-release.md` | 2026-08-29 |
 | completed | macOS 1.4.0 행동 중심 설정·최종 몽글이 Preview 릴리스 | `tasks/2026-08-27-macos-1-4-behavior-release.md` | 2026-08-27 |

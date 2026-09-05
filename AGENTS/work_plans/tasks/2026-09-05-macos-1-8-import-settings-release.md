@@ -2,7 +2,7 @@
 
 ## 상태
 
-- 상태: in_progress
+- 상태: completed
 - 생성일: 2026-09-05
 - 마지막 갱신: 2026-09-05
 
@@ -52,11 +52,11 @@
 
 - [x] 앱 버전과 버전 테스트를 `1.8.0 (16)`으로 올린다.
 - [x] 전체 단위 테스트와 코드 서명 없는 Debug 빌드를 통과한다.
-- [ ] 기능·문서·버전을 커밋하고 `origin/main`에 푸시한다.
-- [ ] 깨끗한 소스 커밋에서 Universal Preview ZIP·체크섬·manifest를 생성한다.
-- [ ] 압축 해제본의 버전·빌드·Bundle ID·Universal 아키텍처·앱 아이콘을 확인한다.
-- [ ] GitHub Pre-release를 게시하고 태그 대상과 원격 자산을 재검증한다.
-- [ ] 배포·다운로드 문서에 최종 커밋·크기·SHA-256을 기록하고 푸시한다.
+- [x] 기능·문서·버전을 커밋하고 `origin/main`에 푸시한다.
+- [x] 깨끗한 소스 커밋에서 Universal Preview ZIP·체크섬·manifest를 생성한다.
+- [x] 압축 해제본의 버전·빌드·Bundle ID·Universal 아키텍처·앱 아이콘을 확인한다.
+- [x] GitHub Pre-release를 게시하고 태그 대상과 원격 자산을 재검증한다.
+- [x] 배포·다운로드 문서에 최종 커밋·크기·SHA-256을 기록하고 푸시한다.
 
 ### Windows
 
@@ -81,10 +81,15 @@
 - 2026-09-05: 사용자가 macOS 변경을 승인하고 커밋·푸시·Preview 릴리스를 요청했다.
 - 2026-09-05: 기능 범위에 맞춰 `1.8.0 (16)`과 `macos-v1.8.0-preview.1`로 확정했다.
 - 2026-09-05: 릴리스 버전으로 전체 551개 단위 테스트 중 550개 통과·선택형 WebP fixture 1개 건너뜀·실패 0개와 코드 서명 없는 Debug 빌드를 확인했다.
+- 2026-09-05: 소스 커밋 `a9e7dbb929e4f4ddbf1b49507bd1461d48676951`을 `origin/main`에 푸시하고 깨끗한 소스에서 Universal Release 산출물을 생성했다.
+- 2026-09-05: 11,056,793 bytes ZIP의 SHA-256 `2782b6db1ea871421cbbcd3916df4f532229d15f7bf992326fe92d09d6bdfda7`, `1.8.0 (16)`, Bundle ID, arm64·x86_64, AppIcon과 격리된 3초 실행을 확인했다.
+- 2026-09-05: `macos-v1.8.0-preview.1` GitHub Pre-release를 게시하고 원격 태그 대상과 ZIP·SHA-256·manifest 세 자산의 바이트 단위 일치를 확인했다.
 
 ## 완료 결과
 
-- 진행 중
+- macOS `1.8.0 (16)` 미서명·미공증 Universal Preview를 게시했다.
+- 릴리스: <https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.8.0-preview.1>
+- Windows 후속 구현과 플랫폼 동등성 검증은 완료로 처리하지 않았다.
 
 ## 남은 위험 / 후속 작업
 

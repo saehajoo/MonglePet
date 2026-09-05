@@ -1031,6 +1031,15 @@ UI 테스트는 앱 실행과 접근성 자동화가 가능한 macOS 세션에�
 - 새 내보내기는 `createdWithMonglePetVersion`에 현재 앱을, `minimumMonglePetVersion`에 현재 package format과 제작자 설정 schema의 최초 완전 지원 버전을 기록하는지 확인한다. 현재 schema-v12 제작자 설정의 최소 버전은 `1.7.0`이다.
 - 로컬 파일과 웹 URL이 같은 검토·차단·transaction 경계를 사용하는지 확인한다.
 
+### macOS 1.8.0 가져오기 호환성·설정 UI Preview 검증
+
+- 앱 버전 `1.8.0 (16)`, D-121 호환성 차단과 schema-v12 제작자 설정의 최소 지원 앱 버전 `1.7.0` 고정을 자동 테스트로 확인했다. package format, schema-v16과 제작자 설정 v12는 변경하지 않았다.
+- 전체 `MonglePetTests` 551개 중 550개가 통과했고 실패 0개였다. 외부 로컬 WebP fixture가 있을 때만 실행하는 선택형 테스트 1개는 건너뛰었다.
+- 코드 서명 없는 Debug 빌드와 `generic/platform=macOS` Universal Release 빌드가 통과했다. 압축 해제본의 `CFBundleShortVersionString=1.8.0`, `CFBundleVersion=16`, Bundle ID `kr.mapleroom.MonglePet`, 실행 파일 `arm64`·`x86_64`와 AppIcon 리소스를 확인했다.
+- 깨끗한 원격 커밋 `a9e7dbb929e4f4ddbf1b49507bd1461d48676951`에서 11,056,793 bytes `MonglePet-1.8.0-build.16-preview.zip`을 생성했다. SHA-256은 `2782b6db1ea871421cbbcd3916df4f532229d15f7bf992326fe92d09d6bdfda7`이며 압축 해제본의 격리된 3초 실행이 종료 코드 0으로 완료됐다.
+- annotated tag `macos-v1.8.0-preview.1`과 GitHub Pre-release를 게시한 뒤 ZIP·SHA-256·manifest를 다시 내려받아 로컬 최종본과 바이트 단위 일치, 원격 태그 대상을 확인했다.
+- 설정 화면 전용 XCUITest는 앱 assertion 전 Runner 연결 실패로 결과를 얻지 못했다. 실제 좁은 창·키보드·VoiceOver 시각 QA와 Windows 교차 왕복은 남겼고, 사용자 요청에 따라 최신 펫과 실제 구버전 앱 교차 설치 테스트는 실행하지 않았다.
+
 ## 변경 유형별 최소 검증
 
 ### 후속 단계 필수 검증
