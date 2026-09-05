@@ -1018,7 +1018,7 @@ UI 테스트는 앱 실행과 접근성 자동화가 가능한 macOS 세션에�
 - `MonglePet-Windows-1.7.0.19-x64-Setup.exe`는 65,284,301 bytes이고 SHA-256은 `16D8682EC425385FC686FFF26C06035A7663A05EDDFBF1E3A1ECAE3E4BDA7F45`다.
 - 기존 설치 위 업데이트 종료 코드 0, `%LOCALAPPDATA%\MonglePet` 사용자 데이터 84개·8,453,674 bytes와 inventory digest `ED26BE94D844DA1FA0A709061366DEE4A186A8CABCCC3274136B8DE949D16061` 보존, 설치 DLL·publish DLL 일치, 설치본 응답과 최근 Application 오류 0건을 확인했다.
 - 소스 커밋 `ae2b1850218d2b1e9303a6d8c09bb5f2bf6d0fa9`를 annotated tag `windows-v1.7.0-preview.1`로 게시했다. 원격 설치기 65,284,301 bytes의 SHA-256 `16D8682EC425385FC686FFF26C06035A7663A05EDDFBF1E3A1ECAE3E4BDA7F45`와 107 bytes `SHA256SUMS.txt`가 로컬 최종 산출물과 일치한다.
-- 실제 fixed/random 행동 완료 후 이동 시각 QA, 장시간 실행, macOS 제작자 설정 v12 교차 왕복과 서버 round trip은 후속으로 남아 있다.
+- 사용자가 설치된 Windows `1.7.0.19`의 실제 기능 QA 완료를 확인했다. macOS 제작자 설정 v12 교차 왕복과 서버 round trip은 각 후속 환경에서 계속한다.
 
 ## 변경 유형별 최소 검증
 
