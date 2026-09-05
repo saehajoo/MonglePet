@@ -8,6 +8,9 @@
 
 | 상태 | 작업명 | 파일 | 마지막 갱신 |
 | --- | --- | --- | --- |
+| in_progress | macOS 1.8.1 편집기·이용 가이드 Preview 릴리스 | `tasks/2026-09-05-macos-1-8-1-editor-guide-release.md` | 2026-09-05 |
+| in_progress | 앱 내 간단 이용 가이드 | `tasks/2026-09-05-in-app-quick-guide.md` | 2026-09-05 |
+| in_progress | 애니메이션 프레임 가져오기 편집기 보정 | `tasks/2026-09-05-animation-import-editor-polish.md` | 2026-09-05 |
 | in_progress | 화면 표시·이동 설정 정보 구조 다듬기 | `tasks/2026-09-05-settings-display-movement-polish.md` | 2026-09-05 |
 | in_progress | 펫 가져오기 호환성 차단과 검토 화면 단순화 | `tasks/2026-09-05-pet-import-compatibility-ux.md` | 2026-09-05 |
 | in_progress | 평상시 행동 완료 후 이동 | `tasks/2026-09-05-move-after-stationary-behavior.md` | 2026-09-05 |

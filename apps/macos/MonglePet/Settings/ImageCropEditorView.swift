@@ -18,6 +18,9 @@ struct PNGFrameCropEditorView: View {
     @State private var focusedID: UUID?
     @State private var errorMessage: String?
     @State private var zoomScale = 1.0
+    @State private var isProcessing = false
+    @State private var hasEdits = false
+    @State private var showsDiscardConfirmation = false
 
     init(
         images: [UserPetSourceImage],
@@ -74,12 +77,35 @@ struct PNGFrameCropEditorView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
 
+            if let errorMessage {
+                Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+                    .font(.callout)
+                    .foregroundStyle(.red)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.red.opacity(0.08))
+                    .accessibilityIdentifier("monglepet.pngCrop.error")
+            }
+
             Divider()
             footer
         }
         .frame(minWidth: 860, idealWidth: 1_000, minHeight: 680, idealHeight: 780)
         .onChange(of: selectedIDs) { oldValue, newValue in
             updateFocusedSelection(from: oldValue, to: newValue)
+        }
+        .interactiveDismissDisabled(hasEdits)
+        .confirmationDialog(
+            "편집 중인 변경사항을 버릴까요?",
+            isPresented: $showsDiscardConfirmation
+        ) {
+            Button("변경사항 버리기", role: .destructive) {
+                dismiss()
+            }
+            Button("계속 편집", role: .cancel) {}
+        } message: {
+            Text("자르기 범위와 포함 여부 변경은 아직 애니메이션에 추가되지 않았습니다.")
         }
     }
 
@@ -149,6 +175,7 @@ struct PNGFrameCropEditorView: View {
 
                     Button("원본 전체로 되돌리기") {
                         selectedDraftBinding.wrappedValue.resetCrop()
+                        hasEdits = true
                     }
 
                     Divider()
@@ -198,20 +225,19 @@ struct PNGFrameCropEditorView: View {
             GroupBox("PNG 목록") {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
-                        Button("전체 선택") {
+                        Button("일괄 전체 선택") {
                             selectedIDs = Set(drafts.map(\.id))
                             focusedID = drafts.first?.id
                         }
                         .accessibilityIdentifier("monglepet.pngCrop.selectAll")
 
-                        Button("전체 해제") {
+                        Button("일괄 전체 해제") {
                             selectedIDs.removeAll()
-                            focusedID = nil
                         }
 
                         Spacer()
 
-                        Text("\(selectedIDs.count)개 선택")
+                        Text("일괄 \(selectedIDs.count)개")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .monospacedDigit()
@@ -220,6 +246,19 @@ struct PNGFrameCropEditorView: View {
                     List(selection: $selectedIDs) {
                         ForEach(Array(drafts.enumerated()), id: \.element.id) { index, draft in
                             HStack(spacing: 8) {
+                                Toggle(
+                                    "가져오기 포함",
+                                    isOn: inclusionBinding(for: draft.id)
+                                )
+                                .labelsHidden()
+                                .toggleStyle(.checkbox)
+                                .accessibilityLabel(
+                                    "\(index + 1)번 PNG 가져오기 포함"
+                                )
+                                .accessibilityIdentifier(
+                                    "monglepet.pngCrop.include.\(index)"
+                                )
+
                                 CroppedImagePreview(
                                     image: draft.source.image,
                                     cropRect: draft.cropRect,
@@ -243,6 +282,7 @@ struct PNGFrameCropEditorView: View {
                                     .lineLimit(1)
                             }
                             .tag(draft.id)
+                            .opacity(draft.isIncluded ? 1 : 0.5)
                             .simultaneousGesture(
                                 TapGesture().onEnded {
                                     focusedID = draft.id
@@ -260,36 +300,46 @@ struct PNGFrameCropEditorView: View {
                     }
                     .accessibilityIdentifier("monglepet.pngCrop.addFiles")
 
-                    Text("⌘ 키를 누른 채 클릭하면 여러 PNG를 선택할 수 있습니다.")
+                    Button(role: .destructive) {
+                        removeFocusedPNG()
+                    } label: {
+                        Label("현재 PNG 목록에서 제거", systemImage: "trash")
+                    }
+                    .disabled(focusedID == nil)
+                    .accessibilityIdentifier("monglepet.pngCrop.removeFocused")
+
+                    Text("체크한 PNG만 가져옵니다. 행을 클릭해 편집하고 ⌘ 키를 누르면 여러 PNG를 일괄 선택할 수 있습니다.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-            }
-
-            if let errorMessage {
-                Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
             }
         }
     }
 
     private var footer: some View {
         HStack {
-            Text("목록의 모든 PNG를 추가하며, 목록 선택은 함께 미리보고 일괄 편집할 대상을 정합니다.")
+            Text("가져오기 \(includedDrafts.count)개 · 전체 \(drafts.count)개")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                .monospacedDigit()
 
             Spacer()
 
             Button("취소", role: .cancel) {
-                dismiss()
+                requestDismissal()
             }
-            Button("잘라서 프레임 추가") {
+            Button {
                 importCroppedImages()
+            } label: {
+                if isProcessing {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Text("잘라서 프레임 추가")
+                }
             }
             .keyboardShortcut(.defaultAction)
-            .disabled(drafts.isEmpty)
+            .disabled(includedDrafts.isEmpty || isProcessing)
             .accessibilityIdentifier("monglepet.pngCrop.import")
         }
         .padding(.horizontal, 20)
@@ -301,7 +351,45 @@ struct PNGFrameCropEditorView: View {
               let index = drafts.firstIndex(where: { $0.id == focusedID }) else {
             return nil
         }
-        return $drafts[index]
+        return Binding(
+            get: { drafts[index] },
+            set: {
+                drafts[index] = $0
+                hasEdits = true
+            }
+        )
+    }
+
+    private var includedDrafts: [PNGFrameCropDraft] {
+        drafts.filter(\.isIncluded)
+    }
+
+    private var commonPreviewCanvasSize: PixelSize {
+        let cropRects = includedDrafts.map(\.cropRect)
+        if cropRects.isEmpty, let focused = selectedDraftBinding?.wrappedValue {
+            return PixelSize(
+                width: focused.cropRect.width,
+                height: focused.cropRect.height
+            )
+        }
+        return ImageCropResultPreviewGeometry.commonCanvasSize(
+            for: cropRects
+        )
+    }
+
+    private func inclusionBinding(for id: UUID) -> Binding<Bool> {
+        Binding(
+            get: {
+                drafts.first(where: { $0.id == id })?.isIncluded ?? false
+            },
+            set: { isIncluded in
+                guard let index = drafts.firstIndex(where: { $0.id == id }) else {
+                    return
+                }
+                drafts[index].isIncluded = isIncluded
+                hasEdits = true
+            }
+        )
     }
 
     private func trimTransparentMargins(_ draft: Binding<PNGFrameCropDraft>) {
@@ -310,6 +398,7 @@ struct PNGFrameCropEditorView: View {
         }
         draft.wrappedValue.cropRect = bounds
         errorMessage = nil
+        hasEdits = true
     }
 
     private func updateFocusedSelection(
@@ -349,6 +438,7 @@ struct PNGFrameCropEditorView: View {
                 to: drafts[index].pixelSize
             )
         }
+        hasEdits = true
     }
 
     private func trimSelectedTransparentMargins() {
@@ -358,6 +448,7 @@ struct PNGFrameCropEditorView: View {
             }
         }
         errorMessage = nil
+        hasEdits = true
     }
 
     private func resetSelectedCrops() {
@@ -365,6 +456,7 @@ struct PNGFrameCropEditorView: View {
             drafts[index].resetCrop()
         }
         errorMessage = nil
+        hasEdits = true
     }
 
     private func toggleHorizontalFlip() {
@@ -375,6 +467,7 @@ struct PNGFrameCropEditorView: View {
         for index in drafts.indices where selectedIDs.contains(drafts[index].id) {
             drafts[index].flipsHorizontally = newValue
         }
+        hasEdits = true
     }
 
     private func toggleVerticalFlip() {
@@ -385,6 +478,7 @@ struct PNGFrameCropEditorView: View {
         for index in drafts.indices where selectedIDs.contains(drafts[index].id) {
             drafts[index].flipsVertically = newValue
         }
+        hasEdits = true
     }
 
     private func addPNGFiles() {
@@ -401,23 +495,31 @@ struct PNGFrameCropEditorView: View {
             return
         }
 
-        do {
-            let newDrafts = try panel.urls.map { sourceURL in
-                let image = try SimpleAnimationPetPackageAdapter()
-                    .loadStaticPNGWithSecurityScope(at: sourceURL)
-                return PNGFrameCropDraft(
-                    source: UserPetSourceImage(
-                        displayName: sourceURL.lastPathComponent,
-                        image: image
-                    )
-                )
+        let sourceURLs = panel.urls
+        isProcessing = true
+        errorMessage = nil
+        Task {
+            do {
+                let images = try await Task.detached {
+                    try sourceURLs.map { sourceURL in
+                        UserPetSourceImage(
+                            displayName: sourceURL.lastPathComponent,
+                            image: try SimpleAnimationPetPackageAdapter()
+                                .loadStaticPNGWithSecurityScope(at: sourceURL)
+                        )
+                    }
+                }.value
+                let newDrafts = images.map(PNGFrameCropDraft.init)
+                drafts.append(contentsOf: newDrafts)
+                selectedIDs = Set(newDrafts.map(\.id))
+                focusedID = newDrafts.first?.id
+                errorMessage = nil
+                isProcessing = false
+                hasEdits = true
+            } catch {
+                isProcessing = false
+                errorMessage = error.localizedDescription
             }
-            drafts.append(contentsOf: newDrafts)
-            selectedIDs = Set(newDrafts.map(\.id))
-            focusedID = newDrafts.first?.id
-            errorMessage = nil
-        } catch {
-            errorMessage = error.localizedDescription
         }
     }
 
@@ -466,14 +568,15 @@ struct PNGFrameCropEditorView: View {
                         image: draft.source.image,
                         cropRect: draft.cropRect,
                         flipsHorizontally: draft.flipsHorizontally,
-                        flipsVertically: draft.flipsVertically
+                        flipsVertically: draft.flipsVertically,
+                        canvasSize: commonPreviewCanvasSize
                     )
                     .frame(height: 130)
                     .accessibilityIdentifier("monglepet.pngCrop.resultPreview")
 
                     HStack {
                         Label(
-                            "파란 경계가 저장될 프레임 범위입니다.",
+                            "파란 경계는 가져오기 묶음의 공통 캔버스입니다.",
                             systemImage: "rectangle.dashed"
                         )
                         Spacer()
@@ -527,26 +630,62 @@ struct PNGFrameCropEditorView: View {
     }
 
     private func importCroppedImages() {
-        do {
-            let cropped = try drafts.map { draft in
-                guard let image = ImageCropProcessor().cropAndTransform(
-                    draft.source.image,
-                    to: draft.cropRect,
-                    flipsHorizontally: draft.flipsHorizontally,
-                    flipsVertically: draft.flipsVertically
-                ) else {
-                    throw PNGFrameCropError.cannotCrop(draft.source.displayName)
-                }
-                return UserPetSourceImage(
-                    id: draft.source.id,
-                    displayName: draft.source.displayName,
-                    image: image
-                )
+        let requests = includedDrafts
+        guard !requests.isEmpty else { return }
+        isProcessing = true
+        errorMessage = nil
+        Task {
+            do {
+                let cropped = try await Task.detached {
+                    try requests.map { draft in
+                        guard let image = ImageCropProcessor().cropAndTransform(
+                            draft.source.image,
+                            to: draft.cropRect,
+                            flipsHorizontally: draft.flipsHorizontally,
+                            flipsVertically: draft.flipsVertically
+                        ) else {
+                            throw PNGFrameCropError.cannotCrop(
+                                draft.source.displayName
+                            )
+                        }
+                        return UserPetSourceImage(
+                            id: draft.source.id,
+                            displayName: draft.source.displayName,
+                            image: image
+                        )
+                    }
+                }.value
+                isProcessing = false
+                onImport(cropped)
+                dismiss()
+            } catch {
+                isProcessing = false
+                errorMessage = error.localizedDescription
             }
-            onImport(cropped)
+        }
+    }
+
+    private func removeFocusedPNG() {
+        guard let focusedID,
+              let index = drafts.firstIndex(where: { $0.id == focusedID }) else {
+            return
+        }
+        drafts.remove(at: index)
+        selectedIDs.remove(focusedID)
+        if drafts.isEmpty {
+            self.focusedID = nil
+        } else {
+            self.focusedID = drafts[min(index, drafts.count - 1)].id
+        }
+        hasEdits = true
+        errorMessage = nil
+    }
+
+    private func requestDismissal() {
+        if hasEdits {
+            showsDiscardConfirmation = true
+        } else {
             dismiss()
-        } catch {
-            errorMessage = error.localizedDescription
         }
     }
 }
@@ -566,9 +705,10 @@ struct PNGFrameCropEditorLayout {
     }
 }
 
-private struct PNGFrameCropDraft: Identifiable {
+private struct PNGFrameCropDraft: Identifiable, @unchecked Sendable {
     let source: UserPetSourceImage
     var cropRect: PixelRect
+    var isIncluded = true
     var flipsHorizontally = false
     var flipsVertically = false
     private var cachedTransparentBounds: PixelRect?
@@ -751,59 +891,65 @@ struct CroppedImagePreview: View {
     let cropRect: PixelRect
     let flipsHorizontally: Bool
     let flipsVertically: Bool
+    let canvasSize: PixelSize?
 
     init(
         image: CGImage,
         cropRect: PixelRect,
         flipsHorizontally: Bool = false,
-        flipsVertically: Bool = false
+        flipsVertically: Bool = false,
+        canvasSize: PixelSize? = nil
     ) {
         self.image = image
         self.cropRect = cropRect
         self.flipsHorizontally = flipsHorizontally
         self.flipsVertically = flipsVertically
+        self.canvasSize = canvasSize
     }
 
     var body: some View {
         GeometryReader { geometry in
-            if let previewImage = ImageCropProcessor().cropAndTransform(
-                image,
-                to: cropRect,
-                flipsHorizontally: flipsHorizontally,
-                flipsVertically: flipsVertically
-            ) {
-                let previewFrame = ImageCropResultPreviewGeometry.fittedFrame(
-                    pixelSize: PixelSize(
-                        width: previewImage.width,
-                        height: previewImage.height
-                    ),
-                    in: geometry.size,
-                    inset: 10
-                )
-                ZStack(alignment: .topLeading) {
-                    ImagePreviewTransparencyGrid()
+            let resolvedCanvasSize = canvasSize ?? PixelSize(
+                width: cropRect.width,
+                height: cropRect.height
+            )
+            let canvasFrame = ImageCropResultPreviewGeometry.fittedFrame(
+                pixelSize: resolvedCanvasSize,
+                in: geometry.size,
+                inset: 10
+            )
+            let cropFrame = ImageCropResultPreviewGeometry.centeredContentFrame(
+                pixelSize: PixelSize(
+                    width: cropRect.width,
+                    height: cropRect.height
+                ),
+                canvasSize: resolvedCanvasSize,
+                canvasFrame: canvasFrame
+            )
 
-                    Image(decorative: previewImage, scale: 1)
-                        .resizable()
-                        .interpolation(.none)
-                        .scaledToFit()
-                        .frame(width: previewFrame.width, height: previewFrame.height)
-                        .position(x: previewFrame.midX, y: previewFrame.midY)
+            ZStack(alignment: .topLeading) {
+                ImagePreviewTransparencyGrid()
 
+                croppedImageContent(in: cropFrame)
+
+                Rectangle()
+                    .fill(.clear)
+                    .overlay {
+                        Rectangle()
+                            .stroke(Color.accentColor, lineWidth: 2)
+                    }
+                    .frame(width: canvasFrame.width, height: canvasFrame.height)
+                    .position(x: canvasFrame.midX, y: canvasFrame.midY)
+
+                if cropFrame != canvasFrame {
                     Rectangle()
                         .fill(.clear)
                         .overlay {
                             Rectangle()
-                                .stroke(Color.accentColor, lineWidth: 2)
+                                .stroke(.secondary.opacity(0.7), lineWidth: 1)
                         }
-                        .frame(width: previewFrame.width, height: previewFrame.height)
-                        .position(x: previewFrame.midX, y: previewFrame.midY)
-                }
-            } else {
-                ZStack {
-                    ImagePreviewTransparencyGrid()
-                    Image(systemName: "exclamationmark.triangle")
-                        .foregroundStyle(.secondary)
+                        .frame(width: cropFrame.width, height: cropFrame.height)
+                        .position(x: cropFrame.midX, y: cropFrame.midY)
                 }
             }
         }
@@ -816,6 +962,31 @@ struct CroppedImagePreview: View {
             "프레임 경계를 표시한 자른 이미지 미리보기, "
                 + "\(cropRect.width)×\(cropRect.height) 픽셀"
         )
+    }
+
+    private func croppedImageContent(in cropFrame: CGRect) -> some View {
+        let scaleX = cropFrame.width / CGFloat(max(1, cropRect.width))
+        let scaleY = cropFrame.height / CGFloat(max(1, cropRect.height))
+        return ZStack(alignment: .topLeading) {
+            Image(decorative: image, scale: 1)
+                .resizable()
+                .interpolation(.none)
+                .frame(
+                    width: CGFloat(image.width) * scaleX,
+                    height: CGFloat(image.height) * scaleY
+                )
+                .offset(
+                    x: -CGFloat(cropRect.x) * scaleX,
+                    y: -CGFloat(cropRect.y) * scaleY
+                )
+        }
+        .frame(width: cropFrame.width, height: cropFrame.height)
+        .clipped()
+        .scaleEffect(
+            x: flipsHorizontally ? -1 : 1,
+            y: flipsVertically ? -1 : 1
+        )
+        .position(x: cropFrame.midX, y: cropFrame.midY)
     }
 }
 
@@ -884,6 +1055,13 @@ struct ImageEditorZoomControls: View {
 }
 
 struct ImageCropResultPreviewGeometry {
+    static func commonCanvasSize(for cropRects: [PixelRect]) -> PixelSize {
+        PixelSize(
+            width: max(1, cropRects.map(\.width).max() ?? 1),
+            height: max(1, cropRects.map(\.height).max() ?? 1)
+        )
+    }
+
     static func fittedFrame(
         pixelSize: PixelSize,
         in size: CGSize,
@@ -902,6 +1080,23 @@ struct ImageCropResultPreviewGeometry {
             in: availableSize
         )
         return fitted.offsetBy(dx: inset, dy: inset)
+    }
+
+    static func centeredContentFrame(
+        pixelSize: PixelSize,
+        canvasSize: PixelSize,
+        canvasFrame: CGRect
+    ) -> CGRect {
+        let width = canvasFrame.width
+            * CGFloat(pixelSize.width) / CGFloat(max(1, canvasSize.width))
+        let height = canvasFrame.height
+            * CGFloat(pixelSize.height) / CGFloat(max(1, canvasSize.height))
+        return CGRect(
+            x: canvasFrame.midX - width / 2,
+            y: canvasFrame.midY - height / 2,
+            width: width,
+            height: height
+        )
     }
 }
 

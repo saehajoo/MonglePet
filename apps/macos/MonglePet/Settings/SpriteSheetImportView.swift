@@ -59,6 +59,10 @@ struct SpriteSheetImportView: View {
     @State private var editingRegionID: UUID?
     @State private var previewRegionID: UUID?
     @State private var zoomScale = 1.0
+    @State private var isProcessing = false
+    @State private var previewRevision = 0
+    @State private var hasEdits = false
+    @State private var showsDiscardConfirmation = false
 
     init(
         document: SpriteSheetDocument,
@@ -135,10 +139,44 @@ struct SpriteSheetImportView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
+            if let errorMessage {
+                Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+                    .font(.callout)
+                    .foregroundStyle(.red)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.red.opacity(0.08))
+                    .accessibilityIdentifier("monglepet.spriteSheet.error")
+            }
+
             Divider()
             footer
         }
         .frame(minWidth: 780, idealWidth: 920, minHeight: 590, idealHeight: 700)
+        .onChange(of: regions) {
+            hasEdits = true
+        }
+        .onChange(of: editingRegionID) { _, newValue in
+            guard let newValue,
+                  let region = regions.first(where: { $0.id == newValue }),
+                  region.isSelected else {
+                return
+            }
+            previewRegionID = newValue
+        }
+        .interactiveDismissDisabled(hasEdits)
+        .confirmationDialog(
+            "편집 중인 변경사항을 버릴까요?",
+            isPresented: $showsDiscardConfirmation
+        ) {
+            Button("변경사항 버리기", role: .destructive) {
+                dismiss()
+            }
+            Button("계속 편집", role: .cancel) {}
+        } message: {
+            Text("프레임 선택과 경계 변경은 아직 애니메이션에 추가되지 않았습니다.")
+        }
     }
 
     private var header: some View {
@@ -167,6 +205,9 @@ struct SpriteSheetImportView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
+                    .accessibilityIdentifier(
+                        "monglepet.spriteSheet.selectedCount"
+                    )
             }
 
             HStack {
@@ -274,7 +315,8 @@ struct SpriteSheetImportView: View {
                             flipsHorizontally: previewRegionBinding
                                 .wrappedValue.flipsHorizontally,
                             flipsVertically: previewRegionBinding
-                                .wrappedValue.flipsVertically
+                                .wrappedValue.flipsVertically,
+                            canvasSize: commonPreviewCanvasSize
                         )
                         .frame(height: 130)
                         .overlay(alignment: .bottomTrailing) {
@@ -329,7 +371,7 @@ struct SpriteSheetImportView: View {
                     }
                     .controlSize(.small)
 
-                    Text("파란 경계가 실제 저장 프레임 범위입니다.")
+                    Text("파란 경계는 선택한 프레임의 공통 캔버스입니다.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {
@@ -427,7 +469,7 @@ struct SpriteSheetImportView: View {
                     .labelsHidden()
                     .accessibilityIdentifier("monglepet.spriteSheet.orderMode")
                     .onChange(of: frameOrderMode) {
-                        resetSelectionForOrderMode()
+                        preserveSelectionForOrderMode()
                     }
 
                     Text(
@@ -501,12 +543,6 @@ struct SpriteSheetImportView: View {
                     .foregroundStyle(.secondary)
             }
 
-            if let errorMessage {
-                Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-            }
-
             Spacer(minLength: 0)
         }
     }
@@ -520,14 +556,21 @@ struct SpriteSheetImportView: View {
             Spacer()
 
             Button("취소", role: .cancel) {
-                dismiss()
+                requestDismissal()
             }
 
-            Button("프레임 저장 및 추가") {
+            Button {
                 importSelectedFrames()
+            } label: {
+                if isProcessing {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Text("선택한 프레임 추가")
+                }
             }
             .keyboardShortcut(.defaultAction)
-            .disabled(selectedRegions.isEmpty)
+            .disabled(selectedRegions.isEmpty || isProcessing)
             .accessibilityIdentifier("monglepet.spriteSheet.import")
         }
         .padding(.horizontal, 20)
@@ -542,6 +585,12 @@ struct SpriteSheetImportView: View {
                 flipsVertically: regions[index].flipsVertically
             )
         }
+    }
+
+    private var commonPreviewCanvasSize: PixelSize {
+        ImageCropResultPreviewGeometry.commonCanvasSize(
+            for: selectedRegions.map(\.rect)
+        )
     }
 
     private var orderedSelectedRegionIndices: [Int] {
@@ -644,8 +693,14 @@ struct SpriteSheetImportView: View {
         normalizePreviewRegion()
     }
 
-    private func resetSelectionForOrderMode() {
-        resetSelectionForCurrentOrderMode()
+    private func preserveSelectionForOrderMode() {
+        if frameOrderMode == .clicked {
+            clickedRegionOrder = regions.indices.filter {
+                regions[$0].isSelected
+            }
+        }
+        normalizePreviewRegion()
+        hasEdits = true
         errorMessage = nil
     }
 
@@ -670,6 +725,7 @@ struct SpriteSheetImportView: View {
             if frameOrderMode == .clicked {
                 clickedRegionOrder.append(index)
             }
+            previewRegionID = regions[index].id
         }
         normalizePreviewRegion()
     }
@@ -760,14 +816,29 @@ struct SpriteSheetImportView: View {
     }
 
     private func refreshPreview() {
-        do {
-            previewImage = try SpriteSheetFrameExtractor().processedImage(
-                from: document,
-                removingBackground: backgroundRemoval
-            )
-            errorMessage = nil
-        } catch {
-            errorMessage = error.localizedDescription
+        previewRevision += 1
+        let revision = previewRevision
+        let document = document
+        let backgroundRemoval = backgroundRemoval
+        isProcessing = true
+        errorMessage = nil
+        hasEdits = true
+        Task {
+            do {
+                let image = try await Task.detached {
+                    try SpriteSheetFrameExtractor().processedImage(
+                        from: document,
+                        removingBackground: backgroundRemoval
+                    )
+                }.value
+                guard revision == previewRevision else { return }
+                previewImage = image
+                isProcessing = false
+            } catch {
+                guard revision == previewRevision else { return }
+                isProcessing = false
+                errorMessage = error.localizedDescription
+            }
         }
     }
 
@@ -782,24 +853,44 @@ struct SpriteSheetImportView: View {
     }
 
     private func importSelectedFrames() {
-        do {
-            let images = try SpriteSheetFrameExtractor().extractFrames(
-                from: document,
-                selections: selectedRegions,
-                removingBackground: backgroundRemoval
-            )
-            let sourceName = document.sourceURL.deletingPathExtension().lastPathComponent
-            onImport(
-                images.enumerated().map { index, image in
-                    UserPetSourceImage(
-                        displayName: "\(sourceName) \(index + 1)",
-                        image: image
+        let selections = selectedRegions
+        guard !selections.isEmpty else { return }
+        let document = document
+        let backgroundRemoval = backgroundRemoval
+        let sourceName = document.sourceURL.deletingPathExtension().lastPathComponent
+        isProcessing = true
+        errorMessage = nil
+        Task {
+            do {
+                let images = try await Task.detached {
+                    try SpriteSheetFrameExtractor().extractFrames(
+                        from: document,
+                        selections: selections,
+                        removingBackground: backgroundRemoval
                     )
-                }
-            )
+                }.value
+                isProcessing = false
+                onImport(
+                    images.enumerated().map { index, image in
+                        UserPetSourceImage(
+                            displayName: "\(sourceName) \(index + 1)",
+                            image: image
+                        )
+                    }
+                )
+                dismiss()
+            } catch {
+                isProcessing = false
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    private func requestDismissal() {
+        if hasEdits {
+            showsDiscardConfirmation = true
+        } else {
             dismiss()
-        } catch {
-            errorMessage = error.localizedDescription
         }
     }
 }
@@ -825,7 +916,7 @@ struct SpriteSheetEditorLayout {
     }
 }
 
-private struct SelectableSpriteRegion: Identifiable {
+private struct SelectableSpriteRegion: Identifiable, Equatable {
     let id = UUID()
     var rect: PixelRect
     var isSelected = true

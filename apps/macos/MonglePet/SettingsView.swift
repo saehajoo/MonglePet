@@ -70,6 +70,14 @@ struct SettingsView: View {
                     )
                 }
 
+                Section("지원") {
+                    navigationRow(
+                        "이용 가이드",
+                        systemImage: "questionmark.circle",
+                        destination: .guide
+                    )
+                }
+
             }
             .listStyle(.sidebar)
             .navigationSplitViewColumnWidth(
@@ -84,6 +92,18 @@ struct SettingsView: View {
         }
         .frame(minWidth: 840, minHeight: 620)
         .accessibilityIdentifier("monglepet.settings.root")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    destination = .guide
+                } label: {
+                    Image(systemName: "questionmark.circle")
+                }
+                .help("이용 가이드")
+                .accessibilityLabel("이용 가이드 열기")
+                .accessibilityIdentifier("monglepet.settings.openGuide")
+            }
+        }
         .onAppear(perform: synchronizeRemoteImportDestination)
         .onChange(of: remotePetImportRequestCenter.request?.id) {
             _, requestID in
@@ -170,6 +190,20 @@ struct SettingsView: View {
                 settingsSession: settingsSession,
                 petDisplayName: selectedPetDisplayName
             )
+        case .guide:
+            MonglePetQuickGuideView(
+                onOpenMyPets: { destination = .myPets },
+                onOpenPetContent: { destination = .petContent },
+                onOpenBehavior: { destination = .behavior },
+                onOpenStationaryBehavior: {
+                    destination = .stationaryBehavior
+                },
+                onOpenDisplay: { destination = .display },
+                onOpenMovement: { destination = .movement },
+                onOpenInteraction: { destination = .interaction },
+                onOpenSpeech: { destination = .speech },
+                onOpenRules: { destination = .automaticRules }
+            )
         }
     }
 
@@ -207,6 +241,7 @@ private enum SettingsDestination: Hashable {
     case behavior
     case speech
     case automaticRules
+    case guide
 
     var accessibilityIdentifier: String {
         switch self {
@@ -230,6 +265,8 @@ private enum SettingsDestination: Hashable {
             "monglepet.settings.navigation.speech"
         case .automaticRules:
             "monglepet.settings.navigation.automaticRules"
+        case .guide:
+            "monglepet.settings.navigation.guide"
         }
     }
 }
@@ -3020,6 +3057,7 @@ private struct UserPetAnimationEditorView: View {
     @State private var newBehaviorName = ""
     @State private var existingBehaviorID = ""
     @State private var behaviorLinkErrorMessage: String?
+    @State private var isLoadingFrameSource = false
 
     init(
         mode: UserPetEditorMode,
@@ -3074,38 +3112,19 @@ private struct UserPetAnimationEditorView: View {
                         petInformationSection
                     }
                     animationInformationSection
+                    frameEditorSection
                     if mode == .addAnimation {
                         behaviorLinkSection
                     }
-                    frameEditorSection
 
                     Text("개별 프레임은 512×512 px 투명 PNG를 권장합니다. 정적 PNG·WebP 스프라이트 시트도 경계를 확인한 뒤 여러 프레임으로 가져올 수 있습니다.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-
-                    if let imageImportErrorMessage {
-                        Label(imageImportErrorMessage, systemImage: "exclamationmark.triangle.fill")
-                            .font(.callout)
-                            .foregroundStyle(.orange)
-                    }
-
-                    if let behaviorLinkErrorMessage {
-                        Label(
-                            behaviorLinkErrorMessage,
-                            systemImage: "exclamationmark.triangle.fill"
-                        )
-                        .font(.callout)
-                        .foregroundStyle(.orange)
-                    }
-
-                    if let errorMessage = petLibrarySession.errorMessage {
-                        Label(errorMessage, systemImage: "xmark.circle.fill")
-                            .font(.callout)
-                            .foregroundStyle(.orange)
-                    }
                 }
                 .padding(20)
             }
+
+            editorStatusBanner
 
             Divider()
 
@@ -3118,7 +3137,11 @@ private struct UserPetAnimationEditorView: View {
                     save()
                 }
                 .keyboardShortcut(.defaultAction)
-                .disabled(!canSave || petLibrarySession.isImporting)
+                .disabled(
+                    !canSave
+                        || petLibrarySession.isImporting
+                        || isLoadingFrameSource
+                )
                 .accessibilityIdentifier("monglepet.userPet.save")
             }
             .padding(.horizontal, 20)
@@ -3319,7 +3342,7 @@ private struct UserPetAnimationEditorView: View {
 
     private var frameImportMenu: some View {
         Menu {
-            Button("개별 PNG 추가…") {
+            Button("PNG 프레임 추가…") {
                 choosePNGs()
             }
             .accessibilityIdentifier("monglepet.userPet.choosePNGs")
@@ -3433,6 +3456,66 @@ private struct UserPetAnimationEditorView: View {
                     && !author.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
     }
 
+    @ViewBuilder
+    private var editorStatusBanner: some View {
+        if isLoadingFrameSource {
+            HStack(spacing: 8) {
+                ProgressView()
+                    .controlSize(.small)
+                Text("이미지를 불러오는 중입니다…")
+            }
+            .font(.callout)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        } else if let message = imageImportErrorMessage
+            ?? behaviorLinkErrorMessage
+            ?? petLibrarySession.errorMessage {
+            Label(message, systemImage: "xmark.circle.fill")
+                .font(.callout)
+                .foregroundStyle(.red)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.red.opacity(0.08))
+        } else if let message = saveBlockingMessage {
+            Label(message, systemImage: "exclamationmark.triangle.fill")
+                .font(.callout)
+                .foregroundStyle(.orange)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.orange.opacity(0.08))
+        }
+    }
+
+    private var saveBlockingMessage: String? {
+        if mode == .create,
+           petName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return "펫 이름을 입력해 주세요."
+        }
+        if mode == .create, !UserPetContentVersion.isValid(version) {
+            return UserPetContentVersion.guidance
+        }
+        if mode == .create,
+           author.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return "제작자를 입력해 주세요."
+        }
+        if normalizedAnimationName.isEmpty {
+            return "애니메이션 이름을 입력해 주세요."
+        }
+        if frames.isEmpty {
+            return "프레임을 한 개 이상 추가해 주세요."
+        }
+        if !frames.allSatisfy({ 16...60_000 ~= $0.durationMilliseconds }) {
+            return "모든 프레임 간격을 16~60000ms 사이로 입력해 주세요."
+        }
+        if behaviorLinkMode != .none && !settingsSession.isWritingEnabled {
+            return "행동을 연결하려면 설정 저장을 사용할 수 있어야 합니다."
+        }
+        return behaviorLinkValidationMessage
+    }
+
     private func choosePNGs() {
         let panel = NSOpenPanel()
         panel.title = "PNG 프레임 선택"
@@ -3446,13 +3529,20 @@ private struct UserPetAnimationEditorView: View {
         guard panel.runModal() == .OK else {
             return
         }
-        do {
-            pngCropImport = PNGFrameCropPresentation(
-                images: try PNGFrameImportLoader.load(panel.urls)
-            )
-            imageImportErrorMessage = nil
-        } catch {
-            imageImportErrorMessage = error.localizedDescription
+        let sourceURLs = panel.urls
+        isLoadingFrameSource = true
+        imageImportErrorMessage = nil
+        Task {
+            do {
+                let images = try await Task.detached {
+                    try PNGFrameImportLoader.load(sourceURLs)
+                }.value
+                isLoadingFrameSource = false
+                pngCropImport = PNGFrameCropPresentation(images: images)
+            } catch {
+                isLoadingFrameSource = false
+                imageImportErrorMessage = error.localizedDescription
+            }
         }
     }
 
@@ -3469,12 +3559,19 @@ private struct UserPetAnimationEditorView: View {
         guard panel.runModal() == .OK, let sourceURL = panel.url else {
             return
         }
-        do {
-            let document = try SpriteSheetFrameExtractor().load(at: sourceURL)
-            spriteSheetImport = SpriteSheetImportPresentation(document: document)
-            imageImportErrorMessage = nil
-        } catch {
-            imageImportErrorMessage = error.localizedDescription
+        isLoadingFrameSource = true
+        imageImportErrorMessage = nil
+        Task {
+            do {
+                let document = try await Task.detached {
+                    try SpriteSheetFrameExtractor().load(at: sourceURL)
+                }.value
+                isLoadingFrameSource = false
+                spriteSheetImport = SpriteSheetImportPresentation(document: document)
+            } catch {
+                isLoadingFrameSource = false
+                imageImportErrorMessage = error.localizedDescription
+            }
         }
     }
 
@@ -3492,6 +3589,7 @@ private struct UserPetAnimationEditorView: View {
     }
 
     private func appendSpriteImages(_ images: [UserPetSourceImage]) {
+        guard canAppendFrames(images.count) else { return }
         let addedFrames = UserPetAnimationDraftFactory.new(
             images: images,
             durationMilliseconds: frameDurationMilliseconds,
@@ -3505,6 +3603,7 @@ private struct UserPetAnimationEditorView: View {
     private func appendExistingFrames(
         _ selections: [ExistingPetFrameSelection]
     ) {
+        guard canAppendFrames(selections.count) else { return }
         let addedFrames = UserPetAnimationDraftFactory.reused(
             selections: selections,
             reference: frames.first
@@ -3526,6 +3625,7 @@ private struct UserPetAnimationEditorView: View {
         guard frames.indices.contains(index) else {
             return
         }
+        guard canAppendFrames(1) else { return }
         let duplicate = frames[index].duplicated()
         frames.insert(duplicate, at: index + 1)
         selectedFrameID = duplicate.id
@@ -3558,6 +3658,14 @@ private struct UserPetAnimationEditorView: View {
                 frames[index].durationMilliseconds = newValue
             }
         )
+    }
+
+    private func canAppendFrames(_ count: Int) -> Bool {
+        guard frames.count + count <= PetPackageLimits.standard.maximumFrameCount else {
+            imageImportErrorMessage = "애니메이션은 최대 \(PetPackageLimits.standard.maximumFrameCount)개 프레임까지 추가할 수 있습니다."
+            return false
+        }
+        return true
     }
 
     private func save() {
@@ -3926,6 +4034,7 @@ private struct UserPetAnimationDetailsEditorView: View {
     @State private var newBehaviorName = ""
     @State private var existingBehaviorID = ""
     @State private var behaviorLinkErrorMessage: String?
+    @State private var isLoadingFrameSource = false
 
     init(
         item: PetLibraryItem,
@@ -3988,8 +4097,6 @@ private struct UserPetAnimationDetailsEditorView: View {
                 LabeledContent("프레임 수", value: "\(frames.count)")
             }
             .formStyle(.grouped)
-
-            behaviorLinkSection
 
             HStack(alignment: .top, spacing: 16) {
                 VStack(alignment: .leading, spacing: 8) {
@@ -4096,6 +4203,8 @@ private struct UserPetAnimationDetailsEditorView: View {
                 .frame(maxWidth: .infinity)
             }
 
+            behaviorLinkSection
+
             Text("개별 프레임은 512×512 px 투명 PNG를 권장합니다. 정적 PNG·WebP 스프라이트 시트도 경계를 확인한 뒤 추가할 수 있습니다. 각 프레임 간격은 16~60000ms입니다.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -4121,6 +4230,7 @@ private struct UserPetAnimationDetailsEditorView: View {
                 .disabled(
                     saveBlockingMessage != nil
                         || petLibrarySession.isImporting
+                        || isLoadingFrameSource
                 )
                 .accessibilityIdentifier("monglepet.petAnimation.save")
             }
@@ -4168,7 +4278,16 @@ private struct UserPetAnimationDetailsEditorView: View {
 
     @ViewBuilder
     private var editorStatusBanner: some View {
-        if let message = operationErrorMessage {
+        if isLoadingFrameSource {
+            HStack(spacing: 8) {
+                ProgressView()
+                    .controlSize(.small)
+                Text("이미지를 불러오는 중입니다…")
+            }
+            .font(.callout)
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        } else if let message = operationErrorMessage {
             Label(message, systemImage: "xmark.circle.fill")
                 .font(.callout)
                 .foregroundStyle(.red)
@@ -4227,7 +4346,7 @@ private struct UserPetAnimationDetailsEditorView: View {
 
     private var frameImportMenu: some View {
         Menu {
-            Button("개별 PNG 추가…") {
+            Button("PNG 프레임 추가…") {
                 choosePNGs()
             }
             .accessibilityIdentifier("monglepet.petAnimation.addFrames")
@@ -4275,6 +4394,14 @@ private struct UserPetAnimationDetailsEditorView: View {
         )
     }
 
+    private func canAppendFrames(_ count: Int) -> Bool {
+        guard frames.count + count <= PetPackageLimits.standard.maximumFrameCount else {
+            imageImportErrorMessage = "애니메이션은 최대 \(PetPackageLimits.standard.maximumFrameCount)개 프레임까지 추가할 수 있습니다."
+            return false
+        }
+        return true
+    }
+
     private var selectedFrameBinding: Binding<UserPetAnimationFrameDraft>? {
         guard let selectedFrameID,
               frames.contains(where: { $0.id == selectedFrameID }) else {
@@ -4306,13 +4433,20 @@ private struct UserPetAnimationDetailsEditorView: View {
         guard panel.runModal() == .OK else {
             return
         }
-        do {
-            pngCropImport = PNGFrameCropPresentation(
-                images: try PNGFrameImportLoader.load(panel.urls)
-            )
-            imageImportErrorMessage = nil
-        } catch {
-            imageImportErrorMessage = error.localizedDescription
+        let sourceURLs = panel.urls
+        isLoadingFrameSource = true
+        imageImportErrorMessage = nil
+        Task {
+            do {
+                let images = try await Task.detached {
+                    try PNGFrameImportLoader.load(sourceURLs)
+                }.value
+                isLoadingFrameSource = false
+                pngCropImport = PNGFrameCropPresentation(images: images)
+            } catch {
+                isLoadingFrameSource = false
+                imageImportErrorMessage = error.localizedDescription
+            }
         }
     }
 
@@ -4329,12 +4463,19 @@ private struct UserPetAnimationDetailsEditorView: View {
         guard panel.runModal() == .OK, let sourceURL = panel.url else {
             return
         }
-        do {
-            let document = try SpriteSheetFrameExtractor().load(at: sourceURL)
-            spriteSheetImport = SpriteSheetImportPresentation(document: document)
-            imageImportErrorMessage = nil
-        } catch {
-            imageImportErrorMessage = error.localizedDescription
+        isLoadingFrameSource = true
+        imageImportErrorMessage = nil
+        Task {
+            do {
+                let document = try await Task.detached {
+                    try SpriteSheetFrameExtractor().load(at: sourceURL)
+                }.value
+                isLoadingFrameSource = false
+                spriteSheetImport = SpriteSheetImportPresentation(document: document)
+            } catch {
+                isLoadingFrameSource = false
+                imageImportErrorMessage = error.localizedDescription
+            }
         }
     }
 
@@ -4352,6 +4493,7 @@ private struct UserPetAnimationDetailsEditorView: View {
     }
 
     private func appendSpriteImages(_ images: [UserPetSourceImage]) {
+        guard canAppendFrames(images.count) else { return }
         let addedFrames = UserPetAnimationDraftFactory.new(
             images: images,
             durationMilliseconds: frameDurationMilliseconds,
@@ -4365,6 +4507,7 @@ private struct UserPetAnimationDetailsEditorView: View {
     private func appendExistingFrames(
         _ selections: [ExistingPetFrameSelection]
     ) {
+        guard canAppendFrames(selections.count) else { return }
         let addedFrames = UserPetAnimationDraftFactory.reused(
             selections: selections,
             reference: frames.first
@@ -4386,6 +4529,7 @@ private struct UserPetAnimationDetailsEditorView: View {
         guard frames.indices.contains(index) else {
             return
         }
+        guard canAppendFrames(1) else { return }
         let duplicate = frames[index].duplicated()
         frames.insert(duplicate, at: index + 1)
         selectedFrameID = duplicate.id
@@ -4593,8 +4737,7 @@ private struct UserPetAnimationFrameDraft: Identifiable {
     }
 }
 
-@MainActor
-private enum PNGFrameImportLoader {
+nonisolated private enum PNGFrameImportLoader {
     static func load(_ sourceURLs: [URL]) throws -> [UserPetSourceImage] {
         try sourceURLs.map { sourceURL in
             UserPetSourceImage(

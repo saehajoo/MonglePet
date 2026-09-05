@@ -63,6 +63,43 @@ final class MonglePetUITests: XCTestCase {
     }
 
     @MainActor
+    func testQuickGuideOpensAndNavigatesToSettings() throws {
+        let app = XCUIApplication()
+        app.launchArguments.append("--ui-testing-open-settings")
+        app.launch()
+
+        selectSettingsDestination(
+            "monglepet.settings.navigation.guide",
+            in: app
+        )
+
+        XCTAssertTrue(
+            app.descendants(matching: .any)["monglepet.guide.root"]
+                .waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(app.buttons["monglepet.guide.open.myPets"].exists)
+        XCTAssertTrue(app.buttons["monglepet.guide.open.petContent"].exists)
+        XCTAssertTrue(app.buttons["monglepet.guide.open.behavior"].exists)
+        XCTAssertTrue(app.buttons["monglepet.guide.open.stationaryBehavior"].exists)
+        XCTAssertTrue(app.buttons["monglepet.guide.open.rules"].exists)
+        XCTAssertTrue(app.buttons["monglepet.guide.openWeb"].exists)
+
+        app.buttons["monglepet.guide.open.myPets"].click()
+        XCTAssertTrue(
+            app.buttons["monglepet.settings.createUserPet"]
+                .waitForExistence(timeout: 5)
+        )
+
+        let guideToolbarButton = app.buttons["monglepet.settings.openGuide"]
+        XCTAssertTrue(guideToolbarButton.exists)
+        guideToolbarButton.click()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["monglepet.guide.root"]
+                .waitForExistence(timeout: 5)
+        )
+    }
+
+    @MainActor
     func testPetOverlayAppears() throws {
         let app = XCUIApplication()
         app.launchArguments.append("--ui-testing")
@@ -276,7 +313,7 @@ final class MonglePetUITests: XCTestCase {
         XCTAssertTrue(frameImportMenu.waitForExistence(timeout: 5))
         frameImportMenu.click()
 
-        let choosePNGsMenuItem = app.menuItems["개별 PNG 추가…"]
+        let choosePNGsMenuItem = app.menuItems["PNG 프레임 추가…"]
         XCTAssertTrue(choosePNGsMenuItem.waitForExistence(timeout: 5))
         XCTAssertTrue(choosePNGsMenuItem.isHittable)
         XCTAssertFalse(app.menuItems["AI 제작 프롬프트 복사"].exists)
@@ -304,6 +341,13 @@ final class MonglePetUITests: XCTestCase {
         let importButton = app.buttons["monglepet.pngCrop.import"]
         XCTAssertTrue(importButton.waitForExistence(timeout: 5))
         XCTAssertTrue(importButton.isHittable)
+
+        let firstIncludeToggle = app.checkBoxes[
+            "monglepet.pngCrop.include.0"
+        ]
+        XCTAssertTrue(firstIncludeToggle.waitForExistence(timeout: 5))
+        firstIncludeToggle.click()
+        XCTAssertTrue(app.staticTexts["가져오기 7개 · 전체 8개"].exists)
 
         let zoomOut = app.buttons["monglepet.imageEditor.zoomOut"]
         let zoomIn = app.buttons["monglepet.imageEditor.zoomIn"]
@@ -369,6 +413,13 @@ final class MonglePetUITests: XCTestCase {
         ]
         XCTAssertTrue(selectedPreview.waitForExistence(timeout: 5))
         XCTAssertTrue(selectedPreview.isHittable)
+
+        let selectedCount = app.staticTexts[
+            "monglepet.spriteSheet.selectedCount"
+        ]
+        XCTAssertEqual(selectedCount.label, "36개 선택")
+        app.radioButtons["클릭 순서"].click()
+        XCTAssertEqual(selectedCount.label, "36개 선택")
 
         let settingsScroll = app.scrollViews[
             "monglepet.spriteSheet.settingsScroll"

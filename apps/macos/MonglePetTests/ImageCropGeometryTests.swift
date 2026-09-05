@@ -155,6 +155,35 @@ final class ImageCropGeometryTests: XCTestCase {
     }
 
     @MainActor
+    func testResultPreviewUsesLargestCropAsCommonCanvas() {
+        XCTAssertEqual(
+            ImageCropResultPreviewGeometry.commonCanvasSize(
+                for: [
+                    PixelRect(x: 0, y: 0, width: 200, height: 100),
+                    PixelRect(x: 10, y: 20, width: 80, height: 240)
+                ]
+            ),
+            PixelSize(width: 200, height: 240)
+        )
+        XCTAssertEqual(
+            ImageCropResultPreviewGeometry.commonCanvasSize(for: []),
+            PixelSize(width: 1, height: 1)
+        )
+    }
+
+    @MainActor
+    func testResultPreviewCentersCropWithoutIndividualAspectFit() {
+        XCTAssertEqual(
+            ImageCropResultPreviewGeometry.centeredContentFrame(
+                pixelSize: PixelSize(width: 100, height: 50),
+                canvasSize: PixelSize(width: 200, height: 200),
+                canvasFrame: CGRect(x: 10, y: 20, width: 300, height: 300)
+            ),
+            CGRect(x: 85, y: 132.5, width: 150, height: 75)
+        )
+    }
+
+    @MainActor
     func testEditorOnlyOwnsPanWhenImageIsZoomed() {
         XCTAssertFalse(ImageEditorViewportPolicy.usesInternalPan(at: 1))
         XCTAssertTrue(ImageEditorViewportPolicy.usesInternalPan(at: 1.5))
