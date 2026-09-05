@@ -45,7 +45,7 @@ final class AppSettingsStoreTests: XCTestCase {
             JSONSerialization.jsonObject(with: Data(contentsOf: settingsURL))
                 as? [String: Any]
         )
-        XCTAssertEqual(json["schemaVersion"] as? Int, 15)
+        XCTAssertEqual(json["schemaVersion"] as? Int, 16)
         XCTAssertNil(json["behaviorMode"])
         let instances = try XCTUnwrap(
             json["activePetInstances"] as? [[String: Any]]
@@ -306,14 +306,14 @@ final class AppSettingsStoreTests: XCTestCase {
     }
 
     func testNewerSchemaIsPreservedAndDisablesWriting() throws {
-        let originalData = Data(#"{"schemaVersion":16,"futureValue":true}"#.utf8)
+        let originalData = Data(#"{"schemaVersion":17,"futureValue":true}"#.utf8)
         try originalData.write(to: settingsURL)
         let store = AppSettingsStore(settingsURL: settingsURL)
 
         let loaded = store.load()
 
-        XCTAssertEqual(loaded.source, .newerSchema(16))
-        XCTAssertEqual(loaded.issues, [.newerSchemaVersion(16)])
+        XCTAssertEqual(loaded.source, .newerSchema(17))
+        XCTAssertEqual(loaded.issues, [.newerSchemaVersion(17)])
         XCTAssertFalse(loaded.isWritingEnabled)
         XCTAssertEqual(try Data(contentsOf: settingsURL), originalData)
         XCTAssertThrowsError(try store.save(.default)) { error in
@@ -408,10 +408,10 @@ final class AppSettingsStoreTests: XCTestCase {
             StoredSchemaEnvelope.self,
             from: migratedData
         )
-        XCTAssertEqual(envelope.schemaVersion, 15)
+        XCTAssertEqual(envelope.schemaVersion, 16)
         XCTAssertNoThrow(
             try JSONDecoder().decode(
-                StoredAppSettingsV15.self,
+                StoredAppSettingsV16.self,
                 from: migratedData
             )
         )
@@ -457,10 +457,10 @@ final class AppSettingsStoreTests: XCTestCase {
         XCTAssertEqual(loaded.source, .file)
         XCTAssertEqual(loaded.settings.movementSettings, .default)
         let migrated = try JSONDecoder().decode(
-            StoredAppSettingsV15.self,
+            StoredAppSettingsV16.self,
             from: Data(contentsOf: settingsURL)
         )
-        XCTAssertEqual(migrated.schemaVersion, 15)
+        XCTAssertEqual(migrated.schemaVersion, 16)
         XCTAssertEqual(migrated.behaviorProfiles.first?.movement.mode, "fixed")
         XCTAssertEqual(
             migrated.behaviorProfiles.first?.movement.cursorAvoiding.idleBehavior,
@@ -487,10 +487,10 @@ final class AppSettingsStoreTests: XCTestCase {
         XCTAssertEqual(loaded.source, .file)
         assertLegacySettings(loaded.settings, equals: originalSettings)
         let migrated = try JSONDecoder().decode(
-            StoredAppSettingsV15.self,
+            StoredAppSettingsV16.self,
             from: Data(contentsOf: settingsURL)
         )
-        XCTAssertEqual(migrated.schemaVersion, 15)
+        XCTAssertEqual(migrated.schemaVersion, 16)
         let overlay = try XCTUnwrap(
             migrated.activePetInstances.first?.overlay
         )
@@ -515,10 +515,10 @@ final class AppSettingsStoreTests: XCTestCase {
         XCTAssertEqual(loaded.source, .file)
         assertLegacySettings(loaded.settings, equals: originalSettings)
         let migrated = try JSONDecoder().decode(
-            StoredAppSettingsV15.self,
+            StoredAppSettingsV16.self,
             from: Data(contentsOf: settingsURL)
         )
-        XCTAssertEqual(migrated.schemaVersion, 15)
+        XCTAssertEqual(migrated.schemaVersion, 16)
         let runBehaviorID = try XCTUnwrap(
             migrated.behaviorProfiles.first?.movement
                 .cursorFollowing.behavior.fallbackBehaviorID

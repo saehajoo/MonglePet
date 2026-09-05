@@ -11,7 +11,10 @@ MonglePet 펫 공유 커뮤니티의 서버와 웹 UI를 별도 Git 저장소에
 - `AGENTS/guides/WEB_COMMUNITY_HANDOFF.md`
 - `AGENTS/specifications/PET_PACKAGE.md`
 - `AGENTS/project/DECISIONS.md`의 D-060, D-061
+- `AGENTS/project/DECISIONS.md`의 D-120
 - `shared/`의 정상·오류·악성 fixture
+
+현재 데스크톱 계약은 로컬 설정 schema-v16, `recommended-profile.json` schema-v12다. 서버의 업로드 검사 JSON Schema와 validator가 v1~v12를 허용하고 v12의 자유 이동 `dwellMode: fixed | random | behaviorCompletion`을 검증하도록 갱신하세요. 이 변경은 PetVersion DB 컬럼을 요구하지 않으며 원본 패키지를 immutable object로 보존하는 기존 모델을 유지합니다. 서버가 제작자 설정을 검색용 구조로 별도 추출하고 있다면 그 파생 DTO·색인 schema만 함께 갱신하세요.
 
 ## 제품 범위
 
@@ -56,6 +59,8 @@ MonglePet 펫 공유 커뮤니티의 서버와 웹 UI를 별도 Git 저장소에
 - ZIP 엔트리 수, 개별·전체 해제 크기, 압축률, 중복·대소문자 충돌, 절대경로, `..`, 심볼릭 링크와 실행 파일을 검사하세요.
 - 격리된 임시 공간에 허용 엔트리만 개별 해제하세요.
 - `pet.json`, 선택적 `recommended-profile.json`, PNG·정적 WebP, 픽셀 크기, 알파, 프레임 영역과 시간을 MonglePet 계약과 동일하게 검증하세요.
+- `recommended-profile.json` schema-v12의 `freeRoaming.dwellMode`와 `cursorAvoiding.idleFreeRoaming.dwellMode`는 `fixed`, `random`, `behaviorCompletion`만 허용하세요. v11 이하의 `randomizesDwell`은 레거시 입력으로 계속 허용하되 서버가 공개 원본을 다시 쓰거나 임의 승격하지 마세요.
+- 지원하는 v12는 정상 제작자 설정으로 처리하고 v13 이상은 미래 제작자 설정으로 분류하세요. 패키지 자산이 안전하면 미래·손상 제작자 설정만 사용 불가로 기록하고 업로드 전체를 거부하지 않는 데스크톱 정책과 서버 게시 정책의 차이가 있다면 관리자 검토 결과에 명시하세요.
 - 관리자 승인 전에는 검색·상세·다운로드 API에 노출하지 마세요.
 - 다운로드 시 SHA-256, 파일 크기, package version과 최소 MonglePet 앱 버전을 제공하세요.
 
@@ -87,7 +92,7 @@ MonglePet 펫 공유 커뮤니티의 서버와 웹 UI를 별도 Git 저장소에
 1. 기존 개인 API 서버, 언어·프레임워크, DB, object storage, reverse proxy, TLS와 인증 방식을 먼저 조사하세요.
 2. 조사 결과를 바탕으로 아키텍처, 위협 모델, DB migration, OpenAPI와 단계별 작업 계획을 작성하세요.
 3. 웹 요구 때문에 `.monglepet` 계약을 독자적으로 확장하지 말고 변경이 필요하면 MonglePet 저장소에서 먼저 결정하세요.
-4. 정상·레거시 `license` 포함·`license` 미포함·손상·악성 fixture를 자동 테스트하세요.
+4. 정상·레거시 `license` 포함·`license` 미포함·손상·악성 fixture와 제작자 설정 v11·v12·미래 v13 fixture를 자동 테스트하세요.
 5. 운영 서버에서 직접 개발하지 말고 검증된 artifact와 migration으로 배포하세요.
 6. 구현 완료 시 contract commit, schema version, 배포·롤백 절차와 남은 위험을 문서화하세요.
 

@@ -2604,11 +2604,15 @@ private struct RecommendedProfileSummaryView: View {
     private func dwellDescription(
         _ roaming: FreeRoamingMovementSettings
     ) -> String {
-        let maximum = dwellText(roaming.dwellMilliseconds)
-        guard roaming.randomizesDwell else {
-            return maximum
+        switch roaming.dwellMode {
+        case .fixed:
+            return dwellText(roaming.dwellMilliseconds)
+        case .random:
+            let maximum = dwellText(roaming.dwellMilliseconds)
+            return "\(dwellText(roaming.dwellMinimumMilliseconds))~\(maximum) 랜덤"
+        case .behaviorCompletion:
+            return "현재 평상시 행동 완료 후"
         }
-        return "\(dwellText(roaming.dwellMinimumMilliseconds))~\(maximum) 랜덤"
     }
 
     private func animationStyleName(

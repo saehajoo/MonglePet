@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 16,
+  "behaviorProfiles": [
+    {
+      "profileID": "11111111-1111-1111-1111-111111111111",
+      "movement": {
+        "freeRoaming": {
+          "dwellMilliseconds": 8000,
+          "dwellMinimumMilliseconds": 2000,
+          "dwellMode": "fixed",
+          "extension": "keep-free"
+        },
+        "cursorAvoiding": {
+          "idleFreeRoaming": {
+            "dwellMilliseconds": 12000,
+            "dwellMinimumMilliseconds": 4000,
+            "dwellMode": "random",
+            "extension": "keep-avoiding"
+          }
+        }
+      }
+    }
+  ]
+}

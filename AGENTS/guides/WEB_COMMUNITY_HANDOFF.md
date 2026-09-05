@@ -50,6 +50,8 @@
 4. 계약 자료에는 원본 MonglePet 저장소의 Git commit과 schema 버전을 기록한다.
 5. 서버 구현이 계약을 변경해야 한다면 웹 저장소에서만 고치지 말고 MonglePet 저장소에 변경 제안을 먼저 반영한다.
 
+현재 계약 기준은 로컬 설정 schema-v16과 `recommended-profile.json` schema-v12다. v12는 자유 이동과 마우스 도망가기 평상시 자유 이동의 `dwellMode: fixed | random | behaviorCompletion`을 추가하고 v11의 `randomizesDwell`을 대체한다. 서버 업로드 validator와 전달용 JSON Schema는 v1~v12 읽기, v12 enum 검증, v13 이상 미래 설정 구분을 지원해야 한다. 원본 `.monglepet`을 통째로 immutable object로 저장하는 PetVersion DB 구조에는 새 컬럼이 필요하지 않으며, 서버가 제작자 설정을 별도 파생·색인할 때만 해당 DTO와 migration 필요성을 검토한다.
+
 문서의 설명만 수동으로 다시 작성해 전달하지 않는다. JSON Schema와 fixture를 기계적으로 검증할 수 있는 계약으로 유지한다.
 
 ## 4. 구현 전 환경 조사
@@ -253,6 +255,9 @@ API는 처음부터 `/api/v1`처럼 버전을 지정한다. 실제 필드와 오
 6. 허용된 JSON·PNG·정적 WebP 이외의 파일과 실행 코드·스크립트를 거부한다.
 7. 격리된 임시 디렉터리에 허용 엔트리만 개별 해제한다.
 8. `pet.json`, 선택적 `recommended-profile.json`, 이미지 형식·픽셀·알파·프레임 영역과 시간을 검증한다.
+   - 제작자 설정 schema-v12의 두 `dwellMode`는 `fixed`, `random`, `behaviorCompletion`만 허용한다.
+   - schema-v11 이하의 `randomizesDwell` 입력은 계속 읽되 게시된 원본 object를 서버가 다시 인코딩하지 않는다.
+   - schema-v13 이상은 미래 제작자 설정으로 기록하고 패키지 자산 안전성 결과와 구분한다.
 9. 로그인한 업로더의 게시 권한 확인 상태를 검사한다. 레거시 `license` 문자열은 저장하거나 판별하지 않는다.
 10. 웹 공개용 정적·애니메이션 미리보기 파생물을 만든다.
 11. 검증 결과를 `pendingReview`로 저장하고 관리자 승인 전에는 공개 목록과 다운로드에 노출하지 않는다.

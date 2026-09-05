@@ -418,6 +418,82 @@ final class PetMovementControllerTests: XCTestCase {
         XCTAssertTrue(fixture.randomDwellUnits.isEmpty)
     }
 
+    func testBehaviorCompletionDwellWaitsForSignalBeforeNewTarget() {
+        let fixture = Fixture()
+        fixture.origin = point(32, 32)
+        fixture.randomSamples = [
+            sample(0, 0, 0),
+            sample(0, 1, 1)
+        ]
+        var requestCount = 0
+        fixture.controller.setStationaryBehaviorCompletionHandlers(
+            request: {
+                requestCount += 1
+                return true
+            },
+            cancel: {}
+        )
+        fixture.controller.update(
+            settings: fixture.settings(
+                mode: .freeRoaming,
+                speed: 1_000,
+                stopRadius: 1,
+                dwellMode: .behaviorCompletion,
+                prefersFrontmostWindow: false
+            ),
+            isMovementAllowed: true
+        )
+
+        fixture.clock.advance(by: .milliseconds(33))
+        fixture.scheduler.fire()
+
+        XCTAssertEqual(requestCount, 1)
+        XCTAssertEqual(
+            fixture.controller.state,
+            .freeRoamingAwaitingBehaviorCompletion
+        )
+        XCTAssertNil(fixture.scheduler.scheduledDelay)
+        XCTAssertEqual(fixture.controller.activity, .stationary)
+
+        fixture.controller.stationaryBehaviorPassDidComplete()
+
+        XCTAssertEqual(fixture.controller.state, .freeRoamingMoving)
+        XCTAssertEqual(fixture.controller.targetOrigin, point(868, 668))
+        XCTAssertEqual(fixture.scheduler.scheduledDelay, .milliseconds(33))
+    }
+
+    func testBehaviorCompletionDwellUsesShortFallbackWhenNoBehaviorCanPlay() {
+        let fixture = Fixture()
+        fixture.origin = point(32, 32)
+        fixture.randomSamples = [sample(0, 0, 0)]
+        fixture.controller.setStationaryBehaviorCompletionHandlers(
+            request: { false },
+            cancel: {}
+        )
+        fixture.controller.update(
+            settings: fixture.settings(
+                mode: .freeRoaming,
+                speed: 1_000,
+                stopRadius: 1,
+                dwellMode: .behaviorCompletion,
+                prefersFrontmostWindow: false
+            ),
+            isMovementAllowed: true
+        )
+
+        fixture.clock.advance(by: .milliseconds(33))
+        fixture.scheduler.fire()
+
+        XCTAssertEqual(
+            fixture.controller.state,
+            .freeRoamingAwaitingBehaviorCompletion
+        )
+        XCTAssertEqual(
+            fixture.scheduler.scheduledDelay,
+            PetMovementController.defaultBehaviorCompletionFallbackDelay
+        )
+    }
+
     func testCursorAvoidingEscapesPointerWithDirectionalAnimation() {
         let fixture = Fixture()
         fixture.origin = point(300, 300)
@@ -542,6 +618,46 @@ final class PetMovementControllerTests: XCTestCase {
 
         XCTAssertGreaterThan(fixture.origin.x, 100)
         XCTAssertEqual(fixture.controller.activity, movement("walk"))
+    }
+
+    func testCursorAvoidingPointerEscapeInterruptsBehaviorCompletionWait() {
+        let fixture = Fixture()
+        fixture.origin = point(32, 32)
+        fixture.pointer = point(900, 700)
+        fixture.randomSamples = [sample(0, 0, 0)]
+        var cancelCount = 0
+        fixture.controller.setStationaryBehaviorCompletionHandlers(
+            request: { true },
+            cancel: { cancelCount += 1 }
+        )
+        fixture.controller.update(
+            settings: fixture.settings(
+                mode: .cursorAvoiding,
+                stopRadius: 0,
+                dwellMode: .behaviorCompletion,
+                avoidingIdleBehavior: .freeRoaming,
+                avoidingDistance: 160,
+                avoidingSpeed: 100,
+                avoidingAnimation: .single("escape")
+            ),
+            isMovementAllowed: true
+        )
+
+        fixture.clock.advance(by: .milliseconds(33))
+        fixture.scheduler.fire()
+        XCTAssertEqual(
+            fixture.controller.state,
+            .cursorAvoidingRoamingAwaitingBehaviorCompletion
+        )
+        XCTAssertEqual(fixture.scheduler.scheduledDelay, .milliseconds(100))
+
+        fixture.pointer = point(100, 82)
+        fixture.clock.advance(by: .milliseconds(100))
+        fixture.scheduler.fire()
+
+        XCTAssertEqual(cancelCount, 1)
+        XCTAssertEqual(fixture.controller.state, .cursorAvoidingEscaping)
+        XCTAssertEqual(fixture.controller.activity, movement("escape"))
     }
 
     func testDisallowingMovementCancelsTimerAndReportsStationary() {
@@ -697,6 +813,7 @@ private final class Fixture {
         stopRadius: Double = 16,
         dwellMilliseconds: Int64 = 6_000,
         randomizesDwell: Bool = false,
+        dwellMode: FreeRoamingDwellMode? = nil,
         minimumDwellMilliseconds: Int64? = nil,
         prefersFrontmostWindow: Bool = true,
         cursorMotionID: String? = nil,
@@ -727,7 +844,8 @@ private final class Fixture {
             cursorAvoidingAnimation: avoidingAnimation,
             randomizesFreeRoamingDwell: randomizesDwell,
             freeRoamingDwellMinimumMilliseconds:
-                minimumDwellMilliseconds
+                minimumDwellMilliseconds,
+            freeRoamingDwellMode: dwellMode
         )
     }
 }

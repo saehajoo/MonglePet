@@ -70,6 +70,8 @@ final class PetBehaviorRuntime {
     private var latestPresentation: PetPresentation = .awake
     private var isDecisionPaused = false
     private var isMovementPlaybackObscuringBehavior = false
+    private var pendingMovementPassCount: UInt64?
+    private var onStationaryBehaviorPassCompletion: () -> Void = {}
     private var lastAdvancedAt: ContinuousClock.Instant?
     private var hasEmittedPlayback = false
     private(set) var currentPlayback: ScheduledMotion?
@@ -93,6 +95,37 @@ final class PetBehaviorRuntime {
 
     var isPaused: Bool {
         motionScheduler.isPaused
+    }
+
+    func setStationaryBehaviorPassCompletionHandler(
+        _ handler: @escaping () -> Void
+    ) {
+        onStationaryBehaviorPassCompletion = handler
+    }
+
+    @discardableResult
+    func requestMovementAfterStationaryBehaviorPass() -> Bool {
+        let now = clock.now
+        advance(to: now)
+        guard !isDecisionPaused,
+              !isMovementPlaybackObscuringBehavior,
+              case let .sequence(_, source) = latestDecision,
+              source == .manual
+                || source == .random
+                || source == .defaultBehavior,
+              !motionScheduler.isBaseSequenceComplete,
+              case .playing = motionScheduler.status else {
+            pendingMovementPassCount = nil
+            return false
+        }
+        pendingMovementPassCount =
+            motionScheduler.completedBaseSequencePassCount
+        scheduleNextBoundary()
+        return true
+    }
+
+    func cancelMovementAfterStationaryBehaviorPass() {
+        pendingMovementPassCount = nil
     }
 
     @discardableResult
@@ -155,6 +188,7 @@ final class PetBehaviorRuntime {
         lastAdvancedAt = now
 
         if obscuresBehavior {
+            pendingMovementPassCount = nil
             let isRandomMode = latestConfiguration?.mode == .random
             if isRandomMode {
                 restartRandomSelectionForMovement(at: now)
@@ -188,6 +222,7 @@ final class PetBehaviorRuntime {
         hasEmittedPlayback = false
         isDecisionPaused = false
         isMovementPlaybackObscuringBehavior = false
+        pendingMovementPassCount = nil
         resetRandomSelection()
         latestConfiguration = nil
         latestSnapshot = nil
@@ -243,6 +278,7 @@ final class PetBehaviorRuntime {
         previousMode = nil
         isDecisionPaused = false
         isMovementPlaybackObscuringBehavior = false
+        pendingMovementPassCount = nil
         resetRandomSelection()
         emit(playback: nil)
     }
@@ -329,7 +365,10 @@ final class PetBehaviorRuntime {
             emitCurrentPlaybackIfNeeded(force: true)
             return
         }
-        if advanceRandomSelectionIfNeeded(at: now) {
+        let completedPendingMovement =
+            completePendingMovementIfNeeded()
+        if !completedPendingMovement,
+           advanceRandomSelectionIfNeeded(at: now) {
             return
         }
         emitCurrentPlaybackIfNeeded(
@@ -338,6 +377,17 @@ final class PetBehaviorRuntime {
             } ?? false
         )
         scheduleNextBoundary()
+    }
+
+    private func completePendingMovementIfNeeded() -> Bool {
+        guard let pendingMovementPassCount,
+              motionScheduler.completedBaseSequencePassCount
+                != pendingMovementPassCount else {
+            return false
+        }
+        self.pendingMovementPassCount = nil
+        onStationaryBehaviorPassCompletion()
+        return true
     }
 
     private func shouldRepeatBaseSequence(

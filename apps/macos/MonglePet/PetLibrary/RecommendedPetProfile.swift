@@ -195,7 +195,7 @@ extension RecommendedPetProfileError: LocalizedError {
 }
 
 nonisolated enum RecommendedPetProfileCodec {
-    static let schemaVersion = 11
+    static let schemaVersion = 12
     static let maximumFileSize = 1 * 1_024 * 1_024
 
     static func encode(
@@ -204,7 +204,7 @@ nonisolated enum RecommendedPetProfileCodec {
     ) throws -> Data {
         let profile = normalizingCurrentProfile(profile)
         try validate(profile, for: definition)
-        let stored = StoredRecommendedPetProfileV11(
+        let stored = StoredRecommendedPetProfileV12(
             schemaVersion: schemaVersion,
             behavior: StoredRecommendedBehaviorV11(
                 stationaryBehaviorMode:
@@ -225,7 +225,7 @@ nonisolated enum RecommendedPetProfileCodec {
                     )
                 }
             ),
-            movement: storedMovementV10(profile.movement),
+            movement: storedMovementV12(profile.movement),
             pettingBehaviorID: profile.pettingMotionID,
             automaticRules: profile.automaticRules.map(storedRule),
             automaticRulePriorityOrder:
@@ -434,11 +434,24 @@ nonisolated enum RecommendedPetProfileCodec {
             } catch {
                 throw RecommendedPetProfileError.unreadable
             }
-        case schemaVersion:
+        case 11:
             do {
                 profile = try domainProfile(
                     from: decoder.decode(
                         StoredRecommendedPetProfileV11.self,
+                        from: data
+                    )
+                )
+            } catch let error as RecommendedPetProfileError {
+                throw error
+            } catch {
+                throw RecommendedPetProfileError.unreadable
+            }
+        case schemaVersion:
+            do {
+                profile = try domainProfile(
+                    from: decoder.decode(
+                        StoredRecommendedPetProfileV12.self,
                         from: data
                     )
                 )
@@ -1272,6 +1285,134 @@ nonisolated enum RecommendedPetProfileCodec {
         )
     }
 
+    private static func domainProfile(
+        from stored: StoredRecommendedPetProfileV12
+    ) throws -> RecommendedPetProfile {
+        let base = try domainProfile(
+            from: StoredRecommendedPetProfileV11(
+                schemaVersion: 11,
+                behavior: stored.behavior,
+                movement: legacyMovementV12(stored.movement),
+                pettingBehaviorID: stored.pettingBehaviorID,
+                automaticRules: stored.automaticRules,
+                automaticRulePriorityOrder:
+                    stored.automaticRulePriorityOrder,
+                speech: stored.speech,
+                display: stored.display
+            )
+        )
+        return RecommendedPetProfile(
+            stationaryBehaviorMode: base.stationaryBehaviorMode,
+            stationarySequenceID: base.stationarySequenceID,
+            randomSequenceIDs: base.randomSequenceIDs,
+            sequences: base.sequences,
+            automaticRules: base.automaticRules,
+            automaticRulePriorityOrder:
+                base.automaticRulePriorityOrder,
+            movement: try domainMovementV12(stored.movement),
+            pettingMotionID: base.pettingMotionID,
+            speech: base.speech,
+            display: base.display,
+            includesDisplaySettings: true
+        )
+    }
+
+    private static func domainMovementV12(
+        _ stored: StoredPetMovementSettingsV16
+    ) throws -> PetMovementSettings {
+        guard let mode = movementMode(stored.mode),
+              let roaming = domainRoamingV12(stored.freeRoaming),
+              let idleRoaming = domainRoamingV12(
+                  stored.cursorAvoiding.idleFreeRoaming
+              ) else {
+            throw RecommendedPetProfileError.invalidField("movement")
+        }
+        let movement = PetMovementSettings(
+            mode: mode,
+            cursorFollowing: CursorFollowingMovementSettings(
+                speed: stored.cursorFollowing.speed,
+                cursorDistance: stored.cursorFollowing.cursorDistance,
+                stopRadius: stored.cursorFollowing.stopRadius,
+                animation: domainAnimation(
+                    from: legacyAnimation(stored.cursorFollowing.behavior)
+                )
+            ),
+            freeRoaming: roaming,
+            cursorAvoiding: CursorAvoidingMovementSettings(
+                idleBehavior: stored.cursorAvoiding.idleBehavior
+                    == "freeRoaming" ? .freeRoaming : .stationary,
+                detectionDistance:
+                    stored.cursorAvoiding.detectionDistance,
+                speed: stored.cursorAvoiding.speed,
+                stopRadius: stored.cursorAvoiding.stopRadius,
+                animation: domainAnimation(
+                    from: legacyAnimation(stored.cursorAvoiding.behavior)
+                ),
+                idleFreeRoaming: idleRoaming
+            )
+        )
+        guard movement.isValid else {
+            throw RecommendedPetProfileError.invalidField("movement")
+        }
+        return movement
+    }
+
+    private static func domainRoamingV12(
+        _ stored: StoredFreeRoamingMovementSettingsV16
+    ) -> FreeRoamingMovementSettings? {
+        guard let mode = FreeRoamingDwellMode(rawValue: stored.dwellMode)
+        else {
+            return nil
+        }
+        return FreeRoamingMovementSettings(
+            speed: stored.speed,
+            stopRadius: stored.stopRadius,
+            dwellMilliseconds: stored.dwellMilliseconds,
+            dwellMinimumMilliseconds: stored.dwellMinimumMilliseconds,
+            prefersFrontmostWindow: stored.prefersFrontmostWindow,
+            animation: domainAnimation(
+                from: legacyAnimation(stored.behavior)
+            ),
+            dwellMode: mode
+        )
+    }
+
+    private static func legacyMovementV12(
+        _ stored: StoredPetMovementSettingsV16
+    ) -> StoredPetMovementSettingsV14 {
+        StoredPetMovementSettingsV14(
+            mode: stored.mode,
+            cursorFollowing: stored.cursorFollowing,
+            freeRoaming: legacyRoamingV12(stored.freeRoaming),
+            cursorAvoiding: StoredCursorAvoidingMovementSettingsV14(
+                idleBehavior: stored.cursorAvoiding.idleBehavior,
+                detectionDistance:
+                    stored.cursorAvoiding.detectionDistance,
+                speed: stored.cursorAvoiding.speed,
+                stopRadius: stored.cursorAvoiding.stopRadius,
+                behavior: stored.cursorAvoiding.behavior,
+                idleFreeRoaming: legacyRoamingV12(
+                    stored.cursorAvoiding.idleFreeRoaming
+                )
+            )
+        )
+    }
+
+    private static func legacyRoamingV12(
+        _ stored: StoredFreeRoamingMovementSettingsV16
+    ) -> StoredFreeRoamingMovementSettingsV14 {
+        StoredFreeRoamingMovementSettingsV14(
+            speed: stored.speed,
+            stopRadius: stored.stopRadius,
+            dwellMilliseconds: stored.dwellMilliseconds,
+            randomizesDwell:
+                stored.dwellMode == FreeRoamingDwellMode.random.rawValue,
+            dwellMinimumMilliseconds: stored.dwellMinimumMilliseconds,
+            prefersFrontmostWindow: stored.prefersFrontmostWindow,
+            behavior: stored.behavior
+        )
+    }
+
     private static func domainRoamingV10(
         _ stored: StoredFreeRoamingMovementSettingsV14
     ) -> FreeRoamingMovementSettings {
@@ -1764,6 +1905,16 @@ nonisolated enum RecommendedPetProfileCodec {
         }
     }
 
+    private static func movementMode(_ value: String) -> PetMovementMode? {
+        switch value {
+        case "fixed": .fixed
+        case "cursorFollowing": .cursorFollowing
+        case "freeRoaming": .freeRoaming
+        case "cursorAvoiding": .cursorAvoiding
+        default: nil
+        }
+    }
+
     private static func storedMovement(
         _ movement: PetMovementSettings
     ) -> StoredRecommendedMovementV3 {
@@ -1891,6 +2042,42 @@ nonisolated enum RecommendedPetProfileCodec {
                     movement.cursorAvoiding.idleFreeRoaming
                 )
             )
+        )
+    }
+
+    private static func storedMovementV12(
+        _ movement: PetMovementSettings
+    ) -> StoredPetMovementSettingsV16 {
+        let legacy = storedMovementV10(movement)
+        return StoredPetMovementSettingsV16(
+            mode: legacy.mode,
+            cursorFollowing: legacy.cursorFollowing,
+            freeRoaming: storedRoamingV12(movement.freeRoaming),
+            cursorAvoiding: StoredCursorAvoidingMovementSettingsV16(
+                idleBehavior: legacy.cursorAvoiding.idleBehavior,
+                detectionDistance:
+                    legacy.cursorAvoiding.detectionDistance,
+                speed: legacy.cursorAvoiding.speed,
+                stopRadius: legacy.cursorAvoiding.stopRadius,
+                behavior: legacy.cursorAvoiding.behavior,
+                idleFreeRoaming: storedRoamingV12(
+                    movement.cursorAvoiding.idleFreeRoaming
+                )
+            )
+        )
+    }
+
+    private static func storedRoamingV12(
+        _ roaming: FreeRoamingMovementSettings
+    ) -> StoredFreeRoamingMovementSettingsV16 {
+        StoredFreeRoamingMovementSettingsV16(
+            speed: roaming.speed,
+            stopRadius: roaming.stopRadius,
+            dwellMode: roaming.dwellMode.rawValue,
+            dwellMilliseconds: roaming.dwellMilliseconds,
+            dwellMinimumMilliseconds: roaming.dwellMinimumMilliseconds,
+            prefersFrontmostWindow: roaming.prefersFrontmostWindow,
+            behavior: storedBehaviorV8(storedAnimation(roaming.animation))
         )
     }
 
@@ -2192,6 +2379,17 @@ private nonisolated struct StoredRecommendedPetProfileV11: Codable {
     let schemaVersion: Int
     let behavior: StoredRecommendedBehaviorV11
     let movement: StoredPetMovementSettingsV14
+    let pettingBehaviorID: String?
+    let automaticRules: [StoredRecommendedAutomaticRuleV1]
+    let automaticRulePriorityOrder: [String]
+    let speech: StoredRecommendedSpeechV7
+    let display: StoredPortablePetDisplayV10
+}
+
+private nonisolated struct StoredRecommendedPetProfileV12: Codable {
+    let schemaVersion: Int
+    let behavior: StoredRecommendedBehaviorV11
+    let movement: StoredPetMovementSettingsV16
     let pettingBehaviorID: String?
     let automaticRules: [StoredRecommendedAutomaticRuleV1]
     let automaticRulePriorityOrder: [String]

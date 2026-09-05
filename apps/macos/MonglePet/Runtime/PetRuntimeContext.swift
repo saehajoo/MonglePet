@@ -165,6 +165,21 @@ final class PetRuntimeContext: PetRuntimeContextType {
             controller: movementController
         )
 
+        movementController.setStationaryBehaviorCompletionHandlers(
+            request: { [weak behaviorRuntime] in
+                behaviorRuntime?
+                    .requestMovementAfterStationaryBehaviorPass() ?? false
+            },
+            cancel: { [weak behaviorRuntime] in
+                behaviorRuntime?
+                    .cancelMovementAfterStationaryBehaviorPass()
+            }
+        )
+        behaviorRuntime.setStationaryBehaviorPassCompletionHandler {
+            [weak movementController] in
+            movementController?.stationaryBehaviorPassDidComplete()
+        }
+
         movementController.setActivityChangeHandler { [weak self] activity in
             self?.latestMovementActivity = activity
             self?.movementBehaviorRuntime.setActivity(activity)

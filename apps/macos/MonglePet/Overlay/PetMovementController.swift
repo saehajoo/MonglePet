@@ -17,10 +17,12 @@ nonisolated enum PetMovementControllerState: Equatable, Sendable {
     case freeRoamingMoving
     case freeRoamingSettling
     case freeRoamingDwelling
+    case freeRoamingAwaitingBehaviorCompletion
     case cursorAvoidingIdle
     case cursorAvoidingEscaping
     case cursorAvoidingRoamingMoving
     case cursorAvoidingRoamingDwelling
+    case cursorAvoidingRoamingAwaitingBehaviorCompletion
 }
 
 @MainActor
@@ -107,6 +109,8 @@ final class PetMovementController: PetMovementControlling {
     static let defaultCursorIdleInterval: Duration = .milliseconds(100)
     static let defaultStopHysteresis: Duration = .milliseconds(150)
     static let defaultRetryInterval: Duration = .seconds(1)
+    static let defaultBehaviorCompletionFallbackDelay: Duration =
+        .milliseconds(500)
     static let defaultScreenInset = 32.0
     static let movementComparisonTolerance = 0.000_1
     static let transitionAcceptanceTolerance = 1.0
@@ -123,6 +127,8 @@ final class PetMovementController: PetMovementControlling {
     private let randomDwellUnitProvider: () -> Double
     private let applyOrigin: (PetMovementPoint) -> Void
     private var onActivityChange: (PetMovementActivity) -> Void
+    private var requestStationaryBehaviorCompletion: () -> Bool = { false }
+    private var cancelStationaryBehaviorCompletion: () -> Void = {}
     private let tickInterval: Duration
     private let cursorIdleInterval: Duration
     private let stopHysteresis: Duration
@@ -134,6 +140,7 @@ final class PetMovementController: PetMovementControlling {
     private var lastMovedAt: ContinuousClock.Instant?
     private var cursorAvoidingDwellStartedAt: ContinuousClock.Instant?
     private var cursorAvoidingDwellDuration: Duration?
+    private var behaviorCompletionFallbackAt: ContinuousClock.Instant?
     private var directionClassifier = MovementDirectionClassifier()
     private(set) var targetOrigin: PetMovementPoint?
     private(set) var state: PetMovementControllerState = .inactive
@@ -246,12 +253,42 @@ final class PetMovementController: PetMovementControlling {
         handler(activity)
     }
 
+    func setStationaryBehaviorCompletionHandlers(
+        request: @escaping () -> Bool,
+        cancel: @escaping () -> Void
+    ) {
+        requestStationaryBehaviorCompletion = request
+        cancelStationaryBehaviorCompletion = cancel
+    }
+
+    func stationaryBehaviorPassDidComplete() {
+        guard isMovementAllowed else {
+            return
+        }
+        behaviorCompletionFallbackAt = nil
+        switch state {
+        case .freeRoamingAwaitingBehaviorCompletion:
+            prepareFreeRoamingTargetAndSchedule()
+        case .cursorAvoidingRoamingAwaitingBehaviorCompletion:
+            prepareCursorAvoidingRoamingTargetAndSchedule()
+        default:
+            break
+        }
+    }
+
     func invalidateEnvironment() {
         frontmostWindowProvider.invalidate()
         targetOrigin = nil
         lastMovedAt = nil
         emit(activity: .stationary)
         guard state != .inactive else {
+            return
+        }
+        if state == .freeRoamingAwaitingBehaviorCompletion {
+            return
+        }
+        if state == .cursorAvoidingRoamingAwaitingBehaviorCompletion {
+            scheduleTick(after: cursorIdleInterval)
             return
         }
         lastTickAt = clock.now
@@ -353,6 +390,13 @@ final class PetMovementController: PetMovementControlling {
 
     private func tickFreeRoaming() {
         let now = clock.now
+        if state == .freeRoamingAwaitingBehaviorCompletion {
+            guard behaviorCompletionFallbackDidExpire(at: now) else {
+                return
+            }
+            prepareFreeRoamingTargetAndSchedule()
+            return
+        }
         let elapsedSeconds = elapsedSeconds(to: now)
         guard let origin = originProvider(),
               let targetOrigin,
@@ -445,6 +489,7 @@ final class PetMovementController: PetMovementControlling {
         let isEscaping = state == .cursorAvoidingEscaping
         if pointerDistance <= settings.cursorAvoidingDetectionDistance
             || (isEscaping && pointerDistance < releaseDistance) {
+            cancelBehaviorCompletionWaitIfNeeded()
             cursorAvoidingDwellStartedAt = nil
             cursorAvoidingDwellDuration = nil
             guard let route = PetMovementGeometry.cursorAvoidingRoute(
@@ -502,6 +547,15 @@ final class PetMovementController: PetMovementControlling {
         origin: PetMovementPoint,
         petSize: PetMovementSize
     ) {
+        if state == .cursorAvoidingRoamingAwaitingBehaviorCompletion {
+            if behaviorCompletionFallbackDidExpire(at: now) {
+                prepareCursorAvoidingRoamingTargetAndSchedule()
+            } else {
+                updateStationaryActivityIfNeeded(at: now)
+                scheduleTick(after: cursorIdleInterval)
+            }
+            return
+        }
         if let dwellStartedAt = cursorAvoidingDwellStartedAt {
             let dwell = cursorAvoidingDwellDuration
                 ?? sampledFreeRoamingDwellDuration()
@@ -541,10 +595,17 @@ final class PetMovementController: PetMovementControlling {
             return
         }
         self.targetOrigin = nil
-        cursorAvoidingDwellStartedAt = now
-        cursorAvoidingDwellDuration = sampledFreeRoamingDwellDuration()
-        state = .cursorAvoidingRoamingDwelling
-        scheduleTick(after: cursorIdleInterval)
+        if settings.freeRoamingDwellMode == .behaviorCompletion {
+            beginBehaviorCompletionWait(
+                state: .cursorAvoidingRoamingAwaitingBehaviorCompletion,
+                keepsPollingPointer: true
+            )
+        } else {
+            cursorAvoidingDwellStartedAt = now
+            cursorAvoidingDwellDuration = sampledFreeRoamingDwellDuration()
+            state = .cursorAvoidingRoamingDwelling
+            scheduleTick(after: cursorIdleInterval)
+        }
     }
 
     private func prepareCursorAvoidingBaselineAndSchedule() {
@@ -661,11 +722,67 @@ final class PetMovementController: PetMovementControlling {
 
     private func beginFreeRoamingDwell() {
         emit(activity: .stationary)
-        state = .freeRoamingDwelling
         lastMovedAt = nil
+        if settings.freeRoamingDwellMode == .behaviorCompletion {
+            beginBehaviorCompletionWait(
+                state: .freeRoamingAwaitingBehaviorCompletion,
+                keepsPollingPointer: false
+            )
+            return
+        }
+        state = .freeRoamingDwelling
         scheduleTick(
             after: sampledFreeRoamingDwellDuration()
         )
+    }
+
+    private func beginBehaviorCompletionWait(
+        state: PetMovementControllerState,
+        keepsPollingPointer: Bool
+    ) {
+        emit(activity: .stationary)
+        lastMovedAt = nil
+        self.state = state
+        behaviorCompletionFallbackAt = nil
+        if requestStationaryBehaviorCompletion() {
+            if keepsPollingPointer {
+                scheduleTick(after: cursorIdleInterval)
+            } else {
+                tickScheduler.cancel()
+            }
+            return
+        }
+        behaviorCompletionFallbackAt = clock.now.advanced(
+            by: Self.defaultBehaviorCompletionFallbackDelay
+        )
+        scheduleTick(
+            after: keepsPollingPointer
+                ? cursorIdleInterval
+                : Self.defaultBehaviorCompletionFallbackDelay
+        )
+    }
+
+    private func behaviorCompletionFallbackDidExpire(
+        at now: ContinuousClock.Instant
+    ) -> Bool {
+        guard let behaviorCompletionFallbackAt else {
+            return false
+        }
+        if now < behaviorCompletionFallbackAt {
+            return false
+        }
+        self.behaviorCompletionFallbackAt = nil
+        return true
+    }
+
+    private func cancelBehaviorCompletionWaitIfNeeded() {
+        guard state == .freeRoamingAwaitingBehaviorCompletion
+                || state == .cursorAvoidingRoamingAwaitingBehaviorCompletion
+        else {
+            return
+        }
+        behaviorCompletionFallbackAt = nil
+        cancelStationaryBehaviorCompletion()
     }
 
     private func sampledFreeRoamingDwellDuration() -> Duration {
@@ -838,12 +955,14 @@ final class PetMovementController: PetMovementControlling {
     }
 
     private func resetRuntimeState() {
+        cancelBehaviorCompletionWaitIfNeeded()
         tickScheduler.cancel()
         targetOrigin = nil
         lastTickAt = nil
         lastMovedAt = nil
         cursorAvoidingDwellStartedAt = nil
         cursorAvoidingDwellDuration = nil
+        behaviorCompletionFallbackAt = nil
         directionClassifier.reset()
         emit(activity: .stationary)
     }

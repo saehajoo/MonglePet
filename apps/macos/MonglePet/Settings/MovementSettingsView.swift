@@ -628,13 +628,6 @@ struct MovementSettingsView: View {
         )
     }
 
-    private var randomizesFreeRoamingDwellBinding: Binding<Bool> {
-        Binding(
-            get: { movement.randomizesFreeRoamingDwell },
-            set: { apply(.randomizesFreeRoamingDwell($0)) }
-        )
-    }
-
     private var prefersFrontmostWindowBinding: Binding<Bool> {
         Binding(
             get: { movement.prefersFrontmostWindow },
@@ -717,16 +710,18 @@ struct MovementSettingsView: View {
                     "머무는 시간 방식",
                     selection: dwellTimingModeBinding
                 ) {
-                    Text("고정").tag(DwellTimingMode.fixed)
-                    Text("랜덤").tag(DwellTimingMode.random)
+                    Text("고정").tag(FreeRoamingDwellMode.fixed)
+                    Text("랜덤").tag(FreeRoamingDwellMode.random)
+                    Text("행동 완료 후")
+                        .tag(FreeRoamingDwellMode.behaviorCompletion)
                 }
                 .labelsHidden()
                 .pickerStyle(.segmented)
-                .frame(width: 150)
+                .frame(width: 270)
                 .accessibilityIdentifier("\(accessibilityPrefix).mode")
             }
 
-            if movement.randomizesFreeRoamingDwell {
+            if movement.freeRoamingDwellMode == .random {
                 dwellInputRow(
                     title: "최소 시간",
                     value: freeRoamingDwellMinimumSecondsBinding,
@@ -744,7 +739,7 @@ struct MovementSettingsView: View {
                 Text("목표 위치에 도착할 때마다 최소~최대 범위에서 한 번만 시간을 뽑습니다.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-            } else {
+            } else if movement.freeRoamingDwellMode == .fixed {
                 dwellInputRow(
                     title: "머무는 시간",
                     value: freeRoamingDwellSecondsBinding,
@@ -752,6 +747,10 @@ struct MovementSettingsView: View {
                     accessibilityIdentifier: accessibilityPrefix
                 )
                 Text("목표 위치에 도착한 뒤 \(dwellText(freeRoamingDwellSecondsBinding.wrappedValue)) 동안 머뭅니다.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("목표 위치에서 현재 평상시 행동의 한 회차를 끝낸 뒤 다음 위치로 이동합니다. 매우 긴 행동은 이동까지 오래 걸릴 수 있습니다.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -825,15 +824,10 @@ struct MovementSettingsView: View {
         .accessibilityIdentifier(accessibilityIdentifier)
     }
 
-    private var dwellTimingModeBinding: Binding<DwellTimingMode> {
+    private var dwellTimingModeBinding: Binding<FreeRoamingDwellMode> {
         Binding(
-            get: {
-                movement.randomizesFreeRoamingDwell ? .random : .fixed
-            },
-            set: { mode in
-                randomizesFreeRoamingDwellBinding.wrappedValue =
-                    mode == .random
-            }
+            get: { movement.freeRoamingDwellMode },
+            set: { apply(.freeRoamingDwellMode($0)) }
         )
     }
 
@@ -1316,7 +1310,7 @@ struct MovementSettingsView: View {
             speed: Double? = nil,
             stopRadius: Double? = nil,
             dwell: Int64? = nil,
-            randomizesDwell: Bool? = nil,
+            dwellMode: FreeRoamingDwellMode? = nil,
             minimumDwell: Int64? = nil,
             prefersFrontmostWindow: Bool? = nil,
             animation: MovementAnimationSettings? = nil
@@ -1326,14 +1320,14 @@ struct MovementSettingsView: View {
                 speed: speed ?? source.speed,
                 stopRadius: stopRadius ?? source.stopRadius,
                 dwellMilliseconds: maximum,
-                randomizesDwell: randomizesDwell ?? source.randomizesDwell,
                 dwellMinimumMilliseconds: min(
                     minimumDwell ?? source.dwellMinimumMilliseconds,
                     maximum
                 ),
                 prefersFrontmostWindow: prefersFrontmostWindow
                     ?? source.prefersFrontmostWindow,
-                animation: animation ?? source.animation
+                animation: animation ?? source.animation,
+                dwellMode: dwellMode ?? source.dwellMode
             )
         }
 
@@ -1417,10 +1411,8 @@ struct MovementSettingsView: View {
                 AppSettingsLimits.maximumFreeRoamingDwellMilliseconds
             )
             updateActiveRoaming { replacingRoaming($0, dwell: maximum) }
-        case let .randomizesFreeRoamingDwell(value):
-            updateActiveRoaming {
-                replacingRoaming($0, randomizesDwell: value)
-            }
+        case let .freeRoamingDwellMode(value):
+            updateActiveRoaming { replacingRoaming($0, dwellMode: value) }
         case let .freeRoamingDwellMinimumMilliseconds(value):
             updateActiveRoaming {
                 replacingRoaming(
@@ -1476,7 +1468,7 @@ private enum MovementEdit {
     case cursorDistance(Double)
     case stopRadius(Double)
     case freeRoamingDwellMilliseconds(Int64)
-    case randomizesFreeRoamingDwell(Bool)
+    case freeRoamingDwellMode(FreeRoamingDwellMode)
     case freeRoamingDwellMinimumMilliseconds(Int64)
     case prefersFrontmostWindow(Bool)
     case cursorFollowingAnimation(MovementAnimationSettings)
@@ -1492,9 +1484,4 @@ private enum CustomAreaField {
     case y
     case width
     case height
-}
-
-private enum DwellTimingMode: Hashable {
-    case fixed
-    case random
 }

@@ -36,7 +36,7 @@ final class RecommendedPetProfileTests: XCTestCase {
         let object = try XCTUnwrap(
             JSONSerialization.jsonObject(with: data) as? [String: Any]
         )
-        XCTAssertEqual(object["schemaVersion"] as? Int, 11)
+        XCTAssertEqual(object["schemaVersion"] as? Int, 12)
         XCTAssertNotNil(object["behavior"])
         XCTAssertNotNil(object["movement"])
         XCTAssertNotNil(object["automaticRules"])
@@ -209,6 +209,105 @@ final class RecommendedPetProfileTests: XCTestCase {
         XCTAssertTrue(decoded.display.pixelArtRendering)
     }
 
+    func testSchemaV12RoundTripsBehaviorCompletionDwellIndependently() throws {
+        let base = PetMovementSettings.default
+        let movement = PetMovementSettings(
+            mode: .cursorAvoiding,
+            cursorFollowing: base.cursorFollowing,
+            freeRoaming: FreeRoamingMovementSettings(
+                speed: 180,
+                stopRadius: 16,
+                dwellMilliseconds: 8_000,
+                dwellMinimumMilliseconds: 2_000,
+                prefersFrontmostWindow: true,
+                animation: .single(nil),
+                dwellMode: .behaviorCompletion
+            ),
+            cursorAvoiding: CursorAvoidingMovementSettings(
+                idleBehavior: .freeRoaming,
+                detectionDistance: 180,
+                speed: 360,
+                stopRadius: 20,
+                animation: .single(nil),
+                idleFreeRoaming: FreeRoamingMovementSettings(
+                    speed: 90,
+                    stopRadius: 12,
+                    dwellMilliseconds: 4_000,
+                    dwellMinimumMilliseconds: 1_000,
+                    prefersFrontmostWindow: false,
+                    animation: .single(nil),
+                    dwellMode: .fixed
+                )
+            )
+        )
+        let profile = makeProfile(movement: movement)
+
+        let data = try RecommendedPetProfileCodec.encode(
+            profile,
+            for: petDefinition
+        )
+        let decoded = try RecommendedPetProfileCodec.decode(
+            data,
+            for: petDefinition
+        )
+        let object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: data) as? [String: Any]
+        )
+        let storedMovement = try XCTUnwrap(
+            object["movement"] as? [String: Any]
+        )
+        let storedRoaming = try XCTUnwrap(
+            storedMovement["freeRoaming"] as? [String: Any]
+        )
+
+        XCTAssertEqual(object["schemaVersion"] as? Int, 12)
+        XCTAssertEqual(storedRoaming["dwellMode"] as? String, "behaviorCompletion")
+        XCTAssertEqual(decoded, profile)
+    }
+
+    func testSchemaV11LegacyDwellBooleanRemainsReadable() throws {
+        let encoded = try RecommendedPetProfileCodec.encode(
+            makeProfile(),
+            for: petDefinition
+        )
+        var object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: encoded) as? [String: Any]
+        )
+        object["schemaVersion"] = 11
+        var movement = try XCTUnwrap(
+            object["movement"] as? [String: Any]
+        )
+        var roaming = try XCTUnwrap(
+            movement["freeRoaming"] as? [String: Any]
+        )
+        roaming.removeValue(forKey: "dwellMode")
+        roaming["randomizesDwell"] = true
+        movement["freeRoaming"] = roaming
+        var avoiding = try XCTUnwrap(
+            movement["cursorAvoiding"] as? [String: Any]
+        )
+        var idleRoaming = try XCTUnwrap(
+            avoiding["idleFreeRoaming"] as? [String: Any]
+        )
+        idleRoaming.removeValue(forKey: "dwellMode")
+        idleRoaming["randomizesDwell"] = false
+        avoiding["idleFreeRoaming"] = idleRoaming
+        movement["cursorAvoiding"] = avoiding
+        object["movement"] = movement
+        let legacyData = try JSONSerialization.data(withJSONObject: object)
+
+        let decoded = try RecommendedPetProfileCodec.decode(
+            legacyData,
+            for: petDefinition
+        )
+
+        XCTAssertEqual(decoded.movement.freeRoaming.dwellMode, .random)
+        XCTAssertEqual(
+            decoded.movement.cursorAvoiding.idleFreeRoaming.dwellMode,
+            .fixed
+        )
+    }
+
     func testSchemaV10ManualProfileKeepsSelectionButDisablesDormantRules() throws {
         let encoded = try RecommendedPetProfileCodec.encode(
             makeProfile(),
@@ -218,6 +317,7 @@ final class RecommendedPetProfileTests: XCTestCase {
             JSONSerialization.jsonObject(with: encoded) as? [String: Any]
         )
         object["schemaVersion"] = 10
+        object = try replacingDwellModesWithLegacyBooleans(in: object)
         var behavior = try XCTUnwrap(object["behavior"] as? [String: Any])
         behavior["mode"] = "manual"
         behavior["manualSequenceID"] = behavior["stationarySequenceID"]
@@ -466,7 +566,7 @@ final class RecommendedPetProfileTests: XCTestCase {
         var object = try XCTUnwrap(
             JSONSerialization.jsonObject(with: data) as? [String: Any]
         )
-        object["schemaVersion"] = 12
+        object["schemaVersion"] = 13
         let futureData = try JSONSerialization.data(withJSONObject: object)
 
         XCTAssertThrowsError(
@@ -477,7 +577,7 @@ final class RecommendedPetProfileTests: XCTestCase {
         ) { error in
             XCTAssertEqual(
                 error as? RecommendedPetProfileError,
-                .unsupportedSchemaVersion(12)
+                .unsupportedSchemaVersion(13)
             )
         }
         XCTAssertThrowsError(
@@ -935,6 +1035,34 @@ final class RecommendedPetProfileTests: XCTestCase {
             )
             movement[animationKey] = value
         }
+        object["movement"] = movement
+        return object
+    }
+
+    private func replacingDwellModesWithLegacyBooleans(
+        in object: [String: Any]
+    ) throws -> [String: Any] {
+        var object = object
+        var movement = try XCTUnwrap(
+            object["movement"] as? [String: Any]
+        )
+        var roaming = try XCTUnwrap(
+            movement["freeRoaming"] as? [String: Any]
+        )
+        roaming["randomizesDwell"] =
+            roaming.removeValue(forKey: "dwellMode") as? String == "random"
+        movement["freeRoaming"] = roaming
+        var avoiding = try XCTUnwrap(
+            movement["cursorAvoiding"] as? [String: Any]
+        )
+        var idleRoaming = try XCTUnwrap(
+            avoiding["idleFreeRoaming"] as? [String: Any]
+        )
+        idleRoaming["randomizesDwell"] =
+            idleRoaming.removeValue(forKey: "dwellMode") as? String
+                == "random"
+        avoiding["idleFreeRoaming"] = idleRoaming
+        movement["cursorAvoiding"] = avoiding
         object["movement"] = movement
         return object
     }

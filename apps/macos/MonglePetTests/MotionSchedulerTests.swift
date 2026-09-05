@@ -308,6 +308,28 @@ final class MotionSchedulerTests: XCTestCase {
         XCTAssertEqual(scheduler.activeCycleRemainingDuration, .zero)
     }
 
+    func testCompletedPassCountAdvancesAtWholeSequenceBoundary() throws {
+        var scheduler = MotionScheduler(petDefinition: makePet())
+        let sequence = makeSequence(
+            id: "stationary",
+            steps: [
+                makeStep(motionID: "focus", repeatCount: 1),
+                makeStep(motionID: "rest", repeatCount: 1)
+            ]
+        )
+
+        XCTAssertTrue(scheduler.request(sequence))
+        XCTAssertEqual(scheduler.completedBaseSequencePassCount, 0)
+
+        scheduler.advance(by: .seconds(1))
+        XCTAssertEqual(try playback(from: scheduler).motion.id, "rest")
+        XCTAssertEqual(scheduler.completedBaseSequencePassCount, 0)
+
+        scheduler.advance(by: .seconds(2))
+        XCTAssertEqual(try playback(from: scheduler).motion.id, "focus")
+        XCTAssertEqual(scheduler.completedBaseSequencePassCount, 1)
+    }
+
     func testInvalidRepeatCountAndEmptyMotionAreRejected() {
         var scheduler = MotionScheduler(petDefinition: makePet())
         let valid = makeSequence(

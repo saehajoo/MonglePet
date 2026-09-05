@@ -59,6 +59,7 @@ nonisolated struct MotionScheduler: Sendable {
     private var interactionCursor: Cursor?
     private var cooldownRemaining: Duration = .zero
     private(set) var isPaused = false
+    private(set) var completedBaseSequencePassCount: UInt64 = 0
 
     init(
         petDefinition: PetDefinition,
@@ -190,6 +191,7 @@ nonisolated struct MotionScheduler: Sendable {
         interactionCursor = nil
         cooldownRemaining = .zero
         isPaused = false
+        completedBaseSequencePassCount = 0
     }
 
     private func status(
@@ -251,6 +253,7 @@ nonisolated struct MotionScheduler: Sendable {
 
             remainingElapsed -= cursor.remainingCycleDuration
 
+            let completesSequencePass = cycleCompletesSequencePass(cursor)
             if advanceCursorAfterCycle(&cursor) {
                 baseCursor = cursor
             } else {
@@ -258,7 +261,19 @@ nonisolated struct MotionScheduler: Sendable {
                 cursor.isComplete = true
                 baseCursor = cursor
             }
+            if completesSequencePass {
+                completedBaseSequencePassCount &+= 1
+            }
         }
+    }
+
+    private func cycleCompletesSequencePass(_ cursor: Cursor) -> Bool {
+        guard cursor.steps.indices.contains(cursor.stepIndex) else {
+            return false
+        }
+        let step = cursor.steps[cursor.stepIndex]
+        return cursor.stepIndex == cursor.steps.index(before: cursor.steps.endIndex)
+            && cursor.completedCycles + 1 >= step.repeatCount
     }
 
     private func advanceCursorAfterCycle(_ cursor: inout Cursor) -> Bool {

@@ -147,6 +147,96 @@ final class PetBehaviorRuntimeTests: XCTestCase {
         }
     }
 
+    func testMovementRequestCompletesAfterCurrentFixedBehaviorPass() {
+        let clock = ManualBehaviorRuntimeClock()
+        let tickScheduler = ManualBehaviorTickScheduler()
+        var completionCount = 0
+        let runtime = PetBehaviorRuntime(
+            petDefinition: makePet(),
+            clock: clock,
+            tickScheduler: tickScheduler
+        ) { _ in }
+        runtime.setStationaryBehaviorPassCompletionHandler {
+            completionCount += 1
+        }
+        let sequence = BehaviorSequence(
+            id: "two-step-stationary",
+            steps: [
+                BehaviorStep(motionID: "focus", repeatCount: 1),
+                BehaviorStep(motionID: "rest", repeatCount: 1)
+            ],
+            repeats: true
+        )
+        let settings = AppSettings(
+            selectedPetInstallationID: nil,
+            lastUserPresentation: .awake,
+            behaviorMode: .manual,
+            overlay: .default,
+            manualSequenceID: sequence.id,
+            sequences: [sequence],
+            automaticRules: []
+        )
+
+        runtime.update(settings: settings, snapshot: snapshot())
+        XCTAssertTrue(runtime.requestMovementAfterStationaryBehaviorPass())
+
+        clock.advance(by: .milliseconds(100))
+        tickScheduler.fire()
+        XCTAssertEqual(completionCount, 0)
+        XCTAssertEqual(runtime.currentPlayback?.motion.id, "rest")
+
+        clock.advance(by: .milliseconds(100))
+        tickScheduler.fire()
+        XCTAssertEqual(completionCount, 1)
+        XCTAssertEqual(runtime.currentPlayback?.motion.id, "focus")
+    }
+
+    func testMovementRequestStopsRandomAdvanceAtCompletedPass() {
+        let clock = ManualBehaviorRuntimeClock()
+        let tickScheduler = ManualBehaviorTickScheduler()
+        var completionCount = 0
+        let runtime = PetBehaviorRuntime(
+            petDefinition: makePet(),
+            clock: clock,
+            tickScheduler: tickScheduler,
+            randomIndex: { _ in 0 }
+        ) { _ in }
+        runtime.setStationaryBehaviorPassCompletionHandler {
+            completionCount += 1
+        }
+        let focus = BehaviorSequence(
+            id: "focus",
+            steps: [BehaviorStep(motionID: "focus", repeatCount: 1)],
+            repeats: true
+        )
+        let rest = BehaviorSequence(
+            id: "rest",
+            steps: [BehaviorStep(motionID: "rest", repeatCount: 1)],
+            repeats: true
+        )
+        let settings = AppSettings(
+            selectedPetInstallationID: nil,
+            lastUserPresentation: .awake,
+            behaviorMode: .random,
+            overlay: .default,
+            manualSequenceID: nil,
+            randomSequenceIDs: [focus.id, rest.id],
+            sequences: [focus, rest],
+            automaticRules: []
+        )
+
+        runtime.update(settings: settings, snapshot: snapshot())
+        XCTAssertEqual(runtime.currentPlayback?.motion.id, "focus")
+        XCTAssertTrue(runtime.requestMovementAfterStationaryBehaviorPass())
+
+        clock.advance(by: .milliseconds(100))
+        tickScheduler.fire()
+
+        XCTAssertEqual(completionCount, 1)
+        XCTAssertEqual(runtime.currentPlayback?.motion.id, "focus")
+        XCTAssertNil(tickScheduler.scheduledDelay)
+    }
+
     private func assertFixedBehaviorRepeats(legacyRepeats: Bool) {
         let clock = ManualBehaviorRuntimeClock()
         let tickScheduler = ManualBehaviorTickScheduler()

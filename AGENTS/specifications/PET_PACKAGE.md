@@ -277,11 +277,11 @@ GIF, APNG 또는 PNG 시퀀스는 다음 기본 manifest를 생성해 내부 패
 
 `recommended-profile.json`은 펫 패키지와 독립적으로 버전을 갖는 휴대 설정 데이터다. 이 파일명과 `권장 프로필`은 내부 계약 용어이며 사용자 화면에서는 `제작자 설정` 또는 `제작자가 구성한 설정`으로 설명한다. 새 내보내기에는 항상 들어가며, 가져올 때 유효하면 새 installation에 연결된 독립 instance·편집 가능한 로컬 profile과 휴대 표시 설정으로 자동 복사한다. 기존 펫 인스턴스와 전역 설정에는 적용하지 않는다.
 
-새 내보내기가 사용하는 schema-v11은 schema-v10의 독립 이동·휴대 표시 구조를 유지하면서 평상시 행동 선택과 조건 규칙을 분리한다. 아래 JSON은 중첩 위치만 보여주는 설명용 축약이며 `behavior`·`speech`·이동 행동의 전체 하위 필드는 실제 인코더 출력과 fixture를 따른다.
+새 내보내기가 사용하는 schema-v12는 schema-v11의 평상시 행동·조건 규칙 분리와 독립 이동·휴대 표시 구조를 유지하면서 자유 이동 시간 방식을 명시적인 enum으로 저장한다. 아래 JSON은 중첩 위치만 보여주는 설명용 축약이며 `behavior`·`speech`·이동 행동의 전체 하위 필드는 실제 인코더 출력과 fixture를 따른다.
 
 ```json
 {
-  "schemaVersion": 11,
+  "schemaVersion": 12,
   "behavior": {
     "stationaryBehaviorMode": "random",
     "stationarySequenceID": null,
@@ -300,7 +300,7 @@ GIF, APNG 또는 PNG 시퀀스는 다음 기본 manifest를 생성해 내부 패
       "speed": 160,
       "stopRadius": 24,
       "dwellMilliseconds": 8000,
-      "randomizesDwell": true,
+      "dwellMode": "behaviorCompletion",
       "dwellMinimumMilliseconds": 2000,
       "prefersFrontmostWindow": true,
       "behavior": {}
@@ -315,7 +315,7 @@ GIF, APNG 또는 PNG 시퀀스는 다음 기본 manifest를 생성해 내부 패
         "speed": 90,
         "stopRadius": 12,
         "dwellMilliseconds": 12000,
-        "randomizesDwell": false,
+        "dwellMode": "random",
         "dwellMinimumMilliseconds": 4000,
         "prefersFrontmostWindow": false,
         "behavior": {}
@@ -338,11 +338,12 @@ GIF, APNG 또는 PNG 시퀀스는 다음 기본 manifest를 생성해 내부 패
 ```
 
 - 평상시 행동 방식은 `fixed`, `random`, 이동 모드는 `fixed`, `cursorFollowing`, `freeRoaming`, `cursorAvoiding`만 허용한다. `fixed`의 `stationarySequenceID: null`은 현재 펫의 기본 행동을 뜻한다.
+- 자유 이동과 마우스 도망가기의 `idleFreeRoaming`은 각각 `dwellMode: fixed | random | behaviorCompletion`을 독립 저장한다. `fixed`는 `dwellMilliseconds`, `random`은 `dwellMinimumMilliseconds...dwellMilliseconds`, `behaviorCompletion`은 현재 평상시 행동 한 회차의 완료 경계를 사용한다. v11 이하의 `randomizesDwell: false/true`는 `fixed/random`으로 읽는다.
 - schema-v10 이하의 `automatic`은 `fixed + null`, `manual`은 `fixed + manualSequenceID`, `random`은 `random`으로 읽는다. `manual`·`random`에서 과거 실행되지 않던 규칙은 갑작스러운 동작 변경을 막기 위해 비활성화하고 조건·행동·순서는 보존한다.
 - schema-v10의 `cursorFollowing`, `freeRoaming`, `cursorAvoiding`과 `cursorAvoiding.idleFreeRoaming`은 서로 값을 공유하지 않는다. schema-v9 이하의 공용 값은 읽을 때 관련 모드 각각에 복제해 최초 동작을 보존한다.
 - schema-v10부터의 `display`는 192pt=100%의 10~200% 크기, 클릭 통과, 기본 불투명도, 포인터 겹침 투명화 사용·불투명도와 픽셀 표시를 기록한다.
 - schema-v9는 사용자 기능이 행동 ID를 참조하도록 한다. 행동 ID는 안정적으로 유지하고 `displayName`만 바꿀 수 있다. 랜덤·이동·쓰다듬기 행동도 반드시 `behavior.sequences`에 존재해야 한다.
-- schema-v9 이하는 `display`가 없으므로 새로 가져온 instance에는 안전한 기본 표시 설정을 사용한다. 현재 앱에서 다시 내보내면 v11 표시 기본값을 명시한다.
+- schema-v9 이하는 `display`가 없으므로 새로 가져온 instance에는 안전한 기본 표시 설정을 사용한다. 현재 앱에서 다시 내보내면 v12 표시 기본값을 명시한다.
 - schema-v7은 말풍선의 `automatic` / `above` / `below` 선호 위치, -160~160pt 좌우 오프셋과 0~64pt 간격을 기록한다. v1~v7의 이동·쓰다듬기 애니메이션 직접 참조는 schema-v12 설정과 같은 한 단계 행동 승격 규칙으로 읽는다.
 - schema-v6는 주기 대사 독립 사용 여부, `random` / `sequential` 순서, 행동 전환의 `dismiss` / `keep` 정책과 대사별 `timed` / `untilNextPhrase` 표시 방식을 기록한다.
 - schema-v5는 schema-v4 말풍선 설정에 색상 preset·사용자 지정 색상, 불투명도, 글자 크기, 여백, 모서리와 꼬리 설정을 추가한다. 사용자 지정 색상과 수치 범위는 로컬 설정과 같은 검증을 적용한다.
@@ -366,7 +367,7 @@ GIF, APNG 또는 PNG 시퀀스는 다음 기본 manifest를 생성해 내부 패
 ### 제작자 설정 가져오기
 
 - 패키지 선택 직후 설치하지 않고 `펫 추가` 화면에서 이름, 버전, 제작자와 애니메이션 수를 먼저 표시한다.
-- 유효한 `recommended-profile.json`이 있으면 평상시 하나·랜덤 선택과 선택 행동, 행동 단계, 조건 규칙의 전체·사용 개수와 조건·종류 순서, 세 이동 방식의 독립 속도·거리·정지 반경·시간 방식, 도망가기 평상시 설정, 모드별 공통·방향 행동, 쓰다듬기, 말풍선 전체와 크기·클릭 통과·투명도·픽셀 표시를 공통 요약으로 표시한다.
+- 유효한 `recommended-profile.json`이 있으면 평상시 하나·랜덤 선택과 선택 행동, 행동 단계, 조건 규칙의 전체·사용 개수와 조건·종류 순서, 세 이동 방식의 독립 속도·거리·정지 반경·`고정`·`랜덤`·`행동 완료 후` 시간 방식, 도망가기 평상시 설정, 모드별 공통·방향 행동, 쓰다듬기, 말풍선 전체와 크기·클릭 통과·투명도·픽셀 표시를 공통 요약으로 표시한다.
 - 공통 요약의 행동 루틴, 조건 규칙 대상, 이동과 쓰다듬기 참조는 내부 안정 ID가 아니라 같은 프로필의 `displayName`으로 표시한다. 참조가 손상된 경우 원시 값을 노출하지 않고 `찾을 수 없는 행동`으로 표시한다. 앱 규칙의 bundle identifier는 공유 동의에 필요한 확인 정보이므로 앱 규칙을 포함한 경우에만 명시한다.
 - 공통 요약은 `이동`, `입력 없음`, `앱 사용` 우선순위를 실제 목록 순서로 표시하고 따라가기·일반 자유 이동·도망가기·도망가기 평상시 자유 이동의 수치·시간 방식·행동을 각각 구분한다.
 - 같은 화면에 화면 위치·디스플레이·모든 펫 공통 이동 범위·깨움·로그인 실행은 포함되지 않는 기기·인스턴스 설정임을 안내한다. v9 이하에는 휴대 표시 설정이 없어서 새 instance가 안전한 기본 표시값을 사용한다는 것도 구분해 표시한다.

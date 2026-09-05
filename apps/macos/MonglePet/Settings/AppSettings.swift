@@ -1,7 +1,7 @@
 import Foundation
 
 nonisolated enum AppSettingsLimits {
-    static let schemaVersion = 15
+    static let schemaVersion = 16
     static let maximumFileSize = 5 * 1_024 * 1_024
     /// Corrupt-file defense only; this is not a product-facing pet limit.
     static let maximumStoredPetInstances = 10_000
@@ -141,6 +141,12 @@ nonisolated enum PetMovementMode: Hashable, Sendable {
 nonisolated enum CursorAvoidingIdleBehavior: Hashable, Sendable {
     case stationary
     case freeRoaming
+}
+
+nonisolated enum FreeRoamingDwellMode: String, Hashable, Sendable {
+    case fixed
+    case random
+    case behaviorCompletion
 }
 
 nonisolated enum PetSpeechBubbleColorStyle:
@@ -564,10 +570,34 @@ nonisolated struct FreeRoamingMovementSettings: Equatable, Sendable {
     let speed: Double
     let stopRadius: Double
     let dwellMilliseconds: Int64
-    let randomizesDwell: Bool
+    let dwellMode: FreeRoamingDwellMode
     let dwellMinimumMilliseconds: Int64
     let prefersFrontmostWindow: Bool
     let animation: MovementAnimationSettings
+
+    init(
+        speed: Double,
+        stopRadius: Double,
+        dwellMilliseconds: Int64,
+        randomizesDwell: Bool = false,
+        dwellMinimumMilliseconds: Int64,
+        prefersFrontmostWindow: Bool,
+        animation: MovementAnimationSettings,
+        dwellMode: FreeRoamingDwellMode? = nil
+    ) {
+        self.speed = speed
+        self.stopRadius = stopRadius
+        self.dwellMilliseconds = dwellMilliseconds
+        self.dwellMode = dwellMode
+            ?? (randomizesDwell ? .random : .fixed)
+        self.dwellMinimumMilliseconds = dwellMinimumMilliseconds
+        self.prefersFrontmostWindow = prefersFrontmostWindow
+        self.animation = animation
+    }
+
+    var randomizesDwell: Bool {
+        dwellMode == .random
+    }
 
     var isValid: Bool {
         speed.isFinite
@@ -649,7 +679,8 @@ nonisolated struct PetMovementSettings: Equatable, Sendable {
             AppSettingsLimits.defaultCursorAvoidingSpeed,
         cursorAvoidingAnimation: MovementAnimationSettings = .single(nil),
         randomizesFreeRoamingDwell: Bool = false,
-        freeRoamingDwellMinimumMilliseconds: Int64? = nil
+        freeRoamingDwellMinimumMilliseconds: Int64? = nil,
+        freeRoamingDwellMode: FreeRoamingDwellMode? = nil
     ) {
         let minimumDwell =
             freeRoamingDwellMinimumMilliseconds
@@ -671,7 +702,8 @@ nonisolated struct PetMovementSettings: Equatable, Sendable {
             randomizesDwell: randomizesFreeRoamingDwell,
             dwellMinimumMilliseconds: minimumDwell,
             prefersFrontmostWindow: prefersFrontmostWindow,
-            animation: roamingAnimation
+            animation: roamingAnimation,
+            dwellMode: freeRoamingDwellMode
         )
         self.init(
             mode: mode,
@@ -739,6 +771,9 @@ nonisolated struct PetMovementSettings: Equatable, Sendable {
         activeRoaming.dwellMilliseconds
     }
     var randomizesFreeRoamingDwell: Bool { activeRoaming.randomizesDwell }
+    var freeRoamingDwellMode: FreeRoamingDwellMode {
+        activeRoaming.dwellMode
+    }
     var freeRoamingDwellMinimumMilliseconds: Int64 {
         activeRoaming.dwellMinimumMilliseconds
     }

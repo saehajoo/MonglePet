@@ -941,3 +941,11 @@
 - 결정: D-118의 단일 `펫 추가`, 제작자 설정 자동 적용·fallback, 탐색 순서와 Windows 웹 protocol 전면 전환·등록 보강을 `1.6.0.18`, 태그 `windows-v1.6.0-preview.4`로 게시한다.
 - 이유: macOS Preview 3에서 확정한 가져오기 결과를 Windows에도 제공하고, 브라우저가 실행 중 앱을 열었지만 설정 창이 뒤에 남거나 unpackaged URL association이 불완전하게 검색될 가능성을 기존 Preview 자산을 덮어쓰지 않고 보완해야 한다.
 - 비고: 마케팅 버전 `1.6.0`, Inno Setup AppId, `%LOCALAPPDATA%\MonglePet`, schema-v15, 권장 프로필 v11과 `.monglepet` formatVersion은 유지한다. 설치기는 브라우저 프로필이나 외부 앱 실행 권한을 수정하지 않으며 웹은 무응답 시 재시도·직접 패키지 가져오기 fallback을 제공해야 한다. 미서명 x64 EXE와 `SHA256SUMS.txt`를 GitHub Pre-release로 제공하고 실제 macOS 교차 왕복은 플랫폼 동등성 후속 QA로 유지한다.
+
+## D-120 평상시 행동 완료 후 이동
+
+- 상태: accepted
+- 날짜: 2026-09-05
+- 결정: 자유 이동과 마우스 도망가기의 평상시 자유 이동은 목표 도착 뒤 다음 이동 시점을 `fixed`, `random`, `behaviorCompletion` 세 시간 방식 중 하나로 독립 설정한다. `behaviorCompletion`은 현재 평상시 행동의 진행 중인 한 회차가 모든 단계와 단계별 반복 횟수를 마친 직후 다음 목표 이동을 시작한다. 고정 행동은 현재 회차 끝을 사용하고 랜덤 행동은 현재 선택 한 건의 끝을 사용한다. 마우스 도망가기에서 실제 포인터가 감지 범위에 들어오면 이 대기를 취소하고 즉시 도망간다.
+- 이유: 고정·랜덤 초 기반 머무르기는 애니메이션 길이와 무관해 행동 도중 이동 행동으로 잘리거나 짧은 행동 뒤 불필요하게 오래 멈출 수 있다. 행동 완료 경계를 선택할 수 있으면 제작자가 애니메이션 자체의 길이로 자연스러운 이동 간격을 구성하면서 기존 시간 방식도 유지할 수 있다.
+- 비고: macOS 로컬 설정은 schema-v16, 공유 제작자 설정은 schema-v12로 승격한다. v15·v11의 `randomizesDwell: false/true`는 각각 `fixed/random`으로 무손실 이관한다. 재생 가능한 평상시 행동이 없으면 500ms 뒤 이동하는 안전 fallback을 사용한다. 조건 규칙·이동 우선순위와 `.monglepet` manifest `formatVersion`은 변경하지 않는다. Windows와 웹 서버 검증기는 후속 반영하며 실제 교차 QA 전에는 플랫폼 동등 완료로 표시하지 않는다.
