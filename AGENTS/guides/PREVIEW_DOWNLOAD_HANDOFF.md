@@ -20,21 +20,21 @@
 
 | 항목 | 값 |
 | --- | --- |
-| 제품 버전 | `1.6.0` |
-| Windows 파일 버전 | `1.6.0.18` |
-| 표시 이름 | `MonglePet Windows 1.6.0 Preview 4` |
-| Git 태그 | `windows-v1.6.0-preview.4` |
-| 기준 커밋 | `69e4aaa0a41133ea6315e58640a8e017d5e42bed` |
-| 게시일 | 2026-09-04 |
-| 설치기 파일 | `MonglePet-Windows-1.6.0.18-x64-Setup.exe` |
-| 설치기 크기 | 65,276,445 bytes (약 62.25 MiB) |
-| 설치기 SHA-256 | `B3ADF59C87924EBC75197009511BBC9BF98EA5BCD4591334AE98EC06E7D679D9` |
+| 제품 버전 | `1.7.0` |
+| Windows 파일 버전 | `1.7.0.19` |
+| 표시 이름 | `MonglePet Windows 1.7.0 Preview 1` |
+| Git 태그 | `windows-v1.7.0-preview.1` |
+| 기준 커밋 | `ae2b1850218d2b1e9303a6d8c09bb5f2bf6d0fa9` |
+| 게시일 | 2026-09-05 |
+| 설치기 파일 | `MonglePet-Windows-1.7.0.19-x64-Setup.exe` |
+| 설치기 크기 | 65,284,301 bytes (약 62.26 MiB) |
+| 설치기 SHA-256 | `16D8682EC425385FC686FFF26C06035A7663A05EDDFBF1E3A1ECAE3E4BDA7F45` |
 | 서명 상태 | 미서명 Preview |
 | 업데이트 방식 | 새 설치기를 내려받아 기존 설치 위에 수동 설치 |
 
-- 릴리스 페이지: <https://github.com/saehajoo/MonglePet/releases/tag/windows-v1.6.0-preview.4>
-- 설치기 직접 다운로드: <https://github.com/saehajoo/MonglePet/releases/download/windows-v1.6.0-preview.4/MonglePet-Windows-1.6.0.18-x64-Setup.exe>
-- 체크섬 파일: <https://github.com/saehajoo/MonglePet/releases/download/windows-v1.6.0-preview.4/SHA256SUMS.txt>
+- 릴리스 페이지: <https://github.com/saehajoo/MonglePet/releases/tag/windows-v1.7.0-preview.1>
+- 설치기 직접 다운로드: <https://github.com/saehajoo/MonglePet/releases/download/windows-v1.7.0-preview.1/MonglePet-Windows-1.7.0.19-x64-Setup.exe>
+- 체크섬 파일: <https://github.com/saehajoo/MonglePet/releases/download/windows-v1.7.0-preview.1/SHA256SUMS.txt>
 
 웹사이트에서 GitHub 파일을 그대로 연결할 때는 위 버전 고정 URL을 사용한다. 자체 서버에 복제할 때는 파일명을 바꾸거나 다시 압축하지 말고, 업로드 후 공개 URL에서 내려받은 파일의 SHA-256을 다시 확인한다.
 
@@ -87,22 +87,22 @@ macOS ZIP도 GitHub의 버전 고정 URL을 원본으로 사용한다. 자체 �
 ## 복사 가능한 Markdown 안내
 
 ```markdown
-## MonglePet Windows 1.6.0 Preview 4
+## MonglePet Windows 1.7.0 Preview 1
 
-로컬·웹 가져오기를 단일 `펫 추가`로 통합하고 제작자의 행동·이동·말풍선·표시 설정을 새 펫에 자동 적용하는 Windows Preview입니다. 웹 프로토콜 등록과 실행 중 앱의 전면 전환도 보강했으며 기존 schema-v15 설정과 펫은 그대로 유지됩니다.
+자유 이동과 마우스 도망가기 평상시 자유 이동에 `행동 완료 후` 시간 방식을 추가한 Windows Preview입니다. 현재 행동 한 회차를 마친 뒤 이동하며 기존 schema-v15 설정과 펫은 schema-v16으로 안전하게 이관됩니다.
 
-[Windows용 설치기 다운로드](https://github.com/saehajoo/MonglePet/releases/download/windows-v1.6.0-preview.4/MonglePet-Windows-1.6.0.18-x64-Setup.exe)
+[Windows용 설치기 다운로드](https://github.com/saehajoo/MonglePet/releases/download/windows-v1.7.0-preview.1/MonglePet-Windows-1.7.0.19-x64-Setup.exe)
 
 - 지원 환경: Windows 11 25H2 build 26200 이상, x64
-- 파일 크기: 약 62.25 MiB
-- 버전: 1.6.0.18
-- SHA-256: `B3ADF59C87924EBC75197009511BBC9BF98EA5BCD4591334AE98EC06E7D679D9`
+- 파일 크기: 약 62.26 MiB
+- 버전: 1.7.0.19
+- SHA-256: `16D8682EC425385FC686FFF26C06035A7663A05EDDFBF1E3A1ECAE3E4BDA7F45`
 
 현재 파일은 코드 서명되지 않은 Preview이므로 Windows SmartScreen 경고가 표시될 수 있습니다. 공식 GitHub Release에서 내려받았고 SHA-256이 위 값과 일치할 때만 실행 여부를 판단해 주세요. Smart App Control이나 조직 정책에서 차단되는 환경에서는 보안 설정을 끄지 말고 다음 서명 버전을 기다려 주세요.
 
 기존 MonglePet이 설치되어 있다면 새 설치기를 그대로 실행해 업데이트할 수 있습니다. 기존 설정과 펫 라이브러리는 유지됩니다. 현재 Preview는 자동 업데이트를 제공하지 않습니다.
 
-[릴리스 정보와 체크섬 보기](https://github.com/saehajoo/MonglePet/releases/tag/windows-v1.6.0-preview.4)
+[릴리스 정보와 체크섬 보기](https://github.com/saehajoo/MonglePet/releases/tag/windows-v1.7.0-preview.1)
 ```
 
 ```markdown
@@ -128,31 +128,31 @@ ZIP을 압축 해제하고 `MonglePet.app`을 응용 프로그램 폴더로 이�
 
 ```html
 <section aria-labelledby="monglepet-windows-preview-title">
-  <h2 id="monglepet-windows-preview-title">MonglePet Windows 1.6.0 Preview 4</h2>
+  <h2 id="monglepet-windows-preview-title">MonglePet Windows 1.7.0 Preview 1</h2>
   <p>
-    단일 펫 추가와 제작자 설정 자동 적용, 웹 프로토콜 등록과
-    실행 중 앱의 전면 전환을 보강한 Windows Preview입니다.
+    자유 이동과 마우스 도망가기 평상시 자유 이동에 행동 완료 후
+    이동 방식을 추가한 Windows Preview입니다.
   </p>
   <p>
-    <a href="https://github.com/saehajoo/MonglePet/releases/download/windows-v1.6.0-preview.4/MonglePet-Windows-1.6.0.18-x64-Setup.exe">
+    <a href="https://github.com/saehajoo/MonglePet/releases/download/windows-v1.7.0-preview.1/MonglePet-Windows-1.7.0.19-x64-Setup.exe">
       Windows용 설치기 다운로드
     </a>
   </p>
   <ul>
     <li>Windows 11 25H2 build 26200 이상, x64</li>
-    <li>버전 1.6.0.18 · 약 62.25 MiB</li>
+    <li>버전 1.7.0.19 · 약 62.26 MiB</li>
     <li>미서명 Preview · 수동 업데이트</li>
   </ul>
   <p>
     SHA-256:
-    <code>B3ADF59C87924EBC75197009511BBC9BF98EA5BCD4591334AE98EC06E7D679D9</code>
+    <code>16D8682EC425385FC686FFF26C06035A7663A05EDDFBF1E3A1ECAE3E4BDA7F45</code>
   </p>
   <p>
     코드 서명되지 않은 Preview이므로 SmartScreen 경고가 표시될 수 있습니다.
     공식 GitHub Release 파일과 SHA-256이 일치할 때만 실행 여부를 판단해 주세요.
   </p>
   <p>
-    <a href="https://github.com/saehajoo/MonglePet/releases/tag/windows-v1.6.0-preview.4">
+    <a href="https://github.com/saehajoo/MonglePet/releases/tag/windows-v1.7.0-preview.1">
       릴리스 정보와 체크섬 보기
     </a>
   </p>
@@ -193,14 +193,14 @@ ZIP을 압축 해제하고 `MonglePet.app`을 응용 프로그램 폴더로 이�
 
 ```powershell
 Get-FileHash `
-    "$env:USERPROFILE\Downloads\MonglePet-Windows-1.6.0.18-x64-Setup.exe" `
+    "$env:USERPROFILE\Downloads\MonglePet-Windows-1.7.0.19-x64-Setup.exe" `
     -Algorithm SHA256
 ```
 
 출력된 `Hash`가 아래 값과 정확히 같아야 한다.
 
 ```text
-B3ADF59C87924EBC75197009511BBC9BF98EA5BCD4591334AE98EC06E7D679D9
+16D8682EC425385FC686FFF26C06035A7663A05EDDFBF1E3A1ECAE3E4BDA7F45
 ```
 
 ## macOS에서 SHA-256 확인
@@ -223,7 +223,7 @@ BFBCFFA0290DD298DF5D58F4F5EFAAABE20B92F86F7E2059A276404CDCEEF40D
 1. Windows와 macOS 버튼이 각각 해당 플랫폼의 버전 고정 URL을 가리키는지 확인한다.
 2. 각 카드에 릴리스 정보와 체크섬 링크를 제공하고 macOS에는 빌드 manifest 링크도 제공한다.
 3. Windows 최소 버전·x64·미서명·수동 업데이트와 macOS 최소 버전·지원 아키텍처·제한된 테스터용·미서명·미공증 상태를 버튼 근처에 표시한다.
-4. 자체 서버에 파일을 복제한다면 공개 URL에서 다시 내려받아 Windows 65,276,445 bytes, macOS 11,005,258 bytes와 각 SHA-256을 확인한다.
+4. 자체 서버에 파일을 복제한다면 공개 URL에서 다시 내려받아 Windows 65,284,301 bytes, macOS 11,005,258 bytes와 각 SHA-256을 확인한다.
 5. 브라우저에서 실제 다운로드한 파일명이 원본 설치기 또는 ZIP 이름과 같은지 확인한다.
 6. Windows는 기존 `1.6.0.16` 위 업데이트와 데이터 보존을, macOS는 ZIP 해제·응용 프로그램 폴더 이동·시스템 설정의 개별 앱 승인 흐름을 표본 확인한다.
 7. 공식 GitHub 링크가 아닌 임의의 미러나 파일 공유 링크를 추가하지 않는다.

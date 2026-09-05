@@ -85,8 +85,8 @@
 - [x] 사용자 승인에 따라 마케팅 버전 `1.7.0`, 파일·패키지 버전 `1.7.0.19`로 올린다.
 - [x] Debug·Release 각 332개 테스트와 두 구성 빌드를 통과한다.
 - [x] 기존 설치 위 업데이트에서 사용자 데이터와 설치 DLL 일치를 확인한다.
-- [ ] 소스 커밋과 `origin/main` 푸시를 완료한다.
-- [ ] `windows-v1.7.0-preview.1` GitHub Pre-release와 원격 자산을 검증한다.
+- [x] 소스 커밋과 `origin/main` 푸시를 완료한다.
+- [x] `windows-v1.7.0-preview.1` GitHub Pre-release와 원격 자산을 검증한다.
 
 ### 웹 서버
 
@@ -123,11 +123,12 @@
 - 2026-09-05: Windows에서 최신 `main`을 `633dc5c`까지 fast-forward하고 현재 C# 구현이 schema-v15·권장 프로필 v11·`randomizesDwell` timer 대기에 머물러 있음을 확인했다. schema별 Swift DTO를 복사하지 않고 기존 `JsonObject` migrator·mapper 구조에 v16 계약을 추가하며, 행동 완료를 60Hz 이동 tick에서 polling하지 않고 runtime event로 연결한다.
 - 2026-09-05: Windows Domain·schema-v16·권장 프로필 v12·WinUI와 event 기반 runtime을 구현했다. 애니메이션이 없는 펫도 완료 뒤 멈추지 않도록 물리 이동 activity를 행동 ID와 분리했고, timer·행동 완료·500ms fallback 및 늦은 event 무시 상태를 Core에서 단위 테스트한다. Debug·Release 각 332개 테스트와 경고·오류 없는 전체 빌드, x64 unpackaged publish를 통과했다. 실제 앱 QA와 macOS 교차 왕복은 남겨 둔다.
 - 2026-09-05: 사용자가 Windows `1.7.0` Preview 배포를 승인해 파일·패키지 버전을 `1.7.0.19`로 올렸다. 65,284,301 bytes 미서명 x64 설치기 후보의 SHA-256은 `16D8682EC425385FC686FFF26C06035A7663A05EDDFBF1E3A1ECAE3E4BDA7F45`다. 기존 설치 위 업데이트 종료 코드 0, 사용자 데이터 84개·8,453,674 bytes와 inventory digest `ED26BE94D844DA1FA0A709061366DEE4A186A8CABCCC3274136B8DE949D16061` 보존, 설치 DLL·publish DLL 일치, 설치본 응답과 Application 오류 0건을 확인했다.
+- 2026-09-05: 소스 커밋 `ae2b1850218d2b1e9303a6d8c09bb5f2bf6d0fa9`를 `origin/main`에 푸시하고 annotated tag `windows-v1.7.0-preview.1`의 GitHub Pre-release를 게시했다. 원격 설치기와 107 bytes `SHA256SUMS.txt`를 다시 내려받아 크기·digest·체크섬 내용과 태그 대상을 검증했다.
 
 ## 완료 결과
 
 - macOS 구현·실제 확인·자동 검증·Preview 1 배포, 공통 명세 및 Windows·서버 인계 문서 작성은 완료했다.
-- Windows 구현과 릴리스 후보 검증은 완료했다. 실제 기능 QA·서버 검증과 교차 왕복이 남아 있어 전체 상태는 진행 중으로 유지한다.
+- Windows 구현과 Preview 1 배포 검증은 완료했다. 실제 기능 QA·서버 검증과 교차 왕복이 남아 있어 전체 상태는 진행 중으로 유지한다.
 
 ## 남은 위험 / 후속 작업
 
