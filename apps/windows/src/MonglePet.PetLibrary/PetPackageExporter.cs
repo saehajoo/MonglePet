@@ -6,21 +6,36 @@ namespace MonglePet.PetLibrary;
 
 public sealed class PetPackageExporter
 {
+    public const string CurrentPackageFormatMinimumAppVersion = "0.1.0";
+    public const string CurrentCreatorSettingsMinimumAppVersion = "1.7.0";
+
     private readonly PetPackageLoader _loader;
     private readonly PetPackageArchiveExtractor _archiveExtractor;
     private readonly Func<Guid> _operationIdGenerator;
     private readonly string _appVersion;
+    private readonly string _packageFormatMinimumAppVersion;
+    private readonly string _creatorSettingsMinimumAppVersion;
 
     public PetPackageExporter(
         PetPackageLoader? loader = null,
         PetPackageArchiveExtractor? archiveExtractor = null,
         Func<Guid>? operationIdGenerator = null,
-        string appVersion = "1.5.0")
+        string appVersion = "1.7.0",
+        string packageFormatMinimumAppVersion = CurrentPackageFormatMinimumAppVersion,
+        string creatorSettingsMinimumAppVersion = CurrentCreatorSettingsMinimumAppVersion)
     {
+        if (!RemotePetSemanticVersion.TryParse(appVersion, out _) ||
+            !RemotePetSemanticVersion.TryParse(packageFormatMinimumAppVersion, out _) ||
+            !RemotePetSemanticVersion.TryParse(creatorSettingsMinimumAppVersion, out _))
+        {
+            throw new ArgumentException("Package compatibility versions must use MAJOR.MINOR.PATCH.");
+        }
         _loader = loader ?? new PetPackageLoader();
         _archiveExtractor = archiveExtractor ?? new PetPackageArchiveExtractor();
         _operationIdGenerator = operationIdGenerator ?? Guid.NewGuid;
         _appVersion = appVersion;
+        _packageFormatMinimumAppVersion = packageFormatMinimumAppVersion;
+        _creatorSettingsMinimumAppVersion = creatorSettingsMinimumAppVersion;
     }
 
     public string Export(
@@ -55,9 +70,12 @@ public sealed class PetPackageExporter
         {
             Directory.CreateDirectory(payload);
             LoadedPetPackage source = LoadSource(installedPackage);
+            string minimumAppVersion = recommendedProfile is null
+                ? _packageFormatMinimumAppVersion
+                : _creatorSettingsMinimumAppVersion;
             PetPackageManifest exportedManifest = source.Manifest with
             {
-                Compatibility = new PetPackageCompatibility(_appVersion, _appVersion),
+                Compatibility = new PetPackageCompatibility(_appVersion, minimumAppVersion),
             };
             File.WriteAllBytes(
                 Path.Combine(payload, "pet.json"),

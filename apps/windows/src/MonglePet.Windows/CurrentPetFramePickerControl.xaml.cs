@@ -35,11 +35,12 @@ public sealed partial class CurrentPetFramePickerControl : UserControl
             for (int index = 0; index < motion.Frames.Count; index++)
             {
                 PetPackageFrame frame = motion.Frames[index];
-                UserPetProcessedFrame cropped = UserPetPixelProcessor.Process(
-                    decoded.BgraPixels,
-                    decoded.Width,
-                    decoded.Height,
-                    frame);
+                UserPetProcessedFrame cropped = await Task.Run(() =>
+                    UserPetPixelProcessor.Process(
+                        decoded.BgraPixels,
+                        decoded.Width,
+                        decoded.Height,
+                        frame));
                 ImageSource thumbnail = await WindowsImagePreviewFactory
                     .CreateCheckerboardAsync(cropped);
                 _frames.Add(new FrameChoice(

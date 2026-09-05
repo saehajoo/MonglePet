@@ -56,7 +56,8 @@ public partial class App : Application
         PetLibrary = new PetLibraryStore(
             PetLibraryPaths.FromAppLocalDataRoot(appLocalDataRoot));
         PetImporter = new PetPackageImporter(PetLibrary);
-        PetExporter = new PetPackageExporter();
+        PetExporter = new PetPackageExporter(
+            appVersion: CurrentAppSemanticVersion().ToString());
         PetEditor = new UserPetPackageEditor(PetLibrary, new WindowsUserPetAtlasBuilder());
         SettingsStore = new AppSettingsStore(
             AppSettingsPaths.FromAppLocalDataRoot(appLocalDataRoot),
@@ -321,29 +322,8 @@ public partial class App : Application
 
     public InstalledPetPackage ImportPackage(string sourcePath)
     {
-        EnsureSettingsWritingEnabled();
-        InstalledPetPackage installed = PetImporter.Import(
-            sourcePath,
-            PetPackageInstallMode.InstallSeparately);
-        try
-        {
-            CommitNewPet(installed, sourceProfile: null, sourceOverlay: null);
-            return installed;
-        }
-        catch (Exception addException)
-        {
-            try
-            {
-                PetLibrary.RemoveInstallation(installed.InstallationId);
-            }
-            catch (Exception cleanupException)
-            {
-                throw new InvalidOperationException(
-                    $"펫 추가를 완료하지 못했고 설치 정리도 필요합니다: {installed.InstallationId:D}",
-                    new AggregateException(addException, cleanupException));
-            }
-            throw;
-        }
+        PetPackageImportReview review = ReviewPackage(sourcePath);
+        return ImportReviewedPackage(review).InstalledPackage;
     }
 
     public PetPackageImportReview ReviewPackage(
@@ -368,6 +348,12 @@ public partial class App : Application
     internal ReviewedPetImportResult ImportReviewedPackage(
         PetPackageImportReview review)
     {
+        if (!review.CanInstall)
+        {
+            throw new PetLibraryException(
+                PetLibraryError.ImportBlocked,
+                "이 펫은 현재 MonglePet에서 완전하게 추가할 수 없습니다. 가져오기 내용을 다시 확인해 주세요.");
+        }
         EnsureSettingsWritingEnabled();
         InstalledPetPackage installed = PetImporter.ImportReviewed(
             review,

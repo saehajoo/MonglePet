@@ -46,6 +46,7 @@ public sealed partial class MainPage : Page
     private bool _isLoaded;
     private bool _isPreparedForShutdown;
     private bool _isRefreshingDisplayControls;
+    private bool _isSynchronizingDisplaySize;
     private bool _isRefreshingBehaviorControls;
     private bool _isRefreshingBehaviorEditor;
     private bool _isRefreshingMovementControls;
@@ -222,9 +223,10 @@ public sealed partial class MainPage : Page
         bool isRoutines = section == "routines";
         bool isSpeech = section == "speech";
         bool isAutomaticRules = section == "automaticRules";
+        bool isGuide = section == "guide";
         bool isTroubleshooting = section == "troubleshooting";
-
         ActivePetsCard.Visibility = isActivePets ? Visibility.Visible : Visibility.Collapsed;
+        QuickGuide.Visibility = isGuide ? Visibility.Visible : Visibility.Collapsed;
         SafeStartInfoBar.Visibility = isTroubleshooting
             ? Visibility.Visible
             : Visibility.Collapsed;
@@ -288,6 +290,9 @@ public sealed partial class MainPage : Page
             "pet" => (
                 "펫 정보·애니메이션",
                 "선택한 펫의 정보와 애니메이션을 확인하고 추가·수정·복제·삭제합니다."),
+            "guide" => (
+                "이용 가이드",
+                "처음 시작하는 순서와 애니메이션·행동·규칙의 차이를 확인합니다."),
             "troubleshooting" => (
                 "문제 해결",
                 "복원 중 문제가 생긴 펫을 안전 모드에서 분리하고 다시 시작합니다."),
@@ -305,12 +310,36 @@ public sealed partial class MainPage : Page
             ApplyMovementSectionVisibility();
         }
 
-        if (_isLoaded && section != "activePets" && _selectedPetDetailsAreStale)
+        if (_isLoaded && section != "activePets" && !isGuide && _selectedPetDetailsAreStale)
         {
             _selectedPetDetailsAreStale = false;
             RefreshOverlayState();
             RefreshLibraryState();
             RefreshBehaviorState();
+        }
+    }
+
+    private void OpenQuickGuideButton_Click(object sender, RoutedEventArgs e) =>
+        SelectSettingsSection("guide");
+
+    private void QuickGuide_SectionRequested(object sender, string section) =>
+        SelectSettingsSection(section);
+
+    private void SelectSettingsSection(string section)
+    {
+        NavigationViewItem? item = SettingsNavigationView.MenuItems
+            .OfType<NavigationViewItem>()
+            .FirstOrDefault(candidate => string.Equals(
+                candidate.Tag?.ToString(),
+                section,
+                StringComparison.Ordinal));
+        if (item is not null)
+        {
+            SettingsNavigationView.SelectedItem = item;
+        }
+        else
+        {
+            ShowSettingsSection(section);
         }
     }
 
@@ -455,6 +484,32 @@ public sealed partial class MainPage : Page
                 AppSettingsLimits.DefaultOverlayWidth * percentage / 100,
                 AppSettingsLimits.MinimumOverlayWidth,
                 AppSettingsLimits.MaximumOverlayWidth);
+        }
+    }
+
+    private void OverlayScalePercentNumberBox_ValueChanged(
+        NumberBox sender,
+        NumberBoxValueChangedEventArgs args)
+    {
+        if (!_isLoaded || _isRefreshingDisplayControls ||
+            _isSynchronizingDisplaySize || double.IsNaN(args.NewValue))
+        {
+            return;
+        }
+
+        double percentage = Math.Clamp(args.NewValue, 10, 200);
+        _isSynchronizingDisplaySize = true;
+        try
+        {
+            sender.Value = percentage;
+            OverlayWidthSlider.Value = Math.Clamp(
+                AppSettingsLimits.DefaultOverlayWidth * percentage / 100,
+                AppSettingsLimits.MinimumOverlayWidth,
+                AppSettingsLimits.MaximumOverlayWidth);
+        }
+        finally
+        {
+            _isSynchronizingDisplaySize = false;
         }
     }
 
@@ -716,14 +771,10 @@ public sealed partial class MainPage : Page
         try
         {
             ReviewedPetImportResult result = app.ImportReviewedPackage(review);
-            string message = result.CreatorSettingsStatus ==
-                CreatorSettingsImportStatus.Unavailable
-                    ? "제작자 설정은 적용하지 못했지만 펫은 정상적으로 추가했습니다."
-                    : $"'{result.InstalledPackage.Package.Manifest.DisplayName}'을(를) 새 내 펫으로 추가했습니다.";
             ShowLibraryMessage(
                 InfoBarSeverity.Success,
                 "펫 추가 완료",
-                message);
+                $"'{result.InstalledPackage.Package.Manifest.DisplayName}'을(를) 새 내 펫으로 추가했습니다.");
         }
         catch (Exception exception)
         {
@@ -750,7 +801,7 @@ public sealed partial class MainPage : Page
     private async Task<bool> ShowImportReview(
         PetPackageImportReview review)
     {
-        bool canInstall =
+        bool settingsAllowInstall =
             (Application.Current as App)?.SettingsStore.IsWritingEnabled == true;
         var content = new StackPanel { Spacing = 10, MaxWidth = 520 };
         content.Children.Add(new TextBlock
@@ -765,82 +816,156 @@ public sealed partial class MainPage : Page
                    $"모션: {review.Manifest.Motions.Count}개",
             TextWrapping = TextWrapping.Wrap,
         });
-        if (review.CompatibilityAdvisory is { HasWarning: true } advisory)
+        switch (review.Disposition)
         {
-            string versionLine = advisory.RecommendsUpdate &&
-                advisory.RequiredMinimumAppVersion is { } required
-                    ? $"이 펫은 MonglePet {required} 이상을 권장합니다. 현재 앱은 {advisory.CurrentAppVersion}입니다."
-                    : $"이 펫은 현재 앱보다 새로운 MonglePet {advisory.CreatedWithAppVersion}에서 제작되었습니다.";
-            var warning = new InfoBar
-            {
-                IsOpen = true,
-                IsClosable = false,
-                Severity = InfoBarSeverity.Warning,
-                Title = "MonglePet 업데이트를 권장합니다",
-                Message = versionLine + " 일부 기능이 적용되지 않거나 다르게 보일 수 있지만 설치는 계속할 수 있습니다.",
-            };
-            var downloadButton = new Button
-            {
-                Content = "MonglePet 다운로드 페이지 열기",
-                HorizontalAlignment = HorizontalAlignment.Left,
-            };
-            downloadButton.Click += async (_, _) => await global::Windows.System.Launcher.LaunchUriAsync(
-                new Uri(PetCompatibilityAdvisory.DownloadPageUrl));
-            content.Children.Add(warning);
-            content.Children.Add(downloadButton);
-        }
-        if (review.RecommendedProfile is { } profile)
-        {
-            content.Children.Add(new TextBlock
-            {
-                Text = RecommendedProfileSummary(profile),
-                TextWrapping = TextWrapping.Wrap,
-            });
-            content.Children.Add(new TextBlock
-            {
-                Text = "제작자가 구성한 표시·행동·이동·말풍선 설정이 이 펫에 자동으로 적용됩니다. 화면 위치·모니터·모든 펫 공통 이동 범위·깨움 상태와 시작 프로그램 설정은 가져오지 않습니다.",
-                TextWrapping = TextWrapping.Wrap,
-            });
-        }
-        else if (review.ContainsRecommendedProfile)
-        {
-            content.Children.Add(new TextBlock
-            {
-                Text = "제작자 설정은 적용할 수 없지만 펫은 안전한 기본 설정으로 추가할 수 있습니다." +
-                    (string.IsNullOrWhiteSpace(review.RecommendedProfileIssueDetail)
-                        ? string.Empty
-                        : $"\n{review.RecommendedProfileIssueDetail}"),
-                TextWrapping = TextWrapping.Wrap,
-            });
-        }
-        else
-        {
-            content.Children.Add(new TextBlock
-            {
-                Text = "이 펫에는 제작자 설정이 포함되어 있지 않습니다. 추가한 뒤 원하는 방식으로 설정할 수 있습니다.",
-                TextWrapping = TextWrapping.Wrap,
-            });
-        }
-        if (!canInstall)
-        {
-            content.Children.Add(new TextBlock
-            {
-                Text = "현재 설정 파일을 보호하기 위해 펫 추가가 비활성화되어 있습니다.",
-                TextWrapping = TextWrapping.Wrap,
-            });
+            case PetPackageImportDisposition.Compatible:
+                content.Children.Add(ImportReviewInfo(
+                    InfoBarSeverity.Success,
+                    "제작자 설정을 함께 적용합니다",
+                    "제작자가 구성한 행동·이동·말풍선 설정이 함께 적용됩니다."));
+                break;
+            case PetPackageImportDisposition.LegacyWithoutCreatorSettings:
+                content.Children.Add(ImportReviewInfo(
+                    InfoBarSeverity.Informational,
+                    "이전 방식으로 만든 펫입니다",
+                    "움직임과 행동 설정이 포함되어 있지 않습니다. MonglePet 기본 동작으로 추가됩니다."));
+                break;
+            case PetPackageImportDisposition.UpdateRequiredForMinimumVersion:
+                RemotePetSemanticVersion? required =
+                    review.CompatibilityAdvisory?.RequiredMinimumAppVersion;
+                content.Children.Add(ImportReviewInfo(
+                    InfoBarSeverity.Warning,
+                    "MonglePet 업데이트가 필요합니다",
+                    required is null
+                        ? "이 펫을 완전하게 추가하려면 MonglePet을 업데이트해 주세요."
+                        : $"이 펫은 MonglePet {required} 이상이 필요합니다. 현재 앱은 {review.CurrentAppVersion}입니다."));
+                break;
+            case PetPackageImportDisposition.UpdateRequiredForCreatorSettings:
+                content.Children.Add(ImportReviewInfo(
+                    InfoBarSeverity.Warning,
+                    "MonglePet 업데이트가 필요합니다",
+                    "이 펫의 제작자 설정은 현재 앱보다 새로운 형식입니다. 업데이트한 뒤 다시 추가해 주세요."));
+                break;
+            case PetPackageImportDisposition.InvalidCreatorSettings:
+                content.Children.Add(ImportReviewInfo(
+                    InfoBarSeverity.Error,
+                    "펫을 추가할 수 없습니다",
+                    "펫 파일의 행동과 이동 설정에 문제가 있습니다. 파일을 다시 내려받거나 제작자에게 알려 주세요."));
+                break;
         }
 
+        if (review.CompatibilityAdvisory is
+            {
+                RecommendsUpdate: false,
+                WasCreatedWithNewerApp: true,
+            } advisory)
+        {
+            content.Children.Add(ImportReviewInfo(
+                InfoBarSeverity.Informational,
+                "새 버전에서 만든 펫입니다",
+                $"MonglePet {advisory.CreatedWithAppVersion}에서 제작했지만 현재 앱에서 읽을 수 있어 추가할 수 있습니다."));
+        }
+
+        var detail = new StackPanel { Spacing = 8 };
+        if (review.RecommendedProfile is { } profile)
+        {
+            detail.Children.Add(WrappingText(RecommendedProfileSummary(profile)));
+        }
+        string compatibilityDetail = ImportCompatibilityDetail(review);
+        if (!string.IsNullOrEmpty(compatibilityDetail))
+        {
+            detail.Children.Add(WrappingText(compatibilityDetail));
+        }
+        detail.Children.Add(WrappingText(
+            "화면 위치·모니터·모든 펫 공통 이동 범위·깨움 상태와 시작 프로그램 설정은 가져오지 않습니다."));
+        content.Children.Add(new Expander
+        {
+            Header = "자세히 보기",
+            IsExpanded = false,
+            Content = detail,
+        });
+
+        if (review.CanInstall && !settingsAllowInstall)
+        {
+            content.Children.Add(WrappingText(
+                "현재 설정 파일을 보호하기 위해 펫 추가가 비활성화되어 있습니다."));
+        }
+
+        bool requiresUpdate = review.RequiresUpdate;
         var dialog = new ContentDialog
         {
             XamlRoot = XamlRoot,
             Title = "펫 추가",
             Content = content,
-            PrimaryButtonText = "펫 추가",
-            CloseButtonText = "취소",
-            IsPrimaryButtonEnabled = canInstall,
-            DefaultButton = ContentDialogButton.Primary,
+            PrimaryButtonText = review.CanInstall
+                ? "펫 추가"
+                : requiresUpdate
+                    ? "MonglePet 업데이트"
+                    : string.Empty,
+            CloseButtonText = review.CanInstall ? "취소" : "닫기",
+            IsPrimaryButtonEnabled = requiresUpdate || settingsAllowInstall,
+            DefaultButton = review.CanInstall || requiresUpdate
+                ? ContentDialogButton.Primary
+                : ContentDialogButton.Close,
         };
-        return await dialog.ShowAsync() == ContentDialogResult.Primary;
+        ContentDialogResult result = await dialog.ShowAsync();
+        if (requiresUpdate && result == ContentDialogResult.Primary)
+        {
+            bool opened = false;
+            try
+            {
+                opened = await global::Windows.System.Launcher.LaunchUriAsync(
+                    new Uri(PetCompatibilityAdvisory.DownloadPageUrl));
+            }
+            catch
+            {
+            }
+            if (!opened)
+            {
+                ShowLibraryMessage(
+                    InfoBarSeverity.Warning,
+                    "다운로드 페이지를 열 수 없습니다",
+                    "인터넷 연결과 기본 브라우저 설정을 확인한 뒤 다시 시도해 주세요.");
+            }
+            return false;
+        }
+        return review.CanInstall && result == ContentDialogResult.Primary;
+    }
+
+    private static InfoBar ImportReviewInfo(
+        InfoBarSeverity severity,
+        string title,
+        string message) => new()
+        {
+            IsOpen = true,
+            IsClosable = false,
+            Severity = severity,
+            Title = title,
+            Message = message,
+        };
+
+    private static TextBlock WrappingText(string text) => new()
+        {
+            Text = text,
+            TextWrapping = TextWrapping.Wrap,
+        };
+
+    private static string ImportCompatibilityDetail(PetPackageImportReview review)
+    {
+        var values = new List<string>();
+        if (review.CompatibilityAdvisory?.CreatedWithAppVersion is { } created)
+        {
+            values.Add($"제작 앱: MonglePet {created}");
+        }
+        if (review.CompatibilityAdvisory?.RequiredMinimumAppVersion is { } minimum)
+        {
+            values.Add($"필요 앱: MonglePet {minimum} 이상");
+        }
+        if (review.CurrentAppVersion is { } current)
+        {
+            values.Add($"현재 앱: MonglePet {current}");
+        }
+        return string.Join("\n", values);
     }
 
     private async void ExportPackageButton_Click(object sender, RoutedEventArgs e)
@@ -1725,6 +1850,7 @@ public sealed partial class MainPage : Page
             VisibilityButton.IsEnabled = false;
             ClickThroughToggle.IsEnabled = false;
             OverlayWidthSlider.IsEnabled = false;
+            OverlayScalePercentNumberBox.IsEnabled = false;
             OverlayOpacitySlider.IsEnabled = false;
             PointerOverlapFadeToggle.IsEnabled = false;
             PointerOverlapOpacitySlider.IsEnabled = false;
@@ -1740,6 +1866,7 @@ public sealed partial class MainPage : Page
         VisibilityButton.IsEnabled = canEdit;
         ClickThroughToggle.IsEnabled = canEdit;
         OverlayWidthSlider.IsEnabled = canEdit;
+        OverlayScalePercentNumberBox.IsEnabled = canEdit;
         OverlayOpacitySlider.IsEnabled = canEdit;
         PointerOverlapFadeToggle.IsEnabled = canEdit;
         PixelArtToggle.IsEnabled = canEdit;
@@ -2821,10 +2948,14 @@ public sealed partial class MainPage : Page
             ? Visibility.Visible
             : Visibility.Collapsed;
         CursorFollowingOptionsPanel.Visibility = isFollowing ? Visibility.Visible : Visibility.Collapsed;
+        CursorAvoidingIdlePanel.Visibility = isAvoiding ? Visibility.Visible : Visibility.Collapsed;
         FreeRoamingOptionsPanel.Visibility = isFreeRoaming || avoidingRoams
             ? Visibility.Visible
             : Visibility.Collapsed;
-        FreeRoamingSectionTitle.Text = avoidingRoams ? "평상시 자유 이동" : "자유 이동";
+        FreeRoamingSectionTitle.Text = avoidingRoams ? "평상시 자유 이동 설정" : "자유 이동 설정";
+        MovementSenseTitleText.Text = isAvoiding
+            ? "마우스가 가까울 때의 이동 감각"
+            : "기본 이동 설정";
         bool randomDwell = DwellModeComboBox.SelectedIndex == 1;
         bool behaviorCompletionDwell = DwellModeComboBox.SelectedIndex == 2;
         FreeRoamingDwellMinimumNumberBox.Visibility =
@@ -2841,6 +2972,7 @@ public sealed partial class MainPage : Page
                 ? "목표 위치에 도착할 때마다 최소~최대 범위에서 한 번만 시간을 선택합니다."
                 : "목표 위치에 도착한 뒤 설정한 시간 동안 머뭅니다.";
         CursorAvoidingOptionsPanel.Visibility = isAvoiding ? Visibility.Visible : Visibility.Collapsed;
+        UpdateMovementCurrentSummary();
 
         bool clickThrough = Application.Current is App app && app.CurrentSettings.Overlay.ClickThrough;
         FixedMovementHelpText.Text = clickThrough
@@ -2880,6 +3012,7 @@ public sealed partial class MainPage : Page
             : Visibility.Collapsed;
         MovementModeTitleText.Visibility = movementVisibility;
         MovementModeChoicesGrid.Visibility = movementVisibility;
+        MovementCurrentSummaryCard.Visibility = movementVisibility;
         MovementModeComboBox.Visibility = Visibility.Collapsed;
         FixedMovementHelpPanel.Visibility = movementOnly
             ? FixedMovementHelpPanel.Visibility
@@ -2893,6 +3026,9 @@ public sealed partial class MainPage : Page
         CursorFollowingOptionsPanel.Visibility = movementOnly
             ? CursorFollowingOptionsPanel.Visibility
             : Visibility.Collapsed;
+        CursorAvoidingIdlePanel.Visibility = movementOnly
+            ? CursorAvoidingIdlePanel.Visibility
+            : Visibility.Collapsed;
         FreeRoamingOptionsPanel.Visibility = movementOnly
             ? FreeRoamingOptionsPanel.Visibility
             : Visibility.Collapsed;
@@ -2902,6 +3038,37 @@ public sealed partial class MainPage : Page
         MovementInteractionPanel.Visibility = interactionOnly
             ? Visibility.Visible
             : Visibility.Collapsed;
+    }
+
+    private void UpdateMovementCurrentSummary()
+    {
+        if (MovementCurrentSummaryText is null)
+        {
+            return;
+        }
+        string mode = MovementModeComboBox.SelectedIndex switch
+        {
+            1 => "마우스 따라가기",
+            2 => "자유 이동",
+            3 => "마우스 도망가기",
+            _ => "위치 고정",
+        };
+        string boundary = MovementBoundaryModeComboBox.SelectedIndex switch
+        {
+            1 => "선택 모니터",
+            2 => "사용자 지정 범위",
+            _ => "모든 화면",
+        };
+        if (MovementModeComboBox.SelectedIndex == 0)
+        {
+            MovementCurrentSummaryText.Text = $"{mode} · 직접 드래그해 위치를 정합니다.";
+            return;
+        }
+        double speed = MovementModeComboBox.SelectedIndex == 3 &&
+            AvoidingIdleBehaviorComboBox.SelectedIndex != 1
+                ? AvoidingSpeedNumberBox.Value
+                : MovementSpeedNumberBox.Value;
+        MovementCurrentSummaryText.Text = $"{mode} · {boundary} · {speed:0} px/s";
     }
 
     private static void SelectMotion(ComboBox comboBox, string? motionId)
@@ -5024,14 +5191,26 @@ public sealed partial class MainPage : Page
     {
         if (OverlayWidthSlider is null || OverlayOpacitySlider is null ||
             PointerOverlapOpacitySlider is null ||
-            OverlayWidthValueText is null || OverlayOpacityValueText is null ||
+            OverlayScalePercentNumberBox is null || OverlayOpacityValueText is null ||
             PointerOverlapOpacityValueText is null)
         {
             return;
         }
 
-        OverlayWidthValueText.Text =
-            $"{OverlayWidthSlider.Value / AppSettingsLimits.DefaultOverlayWidth * 100:0}%";
+        if (!_isSynchronizingDisplaySize)
+        {
+            _isSynchronizingDisplaySize = true;
+            try
+            {
+                OverlayScalePercentNumberBox.Value =
+                    Math.Round(OverlayWidthSlider.Value /
+                        AppSettingsLimits.DefaultOverlayWidth * 100);
+            }
+            finally
+            {
+                _isSynchronizingDisplaySize = false;
+            }
+        }
         if (TinyPetInfoBar is not null)
         {
             TinyPetInfoBar.IsOpen = OverlayWidthSlider.Value <

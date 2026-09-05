@@ -109,11 +109,17 @@ public static class RecommendedPetProfileCodec
                 "The recommended profile schema version is invalid.",
                 exception);
         }
-        if (schemaVersion is < 1 or > CurrentSchemaVersion)
+        if (schemaVersion > CurrentSchemaVersion)
         {
             throw Error(
                 RecommendedPetProfileError.UnsupportedSchema,
                 $"지원하지 않는 제작자 설정 버전입니다: {schemaVersion}");
+        }
+        if (schemaVersion < 1)
+        {
+            throw Error(
+                RecommendedPetProfileError.InvalidContent,
+                $"제작자 설정 버전이 올바르지 않습니다: {schemaVersion}");
         }
         if (source["behavior"] is not JsonObject behavior)
         {

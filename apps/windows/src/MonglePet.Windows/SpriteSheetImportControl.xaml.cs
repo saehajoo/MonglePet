@@ -148,13 +148,11 @@ public sealed partial class SpriteSheetImportControl : UserControl
         CaptureReadingOrder();
         _rangeFrame = _frames.FirstOrDefault();
         _previewFrame = _rangeFrame;
-        if (ReadingOrderRadio.IsChecked == true)
+        foreach (SpriteFrameDraft frame in _frames)
         {
-            foreach (SpriteFrameDraft frame in _frames)
-            {
-                frame.IsIncluded = true;
-            }
+            frame.IsIncluded = true;
         }
+        _clickOrder.AddRange(_readingOrder);
     }
 
     private async Task RenderAsync()
@@ -317,6 +315,7 @@ public sealed partial class SpriteSheetImportControl : UserControl
             return _clickOrder
                 .Where(clickFramesById.ContainsKey)
                 .Select(id => clickFramesById[id])
+                .Where(frame => frame.IsIncluded)
                 .ToArray();
         }
         var readingFramesById = _frames.ToDictionary(frame => frame.Id);
@@ -355,19 +354,35 @@ public sealed partial class SpriteSheetImportControl : UserControl
             frame.Rect.Width,
             frame.Rect.Height,
             _durationMilliseconds);
-        UserPetProcessedFrame processed = UserPetPixelProcessor.Process(
-            _decoded.BgraPixels,
-            _decoded.Width,
-            _decoded.Height,
-            crop,
-            frame.FlipsHorizontally,
-            frame.FlipsVertically,
-            backgroundRemoval: CurrentBackgroundRemoval());
-        PreviewImage.Source = await WindowsImagePreviewFactory.CreateCheckerboardAsync(processed);
-        double scale = Math.Min(300d / processed.Width, 180d / processed.Height);
+        UserPetBackgroundRemoval? backgroundRemoval = CurrentBackgroundRemoval();
+        UserPetProcessedFrame processed = await Task.Run(() =>
+            UserPetPixelProcessor.Process(
+                _decoded.BgraPixels,
+                _decoded.Width,
+                _decoded.Height,
+                crop,
+                frame.FlipsHorizontally,
+                frame.FlipsVertically,
+                backgroundRemoval: backgroundRemoval));
+        int commonWidth = final.Max(candidate => candidate.Rect.Width);
+        int commonHeight = final.Max(candidate => candidate.Rect.Height);
+        UserPetProcessedFrame commonPreview = await Task.Run(() =>
+            WindowsImagePreviewFactory.CenterOnCanvas(
+                processed,
+                commonWidth,
+                commonHeight));
+        PreviewImage.Source = await WindowsImagePreviewFactory
+            .CreateCheckerboardAsync(commonPreview);
+        double scale = Math.Min(300d / commonWidth, 180d / commonHeight);
         scale = Math.Min(scale, 1);
-        PreviewImage.Width = Math.Max(1, processed.Width * scale);
-        PreviewImage.Height = Math.Max(1, processed.Height * scale);
+        PreviewOuterBorder.Width = Math.Max(1, commonWidth * scale + 4);
+        PreviewOuterBorder.Height = Math.Max(1, commonHeight * scale + 4);
+        PreviewCanvas.Width = Math.Max(1, commonWidth * scale);
+        PreviewCanvas.Height = Math.Max(1, commonHeight * scale);
+        PreviewImage.Width = Math.Max(1, commonWidth * scale);
+        PreviewImage.Height = Math.Max(1, commonHeight * scale);
+        Canvas.SetLeft(PreviewImage, 0);
+        Canvas.SetTop(PreviewImage, 0);
         PreviewPositionText.Text = $"{final.IndexOf(frame) + 1} / {final.Count}";
     }
 
@@ -652,12 +667,16 @@ public sealed partial class SpriteSheetImportControl : UserControl
         if (!IsLoaded) return;
         if (ClickOrderRadio.IsChecked == true)
         {
+            var includedIds = _frames
+                .Where(frame => frame.IsIncluded)
+                .Select(frame => frame.Id)
+                .ToHashSet();
+            var nextOrder = _clickOrder
+                .Where(includedIds.Contains)
+                .Concat(_readingOrder.Where(includedIds.Contains).Where(id => !_clickOrder.Contains(id)))
+                .ToArray();
             _clickOrder.Clear();
-            foreach (SpriteFrameDraft frame in _frames) frame.IsIncluded = false;
-        }
-        else
-        {
-            foreach (SpriteFrameDraft frame in _frames) frame.IsIncluded = true;
+            _clickOrder.AddRange(nextOrder);
         }
         ApplyReadingOrderButton.IsEnabled = ReadingOrderRadio.IsChecked == true;
         await RenderAsync();
@@ -739,11 +758,13 @@ public sealed partial class SpriteSheetImportControl : UserControl
 
     private async Task RefreshProcessedSourceAsync()
     {
-        UserPetProcessedFrame processed = UserPetPixelProcessor.Process(
-            _decoded.BgraPixels,
-            _decoded.Width,
-            _decoded.Height,
-            backgroundRemoval: CurrentBackgroundRemoval());
+        UserPetBackgroundRemoval? backgroundRemoval = CurrentBackgroundRemoval();
+        UserPetProcessedFrame processed = await Task.Run(() =>
+            UserPetPixelProcessor.Process(
+                _decoded.BgraPixels,
+                _decoded.Width,
+                _decoded.Height,
+                backgroundRemoval: backgroundRemoval));
         SheetImage.Source = await WindowsImagePreviewFactory.CreateCheckerboardAsync(processed);
     }
 

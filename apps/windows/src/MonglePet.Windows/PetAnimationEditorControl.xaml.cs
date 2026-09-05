@@ -304,7 +304,7 @@ public sealed partial class PetAnimationEditorControl : UserControl
                 "여러 PNG를 함께 확인하고 프레임마다 사용할 원본 범위를 조정합니다.",
                 editor,
                 "잘라서 프레임 추가",
-                "목록의 모든 PNG를 추가하며 선택 항목은 일괄 편집 대상을 정합니다.",
+                "체크한 PNG만 추가하며 행 선택은 현재 편집 및 일괄 편집 대상을 정합니다.",
                 width: 1_040,
                 height: 760,
                 validation: () => editor.HasFrames ? null : "추가할 PNG가 없습니다.");
@@ -593,14 +593,15 @@ public sealed partial class PetAnimationEditorControl : UserControl
         {
             return;
         }
-        UserPetProcessedFrame cropped = UserPetPixelProcessor.Process(
-            decoded.BgraPixels,
-            decoded.Width,
-            decoded.Height,
-            selected.SourceFrame,
-            selected.FlipsHorizontally,
-            selected.FlipsVertically,
-            backgroundRemoval: selected.BackgroundRemoval);
+        UserPetProcessedFrame cropped = await Task.Run(() =>
+            UserPetPixelProcessor.Process(
+                decoded.BgraPixels,
+                decoded.Width,
+                decoded.Height,
+                selected.SourceFrame,
+                selected.FlipsHorizontally,
+                selected.FlipsVertically,
+                backgroundRemoval: selected.BackgroundRemoval));
         selected.Thumbnail = await WindowsImagePreviewFactory.CreateCheckerboardAsync(cropped);
         SelectedFramePlacementImage.Source = await WindowsImagePreviewFactory.CreateTransparentAsync(cropped);
         LayoutPlacementElement(SelectedFramePlacementImage, placement);
@@ -614,14 +615,15 @@ public sealed partial class PetAnimationEditorControl : UserControl
         foreach (FrameItem frame in frames)
         {
             WindowsDecodedImage decoded = await _imageCache.GetAsync(frame.ImagePath);
-            UserPetProcessedFrame cropped = UserPetPixelProcessor.Process(
-                decoded.BgraPixels,
-                decoded.Width,
-                decoded.Height,
-                frame.SourceFrame,
-                frame.FlipsHorizontally,
-                frame.FlipsVertically,
-                backgroundRemoval: frame.BackgroundRemoval);
+            UserPetProcessedFrame cropped = await Task.Run(() =>
+                UserPetPixelProcessor.Process(
+                    decoded.BgraPixels,
+                    decoded.Width,
+                    decoded.Height,
+                    frame.SourceFrame,
+                    frame.FlipsHorizontally,
+                    frame.FlipsVertically,
+                    backgroundRemoval: frame.BackgroundRemoval));
             frame.Thumbnail = await WindowsImagePreviewFactory.CreateCheckerboardAsync(cropped);
         }
     }
@@ -637,14 +639,15 @@ public sealed partial class PetAnimationEditorControl : UserControl
         }
         FrameItem first = _frames[0];
         WindowsDecodedImage decoded = await _imageCache.GetAsync(first.ImagePath);
-        UserPetProcessedFrame cropped = UserPetPixelProcessor.Process(
-            decoded.BgraPixels,
-            decoded.Width,
-            decoded.Height,
-            first.SourceFrame,
-            first.FlipsHorizontally,
-            first.FlipsVertically,
-            backgroundRemoval: first.BackgroundRemoval);
+        UserPetProcessedFrame cropped = await Task.Run(() =>
+            UserPetPixelProcessor.Process(
+                decoded.BgraPixels,
+                decoded.Width,
+                decoded.Height,
+                first.SourceFrame,
+                first.FlipsHorizontally,
+                first.FlipsVertically,
+                backgroundRemoval: first.BackgroundRemoval));
         FirstFrameReferenceImage.Source = await WindowsImagePreviewFactory.CreateTransparentAsync(cropped);
         LayoutPlacementElement(FirstFrameReferenceImage, first.CanvasPlacement!);
         FirstFrameReferenceImage.Visibility = Visibility.Visible;
@@ -722,18 +725,24 @@ public sealed partial class PetAnimationEditorControl : UserControl
         foreach (FrameItem frame in unplaced)
         {
             WindowsDecodedImage decoded = await _imageCache.GetAsync(frame.ImagePath);
-            UserPetProcessedFrame cropped = UserPetPixelProcessor.Process(
-                decoded.BgraPixels,
-                decoded.Width,
-                decoded.Height,
-                frame.SourceFrame,
-                frame.FlipsHorizontally,
-                frame.FlipsVertically,
-                backgroundRemoval: frame.BackgroundRemoval);
-            UserPetPixelRect visible = UserPetImageEditingGeometry.FindVisibleBounds(
-                cropped.BgraPixels,
-                cropped.Width,
-                cropped.Height) ?? new UserPetPixelRect(0, 0, cropped.Width, cropped.Height);
+            (UserPetProcessedFrame cropped, UserPetPixelRect visible) = await Task.Run(() =>
+            {
+                UserPetProcessedFrame result = UserPetPixelProcessor.Process(
+                    decoded.BgraPixels,
+                    decoded.Width,
+                    decoded.Height,
+                    frame.SourceFrame,
+                    frame.FlipsHorizontally,
+                    frame.FlipsVertically,
+                    backgroundRemoval: frame.BackgroundRemoval);
+                UserPetPixelRect visibleBounds =
+                    UserPetImageEditingGeometry.FindVisibleBounds(
+                        result.BgraPixels,
+                        result.Width,
+                        result.Height) ??
+                    new UserPetPixelRect(0, 0, result.Width, result.Height);
+                return (result, visibleBounds);
+            });
             geometries.Add(new UserPetVisibleFrameGeometry(cropped.Width, cropped.Height, visible));
         }
         IReadOnlyList<UserPetCanvasPlacement> placements =

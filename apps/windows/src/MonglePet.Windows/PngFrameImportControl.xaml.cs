@@ -45,7 +45,7 @@ public sealed partial class PngFrameImportControl : UserControl
         set => _ownerWindow = value;
     }
 
-    public bool HasFrames => _items.Count > 0;
+    public bool HasFrames => _items.Any(item => item.IsIncluded);
 
     public async Task AddFilesAsync(IEnumerable<string> paths)
     {
@@ -98,6 +98,7 @@ public sealed partial class PngFrameImportControl : UserControl
     }
 
     public IReadOnlyList<UserPetFrameSourceRequest> CreateRequests() => _items
+        .Where(item => item.IsIncluded)
         .Select(item => new UserPetFrameSourceRequest(
             item.Path,
             item.DurationMilliseconds,
@@ -208,25 +209,46 @@ public sealed partial class PngFrameImportControl : UserControl
             item.Crop.Width,
             item.Crop.Height,
             item.DurationMilliseconds);
-        UserPetProcessedFrame processed = UserPetPixelProcessor.Process(
-            item.Decoded.BgraPixels,
-            item.Decoded.Width,
-            item.Decoded.Height,
-            sourceCrop,
-            item.FlipsHorizontally,
-            item.FlipsVertically);
-        ImageSource preview = await WindowsImagePreviewFactory.CreateCheckerboardAsync(processed);
-        item.Thumbnail = preview;
+        UserPetProcessedFrame processed = await Task.Run(() =>
+            UserPetPixelProcessor.Process(
+                item.Decoded.BgraPixels,
+                item.Decoded.Width,
+                item.Decoded.Height,
+                sourceCrop,
+                item.FlipsHorizontally,
+                item.FlipsVertically));
+        item.Thumbnail = await WindowsImagePreviewFactory.CreateCheckerboardAsync(processed);
         item.Detail = $"{item.Crop.Width}×{item.Crop.Height}px" +
             (item.FlipsHorizontally ? " · 좌우" : string.Empty) +
             (item.FlipsVertically ? " · 상하" : string.Empty);
         if (item == _focused)
         {
-            ResultImage.Source = preview;
-            double scale = Math.Min(300d / processed.Width, 190d / processed.Height);
+            IReadOnlyList<PngDraftItem> included = _items
+                .Where(candidate => candidate.IsIncluded)
+                .ToArray();
+            int commonWidth = included.Count == 0
+                ? item.Crop.Width
+                : included.Max(candidate => candidate.Crop.Width);
+            int commonHeight = included.Count == 0
+                ? item.Crop.Height
+                : included.Max(candidate => candidate.Crop.Height);
+            UserPetProcessedFrame commonPreview = await Task.Run(() =>
+                WindowsImagePreviewFactory.CenterOnCanvas(
+                    processed,
+                    commonWidth,
+                    commonHeight));
+            ResultImage.Source = await WindowsImagePreviewFactory
+                .CreateCheckerboardAsync(commonPreview);
+            double scale = Math.Min(300d / commonWidth, 190d / commonHeight);
             scale = Math.Min(scale, 1);
-            ResultImage.Width = Math.Max(1, processed.Width * scale);
-            ResultImage.Height = Math.Max(1, processed.Height * scale);
+            ResultOuterBorder.Width = Math.Max(1, commonWidth * scale + 4);
+            ResultOuterBorder.Height = Math.Max(1, commonHeight * scale + 4);
+            ResultCanvas.Width = Math.Max(1, commonWidth * scale);
+            ResultCanvas.Height = Math.Max(1, commonHeight * scale);
+            ResultImage.Width = Math.Max(1, commonWidth * scale);
+            ResultImage.Height = Math.Max(1, commonHeight * scale);
+            Canvas.SetLeft(ResultImage, 0);
+            Canvas.SetTop(ResultImage, 0);
         }
     }
 
@@ -237,7 +259,9 @@ public sealed partial class PngFrameImportControl : UserControl
     private IReadOnlyList<PngDraftItem> NavigationItems()
     {
         PngDraftItem[] selected = SelectedItems().ToArray();
-        return selected.Length > 0 ? selected : _items;
+        return selected.Length > 0
+            ? selected
+            : _items.Where(item => item.IsIncluded).ToArray();
     }
 
     private async void PngList_ItemClick(object sender, ItemClickEventArgs e)
@@ -491,6 +515,47 @@ public sealed partial class PngFrameImportControl : UserControl
         }
     }
 
+    private async void PngIncludedCheckBox_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_isPopulating || sender is not CheckBox { DataContext: PngDraftItem item } checkBox)
+        {
+            return;
+        }
+        item.IsIncluded = checkBox.IsChecked == true;
+        if (_focused is not null)
+        {
+            await RenderFocusedAsync();
+        }
+    }
+
+    private async void RemovePngButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { DataContext: PngDraftItem item })
+        {
+            return;
+        }
+        int index = _items.IndexOf(item);
+        bool wasFocused = ReferenceEquals(item, _focused);
+        _items.Remove(item);
+        if (!wasFocused)
+        {
+            if (_focused is not null)
+            {
+                await RenderFocusedAsync();
+            }
+            return;
+        }
+        _focused = null;
+        if (_items.Count == 0)
+        {
+            SourceImage.Source = null;
+            ResultImage.Source = null;
+            ResultPositionText.Text = "선택 없음";
+            return;
+        }
+        await FocusAsync(_items[Math.Min(index, _items.Count - 1)], forceRender: true);
+    }
+
     private void ShowImportError(string title, Exception exception)
     {
         ImportInfoBar.Title = title;
@@ -501,12 +566,44 @@ public sealed partial class PngFrameImportControl : UserControl
 
     private void SelectAllButton_Click(object sender, RoutedEventArgs e)
     {
-        PngList.SelectAll();
+        _isPopulating = true;
+        try
+        {
+            foreach (PngDraftItem item in _items)
+            {
+                item.IsIncluded = true;
+            }
+        }
+        finally
+        {
+            _isPopulating = false;
+        }
         _focused ??= _items.FirstOrDefault();
+        if (_focused is not null)
+        {
+            _ = RenderFocusedAsync();
+        }
     }
 
-    private void DeselectAllButton_Click(object sender, RoutedEventArgs e) =>
-        PngList.SelectedItems.Clear();
+    private void DeselectAllButton_Click(object sender, RoutedEventArgs e)
+    {
+        _isPopulating = true;
+        try
+        {
+            foreach (PngDraftItem item in _items)
+            {
+                item.IsIncluded = false;
+            }
+        }
+        finally
+        {
+            _isPopulating = false;
+        }
+        if (_focused is not null)
+        {
+            _ = RenderFocusedAsync();
+        }
+    }
 
     private async void PreviousResultButton_Click(object sender, RoutedEventArgs e) =>
         await NavigateAsync(-1);
@@ -549,6 +646,7 @@ public sealed partial class PngFrameImportControl : UserControl
         private ImageSource? _thumbnail;
         private string _detail = string.Empty;
         private bool _isFocused;
+        private bool _isIncluded = true;
 
         public PngDraftItem(
             string path,
@@ -576,6 +674,12 @@ public sealed partial class PngFrameImportControl : UserControl
         public UserPetPixelRect VisibleBounds { get; }
         public bool FlipsHorizontally { get; set; }
         public bool FlipsVertically { get; set; }
+
+        public bool IsIncluded
+        {
+            get => _isIncluded;
+            set => SetField(ref _isIncluded, value);
+        }
 
         public ImageSource? Thumbnail
         {

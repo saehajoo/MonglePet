@@ -57,6 +57,33 @@ internal sealed class WindowsDecodedImageCache
 
 internal static class WindowsImagePreviewFactory
 {
+    public static UserPetProcessedFrame CenterOnCanvas(
+        UserPetProcessedFrame frame,
+        int canvasWidth,
+        int canvasHeight)
+    {
+        if (canvasWidth < frame.Width || canvasHeight < frame.Height)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(canvasWidth),
+                "공통 캔버스는 현재 프레임보다 작을 수 없습니다.");
+        }
+
+        var pixels = new byte[checked(canvasWidth * canvasHeight * 4)];
+        int offsetX = (canvasWidth - frame.Width) / 2;
+        int offsetY = (canvasHeight - frame.Height) / 2;
+        for (int row = 0; row < frame.Height; row++)
+        {
+            System.Buffer.BlockCopy(
+                frame.BgraPixels,
+                row * frame.Width * 4,
+                pixels,
+                ((((offsetY + row) * canvasWidth) + offsetX) * 4),
+                frame.Width * 4);
+        }
+        return new UserPetProcessedFrame(canvasWidth, canvasHeight, pixels);
+    }
+
     public static Task<ImageSource> CreateTransparentAsync(
         UserPetProcessedFrame frame) => CreateSourceAsync(
             frame.BgraPixels,

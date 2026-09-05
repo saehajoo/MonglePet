@@ -138,6 +138,8 @@ SDK는 루트 `global.json`의 .NET 10.0.302로 고정한다. .NET 10이 제공�
 
 2026-09-05 Windows `1.7.0.19`는 자유 이동과 마우스 도망가기 평상시 자유 이동에 `행동 완료 후` 시간 방식을 추가했다. 로컬 schema-v16과 제작자 설정 v12는 기존 fixed/random 값과 확장 필드를 보존하고, 행동 한 회차 완료 event·도망가기 즉시 취소·500ms fallback을 runtime에 연결한다. Debug·Release 각각 332개 테스트와 경고·오류 없는 빌드를 통과했다. 기존 설치 위 업데이트에서 사용자 데이터 84개·8,453,674 bytes와 inventory digest `ED26BE94D844DA1FA0A709061366DEE4A186A8CABCCC3274136B8DE949D16061`를 보존하고 설치 DLL·publish DLL 일치, 설치본 응답과 Application 오류 0건을 확인했다. 소스 커밋 `ae2b1850218d2b1e9303a6d8c09bb5f2bf6d0fa9`를 태그 `windows-v1.7.0-preview.1`로 게시했으며 원격 설치기 65,284,301 bytes, SHA-256 `16D8682EC425385FC686FFF26C06035A7663A05EDDFBF1E3A1ECAE3E4BDA7F45`와 107 bytes 체크섬 파일을 다시 내려받아 일치를 확인했다. 실제 장시간 실행, 혼합 DPI와 macOS 제작자 설정 v12 교차 왕복은 남아 있다.
 
+2026-09-06 Windows `1.8.1.20` 릴리스 후보는 D-121 가져오기 차단·재검사와 상세 접기, 설정 화면·이동 정보 구조, PNG·스프라이트 공통 crop 캔버스와 비동기 이미지 처리, 앱 내 이용 가이드, `내 펫` primary action·선택 강조 정리를 반영했다. Debug·Release 각각 Activity 27개·Core 69개·Packages 28개·PetLibrary 91개·Settings 95개·Shell 27개로 총 337개 테스트와 경고·오류 없는 전체 빌드를 통과했다. 기존 `1.7.0.19` 위 업데이트에서 사용자 데이터 84개·8,453,674 bytes와 inventory digest `ED26BE94D844DA1FA0A709061366DEE4A186A8CABCCC3274136B8DE949D16061`를 보존하고 설치 DLL·publish DLL 일치와 설치본 실행 응답을 확인했다. 미서명 설치기의 SHA-256은 `AB2C1FE31835BCD2B928D1D22CD26F08DD1E75D8F269490BBF459B41EE9EE1E2`다. 실제 혼합 DPI·키보드·Narrator·대용량 이미지 반복 drag와 macOS 교차 왕복은 후속 QA로 남아 있다.
+
 Windows 기반부터 로컬 공유까지의 완료 기록은 `../../AGENTS/work_plans/INDEX.md`에서 확인한다. 이번 가져오기 검토·권장 설정·내보내기 구현은 `../../AGENTS/work_plans/tasks/2026-08-09-windows-local-sharing.md`에 정리했다. 다음 구현을 시작하기 전 이 디렉터리의 `AGENTS.md`와 새 작업 계획을 함께 확인한다.
 
 ## EXE 설치기 만들기

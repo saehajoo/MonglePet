@@ -2,7 +2,7 @@
 
 ## 상태
 
-- 상태: macOS_implementation_complete_qa_pending
+- 상태: windows_implementation_complete_qa_pending
 - 생성일: 2026-09-05
 - 마지막 갱신: 2026-09-05
 
@@ -27,7 +27,6 @@
 
 - 앱 내부 자동 업데이트·다운로드·설치
 - `.monglepet` package formatVersion, 로컬 settings schema-v16, 제작자 설정 schema-v12 변경
-- Windows 소스 구현·빌드·QA
 - 웹 서버 소스 구현·배포
 - macOS 앱 버전·빌드 번호 증가와 GitHub Release
 
@@ -64,7 +63,12 @@
 ### Windows
 
 - [x] Windows 인계 문서에 Domain·WinUI·transaction·테스트 요구사항을 새 정책으로 다시 작성한다.
-- [ ] Windows 환경에서 네이티브 구현·테스트·실제 QA를 진행한다.
+- [x] 설치 가능 여부와 차단 사유를 표현하는 Domain 결과를 추가하고 설치 직전 다시 검사한다.
+- [x] 최소 버전·미래 schema·손상 설정을 차단하고 레거시 설정 없음만 최소 profile로 허용한다.
+- [x] 내보내기의 제작 앱 버전과 schema 기반 최소 앱 버전을 분리한다.
+- [x] 로컬·웹 공통 검토 화면을 핵심 결과와 접힌 `자세히 보기` 구조로 바꾼다.
+- [x] 관련 Windows 단위 테스트와 Debug·Release 빌드를 진행한다.
+- [ ] 실제 로컬·웹 가져오기와 업데이트 링크 UI QA를 진행한다.
 
 ### 웹 서버
 
@@ -95,14 +99,18 @@
 - 2026-09-05: 내보내기는 현재 앱 버전을 제작 버전으로, 제작자 설정 schema-v12를 포함하면 `1.7.0`을 최소 앱 버전으로 기록하도록 보정했다. package format과 settings·profile schema는 올리지 않았다.
 - 2026-09-05: 관련 테스트와 전체 `MonglePetTests`를 실행해 총 551개 중 550개 통과·1개 스킵·0개 실패를 확인했다. Debug 빌드와 `git diff --check`도 성공했다.
 - 2026-09-05: 공통 명세·D-121·플랫폼 동등성·Windows 인계·서버 인계 문서를 새 정책으로 갱신했다.
+- 2026-09-05: Windows `main`을 `4b4c81c`로 fast-forward한 뒤 종전 비차단 advisory·미래/손상 fallback과 내보내기 버전 결합이 남아 있음을 확인하고 구현을 시작했다.
+- 2026-09-05: Windows import review에 호환·레거시 설정 없음·최소 버전 업데이트·미래 schema 업데이트·손상 설정 disposition을 추가했다. 설치 직전 fingerprint와 disposition을 다시 검사하고 App의 과거 직접 가져오기 진입점도 동일한 review transaction으로 통합했다.
+- 2026-09-05: 로컬·웹 공통 검토 화면을 핵심 상태와 접힌 `자세히 보기`로 바꾸고, 업데이트 필요 상태는 고정 다운로드 URL만 열며 손상 설정에는 설치 작업을 제공하지 않게 했다.
+- 2026-09-05: 내보내기는 현재 앱 버전을 제작 버전으로, 제작자 설정이 없으면 `0.1.0`, v12 설정을 포함하면 최초 지원 버전 `1.7.0`을 최소 버전으로 기록한다. 관련 PetLibrary 91개·Settings 95개와 전체 Debug·Release 각 337개 테스트 및 두 구성 빌드가 통과했다.
 
 ## 완료 결과
 
 - macOS 구현과 자동 검증, 공통 계약 및 Windows·서버 인계 문서 갱신을 완료했다.
 - 실제 로컬 파일·웹 URL 가져오기 화면 QA와 업데이트 링크 동작 확인은 사용자 QA로 남아 있다.
-- Windows·서버 구현과 교차 플랫폼 검증은 후속 단계이며 플랫폼 동등 완료로 표시하지 않았다.
+- Windows 구현과 자동 검증을 완료했으며 실제 UI와 교차 플랫폼 검증 전까지 플랫폼 동등 완료로 표시하지 않았다.
 
 ## 남은 위험 / 후속 작업
 
 - 실제 macOS UI와 웹 URL 가져오기 QA가 필요하다.
-- Windows 구현·QA와 서버 validator 반영 전까지 플랫폼 동등 완료로 표시하지 않는다.
+- Windows 실제 UI QA와 서버 validator·교차 왕복 반영 전까지 플랫폼 동등 완료로 표시하지 않는다.

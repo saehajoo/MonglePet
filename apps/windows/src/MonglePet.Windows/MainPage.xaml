@@ -94,6 +94,9 @@
                 <NavigationViewItem.Icon><SymbolIcon Symbol="Clock" /></NavigationViewItem.Icon>
             </NavigationViewItem>
             <NavigationViewItemHeader Content="지원" />
+            <NavigationViewItem Content="이용 가이드" Tag="guide" AutomationProperties.Name="이용 가이드">
+                <NavigationViewItem.Icon><SymbolIcon Symbol="Help" /></NavigationViewItem.Icon>
+            </NavigationViewItem>
             <NavigationViewItem Content="문제 해결" Tag="troubleshooting">
                 <NavigationViewItem.Icon><SymbolIcon Symbol="Help" /></NavigationViewItem.Icon>
             </NavigationViewItem>
@@ -134,6 +137,7 @@
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="48" />
                         <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <Border
                         Width="48"
@@ -153,8 +157,24 @@
                             Text="현재 펫을 선택하고 .monglepet 패키지를 가져오거나 내보냅니다."
                             TextWrapping="Wrap" />
                     </StackPanel>
+                    <Button
+                        Grid.Column="2"
+                        Width="36"
+                        Height="36"
+                        Padding="0"
+                        VerticalAlignment="Center"
+                        AutomationProperties.Name="이용 가이드 열기"
+                        Click="OpenQuickGuideButton_Click"
+                        ToolTipService.ToolTip="이용 가이드 열기">
+                        <FontIcon Glyph="&#xE897;" FontSize="16" />
+                    </Button>
                 </Grid>
             </Border>
+
+            <local:QuickGuideControl
+                x:Name="QuickGuide"
+                Visibility="Collapsed"
+                SectionRequested="QuickGuide_SectionRequested" />
 
             <InfoBar
                 x:Name="SafeStartInfoBar"
@@ -195,7 +215,8 @@
                     <TextBlock
                         Style="{StaticResource SettingsCaptionStyle}"
                         Text="각 펫은 독립된 이미지, 행동, 이동과 말풍선 설정을 사용합니다. 잠시 숨기려면 삭제하지 말고 재워 주세요." />
-                    <Grid MaxWidth="320" HorizontalAlignment="Stretch" ColumnSpacing="10">
+                    <TextBlock Style="{StaticResource SettingsCaptionStyle}" Text="펫 추가" />
+                    <Grid Width="320" HorizontalAlignment="Left" ColumnSpacing="10">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="*" />
@@ -204,7 +225,7 @@
                             AutomationProperties.Name="펫 만들기"
                             Click="CreatePetButton_Click"
                             HorizontalAlignment="Stretch"
-                            Style="{StaticResource AccentButtonStyle}">
+                            Style="{StaticResource MonglePrimaryButtonStyle}">
                             <StackPanel Orientation="Horizontal" Spacing="7">
                                 <Viewbox Width="14" Height="14">
                                     <SymbolIcon Symbol="Add" />
@@ -214,9 +235,10 @@
                         </Button>
                         <Button
                             Grid.Column="1"
-                            AutomationProperties.Name="펫 가져오기"
-                            Click="ImportPetFromDashboardButton_Click"
-                            HorizontalAlignment="Stretch">
+                             AutomationProperties.Name="펫 가져오기"
+                             Click="ImportPetFromDashboardButton_Click"
+                             HorizontalAlignment="Stretch"
+                             Style="{StaticResource MyPetsSecondaryButtonStyle}">
                             <StackPanel Orientation="Horizontal" Spacing="7">
                                 <Viewbox Width="14" Height="14">
                                     <SymbolIcon Symbol="Download" />
@@ -232,16 +254,17 @@
                         BorderThickness="0,1,0,0">
                         <StackPanel Spacing="6">
                             <TextBlock Style="{StaticResource SettingsCaptionStyle}" Text="전체 펫 제어" />
-                            <Grid MaxWidth="450" HorizontalAlignment="Stretch" ColumnSpacing="10">
+                            <Grid Width="450" HorizontalAlignment="Left" ColumnSpacing="10">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
                                 <Button
-                                    AutomationProperties.Name="모두 깨우기"
-                                    Click="WakeAllPetsButton_Click"
-                                    HorizontalAlignment="Stretch">
+                                     AutomationProperties.Name="모두 깨우기"
+                                     Click="WakeAllPetsButton_Click"
+                                     HorizontalAlignment="Stretch"
+                                     Style="{StaticResource MyPetsSecondaryButtonStyle}">
                                     <StackPanel Orientation="Horizontal" Spacing="7">
                                         <Viewbox Width="14" Height="14">
                                             <SymbolIcon Symbol="Play" />
@@ -250,10 +273,11 @@
                                     </StackPanel>
                                 </Button>
                                 <Button
-                                    Grid.Column="1"
-                                    AutomationProperties.Name="모두 재우기"
-                                    Click="TuckAwayAllPetsButton_Click"
-                                    HorizontalAlignment="Stretch">
+                                     Grid.Column="1"
+                                     AutomationProperties.Name="모두 재우기"
+                                     Click="TuckAwayAllPetsButton_Click"
+                                     HorizontalAlignment="Stretch"
+                                     Style="{StaticResource MyPetsSecondaryButtonStyle}">
                                     <StackPanel Orientation="Horizontal" Spacing="7">
                                         <Viewbox Width="14" Height="14">
                                             <SymbolIcon Symbol="Stop" />
@@ -262,10 +286,11 @@
                                     </StackPanel>
                                 </Button>
                                 <Button
-                                    Grid.Column="2"
-                                    AutomationProperties.Name="모든 펫 일시정지 또는 계속"
-                                    Click="PauseAllPetsButton_Click"
-                                    HorizontalAlignment="Stretch">
+                                     Grid.Column="2"
+                                     AutomationProperties.Name="모든 펫 일시정지 또는 계속"
+                                     Click="PauseAllPetsButton_Click"
+                                     HorizontalAlignment="Stretch"
+                                     Style="{StaticResource MyPetsSecondaryButtonStyle}">
                                     <StackPanel Orientation="Horizontal" Spacing="7">
                                         <Viewbox Width="14" Height="14">
                                             <SymbolIcon x:Name="PauseAllPetsIcon" Symbol="Pause" />
@@ -495,10 +520,11 @@
                                                 <Button
                                                     Grid.Column="1"
                                                     VerticalAlignment="Stretch"
-                                                    Click="SaveActivePetNicknameButton_Click"
-                                                    Content="저장"
-                                                    IsEnabled="{Binding CanSaveNickname}"
-                                                    Tag="{Binding InstanceId}" />
+                                                     Click="SaveActivePetNicknameButton_Click"
+                                                     Content="저장"
+                                                     IsEnabled="{Binding CanSaveNickname}"
+                                                     Style="{StaticResource MyPetsSecondaryButtonStyle}"
+                                                     Tag="{Binding InstanceId}" />
                                             </Grid>
                                             <StackPanel
                                                 Grid.Row="3"
@@ -532,9 +558,10 @@
                                                 Orientation="Horizontal"
                                                 Spacing="8">
                                                 <Button
-                                                    AutomationProperties.Name="펫 사본 만들기"
-                                                    Click="DuplicateActivePetButton_Click"
-                                                    Tag="{Binding InstanceId}"
+                                                     AutomationProperties.Name="펫 사본 만들기"
+                                                     Click="DuplicateActivePetButton_Click"
+                                                     Style="{StaticResource MyPetsSecondaryButtonStyle}"
+                                                     Tag="{Binding InstanceId}"
                                                     ToolTipService.ToolTip="펫 사본 만들기">
                                                     <StackPanel Orientation="Horizontal" Spacing="7">
                                                         <Viewbox Width="14" Height="14">
@@ -544,9 +571,10 @@
                                                     </StackPanel>
                                                 </Button>
                                                 <Button
-                                                    AutomationProperties.Name="패키지로 내보내기"
-                                                    Click="ExportActivePetButton_Click"
-                                                    Tag="{Binding InstanceId}"
+                                                     AutomationProperties.Name="패키지로 내보내기"
+                                                     Click="ExportActivePetButton_Click"
+                                                     Style="{StaticResource MyPetsSecondaryButtonStyle}"
+                                                     Tag="{Binding InstanceId}"
                                                     ToolTipService.ToolTip="패키지로 내보내기"
                                                     Visibility="{Binding ExportVisibility}">
                                                     <StackPanel Orientation="Horizontal" Spacing="7">
@@ -576,16 +604,17 @@
                                         </Grid>
                                     </Border>
                                     <Border
-                                        Background="{ThemeResource AccentFillColorDefaultBrush}"
+                                        Background="{ThemeResource MongleControlAccentBrush}"
                                         CornerRadius="16"
                                         IsHitTestVisible="False"
                                         Opacity="0.09"
                                         Visibility="{Binding SelectionVisibility}" />
                                     <Border
-                                        BorderBrush="{ThemeResource AccentFillColorDefaultBrush}"
+                                        BorderBrush="{ThemeResource MongleControlAccentBrush}"
                                         BorderThickness="1.5"
                                         CornerRadius="16"
                                         IsHitTestVisible="False"
+                                        Opacity="0.55"
                                         Visibility="{Binding SelectionVisibility}" />
                                 </Grid>
                             </DataTemplate>
@@ -632,7 +661,7 @@
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="56" />
+                                    <ColumnDefinition Width="108" />
                                 </Grid.ColumnDefinitions>
                                 <TextBlock VerticalAlignment="Center" Text="펫 크기" />
                                 <Slider
@@ -643,11 +672,16 @@
                                     SmallChange="9.6"
                                     StepFrequency="9.6"
                                     ValueChanged="DisplaySlider_ValueChanged" />
-                                <TextBlock
-                                    x:Name="OverlayWidthValueText"
+                                <NumberBox
+                                    x:Name="OverlayScalePercentNumberBox"
                                     Grid.Column="2"
-                                    HorizontalAlignment="Right"
-                                    VerticalAlignment="Center" />
+                                    AutomationProperties.Name="펫 크기 백분율"
+                                    Maximum="200"
+                                    Minimum="10"
+                                    SmallChange="5"
+                                    SpinButtonPlacementMode="Compact"
+                                    Value="100"
+                                    ValueChanged="OverlayScalePercentNumberBox_ValueChanged" />
                             </Grid>
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <TextBlock VerticalAlignment="Center" Style="{StaticResource SettingsCaptionStyle}" Text="빠른 크기" />
@@ -673,6 +707,8 @@
                                 Style="{StaticResource SettingsCaptionStyle}"
                                 Text="100%는 192px이며 10%~200% 범위에서 펫마다 따로 저장됩니다." />
                         </StackPanel>
+                        <Border Style="{StaticResource SettingsDividerStyle}" />
+                        <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="화면 표현" />
                         <Grid ColumnSpacing="12">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
@@ -1258,6 +1294,12 @@
                             </Border>
                         </RadioButton>
                     </Grid>
+                    <Border x:Name="MovementCurrentSummaryCard" Style="{StaticResource SettingsSubcardStyle}">
+                        <StackPanel Spacing="3">
+                            <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="현재 설정" />
+                            <TextBlock x:Name="MovementCurrentSummaryText" Style="{StaticResource SettingsCaptionStyle}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
                     <ComboBox
                         x:Name="MovementModeComboBox"
                         Header="이동 모드"
@@ -1275,7 +1317,7 @@
                             Text="펫을 직접 드래그한 위치에 그대로 둡니다." />
                     </StackPanel>
                     <StackPanel x:Name="MovementSensePanel" Spacing="10">
-                        <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="이동 감각" />
+                        <TextBlock x:Name="MovementSenseTitleText" Style="{StaticResource BodyStrongTextBlockStyle}" Text="기본 이동 설정" />
                         <Grid ColumnSpacing="12">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
@@ -1299,7 +1341,7 @@
                         </Grid>
                     </StackPanel>
                     <StackPanel x:Name="MovementBoundaryPanel" Spacing="10">
-                        <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="이동 범위" />
+                        <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="이동 범위 · 모든 펫 공통" />
                         <Grid ColumnSpacing="12">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
@@ -1345,8 +1387,19 @@
                             Minimum="0"
                             SmallChange="8"
                             ValueChanged="MovementControls_Changed" />
+                        <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="이동할 때 행동" />
                         <local:MovementAnimationEditor x:Name="CursorFollowingAnimationEditor" SettingsChanged="MovementAnimationEditor_SettingsChanged" />
                         <TextBlock Style="{StaticResource SettingsCaptionStyle}" Text="마우스 포인터와 지정한 거리를 유지하며 화면 안에서 따라갑니다." />
+                    </StackPanel>
+                    <StackPanel x:Name="CursorAvoidingIdlePanel" Spacing="8" Visibility="Collapsed">
+                        <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="평상시" />
+                        <ComboBox
+                            x:Name="AvoidingIdleBehaviorComboBox"
+                            Header="평상시 행동"
+                            SelectionChanged="MovementControls_Changed">
+                            <ComboBoxItem Content="가만히 있기" Tag="Stationary" />
+                            <ComboBoxItem Content="자유 이동" Tag="FreeRoaming" />
+                        </ComboBox>
                     </StackPanel>
                     <StackPanel x:Name="FreeRoamingOptionsPanel" Spacing="10" Visibility="Collapsed">
                         <TextBlock x:Name="FreeRoamingSectionTitle" Style="{StaticResource BodyStrongTextBlockStyle}" Text="자유 이동" />
@@ -1381,18 +1434,12 @@
                             x:Name="PrefersFrontmostWindowToggle"
                             Header="현재 사용 중인 앱의 창 근처를 우선"
                             Toggled="MovementControls_Changed" />
+                        <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="이동할 때 행동" />
                         <local:MovementAnimationEditor x:Name="FreeRoamingAnimationEditor" SettingsChanged="MovementAnimationEditor_SettingsChanged" />
                         <TextBlock Style="{StaticResource SettingsCaptionStyle}" Text="창 정보를 얻을 수 없거나 전체 화면이면 현재 화면 안에서 안전한 위치를 선택합니다." />
                     </StackPanel>
                     <StackPanel x:Name="CursorAvoidingOptionsPanel" Spacing="10" Visibility="Collapsed">
-                        <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="마우스 도망가기" />
-                        <ComboBox
-                            x:Name="AvoidingIdleBehaviorComboBox"
-                            Header="평상시 행동"
-                            SelectionChanged="MovementControls_Changed">
-                            <ComboBoxItem Content="가만히 있기" Tag="Stationary" />
-                            <ComboBoxItem Content="자유 이동" Tag="FreeRoaming" />
-                        </ComboBox>
+                        <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="마우스가 가까울 때" />
                         <Grid ColumnSpacing="12">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
@@ -1414,6 +1461,7 @@
                                 SmallChange="10"
                                 ValueChanged="MovementControls_Changed" />
                         </Grid>
+                        <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="이동할 때 행동" />
                         <local:MovementAnimationEditor x:Name="CursorAvoidingAnimationEditor" SettingsChanged="MovementAnimationEditor_SettingsChanged" />
                         <TextBlock Style="{StaticResource SettingsCaptionStyle}" Text="안전한 거리까지 멀어지면 선택한 평상시 행동으로 돌아갑니다." />
                     </StackPanel>
@@ -1587,7 +1635,7 @@
                             AutomationProperties.Name="MonglePet 웹에서 펫 보러가기"
                             Click="BrowseWebPetsButton_Click"
                             Content="펫 보러가기"
-                            Style="{StaticResource AccentButtonStyle}" />
+                            Style="{StaticResource MonglePrimaryButtonStyle}" />
                         <Border Style="{StaticResource SettingsDividerStyle}" />
                         <StackPanel Spacing="2">
                             <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="주소로 직접 가져오기" />
@@ -1780,7 +1828,7 @@
                                     Grid.Column="1"
                                     Click="AddSequenceButton_Click"
                                     Content="새 행동 루틴 만들기"
-                                    Style="{StaticResource AccentButtonStyle}" />
+                                    Style="{StaticResource MonglePrimaryButtonStyle}" />
                             </Grid>
                             <Grid ColumnSpacing="8">
                                 <Grid.ColumnDefinitions>
@@ -1911,7 +1959,7 @@
                                 x:Name="AddStepButton"
                                 Click="AddStepButton_Click"
                                 Content="애니메이션 단계 추가"
-                                Style="{StaticResource AccentButtonStyle}" />
+                                Style="{StaticResource MonglePrimaryButtonStyle}" />
                             <TextBlock
                                 Style="{StaticResource SettingsCaptionStyle}"
                                 Text="현재 펫이 가진 애니메이션을 순서대로 조합합니다. 루틴 이름은 위의 이름 변경 버튼으로 바꿀 수 있습니다." />
@@ -2012,7 +2060,7 @@
                                     x:Name="NewApplicationRuleButton"
                                     Click="NewApplicationRuleButton_Click"
                                     Content="앱 규칙 추가"
-                                    Style="{StaticResource AccentButtonStyle}" />
+                                    Style="{StaticResource MonglePrimaryButtonStyle}" />
                                 <Button x:Name="NewIdleRuleButton" Click="NewIdleRuleButton_Click" Content="입력 없음 규칙 추가" Visibility="Collapsed" />
                                 <Button x:Name="DeleteRuleButton" Click="DeleteRuleButton_Click" Content="선택 규칙 삭제" Foreground="{ThemeResource MongleDangerForegroundBrush}" />
                             </StackPanel>

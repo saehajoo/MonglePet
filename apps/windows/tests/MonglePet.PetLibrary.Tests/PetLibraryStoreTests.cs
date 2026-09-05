@@ -223,7 +223,7 @@ public sealed class PetLibraryStoreTests
     }
 
     [Fact]
-    public void ReviewTreatsHigherLocalMinimumAsNonBlockingAdvisory()
+    public void ReviewBlocksHigherLocalMinimumBeforeInstallation()
     {
         using var workspace = new TemporaryDirectory();
         var store = CreateStore(workspace, [Guid.NewGuid()]);
@@ -247,12 +247,18 @@ public sealed class PetLibraryStoreTests
 
         Assert.Equal("봄 에디션", review.Manifest.Version);
         Assert.True(review.CompatibilityAdvisory?.RecommendsUpdate);
-        InstalledPetPackage installed = importer.ImportReviewed(review);
-        Assert.Equal("봄 에디션", installed.Package.Manifest.Version);
+        Assert.Equal(
+            PetPackageImportDisposition.UpdateRequiredForMinimumVersion,
+            review.Disposition);
+        Assert.False(review.CanInstall);
+        PetLibraryException exception = Assert.Throws<PetLibraryException>(
+            () => importer.ImportReviewed(review));
+        Assert.Equal(PetLibraryError.ImportBlocked, exception.Error);
+        Assert.Empty(store.GetInstalledPackages());
     }
 
     [Fact]
-    public void InvalidOptionalProfileDoesNotBlockReviewButOversizedProfileDoes()
+    public void InvalidCreatorSettingsBlockInstallationAndOversizedProfileDoesToo()
     {
         using var workspace = new TemporaryDirectory();
         var store = CreateStore(workspace, [Guid.NewGuid()]);
@@ -265,13 +271,27 @@ public sealed class PetLibraryStoreTests
         Assert.True(review.ContainsRecommendedProfile);
         Assert.False(review.CanApplyRecommendedProfile);
         Assert.NotNull(review.RecommendedProfileIssue);
-        InstalledPetPackage installed = importer.ImportReviewed(
-            review,
-            PetPackageInstallMode.InstallSeparately);
-        Assert.Equal("kr.mapleroom.monglepet.sample.readonly", installed.Package.Manifest.Id);
+        Assert.Equal(PetPackageImportDisposition.InvalidCreatorSettings, review.Disposition);
+        PetLibraryException blocked = Assert.Throws<PetLibraryException>(
+            () => importer.ImportReviewed(review, PetPackageInstallMode.InstallSeparately));
+        Assert.Equal(PetLibraryError.ImportBlocked, blocked.Error);
+
+        string creatorSettingsPath = Path.Combine(source, "recommended-profile.json");
+        WriteRecommendedProfile(creatorSettingsPath);
+        JsonObject invalidSchema = JsonNode.Parse(
+            File.ReadAllText(creatorSettingsPath))!.AsObject();
+        invalidSchema["schemaVersion"] = 0;
+        File.WriteAllText(creatorSettingsPath, invalidSchema.ToJsonString());
+        PetPackageImportReview invalidSchemaReview = importer.Review(source);
+        Assert.Equal(
+            RecommendedPetProfileError.InvalidContent,
+            invalidSchemaReview.RecommendedProfileIssue);
+        Assert.Equal(
+            PetPackageImportDisposition.InvalidCreatorSettings,
+            invalidSchemaReview.Disposition);
 
         using FileStream stream = new(
-            Path.Combine(source, "recommended-profile.json"),
+            creatorSettingsPath,
             FileMode.Create,
             FileAccess.Write);
         stream.SetLength((1L * 1024 * 1024) + 1L);
@@ -281,7 +301,7 @@ public sealed class PetLibraryStoreTests
     }
 
     [Fact]
-    public void FutureCreatorSettingsFallBackWithoutBlockingReviewedInstallation()
+    public void FutureCreatorSettingsRequireUpdateAndBlockInstallation()
     {
         using var workspace = new TemporaryDirectory();
         Guid installationId = Guid.NewGuid();
@@ -296,16 +316,18 @@ public sealed class PetLibraryStoreTests
         var importer = new PetPackageImporter(store);
 
         PetPackageImportReview review = importer.Review(source);
-        InstalledPetPackage installed = importer.ImportReviewed(
-            review,
-            PetPackageInstallMode.InstallSeparately);
-
         Assert.True(review.ContainsRecommendedProfile);
         Assert.Null(review.RecommendedProfile);
         Assert.Equal(
             RecommendedPetProfileError.UnsupportedSchema,
             review.RecommendedProfileIssue);
-        Assert.Equal(installationId, installed.InstallationId);
+        Assert.Equal(
+            PetPackageImportDisposition.UpdateRequiredForCreatorSettings,
+            review.Disposition);
+        PetLibraryException blocked = Assert.Throws<PetLibraryException>(
+            () => importer.ImportReviewed(review, PetPackageInstallMode.InstallSeparately));
+        Assert.Equal(PetLibraryError.ImportBlocked, blocked.Error);
+        Assert.Empty(store.GetInstalledPackages());
     }
 
     [Fact]
@@ -329,8 +351,28 @@ public sealed class PetLibraryStoreTests
             entries);
         PetPackageImportReview review = new PetPackageImporter(store).Review(destination);
         Assert.False(review.ContainsRecommendedProfile);
-        Assert.Equal("1.5.0", review.Manifest.Compatibility?.CreatedWithMonglePetVersion);
-        Assert.Equal("1.5.0", review.Manifest.Compatibility?.MinimumMonglePetVersion);
+        Assert.Equal("1.7.0", review.Manifest.Compatibility?.CreatedWithMonglePetVersion);
+        Assert.Equal("0.1.0", review.Manifest.Compatibility?.MinimumMonglePetVersion);
+    }
+
+    [Fact]
+    public void ExporterRecordsCurrentAppAndCreatorSettingsMinimumSeparately()
+    {
+        using var workspace = new TemporaryDirectory();
+        Guid installationId = Guid.NewGuid();
+        var store = CreateStore(workspace, [installationId]);
+        InstalledPetPackage installed = store.InstallFromDirectory(FixturePath());
+        string destination = Path.Combine(workspace.Path, "shared-with-settings.monglepet");
+        var exporter = new PetPackageExporter(appVersion: "1.8.0");
+        BehaviorProfile profile = BehaviorProfileDefaults.Create(
+            new PetBehaviorKey.Installed(installationId));
+
+        exporter.Export(installed, destination, profile);
+
+        PetPackageImportReview review = new PetPackageImporter(store).Review(destination);
+        Assert.True(review.ContainsRecommendedProfile);
+        Assert.Equal("1.8.0", review.Manifest.Compatibility?.CreatedWithMonglePetVersion);
+        Assert.Equal("1.7.0", review.Manifest.Compatibility?.MinimumMonglePetVersion);
     }
 
     [Fact]

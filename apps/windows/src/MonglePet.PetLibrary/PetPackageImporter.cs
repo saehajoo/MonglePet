@@ -123,6 +123,12 @@ public sealed class PetPackageImporter
                 PetLibraryError.ReviewedContentChanged,
                 "The package changed after review. Review it again before importing.");
         }
+        if (!current.CanInstall)
+        {
+            throw new PetLibraryException(
+                PetLibraryError.ImportBlocked,
+                "이 펫은 현재 MonglePet에서 완전하게 추가할 수 없습니다. 가져오기 내용을 다시 확인해 주세요.");
+        }
 
         return Import(review.SourcePath, mode, replacementInstallationId);
     }

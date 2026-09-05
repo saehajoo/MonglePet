@@ -61,8 +61,10 @@
             </Grid>
             <Border Grid.Row="1" Style="{StaticResource SettingsSubcardStyle}" Padding="12">
                 <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <Border BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
-                        <Border BorderBrush="#FF1877F2" BorderThickness="2"><Image x:Name="PreviewImage" Stretch="Fill" /></Border>
+                    <Border x:Name="PreviewOuterBorder" BorderBrush="#FF1877F2" BorderThickness="2" Background="Transparent">
+                        <Canvas x:Name="PreviewCanvas">
+                            <Image x:Name="PreviewImage" Stretch="Fill" />
+                        </Canvas>
                     </Border>
                 </Grid>
             </Border>

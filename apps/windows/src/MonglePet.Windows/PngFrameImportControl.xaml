@@ -92,10 +92,10 @@
                         </Button>
                     </Grid>
                     <Grid Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center">
-                        <Border x:Name="ResultOuterBorder" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" Background="Transparent">
-                            <Border BorderBrush="#FF1877F2" BorderThickness="2">
+                        <Border x:Name="ResultOuterBorder" BorderBrush="#FF1877F2" BorderThickness="2" Background="Transparent">
+                            <Canvas x:Name="ResultCanvas">
                                 <Image x:Name="ResultImage" Stretch="Fill" />
-                            </Border>
+                            </Canvas>
                         </Border>
                     </Grid>
                 </Grid>
@@ -141,8 +141,8 @@
                                 </Grid.ColumnDefinitions>
                                 <TextBlock VerticalAlignment="Center" Style="{StaticResource BodyStrongTextBlockStyle}" Text="PNG 목록" />
                                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
-                                    <Button Click="SelectAllButton_Click" Content="전체 선택" />
-                                    <Button Click="DeselectAllButton_Click" Content="전체 해제" />
+                                    <Button Click="SelectAllButton_Click" Content="모두 포함" />
+                                    <Button Click="DeselectAllButton_Click" Content="모두 제외" />
                                 </StackPanel>
                             </Grid>
                             <ListView
@@ -156,22 +156,40 @@
                                     <DataTemplate>
                                         <Grid MinWidth="280" Padding="4" ColumnSpacing="10">
                                             <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="48" />
                                                 <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
-                                            <Border Width="44" Height="44" BorderBrush="#FF1877F2" BorderThickness="{Binding FocusBorderThickness}" CornerRadius="6">
+                                            <CheckBox
+                                                VerticalAlignment="Center"
+                                                AutomationProperties.Name="가져오기에 포함"
+                                                IsChecked="{Binding IsIncluded, Mode=TwoWay}"
+                                                Checked="PngIncludedCheckBox_Changed"
+                                                Unchecked="PngIncludedCheckBox_Changed" />
+                                            <Border Grid.Column="1" Width="44" Height="44" BorderBrush="#FF1877F2" BorderThickness="{Binding FocusBorderThickness}" CornerRadius="6">
                                                 <Image Source="{Binding Thumbnail}" Stretch="Uniform" />
                                             </Border>
-                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <StackPanel Grid.Column="2" VerticalAlignment="Center">
                                                 <TextBlock Text="{Binding FileName}" TextTrimming="CharacterEllipsis" />
                                                 <TextBlock Style="{StaticResource CaptionTextBlockStyle}" Text="{Binding Detail}" />
                                             </StackPanel>
+                                            <Button
+                                                Grid.Column="3"
+                                                Width="30"
+                                                Height="30"
+                                                Padding="0"
+                                                VerticalAlignment="Center"
+                                                AutomationProperties.Name="PNG 목록에서 제거"
+                                                Click="RemovePngButton_Click">
+                                                <FontIcon FontSize="12" Glyph="&#xE74D;" />
+                                            </Button>
                                         </Grid>
                                     </DataTemplate>
                                 </ListView.ItemTemplate>
                             </ListView>
                             <Button HorizontalAlignment="Left" Click="AddMorePngButton_Click" Content="PNG 더 추가…" />
-                            <TextBlock Style="{StaticResource SettingsCaptionStyle}" Text="Ctrl 키를 누른 채 클릭하면 여러 PNG를 일괄 편집할 수 있습니다." />
+                            <TextBlock Style="{StaticResource SettingsCaptionStyle}" Text="체크한 PNG만 추가됩니다. Ctrl 키를 누른 채 행을 클릭하면 여러 PNG를 일괄 편집할 수 있습니다." TextWrapping="Wrap" />
                         </StackPanel>
                     </Border>
                 </StackPanel>

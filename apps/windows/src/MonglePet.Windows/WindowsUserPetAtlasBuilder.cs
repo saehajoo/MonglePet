@@ -31,21 +31,45 @@ internal sealed class WindowsUserPetAtlasBuilder : IUserPetAtlasBuilder
                 source = await DecodeAsync(path, cancellationToken);
                 decodedSources.Add(path, source);
             }
-            UserPetProcessedFrame processed = UserPetPixelProcessor.Process(
-                source.Pixels,
-                source.Width,
-                source.Height,
-                frame.SourceFrame,
-                frame.FlipsHorizontally,
-                frame.FlipsVertically,
-                frame.CanvasPlacement,
-                frame.BackgroundRemoval);
+            UserPetProcessedFrame processed = await Task.Run(() =>
+                UserPetPixelProcessor.Process(
+                    source.Pixels,
+                    source.Width,
+                    source.Height,
+                    frame.SourceFrame,
+                    frame.FlipsHorizontally,
+                    frame.FlipsVertically,
+                    frame.CanvasPlacement,
+                    frame.BackgroundRemoval),
+                cancellationToken);
             decoded.Add(new DecodedFrame(
                 processed.Width,
                 processed.Height,
                 processed.BgraPixels));
         }
 
+        BuiltAtlasPixels built = await Task.Run(
+            () => BuildAtlasPixels(decoded, frames, cancellationToken),
+            cancellationToken);
+        byte[] atlasPng = await EncodePngAsync(
+            built.Width,
+            built.Height,
+            built.Pixels);
+        DecodedFrame preview = decoded[0];
+        byte[] previewPng = await EncodePngAsync(preview.Width, preview.Height, preview.Pixels);
+        return new UserPetBuiltAtlas(
+            atlasPng,
+            previewPng,
+            built.Width,
+            built.Height,
+            built.Definitions);
+    }
+
+    private static BuiltAtlasPixels BuildAtlasPixels(
+        IReadOnlyList<DecodedFrame> decoded,
+        IReadOnlyList<UserPetFrameSourceRequest> frames,
+        CancellationToken cancellationToken)
+    {
         IReadOnlyList<AtlasPlacement> placements = Arrange(decoded);
         int atlasWidth = placements.Max(value => value.X + value.Frame.Width);
         int atlasHeight = placements.Max(value => value.Y + value.Frame.Height);
@@ -62,6 +86,7 @@ internal sealed class WindowsUserPetAtlasBuilder : IUserPetAtlasBuilder
         var definitions = new List<PetPackageFrame>(decoded.Count);
         foreach ((AtlasPlacement placement, UserPetFrameSourceRequest request) in placements.Zip(frames))
         {
+            cancellationToken.ThrowIfCancellationRequested();
             DecodedFrame image = placement.Frame;
             for (int row = 0; row < image.Height; row++)
             {
@@ -79,16 +104,7 @@ internal sealed class WindowsUserPetAtlasBuilder : IUserPetAtlasBuilder
                 image.Height,
                 request.DurationMilliseconds));
         }
-
-        byte[] atlasPng = await EncodePngAsync(atlasWidth, atlasHeight, atlasPixels);
-        DecodedFrame preview = decoded[0];
-        byte[] previewPng = await EncodePngAsync(preview.Width, preview.Height, preview.Pixels);
-        return new UserPetBuiltAtlas(
-            atlasPng,
-            previewPng,
-            atlasWidth,
-            atlasHeight,
-            definitions);
+        return new BuiltAtlasPixels(atlasWidth, atlasHeight, atlasPixels, definitions);
     }
 
     private static IReadOnlyList<AtlasPlacement> Arrange(IReadOnlyList<DecodedFrame> frames)
@@ -179,4 +195,9 @@ internal sealed class WindowsUserPetAtlasBuilder : IUserPetAtlasBuilder
 
     private sealed record DecodedFrame(int Width, int Height, byte[] Pixels);
     private sealed record AtlasPlacement(DecodedFrame Frame, int X, int Y);
+    private sealed record BuiltAtlasPixels(
+        int Width,
+        int Height,
+        byte[] Pixels,
+        IReadOnlyList<PetPackageFrame> Definitions);
 }

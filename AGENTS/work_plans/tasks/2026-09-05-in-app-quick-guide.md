@@ -25,7 +25,6 @@
 - 첫 실행을 막는 강제 온보딩과 가이드 완료 상태 저장
 - 웹 가이드 콘텐츠와 서버 구현
 - 설정 schema, `.monglepet` package와 제작자 설정 schema 변경
-- Windows 소스·빌드·실제 Windows QA
 - 앱 버전 상승, 커밋·푸시와 릴리스
 
 ## 열린 질문
@@ -54,10 +53,15 @@
 ### Windows
 
 - [x] 5단계: 기존 `지원 > 문제 해결`과 분리된 WinUI 이용 가이드의 구조·문구·접근성·QA를 인계한다.
+- [x] 6단계: `지원 > 이용 가이드`와 상시 도움말 진입점을 추가한다.
+- [x] 7단계: 5단계 작업 안내·용어·설정 바로가기를 WinUI grouped card로 구현한다.
+- [x] 8단계: 고정 웹 가이드 URL과 실패 InfoBar를 구현한다.
+- [x] 9단계: 설정 비변경 계약 테스트와 Debug·Release 빌드를 진행한다.
+- [ ] 10단계: 실제 좁은 창·DPI·테마·키보드·Narrator QA를 진행한다.
 
 ### 플랫폼 동등성
 
-- [ ] 6단계: Windows 구현과 실제 키보드·Narrator·DPI QA 뒤 동등 완료 여부를 확인한다.
+- [ ] 11단계: Windows 실제 키보드·Narrator·DPI QA 뒤 동등 완료 여부를 확인한다.
 
 ## 검증 방법
 
@@ -75,6 +79,10 @@
 - 2026-09-05: 사용자 확정에 따라 웹 가이드는 빌드 구성과 무관하게 `https://mapleroom.kr/monglepet/guide`로 고정하고 macOS 코드·결정·Windows 인계를 동기화했다.
 - 2026-09-05: D-123, 제품 정의와 플랫폼 동등성을 갱신하고 기존 Windows `문제 해결`과 분리된 NavigationView·문구·URL·실패 처리·접근성·반응형·QA 기준을 전용 인계 문서에 기록했다.
 - 2026-09-05: 전체 macOS 단위 테스트 553개 중 552개 성공·선택형 WebP fixture 1개 건너뜀·실패 0개, Debug 빌드와 UI 테스트 target compile을 통과했다. 전용 가이드 XCUITest는 테스트 본문 진입 전에 Runner가 멈춰 34초 후 중단했으므로 실제 앱 QA가 남았다.
+- 2026-09-05: Windows에는 `지원 > 문제 해결`만 있고 guide section·상시 도움말·바로가기가 없음을 확인하고 네이티브 구현을 시작했다.
+- 2026-09-05: Windows `지원 > 이용 가이드`와 상시 도움말 버튼, 5단계 작업 안내·핵심 용어·9개 설정 바로가기·고정 운영 웹 URL 및 실패 InfoBar를 구현했다. compact에서는 용어를 1열, 넓은 창에서는 2열로 배치하며 가이드 진입만으로 선택 펫·설정을 다시 읽거나 저장하지 않는다.
+- 2026-09-05: Shell UI 계약 27개와 전체 Debug·Release 각 337개 테스트 및 두 구성 빌드가 통과했다. 실제 테마·키보드·Narrator·DPI QA는 남겼다.
+- 2026-09-05: unpackaged Release 설치 QA에서 별도 `QuickGuideControl`이 `MainPage` 범위의 `SettingsCardStyle`을 찾지 못해 시작 직후 종료되는 문제를 발견했다. 컨트롤 자체 리소스로 카드 스타일을 옮기고 초기 반응형 배치 이벤트를 초기화 안전하게 만든 뒤 작업 폴더·설치 경로 Release 앱 모두 15초 생존 및 새 Application Error 없음, Release Shell UI 계약 27개 통과를 확인했다.
 
 ## 완료 결과
 
@@ -86,4 +94,4 @@
 
 - 실제 macOS 좁은 창·키보드·VoiceOver QA가 필요하다.
 - 현재 호스트의 XCUITest Runner가 앱 assertion 전에 멈추므로 실행 환경을 복구하거나 사용자 수동 QA로 가이드 진입·바로가기·스크롤을 확인해야 한다.
-- Windows 구현·실제 QA 전에는 플랫폼 동등 완료로 표시하지 않는다.
+- Windows 실제 접근성·DPI QA 전에는 플랫폼 동등 완료로 표시하지 않는다.

@@ -23,6 +23,10 @@ public sealed class WindowsPetImportUiContractTests
         string pageCode = File.ReadAllText(Path.Combine(fixtures, "MainPage.xaml.cs"));
 
         Assert.DoesNotContain("PetRecommendedProfileApplyOptions", app, StringComparison.Ordinal);
+        Assert.Contains(
+            "return ImportReviewedPackage(review).InstalledPackage;",
+            app,
+            StringComparison.Ordinal);
         Assert.DoesNotContain(
             "PrimaryButtonText = \"기본 설정으로 추가\"",
             pageCode,
@@ -32,9 +36,13 @@ public sealed class WindowsPetImportUiContractTests
             pageCode,
             StringComparison.Ordinal);
         Assert.Contains("Title = \"펫 추가\"", pageCode, StringComparison.Ordinal);
-        Assert.Contains("PrimaryButtonText = \"펫 추가\"", pageCode, StringComparison.Ordinal);
-        Assert.Contains(
-            "제작자 설정은 적용하지 못했지만 펫은 정상적으로 추가했습니다.",
+        Assert.Contains("PrimaryButtonText = review.CanInstall", pageCode, StringComparison.Ordinal);
+        Assert.Contains("? \"펫 추가\"", pageCode, StringComparison.Ordinal);
+        Assert.Contains("MonglePet 업데이트", pageCode, StringComparison.Ordinal);
+        Assert.Contains("자세히 보기", pageCode, StringComparison.Ordinal);
+        Assert.Contains("review.CanInstall", pageCode, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "일부 기능이 적용되지 않거나 다르게 보일 수 있지만 설치는 계속할 수 있습니다.",
             pageCode,
             StringComparison.Ordinal);
         Assert.Equal(

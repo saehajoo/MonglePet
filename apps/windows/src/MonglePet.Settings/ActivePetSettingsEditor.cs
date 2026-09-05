@@ -6,7 +6,6 @@ public enum CreatorSettingsImportStatus
 {
     Applied,
     NotIncluded,
-    Unavailable,
 }
 
 public sealed record ImportedPetSettingsResult(
@@ -74,12 +73,15 @@ public static class ActivePetSettingsEditor
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(petKey);
+        if (containsCreatorSettings && creatorProfile is null)
+        {
+            throw new InvalidOperationException(
+                "A package with unreadable creator settings cannot be added with fallback settings.");
+        }
 
         CreatorSettingsImportStatus status = creatorProfile is not null
             ? CreatorSettingsImportStatus.Applied
-            : containsCreatorSettings
-                ? CreatorSettingsImportStatus.Unavailable
-                : CreatorSettingsImportStatus.NotIncluded;
+            : CreatorSettingsImportStatus.NotIncluded;
         BehaviorProfile? sourceProfile = creatorProfile is null
             ? null
             : CopyPortableProfile(creatorProfile);

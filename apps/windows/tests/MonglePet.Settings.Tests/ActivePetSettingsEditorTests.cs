@@ -148,12 +148,8 @@ public sealed class ActivePetSettingsEditorTests
         Assert.DoesNotContain(original.BehaviorProfiles, profile => profile.ProfileId == profileId);
     }
 
-    [Theory]
-    [InlineData(false, CreatorSettingsImportStatus.NotIncluded)]
-    [InlineData(true, CreatorSettingsImportStatus.Unavailable)]
-    public void ImportedPetWithoutUsableCreatorSettingsUsesSafeDefaults(
-        bool containsCreatorSettings,
-        CreatorSettingsImportStatus expectedStatus)
+    [Fact]
+    public void ImportedLegacyPetWithoutCreatorSettingsUsesSafeDefaults()
     {
         AppSettings original = AppSettings.CreateDefault();
         var petKey = new PetBehaviorKey.Installed(Guid.NewGuid());
@@ -162,15 +158,31 @@ public sealed class ActivePetSettingsEditorTests
             original,
             petKey,
             creatorProfile: null,
-            containsCreatorSettings,
+            containsCreatorSettings: false,
             creatorDisplay: null,
             creatorProfileIncludesDisplay: false);
 
-        Assert.Equal(expectedStatus, result.CreatorSettingsStatus);
+        Assert.Equal(CreatorSettingsImportStatus.NotIncluded, result.CreatorSettingsStatus);
         Assert.Equal(petKey, result.Settings.SelectedPetInstance!.PetKey);
         Assert.Equal(PetMovementSettings.Default, result.Settings.SelectedBehaviorProfile!.Movement);
         Assert.Equal(AppSettingsLimits.DefaultOverlayWidth, result.Settings.SelectedPetInstance.Overlay.Width);
         Assert.False(result.Settings.SelectedPetInstance.Overlay.ClickThrough);
+        Assert.Single(original.ActivePetInstances);
+    }
+
+    [Fact]
+    public void ImportedPetWithUnreadableCreatorSettingsCannotUseFallbackDefaults()
+    {
+        AppSettings original = AppSettings.CreateDefault();
+
+        Assert.Throws<InvalidOperationException>(() =>
+            ActivePetSettingsEditor.AddImportedPetInstance(
+                original,
+                new PetBehaviorKey.Installed(Guid.NewGuid()),
+                creatorProfile: null,
+                containsCreatorSettings: true,
+                creatorDisplay: null,
+                creatorProfileIncludesDisplay: false));
         Assert.Single(original.ActivePetInstances);
     }
 

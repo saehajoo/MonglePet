@@ -15,6 +15,15 @@ public sealed record InstalledPetPackage(
     string RootPath,
     LoadedPetPackage Package);
 
+public enum PetPackageImportDisposition
+{
+    Compatible,
+    LegacyWithoutCreatorSettings,
+    UpdateRequiredForMinimumVersion,
+    UpdateRequiredForCreatorSettings,
+    InvalidCreatorSettings,
+}
+
 public sealed record PetPackageImportReview(
     string SourcePath,
     string SourceFingerprint,
@@ -30,6 +39,36 @@ public sealed record PetPackageImportReview(
     bool RecommendedProfileIncludesDisplay = false)
 {
     public bool CanApplyRecommendedProfile => RecommendedProfile is not null;
+
+    public PetPackageImportDisposition Disposition
+    {
+        get
+        {
+            if (CompatibilityAdvisory?.RecommendsUpdate == true)
+            {
+                return PetPackageImportDisposition.UpdateRequiredForMinimumVersion;
+            }
+            if (RecommendedProfileIssue == RecommendedPetProfileError.UnsupportedSchema)
+            {
+                return PetPackageImportDisposition.UpdateRequiredForCreatorSettings;
+            }
+            if (ContainsRecommendedProfile && RecommendedProfile is null)
+            {
+                return PetPackageImportDisposition.InvalidCreatorSettings;
+            }
+            return RecommendedProfile is null
+                ? PetPackageImportDisposition.LegacyWithoutCreatorSettings
+                : PetPackageImportDisposition.Compatible;
+        }
+    }
+
+    public bool CanInstall => Disposition is
+        PetPackageImportDisposition.Compatible or
+        PetPackageImportDisposition.LegacyWithoutCreatorSettings;
+
+    public bool RequiresUpdate => Disposition is
+        PetPackageImportDisposition.UpdateRequiredForMinimumVersion or
+        PetPackageImportDisposition.UpdateRequiredForCreatorSettings;
 }
 
 public enum PetLibraryError
@@ -41,6 +80,7 @@ public enum PetLibraryError
     PackageIdentifierMismatch,
     PackageValidationFailed,
     ReviewedContentChanged,
+    ImportBlocked,
     FileOperationFailed,
 }
 

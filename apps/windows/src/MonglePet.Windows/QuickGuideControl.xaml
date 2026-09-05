@@ -1,0 +1,112 @@
+<UserControl
+    x:Class="MonglePet.Windows.QuickGuideControl"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <UserControl.Resources>
+        <Style x:Key="SettingsCardStyle" TargetType="Border">
+            <Setter Property="Padding" Value="20" />
+            <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
+            <Setter Property="BorderBrush" Value="{ThemeResource DividerStrokeColorDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="12" />
+        </Style>
+    </UserControl.Resources>
+    <StackPanel Spacing="16">
+        <Border Style="{StaticResource SettingsCardStyle}">
+            <StackPanel Spacing="6">
+                <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="MonglePet 시작하기" />
+                <TextBlock Text="펫을 추가한 뒤 애니메이션과 행동을 준비하고, 화면 표시·이동·규칙을 원하는 방식으로 설정해 보세요." TextWrapping="Wrap" />
+                <TextBlock Style="{StaticResource SettingsCaptionStyle}" Text="각 펫의 행동, 이동, 말풍선과 화면 설정은 서로 독립적으로 저장됩니다." TextWrapping="Wrap" />
+            </StackPanel>
+        </Border>
+
+        <Border Style="{StaticResource SettingsCardStyle}">
+            <StackPanel Spacing="14">
+                <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="빠르게 시작하기" />
+                <Border Style="{StaticResource SettingsSubcardStyle}">
+                    <StackPanel Spacing="7">
+                        <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="1. 펫 준비하기" />
+                        <TextBlock Text="내 펫에서 새 펫을 만들거나 파일·웹 주소로 가져옵니다. 사용할 펫을 고르고 깨우기와 재우기도 이곳에서 관리합니다." TextWrapping="Wrap" />
+                        <Button HorizontalAlignment="Left" Tag="activePets" Click="SectionButton_Click" Content="내 펫 열기" />
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource SettingsSubcardStyle}">
+                    <StackPanel Spacing="7">
+                        <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="2. 애니메이션과 행동 만들기" />
+                        <TextBlock Text="먼저 이미지 프레임으로 애니메이션을 준비한 다음, 하나 이상의 애니메이션 단계를 묶어 실제 행동을 만듭니다." TextWrapping="Wrap" />
+                        <ItemsControl>
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><ItemsWrapGrid Orientation="Horizontal" /></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <Button Margin="0,0,8,8" Tag="pet" Click="SectionButton_Click" Content="애니메이션 열기" />
+                            <Button Margin="0,0,8,8" Tag="routines" Click="SectionButton_Click" Content="행동 편집 열기" />
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource SettingsSubcardStyle}">
+                    <StackPanel Spacing="7">
+                        <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="3. 평상시 행동과 규칙 정하기" />
+                        <TextBlock Text="다른 조건이 없을 때 보여 줄 평상시 행동을 고릅니다. 입력 없음이나 특정 앱 사용 중에 다른 행동을 보여 주려면 규칙을 추가합니다." TextWrapping="Wrap" />
+                        <ItemsControl>
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><ItemsWrapGrid Orientation="Horizontal" /></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <Button Margin="0,0,8,8" Tag="stationary" Click="SectionButton_Click" Content="평상시 행동 열기" />
+                            <Button Margin="0,0,8,8" Tag="automaticRules" Click="SectionButton_Click" Content="규칙 설정 열기" />
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource SettingsSubcardStyle}">
+                    <StackPanel Spacing="7">
+                        <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="4. 보이는 모습과 움직임 꾸미기" />
+                        <TextBlock Text="크기와 투명도, 이동 방식과 범위, 쓰다듬기 반응 및 말풍선을 선택한 펫에 맞게 조정합니다." TextWrapping="Wrap" />
+                        <ItemsControl>
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><ItemsWrapGrid Orientation="Horizontal" /></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <Button Margin="0,0,8,8" Tag="display" Click="SectionButton_Click" Content="화면 표시" />
+                            <Button Margin="0,0,8,8" Tag="movement" Click="SectionButton_Click" Content="이동" />
+                            <Button Margin="0,0,8,8" Tag="interaction" Click="SectionButton_Click" Content="상호작용" />
+                            <Button Margin="0,0,8,8" Tag="speech" Click="SectionButton_Click" Content="말풍선" />
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource SettingsSubcardStyle}">
+                    <StackPanel Spacing="7">
+                        <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="5. 완성한 펫 보관하고 공유하기" />
+                        <TextBlock Text="내 펫에서 패키지 파일로 저장하면 펫 이미지와 제작자가 구성한 휴대 가능한 설정을 함께 공유할 수 있습니다." TextWrapping="Wrap" />
+                        <Button HorizontalAlignment="Left" Tag="activePets" Click="SectionButton_Click" Content="내 펫에서 내보내기" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </Border>
+
+        <Border Style="{StaticResource SettingsCardStyle}">
+            <StackPanel Spacing="10">
+                <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="헷갈리기 쉬운 말" />
+                <Grid
+                    x:Name="GuideTermsGrid"
+                    ColumnSpacing="10"
+                    RowSpacing="10"
+                    SizeChanged="GuideTermsGrid_SizeChanged">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                    <Border x:Name="GuideTermAnimation" Style="{StaticResource SettingsSubcardStyle}"><StackPanel Spacing="3"><TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="애니메이션" /><TextBlock Text="이미지 프레임이 순서대로 재생되는 화면 표현입니다." TextWrapping="Wrap" /></StackPanel></Border>
+                    <Border x:Name="GuideTermBehavior" Grid.Row="1" Style="{StaticResource SettingsSubcardStyle}"><StackPanel Spacing="3"><TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="행동" /><TextBlock Text="하나 이상의 애니메이션 단계를 순서와 반복 횟수로 묶은 동작입니다." TextWrapping="Wrap" /></StackPanel></Border>
+                    <Border x:Name="GuideTermStationary" Grid.Row="2" Style="{StaticResource SettingsSubcardStyle}"><StackPanel Spacing="3"><TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="평상시 행동" /><TextBlock Text="이동하지 않고 적용할 조건 규칙이 없을 때 계속 보여 주는 기본 행동입니다." TextWrapping="Wrap" /></StackPanel></Border>
+                    <Border x:Name="GuideTermRules" Grid.Row="3" Style="{StaticResource SettingsSubcardStyle}"><StackPanel Spacing="3"><TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="규칙" /><TextBlock Text="입력 없음이나 사용 중인 앱 같은 조건이 맞을 때 평상시 행동보다 먼저 적용됩니다." TextWrapping="Wrap" /></StackPanel></Border>
+                    <Border x:Name="GuideTermCreatorSettings" Grid.Row="4" Style="{StaticResource SettingsSubcardStyle}"><StackPanel Spacing="3"><TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="제작자 설정" /><TextBlock Text="가져온 펫에 포함된 행동·이동·말풍선 설정이며 추가한 뒤 자유롭게 바꿀 수 있습니다." TextWrapping="Wrap" /></StackPanel></Border>
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <Border Style="{StaticResource SettingsCardStyle}">
+            <StackPanel Spacing="8">
+                <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="더 자세한 제작 방법이 필요하신가요?" />
+                <TextBlock Text="이미지 준비, 펫 제작과 공유에 관한 자세한 설명은 웹 가이드에서 확인할 수 있습니다." TextWrapping="Wrap" />
+                <Button HorizontalAlignment="Left" Click="OpenWebGuideButton_Click" Content="웹 가이드 보기" AutomationProperties.HelpText="기본 브라우저에서 외부 웹 가이드를 엽니다." />
+                <InfoBar x:Name="WebGuideErrorInfoBar" IsOpen="False" IsClosable="True" Severity="Warning" Title="웹 가이드를 열 수 없습니다" Message="인터넷 연결을 확인한 뒤 다시 시도해 주세요." />
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</UserControl>
