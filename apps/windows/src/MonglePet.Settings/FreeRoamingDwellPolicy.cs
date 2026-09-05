@@ -4,7 +4,7 @@ public static class FreeRoamingDwellPolicy
 {
     public static long ResolveMinimum(
         long maximumMilliseconds,
-        bool randomizesDwell,
+        FreeRoamingDwellMode dwellMode,
         long storedMinimumMilliseconds,
         long? editedMinimumMilliseconds)
     {
@@ -14,7 +14,7 @@ public static class FreeRoamingDwellPolicy
             throw new ArgumentOutOfRangeException(nameof(maximumMilliseconds));
         }
 
-        long requestedMinimum = randomizesDwell
+        long requestedMinimum = dwellMode == FreeRoamingDwellMode.Random
             ? editedMinimumMilliseconds ?? storedMinimumMilliseconds
             : storedMinimumMilliseconds;
         return Math.Clamp(

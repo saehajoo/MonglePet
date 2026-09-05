@@ -94,6 +94,10 @@ public sealed class MotionScheduler
 
     public string? ActiveSequenceId => _cursor?.Sequence.Id;
 
+    public ulong CompletedSequencePassCount { get; private set; }
+
+    public bool IsSequenceComplete => _cursor?.IsComplete ?? false;
+
     public ScheduledMotion? CompletedMotion => _cursor is { IsComplete: true } cursor
         ? Scheduled(cursor, cursor.Steps.Count - 1)
         : null;
@@ -173,7 +177,15 @@ public sealed class MotionScheduler
             }
 
             remainingElapsed -= _cursor.RemainingCycleDuration;
+            bool completesSequencePass = CycleCompletesSequencePass(_cursor);
             AdvanceAfterCycle(_cursor);
+            if (completesSequencePass)
+            {
+                unchecked
+                {
+                    CompletedSequencePassCount++;
+                }
+            }
         }
     }
 
@@ -186,6 +198,14 @@ public sealed class MotionScheduler
         _cursor = null;
         _unavailable = false;
         IsPaused = false;
+        CompletedSequencePassCount = 0;
+    }
+
+    private static bool CycleCompletesSequencePass(Cursor cursor)
+    {
+        ResolvedStep step = cursor.Steps[cursor.StepIndex];
+        return cursor.StepIndex == cursor.Steps.Count - 1 &&
+            cursor.CompletedCycles + 1 >= step.Source.RepeatCount;
     }
 
     private Cursor? MakeCursor(BehaviorSequence sequence)

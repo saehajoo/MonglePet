@@ -58,7 +58,7 @@ public sealed record DecodedRecommendedPetProfile(
 
 public static class RecommendedPetProfileCodec
 {
-    public const int CurrentSchemaVersion = 11;
+    public const int CurrentSchemaVersion = 12;
     public const int MaximumFileSize = 1 * 1024 * 1024;
     private static readonly Guid PlaceholderInstallationId =
         Guid.Parse("00000000-0000-0000-0000-000000000001");
@@ -128,7 +128,8 @@ public static class RecommendedPetProfileCodec
             8 => 12,
             9 => 13,
             10 => 14,
-            _ => 15,
+            11 => 15,
+            _ => 16,
         };
         JsonObject profile = behavior.DeepClone().AsObject();
         profile["petKey"] = new JsonObject

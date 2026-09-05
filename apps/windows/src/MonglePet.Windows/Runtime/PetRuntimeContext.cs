@@ -53,10 +53,16 @@ internal sealed class PetRuntimeContext : IDisposable
             monitorPlacement,
             frontmostWindowProvider,
             desktopEnvironment);
+        _movement.SetStationaryBehaviorCompletionHandlers(
+            _behavior.RequestMovementAfterStationaryBehaviorPass,
+            _behavior.CancelMovementAfterStationaryBehaviorPass);
 
         _behavior.StateChanged += Behavior_StateChanged;
+        _behavior.StationaryBehaviorPassCompleted +=
+            Behavior_StationaryBehaviorPassCompleted;
         _movement.StateChanged += Runtime_StateChanged;
         _movement.MovementBehaviorChanged += Movement_MovementBehaviorChanged;
+        _movement.MovementActivityChanged += Movement_MovementActivityChanged;
         _movement.PettingRequested += Movement_PettingRequested;
         _movement.DirectDragCompleted += Movement_DirectDragCompleted;
         Overlay.UserDragStateChanged += Overlay_UserDragStateChanged;
@@ -173,9 +179,12 @@ internal sealed class PetRuntimeContext : IDisposable
         Overlay.DisplayEnvironmentChanged -= Overlay_DisplayEnvironmentChanged;
         _movement.StateChanged -= Runtime_StateChanged;
         _movement.MovementBehaviorChanged -= Movement_MovementBehaviorChanged;
+        _movement.MovementActivityChanged -= Movement_MovementActivityChanged;
         _movement.PettingRequested -= Movement_PettingRequested;
         _movement.DirectDragCompleted -= Movement_DirectDragCompleted;
         _behavior.StateChanged -= Behavior_StateChanged;
+        _behavior.StationaryBehaviorPassCompleted -=
+            Behavior_StationaryBehaviorPassCompleted;
         _movement.Dispose();
         _speech.Dispose();
         _behavior.Dispose();
@@ -234,6 +243,11 @@ internal sealed class PetRuntimeContext : IDisposable
         StateChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    private void Behavior_StationaryBehaviorPassCompleted(
+        object? sender,
+        EventArgs e) =>
+        _movement.StationaryBehaviorPassDidComplete();
+
     private void Runtime_StateChanged(object? sender, EventArgs e) =>
         StateChanged?.Invoke(this, EventArgs.Empty);
 
@@ -241,6 +255,11 @@ internal sealed class PetRuntimeContext : IDisposable
         object? sender,
         MovementBehaviorChangedEventArgs e) =>
         _behavior.SetMovementBehavior(e.BehaviorId);
+
+    private void Movement_MovementActivityChanged(
+        object? sender,
+        MovementActivityChangedEventArgs e) =>
+        _behavior.SetMovementActive(e.IsMoving);
 
     private void Movement_PettingRequested(
         object? sender,

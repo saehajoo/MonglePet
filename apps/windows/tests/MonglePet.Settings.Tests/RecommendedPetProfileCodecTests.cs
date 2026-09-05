@@ -99,7 +99,7 @@ public sealed class RecommendedPetProfileCodecTests
     }
 
     [Fact]
-    public void VersionElevenRoundTripsAndCanExcludeApplicationRules()
+    public void VersionTwelveRoundTripsDwellModesAndCanExcludeApplicationRules()
     {
         BehaviorProfile profile = BehaviorProfileDefaults.Create(TargetKey) with
         {
@@ -112,6 +112,30 @@ public sealed class RecommendedPetProfileCodecTests
             ],
         };
 
+        FreeRoamingMovementSettings roaming = profile.Movement.FreeRoaming with
+        {
+            DwellMode = FreeRoamingDwellMode.BehaviorCompletion,
+            DwellMilliseconds = 14_000,
+            DwellMinimumMilliseconds = 4_000,
+        };
+        FreeRoamingMovementSettings avoidingRoaming =
+            profile.Movement.CursorAvoiding.IdleFreeRoaming with
+            {
+                DwellMode = FreeRoamingDwellMode.Random,
+                DwellMilliseconds = 10_000,
+                DwellMinimumMilliseconds = 2_000,
+            };
+        profile = profile with
+        {
+            Movement = profile.Movement with
+            {
+                FreeRoamingSettings = roaming,
+                CursorAvoidingSettings = profile.Movement.CursorAvoiding with
+                {
+                    IdleFreeRoaming = avoidingRoaming,
+                },
+            },
+        };
         OverlaySettings overlay = OverlaySettings.Default with
         {
             Width = 96,
@@ -135,10 +159,64 @@ public sealed class RecommendedPetProfileCodecTests
         Assert.True(package.Display.ClickThrough);
         Assert.Equal(StationaryBehaviorMode.Fixed, decoded.StationaryBehaviorMode);
         JsonObject stored = JsonNode.Parse(data)!.AsObject();
-        Assert.Equal(11, stored["schemaVersion"]!.GetValue<int>());
+        Assert.Equal(12, stored["schemaVersion"]!.GetValue<int>());
+        Assert.Equal(FreeRoamingDwellMode.BehaviorCompletion,
+            decoded.Movement.FreeRoaming.DwellMode);
+        Assert.Equal(14_000, decoded.Movement.FreeRoaming.DwellMilliseconds);
+        Assert.Equal(FreeRoamingDwellMode.Random,
+            decoded.Movement.CursorAvoiding.IdleFreeRoaming.DwellMode);
         Assert.NotNull(stored["behavior"]?["stationaryBehaviorMode"]);
         Assert.Null(stored["behavior"]?["mode"]);
         Assert.Null(stored["behavior"]?["manualSequenceID"]);
+    }
+
+    [Fact]
+    public void VersionElevenLegacyDwellBooleansMigrateToIndependentModes()
+    {
+        BehaviorProfile profile = BehaviorProfileDefaults.Create(TargetKey);
+        JsonObject source = JsonNode.Parse(RecommendedPetProfileCodec.Encode(
+            profile, ["idle"], true))!.AsObject();
+        source["schemaVersion"] = 11;
+        JsonObject roaming = source["movement"]!["freeRoaming"]!.AsObject();
+        roaming["randomizesDwell"] = false;
+        roaming.Remove("dwellMode");
+        JsonObject idleRoaming = source["movement"]!["cursorAvoiding"]!["idleFreeRoaming"]!.AsObject();
+        idleRoaming["randomizesDwell"] = true;
+        idleRoaming.Remove("dwellMode");
+
+        BehaviorProfile decoded = RecommendedPetProfileCodec.Decode(
+            Encoding.UTF8.GetBytes(source.ToJsonString()), TargetKey, ["idle"]);
+
+        Assert.Equal(FreeRoamingDwellMode.Fixed,
+            decoded.Movement.FreeRoaming.DwellMode);
+        Assert.Equal(FreeRoamingDwellMode.Random,
+            decoded.Movement.CursorAvoiding.IdleFreeRoaming.DwellMode);
+    }
+
+    [Theory]
+    [InlineData(FreeRoamingDwellMode.Fixed)]
+    [InlineData(FreeRoamingDwellMode.Random)]
+    [InlineData(FreeRoamingDwellMode.BehaviorCompletion)]
+    public void VersionTwelveRoundTripsEveryDwellMode(FreeRoamingDwellMode mode)
+    {
+        BehaviorProfile profile = BehaviorProfileDefaults.Create(TargetKey);
+        profile = profile with
+        {
+            Movement = profile.Movement with
+            {
+                FreeRoamingSettings = profile.Movement.FreeRoaming with
+                {
+                    DwellMode = mode,
+                },
+            },
+        };
+
+        BehaviorProfile decoded = RecommendedPetProfileCodec.Decode(
+            RecommendedPetProfileCodec.Encode(profile, ["idle"], true),
+            TargetKey,
+            ["idle"]);
+
+        Assert.Equal(mode, decoded.Movement.FreeRoaming.DwellMode);
     }
 
     [Fact]

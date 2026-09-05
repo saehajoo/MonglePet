@@ -920,7 +920,18 @@ internal static class AppSettingsDocumentMapper
             ReadRanged(value, "speed", 20, 1_000, 160, $"{field}.speed", issues),
             ReadRanged(value, "stopRadius", 0, 128, 16, $"{field}.stopRadius", issues),
             maximum,
-            ReadBool(value, "randomizesDwell", false, $"{field}.randomizesDwell", issues),
+            ReadEnum(
+                value,
+                "dwellMode",
+                new Dictionary<string, FreeRoamingDwellMode>(StringComparer.Ordinal)
+                {
+                    ["fixed"] = FreeRoamingDwellMode.Fixed,
+                    ["random"] = FreeRoamingDwellMode.Random,
+                    ["behaviorCompletion"] = FreeRoamingDwellMode.BehaviorCompletion,
+                },
+                FreeRoamingDwellMode.Fixed,
+                $"{field}.dwellMode",
+                issues),
             minimum,
             ReadBool(value, "prefersFrontmostWindow", true, $"{field}.prefersFrontmostWindow", issues),
             ReadBehavior(value["behavior"], sequenceIds, $"{field}.behavior", issues));
@@ -1413,7 +1424,14 @@ internal static class AppSettingsDocumentMapper
         result["speed"] = value.Speed;
         result["stopRadius"] = value.StopRadius;
         result["dwellMilliseconds"] = value.DwellMilliseconds;
-        result["randomizesDwell"] = value.RandomizesDwell;
+        result["dwellMode"] = value.DwellMode switch
+        {
+            FreeRoamingDwellMode.Fixed => "fixed",
+            FreeRoamingDwellMode.Random => "random",
+            FreeRoamingDwellMode.BehaviorCompletion => "behaviorCompletion",
+            _ => throw InvalidSettings("movement.freeRoaming.dwellMode"),
+        };
+        result.Remove("randomizesDwell");
         result["dwellMinimumMilliseconds"] = value.DwellMinimumMilliseconds;
         result["prefersFrontmostWindow"] = value.PrefersFrontmostWindow;
         result["behavior"] = WriteBehavior(value.Behavior, template?["behavior"] as JsonObject);
@@ -1771,6 +1789,7 @@ internal static class AppSettingsDocumentMapper
 
     private static bool ValidFreeRoaming(FreeRoamingMovementSettings value) =>
         InRange(value.Speed, 20, 1_000) && InRange(value.StopRadius, 0, 128) &&
+        Enum.IsDefined(value.DwellMode) &&
         value.DwellMilliseconds is >= 500 and <= 300_000 &&
         value.DwellMinimumMilliseconds is >= 500 &&
         value.DwellMinimumMilliseconds <= value.DwellMilliseconds &&

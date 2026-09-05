@@ -9,7 +9,7 @@ public sealed class FreeRoamingDwellPolicyTests
     {
         long minimum = FreeRoamingDwellPolicy.ResolveMinimum(
             maximumMilliseconds: 3_000,
-            randomizesDwell: false,
+            dwellMode: FreeRoamingDwellMode.Fixed,
             storedMinimumMilliseconds: 6_000,
             editedMinimumMilliseconds: 10_000);
 
@@ -21,7 +21,7 @@ public sealed class FreeRoamingDwellPolicyTests
     {
         long minimum = FreeRoamingDwellPolicy.ResolveMinimum(
             maximumMilliseconds: 6_000,
-            randomizesDwell: true,
+            dwellMode: FreeRoamingDwellMode.Random,
             storedMinimumMilliseconds: 2_000,
             editedMinimumMilliseconds: 3_500);
 
@@ -33,7 +33,7 @@ public sealed class FreeRoamingDwellPolicyTests
     {
         long minimum = FreeRoamingDwellPolicy.ResolveMinimum(
             maximumMilliseconds: 2_500,
-            randomizesDwell: true,
+            dwellMode: FreeRoamingDwellMode.Random,
             storedMinimumMilliseconds: 1_000,
             editedMinimumMilliseconds: 4_000);
 

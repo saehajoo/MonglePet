@@ -1008,6 +1008,17 @@ UI 테스트는 앱 실행과 접근성 자동화가 가능한 macOS 세션에�
 - 소스 커밋 `69e4aaa0a41133ea6315e58640a8e017d5e42bed`를 annotated tag `windows-v1.6.0-preview.4`로 게시했다. 원격 설치기 65,276,445 bytes의 SHA-256 `B3ADF59C87924EBC75197009511BBC9BF98EA5BCD4591334AE98EC06E7D679D9`와 107 bytes `SHA256SUMS.txt`가 로컬 최종 산출물과 일치한다.
 - 실제 로컬·웹 반복 가져오기, 적용 불가 성공 InfoBar, 취소·오류 주입, 키보드·Narrator·테마와 macOS 권장 프로필 v11 교차 왕복은 사용자 QA로 남아 있다.
 
+### Windows 1.7.0 행동 완료 후 이동 검증
+
+- 측정일: 2026-09-05
+- 로컬 schema-v15→v16과 제작자 설정 v11→v12에서 기존 fixed/random 시간 값과 알 수 없는 형제 확장 필드를 보존하고, 자유 이동과 도망가기 평상시 자유 이동의 `dwellMode`를 독립 왕복하는지 확인했다.
+- 행동 scheduler의 전체 sequence 한 회차 완료 계수와 이동 runtime의 timer·행동 완료 event·500ms fallback·취소 generation을 단위 테스트했다. 포인터 접근 도망가기는 행동 완료 대기를 즉시 취소하고 늦은 event는 새 이동 상태를 바꾸지 않는다.
+- 마케팅 버전 `1.7.0`, Assembly·File·패키지 버전 `1.7.0.19`의 일치와 미서명 x64 설치기 계약을 확인했다.
+- Debug·Release 빌드는 각각 경고·오류 0개로 통과했다. 두 구성 모두 Activity 27개, Core 69개, Packages 28개, PetLibrary 90개, Settings 95개, Shell 23개로 총 332개 xUnit 테스트가 통과했다.
+- `MonglePet-Windows-1.7.0.19-x64-Setup.exe`는 65,284,301 bytes이고 SHA-256은 `16D8682EC425385FC686FFF26C06035A7663A05EDDFBF1E3A1ECAE3E4BDA7F45`다.
+- 기존 설치 위 업데이트 종료 코드 0, `%LOCALAPPDATA%\MonglePet` 사용자 데이터 84개·8,453,674 bytes와 inventory digest `ED26BE94D844DA1FA0A709061366DEE4A186A8CABCCC3274136B8DE949D16061` 보존, 설치 DLL·publish DLL 일치, 설치본 응답과 최근 Application 오류 0건을 확인했다.
+- 실제 fixed/random 행동 완료 후 이동 시각 QA, 장시간 실행, macOS 제작자 설정 v12 교차 왕복과 서버 round trip은 후속으로 남아 있다.
+
 ## 변경 유형별 최소 검증
 
 ### 후속 단계 필수 검증

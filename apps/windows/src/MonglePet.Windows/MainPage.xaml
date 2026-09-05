@@ -1350,17 +1350,15 @@
                     </StackPanel>
                     <StackPanel x:Name="FreeRoamingOptionsPanel" Spacing="10" Visibility="Collapsed">
                         <TextBlock x:Name="FreeRoamingSectionTitle" Style="{StaticResource BodyStrongTextBlockStyle}" Text="자유 이동" />
-                        <NumberBox
-                            x:Name="FreeRoamingDwellNumberBox"
-                            Header="머무는 시간 (초)"
-                            Maximum="300"
-                            Minimum="0.5"
-                            SmallChange="0.5"
-                            ValueChanged="MovementControls_Changed" />
-                        <ToggleSwitch
-                            x:Name="RandomizesDwellToggle"
-                            Header="머무는 시간을 범위 안에서 무작위로 선택"
-                            Toggled="MovementControls_Changed" />
+                        <ComboBox
+                            x:Name="DwellModeComboBox"
+                            Header="시간 방식"
+                            MinWidth="270"
+                            SelectionChanged="MovementControls_Changed">
+                            <ComboBoxItem Content="고정" />
+                            <ComboBoxItem Content="랜덤" />
+                            <ComboBoxItem Content="행동 완료 후" />
+                        </ComboBox>
                         <NumberBox
                             x:Name="FreeRoamingDwellMinimumNumberBox"
                             Header="최소 머무는 시간 (초)"
@@ -1368,6 +1366,17 @@
                             Minimum="0.5"
                             SmallChange="0.5"
                             ValueChanged="MovementControls_Changed" />
+                        <NumberBox
+                            x:Name="FreeRoamingDwellNumberBox"
+                            Header="머무는 시간 (초)"
+                            Maximum="300"
+                            Minimum="0.5"
+                            SmallChange="0.5"
+                            ValueChanged="MovementControls_Changed" />
+                        <TextBlock
+                            x:Name="DwellModeDescriptionText"
+                            Style="{StaticResource SettingsCaptionStyle}"
+                            TextWrapping="Wrap" />
                         <ToggleSwitch
                             x:Name="PrefersFrontmostWindowToggle"
                             Header="현재 사용 중인 앱의 창 근처를 우선"

@@ -539,7 +539,26 @@ public sealed partial class MainPage : Page
             return;
         }
 
-        MovementModeComboBox.SelectedIndex = selectedIndex;
+        FlushMovementSave();
+        _isRefreshingMovementControls = true;
+        try
+        {
+            MovementModeComboBox.SelectedIndex = selectedIndex;
+            if (Application.Current is App app)
+            {
+                PetMovementSettings movement = app.ActiveBehaviorProfile.Movement;
+                FreeRoamingMovementSettings roaming = selectedIndex == 3
+                    ? movement.CursorAvoiding.IdleFreeRoaming
+                    : movement.FreeRoaming;
+                LoadDwellControls(roaming);
+                RefreshMovementControlVisibility(app.SettingsStore.IsWritingEnabled);
+            }
+        }
+        finally
+        {
+            _isRefreshingMovementControls = false;
+        }
+        ScheduleMovementSave();
     }
 
     private async void BrowseWebPetsButton_Click(object sender, RoutedEventArgs e)
@@ -1018,10 +1037,21 @@ public sealed partial class MainPage : Page
             AutomaticRuleKind.Application => "앱 사용",
             _ => "알 수 없음",
         }));
+        string roamingDwell = DwellModeDisplayName(profile.Movement.FreeRoaming.DwellMode);
+        string avoidingDwell = DwellModeDisplayName(
+            profile.Movement.CursorAvoiding.IdleFreeRoaming.DwellMode);
         return $"제작자 설정: {mode}{selectedDetail} · 행동 {profile.Sequences.Count}개/단계 {stepCount}개 · " +
                $"조건 규칙 {profile.AutomaticRules.Count}개/사용 {enabledRules}개 · 우선순위 {priority} · 이동 {movement} · " +
+               $"자유 이동 시간 {roamingDwell} · 도망가기 평상시 시간 {avoidingDwell} · " +
                $"말풍선 {(profile.Speech.IsEnabled ? "사용" : "사용 안 함")}, 주기 대사 {periodicPhrases}개";
     }
+
+    private static string DwellModeDisplayName(FreeRoamingDwellMode mode) => mode switch
+    {
+        FreeRoamingDwellMode.Random => "랜덤",
+        FreeRoamingDwellMode.BehaviorCompletion => "현재 평상시 행동 완료 후",
+        _ => "고정",
+    };
 
     private static string SafeFileName(string value)
     {
@@ -2684,12 +2714,7 @@ public sealed partial class MainPage : Page
                 _ => movement.FreeRoaming.StopRadius,
             };
             CursorDistanceNumberBox.Value = following.CursorDistance;
-            FreeRoamingDwellNumberBox.Value =
-                roaming.DwellMilliseconds / 1000d;
-            RandomizesDwellToggle.IsOn = roaming.RandomizesDwell;
-            FreeRoamingDwellMinimumNumberBox.Value =
-                roaming.DwellMinimumMilliseconds / 1000d;
-            PrefersFrontmostWindowToggle.IsOn = roaming.PrefersFrontmostWindow;
+            LoadDwellControls(roaming);
             AvoidingDetectionNumberBox.Value = movement.CursorAvoiding.DetectionDistance;
             AvoidingSpeedNumberBox.Value = movement.CursorAvoiding.Speed;
             AvoidingIdleBehaviorComboBox.SelectedIndex =
@@ -2751,7 +2776,7 @@ public sealed partial class MainPage : Page
             MovementStopRadiusNumberBox.IsEnabled = canEdit;
             CursorDistanceNumberBox.IsEnabled = canEdit;
             FreeRoamingDwellNumberBox.IsEnabled = canEdit;
-            RandomizesDwellToggle.IsEnabled = canEdit;
+            DwellModeComboBox.IsEnabled = canEdit;
             FreeRoamingDwellMinimumNumberBox.IsEnabled = canEdit;
             PrefersFrontmostWindowToggle.IsEnabled = canEdit;
             AvoidingDetectionNumberBox.IsEnabled = canEdit;
@@ -2800,8 +2825,21 @@ public sealed partial class MainPage : Page
             ? Visibility.Visible
             : Visibility.Collapsed;
         FreeRoamingSectionTitle.Text = avoidingRoams ? "평상시 자유 이동" : "자유 이동";
+        bool randomDwell = DwellModeComboBox.SelectedIndex == 1;
+        bool behaviorCompletionDwell = DwellModeComboBox.SelectedIndex == 2;
         FreeRoamingDwellMinimumNumberBox.Visibility =
-            RandomizesDwellToggle.IsOn ? Visibility.Visible : Visibility.Collapsed;
+            randomDwell ? Visibility.Visible : Visibility.Collapsed;
+        FreeRoamingDwellNumberBox.Visibility = behaviorCompletionDwell
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+        FreeRoamingDwellNumberBox.Header = randomDwell
+            ? "최대 머무는 시간 (초)"
+            : "머무는 시간 (초)";
+        DwellModeDescriptionText.Text = behaviorCompletionDwell
+            ? "목표 위치에서 현재 평상시 행동의 한 회차를 끝낸 뒤 다음 위치로 이동합니다. 매우 긴 행동은 이동까지 오래 걸릴 수 있습니다."
+            : randomDwell
+                ? "목표 위치에 도착할 때마다 최소~최대 범위에서 한 번만 시간을 선택합니다."
+                : "목표 위치에 도착한 뒤 설정한 시간 동안 머뭅니다.";
         CursorAvoidingOptionsPanel.Visibility = isAvoiding ? Visibility.Visible : Visibility.Collapsed;
 
         bool clickThrough = Application.Current is App app && app.CurrentSettings.Overlay.ClickThrough;
@@ -2813,6 +2851,20 @@ public sealed partial class MainPage : Page
             ? "마우스 도망가기 모드에서는 접근 반응과 충돌하지 않도록 쓰다듬기를 실행하지 않습니다. 다른 이동 모드의 선택은 유지됩니다."
             : "펫의 보이는 부분에 마우스를 잠시 올리면 선택한 애니메이션을 한 번 재생한 뒤 기존 행동으로 돌아갑니다. 클릭 통과 중에도 사용할 수 있습니다.";
         ApplyMovementSectionVisibility();
+    }
+
+    private void LoadDwellControls(FreeRoamingMovementSettings roaming)
+    {
+        FreeRoamingDwellNumberBox.Value = roaming.DwellMilliseconds / 1000d;
+        DwellModeComboBox.SelectedIndex = roaming.DwellMode switch
+        {
+            FreeRoamingDwellMode.Random => 1,
+            FreeRoamingDwellMode.BehaviorCompletion => 2,
+            _ => 0,
+        };
+        FreeRoamingDwellMinimumNumberBox.Value =
+            roaming.DwellMinimumMilliseconds / 1000d;
+        PrefersFrontmostWindowToggle.IsOn = roaming.PrefersFrontmostWindow;
     }
 
     private void ApplyMovementSectionVisibility()
@@ -4614,12 +4666,18 @@ public sealed partial class MainPage : Page
             long dwellMilliseconds = checked((long)Math.Round(
                 RequiredFiniteValue(
                     FreeRoamingDwellNumberBox, 0.5, 300, "머무름 시간") * 1_000));
-            bool randomizesDwell = RandomizesDwellToggle.IsOn;
+            FreeRoamingDwellMode dwellMode = DwellModeComboBox.SelectedIndex switch
+            {
+                1 => FreeRoamingDwellMode.Random,
+                2 => FreeRoamingDwellMode.BehaviorCompletion,
+                _ => FreeRoamingDwellMode.Fixed,
+            };
             FreeRoamingMovementSettings activeRoaming =
                 selectedMode == PetMovementMode.CursorAvoiding
                     ? current.CursorAvoiding.IdleFreeRoaming
                     : current.FreeRoaming;
-            long? editedMinimumDwellMilliseconds = randomizesDwell
+            long? editedMinimumDwellMilliseconds =
+                dwellMode == FreeRoamingDwellMode.Random
                 ? checked((long)Math.Round(
                     RequiredFiniteValue(
                         FreeRoamingDwellMinimumNumberBox,
@@ -4629,7 +4687,7 @@ public sealed partial class MainPage : Page
                 : null;
             long minimumDwellMilliseconds = FreeRoamingDwellPolicy.ResolveMinimum(
                 dwellMilliseconds,
-                randomizesDwell,
+                dwellMode,
                 activeRoaming.DwellMinimumMilliseconds,
                 editedMinimumDwellMilliseconds);
             double normalizedMinimumSeconds = minimumDwellMilliseconds / 1_000d;
@@ -4665,11 +4723,21 @@ public sealed partial class MainPage : Page
                 StopRadius = selectedMode == PetMovementMode.FreeRoaming
                     ? sharedStopRadius
                     : current.FreeRoaming.StopRadius,
-                DwellMilliseconds = dwellMilliseconds,
-                RandomizesDwell = randomizesDwell,
-                DwellMinimumMilliseconds = minimumDwellMilliseconds,
-                PrefersFrontmostWindow = PrefersFrontmostWindowToggle.IsOn,
-                Behavior = FreeRoamingAnimationEditor.Settings,
+                DwellMilliseconds = selectedMode == PetMovementMode.FreeRoaming
+                    ? dwellMilliseconds
+                    : current.FreeRoaming.DwellMilliseconds,
+                DwellMode = selectedMode == PetMovementMode.FreeRoaming
+                    ? dwellMode
+                    : current.FreeRoaming.DwellMode,
+                DwellMinimumMilliseconds = selectedMode == PetMovementMode.FreeRoaming
+                    ? minimumDwellMilliseconds
+                    : current.FreeRoaming.DwellMinimumMilliseconds,
+                PrefersFrontmostWindow = selectedMode == PetMovementMode.FreeRoaming
+                    ? PrefersFrontmostWindowToggle.IsOn
+                    : current.FreeRoaming.PrefersFrontmostWindow,
+                Behavior = selectedMode == PetMovementMode.FreeRoaming
+                    ? FreeRoamingAnimationEditor.Settings
+                    : current.FreeRoaming.Behavior,
             };
             FreeRoamingMovementSettings avoidingIdleRoaming =
                 current.CursorAvoiding.IdleFreeRoaming with
@@ -4677,11 +4745,21 @@ public sealed partial class MainPage : Page
                     Speed = selectedMode == PetMovementMode.CursorAvoiding
                         ? sharedSpeed
                         : current.CursorAvoiding.IdleFreeRoaming.Speed,
-                    DwellMilliseconds = dwellMilliseconds,
-                    RandomizesDwell = randomizesDwell,
-                    DwellMinimumMilliseconds = minimumDwellMilliseconds,
-                    PrefersFrontmostWindow = PrefersFrontmostWindowToggle.IsOn,
-                    Behavior = FreeRoamingAnimationEditor.Settings,
+                    DwellMilliseconds = selectedMode == PetMovementMode.CursorAvoiding
+                        ? dwellMilliseconds
+                        : current.CursorAvoiding.IdleFreeRoaming.DwellMilliseconds,
+                    DwellMode = selectedMode == PetMovementMode.CursorAvoiding
+                        ? dwellMode
+                        : current.CursorAvoiding.IdleFreeRoaming.DwellMode,
+                    DwellMinimumMilliseconds = selectedMode == PetMovementMode.CursorAvoiding
+                        ? minimumDwellMilliseconds
+                        : current.CursorAvoiding.IdleFreeRoaming.DwellMinimumMilliseconds,
+                    PrefersFrontmostWindow = selectedMode == PetMovementMode.CursorAvoiding
+                        ? PrefersFrontmostWindowToggle.IsOn
+                        : current.CursorAvoiding.IdleFreeRoaming.PrefersFrontmostWindow,
+                    Behavior = selectedMode == PetMovementMode.CursorAvoiding
+                        ? FreeRoamingAnimationEditor.Settings
+                        : current.CursorAvoiding.IdleFreeRoaming.Behavior,
                 };
             CursorAvoidingMovementSettings avoiding = current.CursorAvoiding with
             {

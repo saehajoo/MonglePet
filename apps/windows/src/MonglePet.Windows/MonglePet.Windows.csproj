@@ -19,9 +19,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <Version>1.6.0</Version>
-    <AssemblyVersion>1.6.0.18</AssemblyVersion>
-    <FileVersion>1.6.0.18</FileVersion>
+    <Version>1.7.0</Version>
+    <AssemblyVersion>1.7.0.19</AssemblyVersion>
+    <FileVersion>1.7.0.19</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>

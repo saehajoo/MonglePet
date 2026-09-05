@@ -45,5 +45,11 @@
     <None Include="..\..\..\..\shared\Fixtures\Settings\schema-v15-stationary-rules.expected.json"
           Link="Fixtures\schema-v15-stationary-rules.expected.json"
           CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\..\..\shared\Fixtures\Settings\schema-v15-dwell-modes.json"
+          Link="Fixtures\schema-v15-dwell-modes.json"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\..\..\shared\Fixtures\Settings\schema-v16-dwell-modes.expected.json"
+          Link="Fixtures\schema-v16-dwell-modes.expected.json"
+          CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

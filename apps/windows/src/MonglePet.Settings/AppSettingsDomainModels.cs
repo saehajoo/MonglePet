@@ -73,6 +73,7 @@ public static class AppSettingsLimits
 public enum MovementBoundaryMode { AllDisplays, SelectedDisplay, CustomArea }
 public enum PetMovementMode { Fixed, CursorFollowing, FreeRoaming, CursorAvoiding }
 public enum CursorAvoidingIdleBehavior { Stationary, FreeRoaming }
+public enum FreeRoamingDwellMode { Fixed, Random, BehaviorCompletion }
 public enum PetSpeechBubbleColorStyle { System, Cream, Midnight, Mint, Peach, Custom }
 public enum PetSpeechBubbleTailAlignment { Leading, Center, Trailing }
 public enum PetSpeechBubblePreferredPosition { Automatic, Above, Below }
@@ -182,7 +183,7 @@ public sealed record FreeRoamingMovementSettings(
     double Speed,
     double StopRadius,
     long DwellMilliseconds,
-    bool RandomizesDwell,
+    FreeRoamingDwellMode DwellMode,
     long DwellMinimumMilliseconds,
     bool PrefersFrontmostWindow,
     MovementBehaviorSettings Behavior);
@@ -236,7 +237,7 @@ public sealed record PetMovementSettings(
         Speed,
         StopRadius,
         FreeRoamingDwellMilliseconds,
-        false,
+        FreeRoamingDwellMode.Fixed,
         Math.Max(AppSettingsLimits.MinimumFreeRoamingDwellMilliseconds, FreeRoamingDwellMilliseconds / 2),
         PrefersFrontmostWindow,
         MovementBehaviorSettings.FromLegacy(FreeRoamingAnimation));

@@ -22,6 +22,7 @@ internal sealed class PetBehaviorRuntime : IDisposable
     private long _lastAdvancedTimestamp;
     private ScheduledMotion? _currentMotion;
     private string? _movementBehaviorId;
+    private bool _isMovementActive;
     private string? _interactionBehaviorId;
     private string? _displayedMotionId;
     private readonly RandomBehaviorSelector _randomSelector = new();
@@ -37,6 +38,7 @@ internal sealed class PetBehaviorRuntime : IDisposable
     private bool _isUserPaused;
     private PlaybackLayer _playbackLayer = PlaybackLayer.Base;
     private bool _stationaryIsOverridden;
+    private ulong? _pendingStationaryPassCount;
     private bool _disposed;
 
     public PetBehaviorRuntime(LoadedPetPackage package, PetOverlayWindow overlay)
@@ -71,6 +73,35 @@ internal sealed class PetBehaviorRuntime : IDisposable
 
     public event EventHandler? StateChanged;
 
+    public event EventHandler? StationaryBehaviorPassCompleted;
+
+    public bool RequestMovementAfterStationaryBehaviorPass()
+    {
+        ThrowIfDisposed();
+        if (_pendingStationaryPassCount is not null)
+        {
+            return true;
+        }
+
+        long now = Stopwatch.GetTimestamp();
+        if (AdvanceTo(now) ||
+            _isUserPaused ||
+            _interactionBehaviorId is not null ||
+            _playbackLayer != PlaybackLayer.Base ||
+            _baseScheduler.IsSequenceComplete ||
+            _baseScheduler.Status is not MotionSchedulerStatus.Playing)
+        {
+            _pendingStationaryPassCount = null;
+            return false;
+        }
+
+        _pendingStationaryPassCount = _baseScheduler.CompletedSequencePassCount;
+        return true;
+    }
+
+    public void CancelMovementAfterStationaryBehaviorPass() =>
+        _pendingStationaryPassCount = null;
+
     public void SetUserPaused(bool paused)
     {
         ThrowIfDisposed();
@@ -81,6 +112,7 @@ internal sealed class PetBehaviorRuntime : IDisposable
         _isUserPaused = paused;
         if (paused)
         {
+            CancelMovementAfterStationaryBehaviorPass();
             Pause("사용자가 모든 펫을 일시정지했습니다", Stopwatch.GetTimestamp());
         }
     }
@@ -93,6 +125,25 @@ internal sealed class PetBehaviorRuntime : IDisposable
             return;
         }
         _movementBehaviorId = behaviorId;
+        if (behaviorId is not null)
+        {
+            CancelMovementAfterStationaryBehaviorPass();
+        }
+        if (_latestProfile is not null)
+        {
+            Update(_latestProfile, _latestPresentation);
+        }
+        StateChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void SetMovementActive(bool isActive)
+    {
+        ThrowIfDisposed();
+        if (_isMovementActive == isActive)
+        {
+            return;
+        }
+        _isMovementActive = isActive;
         if (_latestProfile is not null)
         {
             Update(_latestProfile, _latestPresentation);
@@ -131,10 +182,19 @@ internal sealed class PetBehaviorRuntime : IDisposable
     {
         ArgumentNullException.ThrowIfNull(profile);
         ThrowIfDisposed();
+        bool stationaryContextChanged = _latestProfile is not null &&
+            (_latestProfile != profile || _latestPresentation != presentation);
+        if (stationaryContextChanged)
+        {
+            CancelMovementAfterStationaryBehaviorPass();
+        }
         _latestProfile = profile;
         _latestPresentation = presentation;
         long now = Stopwatch.GetTimestamp();
-        AdvanceTo(now);
+        if (AdvanceTo(now))
+        {
+            return;
+        }
         string[] availableRandomSequences = [];
         bool randomSequenceCompleted =
             profile.StationaryBehaviorMode == StationaryBehaviorMode.Random &&
@@ -179,12 +239,12 @@ internal sealed class PetBehaviorRuntime : IDisposable
         bool stationaryIsOverridden = decision is BehaviorDecision.Sequence
         {
             Source: BehaviorSource.Movement or BehaviorSource.AutomaticRule,
-        };
+        } || _isMovementActive;
         bool randomWasInterrupted =
             profile.StationaryBehaviorMode == StationaryBehaviorMode.Random &&
             stationaryIsOverridden &&
             !_stationaryIsOverridden;
-        if (randomWasInterrupted)
+        if (randomWasInterrupted && !randomSequenceCompleted)
         {
             _randomSelector.Update(availableRandomSequences, sequenceCompleted: true);
             stationaryDecision = _resolver.Resolve(
@@ -204,7 +264,7 @@ internal sealed class PetBehaviorRuntime : IDisposable
         _stationaryIsOverridden = decision is BehaviorDecision.Sequence
         {
             Source: BehaviorSource.Movement or BehaviorSource.AutomaticRule,
-        };
+        } || _isMovementActive;
         Apply(
             stationaryDecision,
             decision,
@@ -228,6 +288,7 @@ internal sealed class PetBehaviorRuntime : IDisposable
         }
 
         _disposed = true;
+        CancelMovementAfterStationaryBehaviorPass();
         _boundaryTimer.Stop();
         _boundaryTimer.Tick -= BoundaryTimer_Tick;
         _interactionTimer.Stop();
@@ -246,7 +307,8 @@ internal sealed class PetBehaviorRuntime : IDisposable
         bool pauseMovement = decision is BehaviorDecision.Sequence
         {
             Source: BehaviorSource.AutomaticRule,
-        } && _movementBehaviorId is not null;
+        } && (_movementBehaviorId is not null ||
+              _pendingStationaryPassCount is not null);
         ShouldPauseMovement = pauseMovement;
         switch (decision)
         {
@@ -365,7 +427,10 @@ internal sealed class PetBehaviorRuntime : IDisposable
             return;
         }
 
-        AdvanceTo(Stopwatch.GetTimestamp());
+        if (AdvanceTo(Stopwatch.GetTimestamp()))
+        {
+            return;
+        }
         if (_interactionBehaviorId is not null &&
             _interactionScheduler.Status is MotionSchedulerStatus.Completed)
         {
@@ -414,7 +479,7 @@ internal sealed class PetBehaviorRuntime : IDisposable
         StateChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    private void AdvanceTo(long timestamp)
+    private bool AdvanceTo(long timestamp)
     {
         TimeSpan elapsed = Stopwatch.GetElapsedTime(_lastAdvancedTimestamp, timestamp);
         _lastAdvancedTimestamp = timestamp;
@@ -429,6 +494,20 @@ internal sealed class PetBehaviorRuntime : IDisposable
                 ActiveScheduler.Advance(elapsed);
             }
         }
+        return CompletePendingMovementIfNeeded();
+    }
+
+    private bool CompletePendingMovementIfNeeded()
+    {
+        if (_pendingStationaryPassCount is not ulong pendingCount ||
+            _baseScheduler.CompletedSequencePassCount == pendingCount)
+        {
+            return false;
+        }
+
+        _pendingStationaryPassCount = null;
+        StationaryBehaviorPassCompleted?.Invoke(this, EventArgs.Empty);
+        return true;
     }
 
     private bool EmitCurrentMotion(bool restart)

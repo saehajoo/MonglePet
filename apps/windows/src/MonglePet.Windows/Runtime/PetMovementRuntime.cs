@@ -37,12 +37,15 @@ internal sealed class PetMovementRuntime : IDisposable
     private MovementPoint? _target;
     private MovementPoint? _cursorAvoidingPointerAnchor;
     private MovementPositionAccumulator? _positionAccumulator;
-    private long? _dwellUntil;
+    private readonly FreeRoamingDwellState _dwellState = new();
+    private Func<bool>? _requestStationaryBehaviorCompletion;
+    private Action? _cancelStationaryBehaviorCompletion;
     private long _lastTickTimestamp = Stopwatch.GetTimestamp();
     private ScreenPoint? _lastPointer;
     private ScreenPoint? _directDragOffset;
     private bool _isDirectDragging;
     private bool _wasPrimaryButtonPressed;
+    private bool _isMoving;
     private string? _reportedBehaviorId;
     private MovementDirection? _lastMovementDirection;
     private TimeSpan? _scheduledInterval;
@@ -75,9 +78,36 @@ internal sealed class PetMovementRuntime : IDisposable
 
     public event EventHandler<MovementBehaviorChangedEventArgs>? MovementBehaviorChanged;
 
+    public event EventHandler<MovementActivityChangedEventArgs>? MovementActivityChanged;
+
     public event EventHandler<PettingRequestedEventArgs>? PettingRequested;
 
     public event EventHandler<DirectDragCompletedEventArgs>? DirectDragCompleted;
+
+    public void SetStationaryBehaviorCompletionHandlers(
+        Func<bool> request,
+        Action cancel)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(cancel);
+        ThrowIfDisposed();
+        _requestStationaryBehaviorCompletion = request;
+        _cancelStationaryBehaviorCompletion = cancel;
+    }
+
+    public void StationaryBehaviorPassDidComplete()
+    {
+        ThrowIfDisposed();
+        if (!_dwellState.CompleteBehavior())
+        {
+            return;
+        }
+
+        _target = null;
+        Status = "평상시 행동 완료 · 다음 이동 준비";
+        Schedule(MovementInterval);
+        StateChanged?.Invoke(this, EventArgs.Empty);
+    }
 
     public void Update(
         BehaviorProfile profile,
@@ -181,6 +211,7 @@ internal sealed class PetMovementRuntime : IDisposable
         {
             CompleteDirectDrag();
         }
+        CancelBehaviorCompletionWait();
         _disposed = true;
         StopTimer();
         _timer.Tick -= Timer_Tick;
@@ -441,14 +472,31 @@ internal sealed class PetMovementRuntime : IDisposable
         FreeRoamingMovementSettings settings,
         bool avoidingIdle)
     {
-        if (_dwellUntil is long dwellUntil && now < dwellUntil)
+        FreeRoamingDwellWaitKind dwellKind = _dwellState.Kind;
+        if (_dwellState.IsWaiting(now))
         {
             ReportMotion(null);
-            Status = avoidingIdle ? "도망가기 · 자유 이동 대기" : "자유 이동 · 머무는 중";
+            if (dwellKind == FreeRoamingDwellWaitKind.BehaviorCompletion)
+            {
+                Status = avoidingIdle
+                    ? "도망가기 · 현재 평상시 행동 완료 대기"
+                    : "현재 평상시 행동 완료 대기";
+            }
+            else if (dwellKind == FreeRoamingDwellWaitKind.BehaviorFallback)
+            {
+                Status = avoidingIdle
+                    ? "도망가기 · 평상시 행동 준비 대기"
+                    : "평상시 행동 준비 대기";
+            }
+            else
+            {
+                Status = avoidingIdle
+                    ? "도망가기 · 자유 이동 대기"
+                    : "자유 이동 · 머무는 중";
+            }
             Schedule(PointerInterval);
             return;
         }
-        _dwellUntil = null;
         if (_target is null)
         {
             MovementRect? preferredWindow = null;
@@ -479,8 +527,7 @@ internal sealed class PetMovementRuntime : IDisposable
         if (arrived)
         {
             _target = null;
-            long dwellMilliseconds = NextDwellMilliseconds(settings);
-            _dwellUntil = now + MillisecondsToStopwatchTicks(dwellMilliseconds);
+            BeginDwell(settings, now);
         }
         Schedule(arrived ? PointerInterval : MovementInterval);
     }
@@ -506,7 +553,7 @@ internal sealed class PetMovementRuntime : IDisposable
             _cursorAvoidingPhase.Update(shouldEscape);
         if (shouldEscape)
         {
-            _dwellUntil = null;
+            CancelBehaviorCompletionWait();
             if (PetMovementGeometry.ShouldRefreshCursorAvoidingTarget(
                     pointer,
                     _cursorAvoidingPointerAnchor,
@@ -552,8 +599,7 @@ internal sealed class PetMovementRuntime : IDisposable
         {
             if (escapedThisTick)
             {
-                _dwellUntil = now + MillisecondsToStopwatchTicks(
-                    NextDwellMilliseconds(avoiding.IdleFreeRoaming));
+                BeginDwell(avoiding.IdleFreeRoaming, now);
             }
             TickFreeRoaming(
                 origin,
@@ -595,6 +641,10 @@ internal sealed class PetMovementRuntime : IDisposable
         if (!advance.DidMove)
         {
             ReportMotion(null);
+            if (advance.HasArrived)
+            {
+                ReportMoving(false);
+            }
             return advance.HasArrived;
         }
 
@@ -613,6 +663,7 @@ internal sealed class PetMovementRuntime : IDisposable
         double actualDeltaX = applied.X - origin.X;
         double actualDeltaY = applied.Y - origin.Y;
         ReportMotion(ResolveMovementBehavior(behavior, actualDeltaX, actualDeltaY));
+        ReportMoving(!_isBehaviorPaused);
         return advance.HasArrived;
     }
 
@@ -787,24 +838,70 @@ internal sealed class PetMovementRuntime : IDisposable
             new MovementBehaviorChangedEventArgs(behaviorId));
     }
 
+    private void ReportMoving(bool isMoving)
+    {
+        if (_isMoving == isMoving)
+        {
+            return;
+        }
+        _isMoving = isMoving;
+        MovementActivityChanged?.Invoke(
+            this,
+            new MovementActivityChangedEventArgs(isMoving));
+    }
+
     private FreeRoamingMovementSettings ActiveFreeRoamingSettings() =>
         _settings.Mode == PetMovementMode.CursorAvoiding
             ? _settings.CursorAvoiding.IdleFreeRoaming
             : _settings.FreeRoaming;
 
     private static long NextDwellMilliseconds(FreeRoamingMovementSettings settings) =>
-        settings.RandomizesDwell
+        settings.DwellMode == FreeRoamingDwellMode.Random
             ? Random.Shared.NextInt64(
                 settings.DwellMinimumMilliseconds,
                 settings.DwellMilliseconds + 1)
             : settings.DwellMilliseconds;
 
+    private void BeginDwell(FreeRoamingMovementSettings settings, long now)
+    {
+        ReportMoving(false);
+        ReportMotion(null);
+        _dwellState.Cancel();
+        if (settings.DwellMode != FreeRoamingDwellMode.BehaviorCompletion)
+        {
+            _dwellState.WaitForTimer(now + MillisecondsToStopwatchTicks(
+                NextDwellMilliseconds(settings)));
+            return;
+        }
+
+        if (_requestStationaryBehaviorCompletion?.Invoke() == true)
+        {
+            _dwellState.WaitForBehaviorCompletion();
+        }
+        else
+        {
+            _dwellState.WaitForBehaviorFallback(now +
+                MillisecondsToStopwatchTicks(500));
+        }
+    }
+
+    private void CancelBehaviorCompletionWait()
+    {
+        if (_dwellState.Kind == FreeRoamingDwellWaitKind.BehaviorCompletion)
+        {
+            _cancelStationaryBehaviorCompletion?.Invoke();
+        }
+        _dwellState.Cancel();
+    }
+
     private void ResetMovementTarget()
     {
+        CancelBehaviorCompletionWait();
+        ReportMoving(false);
         _target = null;
         _cursorAvoidingPointerAnchor = null;
         _positionAccumulator = null;
-        _dwellUntil = null;
+        _dwellState.Cancel();
         _cursorAvoidingPhase.Reset();
         _lastMovementDirection = null;
     }
@@ -839,6 +936,8 @@ internal sealed class PetMovementRuntime : IDisposable
 }
 
 internal sealed record MovementBehaviorChangedEventArgs(string? BehaviorId);
+
+internal sealed record MovementActivityChangedEventArgs(bool IsMoving);
 
 internal sealed record PettingRequestedEventArgs(string BehaviorId);
 

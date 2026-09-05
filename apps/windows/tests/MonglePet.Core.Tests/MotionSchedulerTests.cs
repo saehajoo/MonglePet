@@ -170,6 +170,26 @@ public sealed class MotionSchedulerTests
         Assert.Equal(TimeSpan.FromMilliseconds(250), scheduler.ActiveCycleRemainingDuration);
     }
 
+    [Fact]
+    public void CompletedPassCountAdvancesOnlyAtWholeSequenceBoundary()
+    {
+        var scheduler = Scheduler();
+        scheduler.Request(new BehaviorSequence(
+            "routine",
+            [new("idle", 2), new("focus", 1)],
+            true));
+
+        scheduler.Advance(TimeSpan.FromMilliseconds(200));
+        Assert.Equal(0UL, scheduler.CompletedSequencePassCount);
+
+        scheduler.Advance(TimeSpan.FromMilliseconds(250));
+        Assert.Equal(1UL, scheduler.CompletedSequencePassCount);
+        Assert.False(scheduler.IsSequenceComplete);
+
+        scheduler.Advance(TimeSpan.FromMilliseconds(450));
+        Assert.Equal(2UL, scheduler.CompletedSequencePassCount);
+    }
+
     private static MotionScheduler Scheduler() => new(
         "idle",
         new Dictionary<string, TimeSpan>(StringComparer.Ordinal)

@@ -72,6 +72,9 @@ internal static class AppSettingsMigrator
                 case 14:
                     MigrateV14ToV15(document);
                     break;
+                case 15:
+                    MigrateV15ToV16(document);
+                    break;
                 default:
                     throw new InvalidOperationException($"Unsupported settings schema: {schema}.");
             }
@@ -508,6 +511,37 @@ internal static class AppSettingsMigrator
             profile.Remove("manualSequenceID");
         }
         document["schemaVersion"] = 15;
+    }
+
+    private static void MigrateV15ToV16(JsonObject document)
+    {
+        foreach (JsonObject profile in Profiles(document))
+        {
+            if (profile["movement"] is not JsonObject movement)
+            {
+                continue;
+            }
+
+            PromoteDwellMode(movement["freeRoaming"] as JsonObject);
+            if (movement["cursorAvoiding"] is JsonObject avoiding)
+            {
+                PromoteDwellMode(avoiding["idleFreeRoaming"] as JsonObject);
+            }
+        }
+        document["schemaVersion"] = 16;
+    }
+
+    private static void PromoteDwellMode(JsonObject? roaming)
+    {
+        if (roaming is null)
+        {
+            return;
+        }
+
+        roaming["dwellMode"] = ReadBoolOr(roaming["randomizesDwell"], false)
+            ? "random"
+            : "fixed";
+        roaming.Remove("randomizesDwell");
     }
 
     private static void PromoteAnimation(
