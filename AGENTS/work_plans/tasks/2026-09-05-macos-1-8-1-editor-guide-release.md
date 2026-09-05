@@ -2,7 +2,7 @@
 
 ## 상태
 
-- 상태: in_progress
+- 상태: completed
 - 생성일: 2026-09-05
 - 마지막 갱신: 2026-09-05
 
@@ -53,11 +53,11 @@
 
 - [x] 앱 버전과 버전 테스트를 `1.8.1 (17)`로 올린다.
 - [x] 전체 단위 테스트와 코드 서명 없는 Debug 빌드를 통과한다.
-- [ ] 기능·문서·버전을 커밋하고 `origin/main`에 푸시한다.
-- [ ] 깨끗한 소스 커밋에서 Universal Preview ZIP·체크섬·manifest를 생성한다.
-- [ ] 압축 해제본의 버전·빌드·Bundle ID·Universal 아키텍처·앱 아이콘과 격리 실행을 확인한다.
-- [ ] GitHub Pre-release를 게시하고 태그 대상과 원격 자산을 재검증한다.
-- [ ] 배포·다운로드 문서에 최종 커밋·크기·SHA-256을 기록하고 푸시한다.
+- [x] 기능·문서·버전을 커밋하고 `origin/main`에 푸시한다.
+- [x] 깨끗한 소스 커밋에서 Universal Preview ZIP·체크섬·manifest를 생성한다.
+- [x] 압축 해제본의 버전·빌드·Bundle ID·Universal 아키텍처·앱 아이콘과 격리 실행을 확인한다.
+- [x] GitHub Pre-release를 게시하고 태그 대상과 원격 자산을 재검증한다.
+- [x] 배포·다운로드 문서에 최종 커밋·크기·SHA-256을 기록하고 푸시한다.
 
 ### Windows
 
@@ -83,10 +83,17 @@
 - 2026-09-05: 사용자가 편집기 결과를 확인하고 이용 가이드 운영 URL을 확정한 뒤 커밋·푸시·릴리스를 요청했다.
 - 2026-09-05: schema 비변경 patch 범위에 맞춰 `1.8.1 (17)`과 `macos-v1.8.1-preview.1`로 확정했다.
 - 2026-09-05: 전체 `MonglePetTests` 553개 중 552개 통과·선택적 WebP 1개 건너뜀·실패 0개, 코드 서명 없는 Debug 빌드와 UI 테스트 target compile을 통과했다. 전용 XCUITest Runner는 앱 assertion 전에 멈추는 현재 호스트 제약으로 중단해 실제 이용 가이드·편집기 UI QA는 후속으로 남겼다.
+- 2026-09-05: 소스 커밋 `97ecbf4cfffbd483c07215d207fe6756d579c30c`을 `origin/main`에 푸시하고 깨끗한 커밋에서 Universal Release 산출물을 생성했다.
+- 2026-09-05: 압축 해제본의 `1.8.1 (17)`, Bundle ID, arm64·x86_64, AppIcon과 격리된 3초 실행을 확인했다.
+- 2026-09-05: 태그 `macos-v1.8.1-preview.1`과 GitHub Pre-release를 게시하고 원격 세 자산을 다시 내려받아 로컬 최종본과 바이트 단위 일치 및 태그 대상을 확인했다.
 
 ## 완료 결과
 
-- 진행 중
+- GitHub Pre-release: `https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.8.1-preview.1`
+- 소스 커밋: `97ecbf4cfffbd483c07215d207fe6756d579c30c`
+- ZIP: `MonglePet-1.8.1-build.17-preview.zip`, 11,284,078 bytes
+- SHA-256: `11b8afb63bdbc722cc5816bd00c7e3ec90083ab8b68e868f6dd6ffd23375f708`
+- manifest의 버전·빌드·커밋과 annotated tag 대상이 소스 커밋에 일치한다.
 
 ## 남은 위험 / 후속 작업
 

@@ -8,7 +8,6 @@
 
 | 상태 | 작업명 | 파일 | 마지막 갱신 |
 | --- | --- | --- | --- |
-| in_progress | macOS 1.8.1 편집기·이용 가이드 Preview 릴리스 | `tasks/2026-09-05-macos-1-8-1-editor-guide-release.md` | 2026-09-05 |
 | in_progress | 앱 내 간단 이용 가이드 | `tasks/2026-09-05-in-app-quick-guide.md` | 2026-09-05 |
 | in_progress | 애니메이션 프레임 가져오기 편집기 보정 | `tasks/2026-09-05-animation-import-editor-polish.md` | 2026-09-05 |
 | in_progress | 화면 표시·이동 설정 정보 구조 다듬기 | `tasks/2026-09-05-settings-display-movement-polish.md` | 2026-09-05 |
@@ -42,6 +41,7 @@
 
 | 상태 | 작업명 | 파일 | 완료일 |
 | --- | --- | --- | --- |
+| completed | macOS 1.8.1 편집기·이용 가이드 Preview 릴리스 | `tasks/2026-09-05-macos-1-8-1-editor-guide-release.md` | 2026-09-05 |
 | completed | macOS 1.8.0 가져오기 호환성·설정 UI Preview 릴리스 | `tasks/2026-09-05-macos-1-8-import-settings-release.md` | 2026-09-05 |
 | completed | macOS 1.6.0 내 펫·런타임 보정 Preview 릴리스 | `tasks/2026-09-01-macos-1-6-my-pets-release.md` | 2026-09-01 |
 | completed | macOS 1.4.0 펫 제작기 후속 Preview 2 릴리스 | `tasks/2026-08-29-macos-1-4-preview-2-release.md` | 2026-08-29 |
