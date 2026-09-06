@@ -3,12 +3,11 @@ import Combine
 import SwiftUI
 
 nonisolated enum EditorWindowPlacement {
-    static func adjustedFrame(
-        proposedFrame: CGRect?,
+    static func frame(
         idealSize: CGSize,
         minimumSize: CGSize,
         visibleFrame: CGRect,
-        fallbackCenter: CGPoint
+        parentFrame: CGRect?
     ) -> CGRect {
         guard visibleFrame.isUsable else {
             return CGRect(origin: .zero, size: idealSize)
@@ -16,30 +15,23 @@ nonisolated enum EditorWindowPlacement {
 
         let minimumWidth = min(minimumSize.width, visibleFrame.width)
         let minimumHeight = min(minimumSize.height, visibleFrame.height)
-        let proposedIsValid = proposedFrame.map {
-            $0.isFinite
-                && $0.width >= minimumWidth
-                && $0.height >= minimumHeight
-        } ?? false
-        let sourceSize = proposedIsValid
-            ? proposedFrame!.size
-            : idealSize
         let size = CGSize(
             width: min(
                 visibleFrame.width,
-                max(minimumWidth, sourceSize.width)
+                max(minimumWidth, idealSize.width)
             ),
             height: min(
                 visibleFrame.height,
-                max(minimumHeight, sourceSize.height)
+                max(minimumHeight, idealSize.height)
             )
         )
-        let sourceOrigin = proposedIsValid
-            ? proposedFrame!.origin
-            : CGPoint(
-                x: fallbackCenter.x - size.width / 2,
-                y: fallbackCenter.y - size.height / 2
-            )
+        let center = parentFrame.map {
+            CGPoint(x: $0.midX + 24, y: $0.midY - 24)
+        } ?? CGPoint(x: visibleFrame.midX, y: visibleFrame.midY)
+        let sourceOrigin = CGPoint(
+            x: center.x - size.width / 2,
+            y: center.y - size.height / 2
+        )
         let maximumX = visibleFrame.maxX - size.width
         let maximumY = visibleFrame.maxY - size.height
 
@@ -53,7 +45,7 @@ nonisolated enum EditorWindowPlacement {
 }
 
 nonisolated private extension CGRect {
-    var isFinite: Bool {
+    private var isFinite: Bool {
         origin.x.isFinite
             && origin.y.isFinite
             && size.width.isFinite
@@ -96,7 +88,6 @@ final class EditorWindowPresenter: ObservableObject {
         presentWindow(
             editor,
             title: "스프라이트 시트 가져오기",
-            autosaveName: "MonglePet.SpriteSheetImportWindow",
             idealSize: NSSize(
                 width: SpriteSheetEditorLayout.idealWindowWidth,
                 height: SpriteSheetEditorLayout.idealWindowHeight
@@ -125,7 +116,6 @@ final class EditorWindowPresenter: ObservableObject {
         presentWindow(
             editor,
             title: "PNG 프레임 자르기",
-            autosaveName: "MonglePet.PNGFrameCropWindow",
             idealSize: NSSize(
                 width: PNGFrameCropEditorLayout.idealWindowWidth,
                 height: PNGFrameCropEditorLayout.idealWindowHeight
@@ -154,7 +144,6 @@ final class EditorWindowPresenter: ObservableObject {
         presentWindow(
             editor,
             title: "현재 펫 프레임에서 추가",
-            autosaveName: "MonglePet.ExistingPetFramePickerWindow",
             idealSize: NSSize(width: 1_080, height: 760),
             minimumSize: NSSize(width: 880, height: 620),
             closeRequests: nil
@@ -164,14 +153,12 @@ final class EditorWindowPresenter: ObservableObject {
     func presentEditor<Content: View>(
         _ content: Content,
         title: String,
-        autosaveName: String,
         idealSize: NSSize,
         minimumSize: NSSize
     ) {
         presentWindow(
             content,
             title: title,
-            autosaveName: autosaveName,
             idealSize: idealSize,
             minimumSize: minimumSize,
             closeRequests: nil
@@ -187,7 +174,6 @@ final class EditorWindowPresenter: ObservableObject {
     private func presentWindow<Content: View>(
         _ content: Content,
         title: String,
-        autosaveName: String,
         idealSize: NSSize,
         minimumSize: NSSize,
         closeRequests: ImageEditorWindowCloseRequests?
@@ -195,10 +181,10 @@ final class EditorWindowPresenter: ObservableObject {
         close()
 
         let ownerWindow = NSApplication.shared.keyWindow
+            ?? NSApplication.shared.mainWindow
         let controller = EditorWindowController(
             content: content,
             title: title,
-            autosaveName: autosaveName,
             idealSize: idealSize,
             minimumSize: minimumSize,
             ownerWindow: ownerWindow,
@@ -225,7 +211,6 @@ private final class EditorWindowController: NSWindowController, NSWindowDelegate
     init<Content: View>(
         content: Content,
         title: String,
-        autosaveName: String,
         idealSize: NSSize,
         minimumSize: NSSize,
         ownerWindow: NSWindow?,
@@ -244,40 +229,28 @@ private final class EditorWindowController: NSWindowController, NSWindowDelegate
         )
         window.title = title
         window.contentViewController = NSHostingController(rootView: content)
-        window.minSize = minimumSize
         window.isReleasedWhenClosed = false
         window.tabbingMode = .disallowed
-        let didRestoreFrame = window.setFrameUsingName(autosaveName)
-        let proposedFrame = didRestoreFrame ? window.frame : nil
-        let targetScreen = Self.targetScreen(
-            for: proposedFrame,
-            ownerWindow: ownerWindow
-        )
+        let targetScreen = ownerWindow?.screen
+            ?? NSScreen.main
+            ?? NSScreen.screens.first
         let visibleFrame = targetScreen?.visibleFrame
             ?? NSScreen.main?.visibleFrame
             ?? CGRect(origin: .zero, size: idealSize)
-        let fallbackCenter: CGPoint
-        if let ownerWindow, ownerWindow.screen == targetScreen {
-            fallbackCenter = CGPoint(
-                x: ownerWindow.frame.midX,
-                y: ownerWindow.frame.midY
-            )
-        } else {
-            fallbackCenter = CGPoint(
-                x: visibleFrame.midX,
-                y: visibleFrame.midY
-            )
-        }
-        let adjustedFrame = EditorWindowPlacement.adjustedFrame(
-            proposedFrame: proposedFrame,
+        window.minSize = NSSize(
+            width: min(minimumSize.width, visibleFrame.width),
+            height: min(minimumSize.height, visibleFrame.height)
+        )
+        let parentFrame = ownerWindow?.screen == targetScreen
+            ? ownerWindow?.frame
+            : nil
+        let adjustedFrame = EditorWindowPlacement.frame(
             idealSize: idealSize,
             minimumSize: minimumSize,
             visibleFrame: visibleFrame,
-            fallbackCenter: fallbackCenter
+            parentFrame: parentFrame
         )
         window.setFrame(adjustedFrame, display: false)
-        window.setFrameAutosaveName(autosaveName)
-        window.saveFrame(usingName: autosaveName)
 
         super.init(window: window)
         window.delegate = self
@@ -286,23 +259,6 @@ private final class EditorWindowController: NSWindowController, NSWindowDelegate
 
     required init?(coder: NSCoder) {
         nil
-    }
-
-    private static func targetScreen(
-        for proposedFrame: CGRect?,
-        ownerWindow: NSWindow?
-    ) -> NSScreen? {
-        if let proposedFrame {
-            let bestMatch = NSScreen.screens.max { lhs, rhs in
-                proposedFrame.intersection(lhs.visibleFrame).area
-                    < proposedFrame.intersection(rhs.visibleFrame).area
-            }
-            if let bestMatch,
-               proposedFrame.intersection(bestMatch.visibleFrame).area > 0 {
-                return bestMatch
-            }
-        }
-        return ownerWindow?.screen ?? NSScreen.main ?? NSScreen.screens.first
     }
 
     func closeImmediately() {
@@ -327,11 +283,5 @@ private final class EditorWindowController: NSWindowController, NSWindowDelegate
         }
         onDidClose()
         ownerWindow?.makeKeyAndOrderFront(nil)
-    }
-}
-
-nonisolated private extension CGRect {
-    var area: CGFloat {
-        isNull || isInfinite ? 0 : max(0, width) * max(0, height)
     }
 }

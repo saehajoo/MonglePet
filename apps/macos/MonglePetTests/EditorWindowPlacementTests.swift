@@ -7,54 +7,49 @@ final class EditorWindowPlacementTests: XCTestCase {
     private let idealSize = CGSize(width: 920, height: 720)
     private let minimumSize = CGSize(width: 760, height: 560)
 
-    func testReplacesCorruptedTinyFrameWithCenteredIdealSize() {
-        let result = EditorWindowPlacement.adjustedFrame(
-            proposedFrame: CGRect(x: 1_282, y: 498, width: 1, height: 32),
+    func testPlacesIdealWindowNearParentCenter() {
+        let result = EditorWindowPlacement.frame(
             idealSize: idealSize,
             minimumSize: minimumSize,
             visibleFrame: visibleFrame,
-            fallbackCenter: CGPoint(x: 864, y: 554.5)
+            parentFrame: CGRect(x: 200, y: 200, width: 840, height: 620)
+        )
+
+        XCTAssertEqual(result, CGRect(x: 184, y: 126, width: 920, height: 720))
+    }
+
+    func testClampsParentRelativeWindowInsideVisibleScreen() {
+        let result = EditorWindowPlacement.frame(
+            idealSize: idealSize,
+            minimumSize: minimumSize,
+            visibleFrame: visibleFrame,
+            parentFrame: CGRect(x: 1_500, y: 900, width: 300, height: 200)
+        )
+
+        XCTAssertEqual(result, CGRect(x: 808, y: 364, width: 920, height: 720))
+    }
+
+    func testCentersWindowInVisibleScreenWithoutParent() {
+        let result = EditorWindowPlacement.frame(
+            idealSize: idealSize,
+            minimumSize: minimumSize,
+            visibleFrame: visibleFrame,
+            parentFrame: nil
         )
 
         XCTAssertEqual(result, CGRect(x: 404, y: 194.5, width: 920, height: 720))
     }
 
-    func testClampsValidRestoredFrameFullyInsideVisibleScreen() {
-        let result = EditorWindowPlacement.adjustedFrame(
-            proposedFrame: CGRect(x: 1_200, y: 700, width: 900, height: 700),
-            idealSize: idealSize,
+    func testShrinksIdealWindowToSmallVisibleScreen() {
+        let smallVisibleFrame = CGRect(x: 100, y: 80, width: 640, height: 480)
+
+        let result = EditorWindowPlacement.frame(
+            idealSize: CGSize(width: 1_080, height: 760),
             minimumSize: minimumSize,
-            visibleFrame: visibleFrame,
-            fallbackCenter: CGPoint(x: 864, y: 554.5)
+            visibleFrame: smallVisibleFrame,
+            parentFrame: CGRect(x: 200, y: 120, width: 500, height: 400)
         )
 
-        XCTAssertEqual(result, CGRect(x: 828, y: 384, width: 900, height: 700))
-    }
-
-    func testShrinksOversizedRestoredFrameToVisibleScreen() {
-        let result = EditorWindowPlacement.adjustedFrame(
-            proposedFrame: CGRect(x: -300, y: -200, width: 2_400, height: 1_400),
-            idealSize: idealSize,
-            minimumSize: minimumSize,
-            visibleFrame: visibleFrame,
-            fallbackCenter: CGPoint(x: 864, y: 554.5)
-        )
-
-        XCTAssertEqual(result, visibleFrame)
-    }
-
-    func testPreservesValidVisibleRestoredFrame() {
-        let proposed = CGRect(x: 320, y: 180, width: 1_000, height: 760)
-
-        XCTAssertEqual(
-            EditorWindowPlacement.adjustedFrame(
-                proposedFrame: proposed,
-                idealSize: idealSize,
-                minimumSize: minimumSize,
-                visibleFrame: visibleFrame,
-                fallbackCenter: CGPoint(x: 864, y: 554.5)
-            ),
-            proposed
-        )
+        XCTAssertEqual(result, smallVisibleFrame)
     }
 }

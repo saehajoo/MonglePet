@@ -228,7 +228,6 @@ struct SpeechBubbleSettingsView: View {
                 }
             ),
             title: "말풍선 모양과 위치 편집",
-            autosaveName: "MonglePet.SpeechBubbleThemeEditorWindow",
             idealSize: NSSize(width: 820, height: 820),
             minimumSize: NSSize(width: 680, height: 620)
         )

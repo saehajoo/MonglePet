@@ -381,7 +381,6 @@ private struct MyPetsSettingsView: View {
                 onDismiss: { editorWindowPresenter.close() }
             ),
             title: "새 펫 만들기",
-            autosaveName: "MonglePet.NewPetEditorWindow",
             idealSize: NSSize(width: 920, height: 720),
             minimumSize: NSSize(width: 760, height: 560)
         )
@@ -1003,7 +1002,6 @@ private struct PetSettingsView: View {
                 onDismiss: { editorWindowPresenter.close() }
             ),
             title: "펫 애니메이션 추가",
-            autosaveName: "MonglePet.AnimationEditorWindow",
             idealSize: NSSize(width: 980, height: 720),
             minimumSize: NSSize(width: 760, height: 560)
         )
@@ -1025,7 +1023,6 @@ private struct PetSettingsView: View {
                 onDismiss: { editorWindowPresenter.close() }
             ),
             title: "펫 애니메이션 수정",
-            autosaveName: "MonglePet.AnimationEditorWindow",
             idealSize: NSSize(width: 980, height: 720),
             minimumSize: NSSize(width: 760, height: 560)
         )
@@ -1043,7 +1040,6 @@ private struct PetSettingsView: View {
                 onDismiss: { editorWindowPresenter.close() }
             ),
             title: "애니메이션 복제",
-            autosaveName: "MonglePet.AnimationEditorWindow",
             idealSize: NSSize(width: 980, height: 720),
             minimumSize: NSSize(width: 760, height: 560)
         )
