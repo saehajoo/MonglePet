@@ -312,6 +312,8 @@ Windows PNG·스프라이트 가져오기 결과는 `260×130` 고정 영역 안
 
 기존 atlas의 manifest frame은 crop·배치가 이미 구워진 완성 이미지로 취급한다. 편집 화면을 열 때 알파 visible bounds를 다시 분석하지 않고 저장된 `(x, y, width, height)`만 원본 배율로 잘라 사용하며, 크기가 다른 frame만 최대 저장 frame 캔버스에 중앙 배치한다. 따라서 수정·저장 반복으로 투명 여백과 runtime 표시 크기가 확대되지 않는다. atlas 좌표 밖 픽셀을 읽지 않는 테스트를 포함해 Debug·Release 각각 Activity 27개·Core 69개·Packages 28개·PetLibrary 94개·Settings 95개·Shell 29개, 총 342개 테스트와 두 구성 전체 빌드가 경고·오류 없이 통과했다. 실제 다중 PNG·스프라이트, 수정 저장 뒤 overlay 크기, 테마·혼합 DPI·키보드/Narrator와 macOS 교차 왕복 전까지 플랫폼 동등 완료로 표시하지 않는다.
 
+사용자 확인에 따라 이 Windows 후속은 `1.8.2.21`, 태그 `windows-v1.8.2-preview.1`의 미서명 x64 Preview 후보로 준비한다. 기존 `1.8.1.20` 자산과 로컬 사용자 데이터, settings schema-v16·제작자 설정 schema-v12·package format은 변경하지 않는다.
+
 ---
 
 문서 상태: active

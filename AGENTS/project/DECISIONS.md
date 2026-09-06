@@ -1005,3 +1005,11 @@
 - 결정: D-125 애니메이션 반복 힌트 비노출·행동 연결 우선 편집과 D-126 큰 제작 편집기의 독립 리사이즈 창·부모 기준 안전 배치를 macOS `1.8.2 (18)`, 태그 `macos-v1.8.2-preview.1`로 게시한다.
 - 이유: 패키지와 설정 계약은 `1.8.1`과 같지만 고정 크기에서 잘리던 제작 화면, 애니메이션과 행동의 혼동, 손상된 저장 창 프레임 때문에 창이 화면 밖에서 열리던 문제를 기존 Preview 자산을 덮어쓰지 않는 patch 버전으로 구분해야 한다.
 - 비고: 편집 창 위치·크기는 저장하지 않고 바로 이전 부모 창과 현재 모니터 작업 영역만 사용한다. settings schema-v16, 제작자 설정 schema-v12, `.monglepet` formatVersion과 패키지 최소 앱 버전 `1.7.0`은 유지한다. Developer ID 미서명·Apple 미공증 Universal ZIP으로 제한된 테스터에게만 제공하며 Windows는 인계 문서에 따라 별도 구현·검증한다.
+
+## D-128 Windows 1.8.2 애니메이션 편집기 Preview
+
+- 상태: accepted
+- 날짜: 2026-09-07
+- 결정: D-122·D-125의 PNG·스프라이트 결과 경계, 애니메이션 반복 힌트 비노출, 프레임별 간격을 따르는 전체 재생과 기존 atlas frame 재편집 보정을 Windows `1.8.2.21`, 태그 `windows-v1.8.2-preview.1`로 게시한다.
+- 이유: 기존 atlas frame의 투명 여백을 다시 분석해 공통 캔버스를 확대할 수 있던 문제와 제작 미리보기·실제 저장 결과의 차이를 기존 Windows `1.8.1.20` 자산을 덮어쓰지 않고 배포해야 한다.
+- 비고: 기존 atlas는 저장된 frame 사각형을 완성 픽셀로 취급하고 runtime은 atlas GPU surface의 frame 좌표를 잘라 표시한다. settings schema-v16, 제작자 설정 schema-v12, `.monglepet` formatVersion과 패키지 최소 앱 버전 `1.7.0`은 유지한다. 미서명 x64 EXE와 `SHA256SUMS.txt`를 GitHub Pre-release로 제공하며 실제 혼합 DPI·키보드·Narrator·대용량 drag와 macOS 교차 왕복은 후속 QA로 유지한다.
