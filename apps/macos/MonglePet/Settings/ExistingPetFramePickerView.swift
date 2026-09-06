@@ -1,11 +1,5 @@
 import SwiftUI
 
-struct ExistingPetFramePickerPresentation: Identifiable {
-    let id = UUID()
-    let petName: String
-    let groups: [ExistingPetFrameGroup]
-}
-
 nonisolated struct ExistingPetFrameID: Hashable, Sendable {
     let motionID: String
     let frameIndex: Int
@@ -107,6 +101,7 @@ struct ExistingPetFramePickerView: View {
 
     let petName: String
     let groups: [ExistingPetFrameGroup]
+    let onDismiss: (() -> Void)?
     let onImport: ([ExistingPetFrameSelection]) -> Void
 
     @State private var selectionOrder: [ExistingPetFrameID] = []
@@ -114,6 +109,18 @@ struct ExistingPetFramePickerView: View {
     private let columns = [
         GridItem(.adaptive(minimum: 104, maximum: 132), spacing: 10)
     ]
+
+    init(
+        petName: String,
+        groups: [ExistingPetFrameGroup],
+        onDismiss: (() -> Void)? = nil,
+        onImport: @escaping ([ExistingPetFrameSelection]) -> Void
+    ) {
+        self.petName = petName
+        self.groups = groups
+        self.onDismiss = onDismiss
+        self.onImport = onImport
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -227,7 +234,7 @@ struct ExistingPetFramePickerView: View {
             HStack {
                 Spacer()
                 Button("취소", role: .cancel) {
-                    dismiss()
+                    dismissEditor()
                 }
                 Button("선택한 프레임 추가") {
                     onImport(selectedFrames.map { frame in
@@ -239,7 +246,7 @@ struct ExistingPetFramePickerView: View {
                             durationMilliseconds: frame.durationMilliseconds
                         )
                     })
-                    dismiss()
+                    dismissEditor()
                 }
                 .keyboardShortcut(.defaultAction)
                 .disabled(selectionOrder.isEmpty)
@@ -250,7 +257,14 @@ struct ExistingPetFramePickerView: View {
             .padding(.horizontal, 20)
             .padding(.vertical, 12)
         }
-        .frame(minWidth: 880, idealWidth: 980, minHeight: 620, idealHeight: 720)
+        .frame(
+            minWidth: 880,
+            idealWidth: 1_080,
+            maxWidth: .infinity,
+            minHeight: 620,
+            idealHeight: 760,
+            maxHeight: .infinity
+        )
     }
 
     private var framesByID: [ExistingPetFrameID: ExistingPetFrameAsset] {
@@ -331,6 +345,14 @@ struct ExistingPetFramePickerView: View {
     private func appendUnselected(_ frames: [ExistingPetFrameAsset]) {
         for frame in frames where !selectionOrder.contains(frame.id) {
             selectionOrder.append(frame.id)
+        }
+    }
+
+    private func dismissEditor() {
+        if let onDismiss {
+            onDismiss()
+        } else {
+            dismiss()
         }
     }
 }

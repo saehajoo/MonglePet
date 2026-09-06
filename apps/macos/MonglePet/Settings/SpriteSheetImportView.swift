@@ -1,11 +1,6 @@
 import AppKit
 import SwiftUI
 
-struct SpriteSheetImportPresentation: Identifiable {
-    let id = UUID()
-    let document: SpriteSheetDocument
-}
-
 private enum SpriteSheetFrameOrderMode: String, CaseIterable, Identifiable {
     case reading
     case clicked
@@ -43,6 +38,8 @@ struct SpriteSheetImportView: View {
 
     let document: SpriteSheetDocument
     let onImport: ([UserPetSourceImage]) -> Void
+    let onDismiss: (() -> Void)?
+    @ObservedObject private var closeRequests: ImageEditorWindowCloseRequests
 
     @State private var regions: [SelectableSpriteRegion]
     @State private var rows = 1
@@ -61,15 +58,20 @@ struct SpriteSheetImportView: View {
     @State private var zoomScale = 1.0
     @State private var isProcessing = false
     @State private var previewRevision = 0
+    @State private var processingTask: Task<Void, Never>?
     @State private var hasEdits = false
     @State private var showsDiscardConfirmation = false
 
     init(
         document: SpriteSheetDocument,
-        onImport: @escaping ([UserPetSourceImage]) -> Void
+        onImport: @escaping ([UserPetSourceImage]) -> Void,
+        onDismiss: (() -> Void)? = nil,
+        closeRequests: ImageEditorWindowCloseRequests = .init()
     ) {
         self.document = document
         self.onImport = onImport
+        self.onDismiss = onDismiss
+        self.closeRequests = closeRequests
         let suggestedRegions = document.suggestedRegions.map {
             SelectableSpriteRegion(rect: $0)
         }
@@ -111,7 +113,10 @@ struct SpriteSheetImportView: View {
 
                 HStack(alignment: .top, spacing: 18) {
                     preview(canvasHeight: canvasHeight)
-                        .frame(minWidth: 420, maxWidth: .infinity)
+                        .frame(
+                            minWidth: SpriteSheetEditorLayout.minimumCanvasWidth,
+                            maxWidth: .infinity
+                        )
 
                     VStack(alignment: .leading, spacing: 12) {
                         selectedRegionPreview
@@ -138,6 +143,7 @@ struct SpriteSheetImportView: View {
                 )
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .disabled(isProcessing)
 
             if let errorMessage {
                 Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
@@ -153,7 +159,12 @@ struct SpriteSheetImportView: View {
             Divider()
             footer
         }
-        .frame(minWidth: 780, idealWidth: 920, minHeight: 590, idealHeight: 700)
+        .frame(
+            minWidth: SpriteSheetEditorLayout.minimumWindowWidth,
+            idealWidth: SpriteSheetEditorLayout.idealWindowWidth,
+            minHeight: SpriteSheetEditorLayout.minimumWindowHeight,
+            idealHeight: SpriteSheetEditorLayout.idealWindowHeight
+        )
         .onChange(of: regions) {
             hasEdits = true
         }
@@ -171,11 +182,17 @@ struct SpriteSheetImportView: View {
             isPresented: $showsDiscardConfirmation
         ) {
             Button("변경사항 버리기", role: .destructive) {
-                dismiss()
+                finishDismissal()
             }
             Button("계속 편집", role: .cancel) {}
         } message: {
             Text("프레임 선택과 경계 변경은 아직 애니메이션에 추가되지 않았습니다.")
+        }
+        .onDisappear {
+            cancelProcessing()
+        }
+        .onChange(of: closeRequests.revision) {
+            requestDismissal()
         }
     }
 
@@ -816,6 +833,7 @@ struct SpriteSheetImportView: View {
     }
 
     private func refreshPreview() {
+        processingTask?.cancel()
         previewRevision += 1
         let revision = previewRevision
         let document = document
@@ -823,20 +841,32 @@ struct SpriteSheetImportView: View {
         isProcessing = true
         errorMessage = nil
         hasEdits = true
-        Task {
+        let worker = Task.detached {
+            try SpriteSheetFrameExtractor().processedImage(
+                from: document,
+                removingBackground: backgroundRemoval
+            )
+        }
+        processingTask = Task {
             do {
-                let image = try await Task.detached {
-                    try SpriteSheetFrameExtractor().processedImage(
-                        from: document,
-                        removingBackground: backgroundRemoval
-                    )
-                }.value
+                let image = try await withTaskCancellationHandler {
+                    try await worker.value
+                } onCancel: {
+                    worker.cancel()
+                }
+                try Task.checkCancellation()
                 guard revision == previewRevision else { return }
                 previewImage = image
                 isProcessing = false
+                processingTask = nil
+            } catch is CancellationError {
+                guard revision == previewRevision else { return }
+                isProcessing = false
+                processingTask = nil
             } catch {
                 guard revision == previewRevision else { return }
                 isProcessing = false
+                processingTask = nil
                 errorMessage = error.localizedDescription
             }
         }
@@ -858,18 +888,29 @@ struct SpriteSheetImportView: View {
         let document = document
         let backgroundRemoval = backgroundRemoval
         let sourceName = document.sourceURL.deletingPathExtension().lastPathComponent
+        processingTask?.cancel()
+        previewRevision += 1
+        let revision = previewRevision
         isProcessing = true
         errorMessage = nil
-        Task {
+        let worker = Task.detached {
+            try SpriteSheetFrameExtractor().extractFrames(
+                from: document,
+                selections: selections,
+                removingBackground: backgroundRemoval
+            )
+        }
+        processingTask = Task {
             do {
-                let images = try await Task.detached {
-                    try SpriteSheetFrameExtractor().extractFrames(
-                        from: document,
-                        selections: selections,
-                        removingBackground: backgroundRemoval
-                    )
-                }.value
+                let images = try await withTaskCancellationHandler {
+                    try await worker.value
+                } onCancel: {
+                    worker.cancel()
+                }
+                try Task.checkCancellation()
+                guard revision == previewRevision else { return }
                 isProcessing = false
+                processingTask = nil
                 onImport(
                     images.enumerated().map { index, image in
                         UserPetSourceImage(
@@ -878,17 +919,40 @@ struct SpriteSheetImportView: View {
                         )
                     }
                 )
-                dismiss()
-            } catch {
+                finishDismissal()
+            } catch is CancellationError {
+                guard revision == previewRevision else { return }
                 isProcessing = false
+                processingTask = nil
+            } catch {
+                guard revision == previewRevision else { return }
+                isProcessing = false
+                processingTask = nil
                 errorMessage = error.localizedDescription
             }
         }
     }
 
     private func requestDismissal() {
+        cancelProcessing()
         if hasEdits {
             showsDiscardConfirmation = true
+        } else {
+            finishDismissal()
+        }
+    }
+
+    private func cancelProcessing() {
+        previewRevision += 1
+        processingTask?.cancel()
+        processingTask = nil
+        isProcessing = false
+    }
+
+    private func finishDismissal() {
+        cancelProcessing()
+        if let onDismiss {
+            onDismiss()
         } else {
             dismiss()
         }
@@ -896,6 +960,11 @@ struct SpriteSheetImportView: View {
 }
 
 struct SpriteSheetEditorLayout {
+    static let minimumWindowWidth: CGFloat = 700
+    static let idealWindowWidth: CGFloat = 920
+    static let minimumWindowHeight: CGFloat = 520
+    static let idealWindowHeight: CGFloat = 700
+    static let minimumCanvasWidth: CGFloat = 350
     static let sidebarWidth: CGFloat = 290
     static let columnSpacing: CGFloat = 18
     static let horizontalPadding: CGFloat = 40

@@ -277,7 +277,6 @@ private struct MyPetsSettingsView: View {
     @ObservedObject var runtimeControlSession: PetRuntimeControlSession
     @ObservedObject var remotePetImportRequestCenter: RemotePetImportRequestCenter
     let remotePetImportService: RemotePetImportService
-    @State private var isCreatingPet = false
     @State private var isImportingPet = false
     @State private var isCreatingPetCopy = false
     @State private var shareReview: PetPackageShareReview?
@@ -287,27 +286,21 @@ private struct MyPetsSettingsView: View {
     @State private var isPresentingPetPackageExporter = false
     @State private var petPackageExportErrorMessage: String?
     @State private var exportedPackageFileName: String?
+    @StateObject private var editorWindowPresenter = EditorWindowPresenter()
 
     var body: some View {
         ActivePetsSettingsView(
             settingsSession: settingsSession,
             petLibrarySession: petLibrarySession,
             runtimeControlSession: runtimeControlSession,
-            onCreatePet: { isCreatingPet = true },
+            onCreatePet: presentPetCreator,
             onImportPet: { isImportingPet = true },
             onCreateCopy: preparePetCopy,
             onExport: preparePetExport,
             onDelete: deletePet
         )
+        .disabled(editorWindowPresenter.isPresenting)
         .navigationTitle("내 펫")
-        .sheet(isPresented: $isCreatingPet) {
-            UserPetAnimationEditorView(
-                mode: .create,
-                petLibrarySession: petLibrarySession,
-                settingsSession: settingsSession,
-                prepareForSaving: { true }
-            )
-        }
         .sheet(isPresented: $isImportingPet) {
             PetImportSheetView(
                 settingsSession: settingsSession,
@@ -372,7 +365,26 @@ private struct MyPetsSettingsView: View {
         .onChange(of: remotePetImportRequestCenter.errorMessage) {
             _, _ in presentImportIfNeeded()
         }
+        .onDisappear {
+            editorWindowPresenter.close()
+        }
         .accessibilityIdentifier("monglepet.settings.myPets")
+    }
+
+    private func presentPetCreator() {
+        editorWindowPresenter.presentEditor(
+            UserPetAnimationEditorView(
+                mode: .create,
+                petLibrarySession: petLibrarySession,
+                settingsSession: settingsSession,
+                prepareForSaving: { true },
+                onDismiss: { editorWindowPresenter.close() }
+            ),
+            title: "새 펫 만들기",
+            autosaveName: "MonglePet.NewPetEditorWindow",
+            idealSize: NSSize(width: 920, height: 720),
+            minimumSize: NSSize(width: 760, height: 560)
+        )
     }
 
     private func preparePetCopy(_ instanceID: UUID) {
@@ -765,9 +777,6 @@ private struct PetSettingsView: View {
     let remotePetImportService: RemotePetImportService
     @State private var isConfirmingAnimationRemoval = false
     @State private var isEditingPetDetails = false
-    @State private var userPetEditorMode: UserPetEditorMode?
-    @State private var editingAnimation: PetMotion?
-    @State private var duplicatingAnimation: PetMotion?
     @State private var previewMotionID: String?
     @State private var importReview: PetPackageImportReview?
     @State private var pendingImportAction: PetImportAction?
@@ -786,6 +795,7 @@ private struct PetSettingsView: View {
     @State private var isConfirmingDesktopAddition = false
     @State private var desktopAdditionRecommendedProfile:
         RecommendedPetProfile?
+    @StateObject private var editorWindowPresenter = EditorWindowPresenter()
 
     var body: some View {
         Form {
@@ -883,7 +893,7 @@ private struct PetSettingsView: View {
                     spacing: 8
                 ) {
                     Button {
-                        userPetEditorMode = .addAnimation
+                        presentAnimationCreator()
                     } label: {
                         Label(
                             "애니메이션 추가",
@@ -898,7 +908,7 @@ private struct PetSettingsView: View {
                     )
 
                     Button {
-                        editingAnimation = selectedPreviewMotion
+                        presentSelectedAnimationEditor()
                     } label: {
                         Label(
                             "애니메이션 수정",
@@ -915,7 +925,7 @@ private struct PetSettingsView: View {
                     )
 
                     Button {
-                        duplicatingAnimation = selectedPreviewMotion
+                        presentSelectedAnimationDuplicator()
                     } label: {
                         Label(
                             "애니메이션 복제…",
@@ -952,6 +962,7 @@ private struct PetSettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .disabled(editorWindowPresenter.isPresenting)
         .alert(
             "선택한 애니메이션을 삭제할까요?",
             isPresented: $isConfirmingAnimationRemoval
@@ -963,43 +974,11 @@ private struct PetSettingsView: View {
         } message: {
             Text("이 애니메이션을 사용하던 행동 단계는 현재 펫의 기본 애니메이션으로 복구됩니다.")
         }
-        .sheet(item: $userPetEditorMode) { mode in
-            UserPetAnimationEditorView(
-                mode: mode,
-                petLibrarySession: petLibrarySession,
-                settingsSession: settingsSession,
-                prepareForSaving: {
-                    mode == .create || ensureSelectedPetIsEditable()
-                }
-            )
-        }
-        .sheet(item: $duplicatingAnimation) { motion in
-            UserPetAnimationEditorView(
-                mode: .addAnimation,
-                petLibrarySession: petLibrarySession,
-                settingsSession: settingsSession,
-                prepareForSaving: ensureSelectedPetIsEditable,
-                duplicating: motion
-            )
-        }
         .sheet(isPresented: $isEditingPetDetails) {
             UserPetDetailsEditorView(
                 item: petLibrarySession.selectedItem,
                 petLibrarySession: petLibrarySession,
                 prepareForSaving: ensureSelectedPetIsEditable
-            )
-        }
-        .sheet(item: $editingAnimation) { motion in
-            UserPetAnimationDetailsEditorView(
-                item: petLibrarySession.selectedItem,
-                motion: motion,
-                petLibrarySession: petLibrarySession,
-                settingsSession: settingsSession,
-                prepareForSaving: ensureSelectedPetIsEditable,
-                duplicationSourceAnimationID: nil,
-                onSaved: { animationID in
-                    previewMotionID = animationID
-                }
             )
         }
         .onAppear(perform: synchronizeSelectedPetContent)
@@ -1009,6 +988,65 @@ private struct PetSettingsView: View {
         .onChange(of: petLibrarySession.selection) {
             synchronizePreviewMotion()
         }
+        .onDisappear {
+            editorWindowPresenter.close()
+        }
+    }
+
+    private func presentAnimationCreator() {
+        editorWindowPresenter.presentEditor(
+            UserPetAnimationEditorView(
+                mode: .addAnimation,
+                petLibrarySession: petLibrarySession,
+                settingsSession: settingsSession,
+                prepareForSaving: ensureSelectedPetIsEditable,
+                onDismiss: { editorWindowPresenter.close() }
+            ),
+            title: "펫 애니메이션 추가",
+            autosaveName: "MonglePet.AnimationEditorWindow",
+            idealSize: NSSize(width: 980, height: 720),
+            minimumSize: NSSize(width: 760, height: 560)
+        )
+    }
+
+    private func presentSelectedAnimationEditor() {
+        guard let motion = selectedPreviewMotion else { return }
+        editorWindowPresenter.presentEditor(
+            UserPetAnimationDetailsEditorView(
+                item: petLibrarySession.selectedItem,
+                motion: motion,
+                petLibrarySession: petLibrarySession,
+                settingsSession: settingsSession,
+                prepareForSaving: ensureSelectedPetIsEditable,
+                duplicationSourceAnimationID: nil,
+                onSaved: { animationID in
+                    previewMotionID = animationID
+                },
+                onDismiss: { editorWindowPresenter.close() }
+            ),
+            title: "펫 애니메이션 수정",
+            autosaveName: "MonglePet.AnimationEditorWindow",
+            idealSize: NSSize(width: 980, height: 720),
+            minimumSize: NSSize(width: 760, height: 560)
+        )
+    }
+
+    private func presentSelectedAnimationDuplicator() {
+        guard let motion = selectedPreviewMotion else { return }
+        editorWindowPresenter.presentEditor(
+            UserPetAnimationEditorView(
+                mode: .addAnimation,
+                petLibrarySession: petLibrarySession,
+                settingsSession: settingsSession,
+                prepareForSaving: ensureSelectedPetIsEditable,
+                duplicating: motion,
+                onDismiss: { editorWindowPresenter.close() }
+            ),
+            title: "애니메이션 복제",
+            autosaveName: "MonglePet.AnimationEditorWindow",
+            idealSize: NSSize(width: 980, height: 720),
+            minimumSize: NSSize(width: 760, height: 560)
+        )
     }
 
     private var effectivePreviewMotionID: String {
@@ -1179,8 +1217,7 @@ private struct PetSettingsView: View {
         let duration = motion.frames.reduce(Int64.zero) {
             $0 + durationMilliseconds($1.duration)
         }
-        let playback = motion.loops ? "반복" : "1회"
-        return "\(motion.frames.count)프레임 · \(duration)ms · \(playback)"
+        return "\(motion.frames.count)프레임 · \(duration)ms"
     }
 
     private func durationMilliseconds(_ duration: Duration) -> Int64 {
@@ -2931,21 +2968,44 @@ private struct AnimationBehaviorLinkSection: View {
     var body: some View {
         GroupBox("행동 연결") {
             VStack(alignment: .leading, spacing: 12) {
+                Text("이 애니메이션을 저장한 뒤 행동에서 사용할 방법을 먼저 선택합니다.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
                 if let currentBehaviorNames {
                     LabeledContent("현재 사용 중") {
                         Text(
                             currentBehaviorNames.isEmpty
                                 ? "없음"
-                                : currentBehaviorNames.joined(separator: ", ")
+                                : currentBehaviorNames.count > 2
+                                    ? "\(currentBehaviorNames.count)개 행동"
+                                    : currentBehaviorNames.joined(separator: ", ")
                         )
                         .foregroundStyle(
                             currentBehaviorNames.isEmpty ? .secondary : .primary
                         )
                         .multilineTextAlignment(.trailing)
                     }
+
+                    if currentBehaviorNames.count > 2 {
+                        DisclosureGroup("사용 중인 행동 보기") {
+                            VStack(alignment: .leading, spacing: 6) {
+                                ForEach(
+                                    Array(currentBehaviorNames.enumerated()),
+                                    id: \.offset
+                                ) { _, name in
+                                    Label(name, systemImage: "circle.fill")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .symbolRenderingMode(.hierarchical)
+                                }
+                            }
+                            .padding(.top, 6)
+                        }
+                    }
                 }
 
-                Picker("저장 후", selection: $mode) {
+                Picker("저장 후 행동", selection: $mode) {
                     ForEach(AnimationBehaviorLinkMode.allCases) { option in
                         Text(option.title).tag(option)
                     }
@@ -3039,6 +3099,7 @@ private struct UserPetAnimationEditorView: View {
     @ObservedObject var settingsSession: AppSettingsSession
     let prepareForSaving: () -> Bool
     let duplicationSourceAnimationID: String?
+    let onDismiss: (() -> Void)?
 
     @State private var petName = ""
     @State private var version = "1.0.0"
@@ -3046,34 +3107,34 @@ private struct UserPetAnimationEditorView: View {
     @State private var petDescription = "MonglePet에서 사용자가 만든 펫입니다."
     @State private var animationName = ""
     @State private var frameDurationMilliseconds = 450
-    @State private var loops = true
+    private let packageLoopHint: Bool
     @State private var frames: [UserPetAnimationFrameDraft] = []
     @State private var selectedFrameID: UUID?
-    @State private var spriteSheetImport: SpriteSheetImportPresentation?
-    @State private var pngCropImport: PNGFrameCropPresentation?
-    @State private var existingFrameImport: ExistingPetFramePickerPresentation?
     @State private var imageImportErrorMessage: String?
     @State private var behaviorLinkMode: AnimationBehaviorLinkMode = .none
     @State private var newBehaviorName = ""
     @State private var existingBehaviorID = ""
     @State private var behaviorLinkErrorMessage: String?
     @State private var isLoadingFrameSource = false
+    @StateObject private var imageEditorWindowPresenter = EditorWindowPresenter()
 
     init(
         mode: UserPetEditorMode,
         petLibrarySession: PetLibrarySession,
         settingsSession: AppSettingsSession,
         prepareForSaving: @escaping () -> Bool,
-        duplicating motion: PetMotion? = nil
+        duplicating motion: PetMotion? = nil,
+        onDismiss: (() -> Void)? = nil
     ) {
         self.mode = mode
         self.petLibrarySession = petLibrarySession
         self.settingsSession = settingsSession
         self.prepareForSaving = prepareForSaving
+        self.onDismiss = onDismiss
         duplicationSourceAnimationID = motion?.id
+        packageLoopHint = motion?.loops ?? true
         if let motion {
             _animationName = State(initialValue: "\(motion.id) 사본")
-            _loops = State(initialValue: motion.loops)
             let sourceDrafts = UserPetAnimationDraftFactory.existing(
                 item: petLibrarySession.selectedItem,
                 motion: motion
@@ -3108,14 +3169,14 @@ private struct UserPetAnimationEditorView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
+                    if mode == .addAnimation {
+                        behaviorLinkSection
+                    }
                     if mode == .create {
                         petInformationSection
                     }
                     animationInformationSection
                     frameEditorSection
-                    if mode == .addAnimation {
-                        behaviorLinkSection
-                    }
 
                     Text("개별 프레임은 512×512 px 투명 PNG를 권장합니다. 정적 PNG·WebP 스프라이트 시트도 경계를 확인한 뒤 여러 프레임으로 가져올 수 있습니다.")
                         .font(.caption)
@@ -3131,7 +3192,7 @@ private struct UserPetAnimationEditorView: View {
             HStack {
                 Spacer()
                 Button("취소", role: .cancel) {
-                    dismiss()
+                    dismissEditor()
                 }
                 Button(mode == .create ? "펫 만들기" : "추가") {
                     save()
@@ -3147,30 +3208,23 @@ private struct UserPetAnimationEditorView: View {
             .padding(.horizontal, 20)
             .padding(.vertical, 12)
         }
-        .frame(minWidth: 760, idealWidth: 820, minHeight: 560, idealHeight: 680)
+        .frame(
+            minWidth: 760,
+            idealWidth: 920,
+            maxWidth: .infinity,
+            minHeight: 560,
+            idealHeight: 720,
+            maxHeight: .infinity
+        )
+        .disabled(imageEditorWindowPresenter.isPresenting)
         .onAppear {
             if mode == .create {
                 animationName = "기본"
             }
             selectFirstBehaviorIfNeeded()
         }
-        .sheet(item: $spriteSheetImport) { presentation in
-            SpriteSheetImportView(document: presentation.document) { images in
-                appendSpriteImages(images)
-            }
-        }
-        .sheet(item: $pngCropImport) { presentation in
-            PNGFrameCropEditorView(images: presentation.images) { images in
-                appendSpriteImages(images)
-            }
-        }
-        .sheet(item: $existingFrameImport) { presentation in
-            ExistingPetFramePickerView(
-                petName: presentation.petName,
-                groups: presentation.groups
-            ) { selections in
-                appendExistingFrames(selections)
-            }
+        .onDisappear {
+            imageEditorWindowPresenter.close()
         }
     }
 
@@ -3249,11 +3303,6 @@ private struct UserPetAnimationEditorView: View {
                     }
                 }
 
-                GridRow {
-                    fieldLabel("재생")
-                    Toggle("반복 재생", isOn: $loops)
-                        .accessibilityIdentifier("monglepet.userPet.loops")
-                }
             }
             .padding(8)
         }
@@ -3300,7 +3349,6 @@ private struct UserPetAnimationEditorView: View {
                         VStack(alignment: .leading, spacing: 10) {
                             EditableAnimationPreviewPanel(
                                 frames: $frames,
-                                loops: loops,
                                 selectedFrameID: selectedFrameID
                             )
 
@@ -3538,7 +3586,9 @@ private struct UserPetAnimationEditorView: View {
                     try PNGFrameImportLoader.load(sourceURLs)
                 }.value
                 isLoadingFrameSource = false
-                pngCropImport = PNGFrameCropPresentation(images: images)
+                imageEditorWindowPresenter.presentPNGCrop(images) { images in
+                    appendSpriteImages(images)
+                }
             } catch {
                 isLoadingFrameSource = false
                 imageImportErrorMessage = error.localizedDescription
@@ -3567,7 +3617,9 @@ private struct UserPetAnimationEditorView: View {
                     try SpriteSheetFrameExtractor().load(at: sourceURL)
                 }.value
                 isLoadingFrameSource = false
-                spriteSheetImport = SpriteSheetImportPresentation(document: document)
+                imageEditorWindowPresenter.presentSpriteSheet(document) { images in
+                    appendSpriteImages(images)
+                }
             } catch {
                 isLoadingFrameSource = false
                 imageImportErrorMessage = error.localizedDescription
@@ -3578,10 +3630,12 @@ private struct UserPetAnimationEditorView: View {
     private func chooseExistingFrames() {
         do {
             let item = petLibrarySession.selectedItem
-            existingFrameImport = ExistingPetFramePickerPresentation(
+            imageEditorWindowPresenter.presentExistingFrames(
                 petName: item.metadata.displayName,
                 groups: try ExistingPetFrameLibrary.load(from: item)
-            )
+            ) { selections in
+                appendExistingFrames(selections)
+            }
             imageImportErrorMessage = nil
         } catch {
             imageImportErrorMessage = error.localizedDescription
@@ -3680,7 +3734,7 @@ private struct UserPetAnimationEditorView: View {
                 UserPetCreationRequest(
                     displayName: petName,
                     animationName: animationName,
-                    loops: loops,
+                    loops: packageLoopHint,
                     frames: sourceFrameRequests,
                     version: version,
                     author: author,
@@ -3691,7 +3745,7 @@ private struct UserPetAnimationEditorView: View {
             succeeded = petLibrarySession.addAnimationToSelectedPet(
                 UserPetAnimationRequest(
                     animationName: normalizedAnimationName,
-                    loops: loops,
+                    loops: packageLoopHint,
                     frames: sourceFrameRequests
                 )
             )
@@ -3709,6 +3763,14 @@ private struct UserPetAnimationEditorView: View {
                     : "\(linkError) 애니메이션은 추가되었을 수 있으니 펫 정보·애니메이션에서 확인해 주세요."
                 return
             }
+            dismissEditor()
+        }
+    }
+
+    private func dismissEditor() {
+        if let onDismiss {
+            onDismiss()
+        } else {
             dismiss()
         }
     }
@@ -4020,14 +4082,12 @@ private struct UserPetAnimationDetailsEditorView: View {
     let prepareForSaving: () -> Bool
     let duplicationSourceAnimationID: String?
     let onSaved: (String) -> Void
+    let onDismiss: (() -> Void)?
 
     @State private var animationName: String
-    @State private var loops: Bool
+    private let packageLoopHint: Bool
     @State private var frames: [UserPetAnimationFrameDraft]
     @State private var selectedFrameID: UUID?
-    @State private var spriteSheetImport: SpriteSheetImportPresentation?
-    @State private var pngCropImport: PNGFrameCropPresentation?
-    @State private var existingFrameImport: ExistingPetFramePickerPresentation?
     @State private var imageImportErrorMessage: String?
     @State private var frameDurationMilliseconds = 450
     @State private var behaviorLinkMode: AnimationBehaviorLinkMode = .none
@@ -4035,6 +4095,7 @@ private struct UserPetAnimationDetailsEditorView: View {
     @State private var existingBehaviorID = ""
     @State private var behaviorLinkErrorMessage: String?
     @State private var isLoadingFrameSource = false
+    @StateObject private var imageEditorWindowPresenter = EditorWindowPresenter()
 
     init(
         item: PetLibraryItem,
@@ -4043,7 +4104,8 @@ private struct UserPetAnimationDetailsEditorView: View {
         settingsSession: AppSettingsSession,
         prepareForSaving: @escaping () -> Bool,
         duplicationSourceAnimationID: String? = nil,
-        onSaved: @escaping (String) -> Void
+        onSaved: @escaping (String) -> Void,
+        onDismiss: (() -> Void)? = nil
     ) {
         self.motion = motion
         self.petLibrarySession = petLibrarySession
@@ -4051,8 +4113,9 @@ private struct UserPetAnimationDetailsEditorView: View {
         self.prepareForSaving = prepareForSaving
         self.duplicationSourceAnimationID = duplicationSourceAnimationID
         self.onSaved = onSaved
+        self.onDismiss = onDismiss
         _animationName = State(initialValue: motion.id)
-        _loops = State(initialValue: motion.loops)
+        packageLoopHint = motion.loops
         let frameDrafts = UserPetAnimationDraftFactory.existing(
             item: item,
             motion: motion
@@ -4080,23 +4143,32 @@ private struct UserPetAnimationDetailsEditorView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
+                    behaviorLinkSection
+
                     Form {
-                TextField("애니메이션 이름", text: $animationName)
-                    .accessibilityIdentifier("monglepet.petAnimation.name")
+                        Section("애니메이션 정보") {
+                            TextField("애니메이션 이름", text: $animationName)
+                                .accessibilityIdentifier(
+                                    "monglepet.petAnimation.name"
+                                )
 
-                Toggle("반복 재생", isOn: $loops)
-                    .accessibilityIdentifier("monglepet.petAnimation.loops")
+                            LabeledContent("새 프레임 간격") {
+                                HStack(spacing: 10) {
+                                    FrameDurationInput(
+                                        milliseconds: $frameDurationMilliseconds,
+                                        accessibilityIdentifier: "monglepet.petAnimation.frameDuration"
+                                    )
 
-                LabeledContent("새 프레임 간격") {
-                    FrameDurationInput(
-                        milliseconds: $frameDurationMilliseconds,
-                        accessibilityIdentifier: "monglepet.petAnimation.frameDuration"
-                    )
-                }
+                                    Text("앞으로 추가할 프레임의 기본값")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
 
-                LabeledContent("프레임 수", value: "\(frames.count)")
-            }
-            .formStyle(.grouped)
+                            LabeledContent("프레임 수", value: "\(frames.count)")
+                        }
+                    }
+                    .formStyle(.grouped)
 
             HStack(alignment: .top, spacing: 16) {
                 VStack(alignment: .leading, spacing: 8) {
@@ -4104,7 +4176,6 @@ private struct UserPetAnimationDetailsEditorView: View {
                         .font(.headline)
                         EditableAnimationPreviewPanel(
                             frames: $frames,
-                            loops: loops,
                             selectedFrameID: selectedFrameID
                         )
                         .frame(width: 260)
@@ -4203,8 +4274,6 @@ private struct UserPetAnimationDetailsEditorView: View {
                 .frame(maxWidth: .infinity)
             }
 
-            behaviorLinkSection
-
             Text("개별 프레임은 512×512 px 투명 PNG를 권장합니다. 정적 PNG·WebP 스프라이트 시트도 경계를 확인한 뒤 추가할 수 있습니다. 각 프레임 간격은 16~60000ms입니다.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -4217,7 +4286,7 @@ private struct UserPetAnimationDetailsEditorView: View {
             HStack {
                 Spacer()
                 Button("취소", role: .cancel) {
-                    dismiss()
+                    dismissEditor()
                 }
                 Button(
                     duplicationSourceAnimationID == nil
@@ -4236,27 +4305,20 @@ private struct UserPetAnimationDetailsEditorView: View {
             }
         }
         .padding(20)
-        .frame(minWidth: 720, idealWidth: 780, minHeight: 560, idealHeight: 680)
+        .frame(
+            minWidth: 760,
+            idealWidth: 980,
+            maxWidth: .infinity,
+            minHeight: 560,
+            idealHeight: 720,
+            maxHeight: .infinity
+        )
+        .disabled(imageEditorWindowPresenter.isPresenting)
         .onAppear {
             selectFirstBehaviorIfNeeded()
         }
-        .sheet(item: $spriteSheetImport) { presentation in
-            SpriteSheetImportView(document: presentation.document) { images in
-                appendSpriteImages(images)
-            }
-        }
-        .sheet(item: $pngCropImport) { presentation in
-            PNGFrameCropEditorView(images: presentation.images) { images in
-                appendSpriteImages(images)
-            }
-        }
-        .sheet(item: $existingFrameImport) { presentation in
-            ExistingPetFramePickerView(
-                petName: presentation.petName,
-                groups: presentation.groups
-            ) { selections in
-                appendExistingFrames(selections)
-            }
+        .onDisappear {
+            imageEditorWindowPresenter.close()
         }
     }
 
@@ -4442,7 +4504,9 @@ private struct UserPetAnimationDetailsEditorView: View {
                     try PNGFrameImportLoader.load(sourceURLs)
                 }.value
                 isLoadingFrameSource = false
-                pngCropImport = PNGFrameCropPresentation(images: images)
+                imageEditorWindowPresenter.presentPNGCrop(images) { images in
+                    appendSpriteImages(images)
+                }
             } catch {
                 isLoadingFrameSource = false
                 imageImportErrorMessage = error.localizedDescription
@@ -4471,7 +4535,9 @@ private struct UserPetAnimationDetailsEditorView: View {
                     try SpriteSheetFrameExtractor().load(at: sourceURL)
                 }.value
                 isLoadingFrameSource = false
-                spriteSheetImport = SpriteSheetImportPresentation(document: document)
+                imageEditorWindowPresenter.presentSpriteSheet(document) { images in
+                    appendSpriteImages(images)
+                }
             } catch {
                 isLoadingFrameSource = false
                 imageImportErrorMessage = error.localizedDescription
@@ -4482,10 +4548,12 @@ private struct UserPetAnimationDetailsEditorView: View {
     private func chooseExistingFrames() {
         do {
             let item = petLibrarySession.selectedItem
-            existingFrameImport = ExistingPetFramePickerPresentation(
+            imageEditorWindowPresenter.presentExistingFrames(
                 petName: item.metadata.displayName,
                 groups: try ExistingPetFrameLibrary.load(from: item)
-            )
+            ) { selections in
+                appendExistingFrames(selections)
+            }
             imageImportErrorMessage = nil
         } catch {
             imageImportErrorMessage = error.localizedDescription
@@ -4561,7 +4629,7 @@ private struct UserPetAnimationDetailsEditorView: View {
             UserPetAnimationDetailsRequest(
                 animationID: motion.id,
                 animationName: normalizedName,
-                loops: loops,
+                loops: packageLoopHint,
                 frames: frames.map {
                     UserPetAnimationFrameRequest(
                         source: $0.source,
@@ -4586,6 +4654,14 @@ private struct UserPetAnimationDetailsEditorView: View {
                 return
             }
             onSaved(normalizedName)
+            dismissEditor()
+        }
+    }
+
+    private func dismissEditor() {
+        if let onDismiss {
+            onDismiss()
+        } else {
             dismiss()
         }
     }
@@ -4635,7 +4711,7 @@ private struct UserPetAnimationDetailsEditorView: View {
 
 }
 
-private struct UserPetAnimationFrameDraft: Identifiable {
+struct UserPetAnimationFrameDraft: Identifiable {
     var id = UUID()
     let source: UserPetAnimationFrameSource
     var durationMilliseconds: Int
@@ -4750,7 +4826,7 @@ nonisolated private enum PNGFrameImportLoader {
 }
 
 @MainActor
-private enum UserPetAnimationDraftFactory {
+enum UserPetAnimationDraftFactory {
     static func existing(
         item: PetLibraryItem,
         motion: PetMotion
@@ -4867,39 +4943,31 @@ private enum UserPetAnimationDraftFactory {
             width: sources.map { $0.image.width }.max() ?? 512,
             height: sources.map { $0.image.height }.max() ?? 512
         )
-        let usesSameCanvas = Set(
-            sources.map { "\($0.image.width)x\($0.image.height)" }
-        ).count == 1
-        let maximumContentWidth = sources.map { $0.content.image.width }.max() ?? 1
-        let maximumContentHeight = sources.map { $0.content.image.height }.max() ?? 1
-        let commonScale = min(
-            Double(canvasSize.width) * 0.8 / Double(maximumContentWidth),
-            Double(canvasSize.height) * 0.8 / Double(maximumContentHeight)
+        let canvasFrame = CGRect(
+            x: 0,
+            y: 0,
+            width: canvasSize.width,
+            height: canvasSize.height
         )
         return sources.compactMap { item in
             let image = item.image
             let content = item.content
-            let scale: Double
-            let anchorX: Double
-            let anchorBottom: Double
-            if usesSameCanvas {
-                scale = 1
-                anchorX = Double(content.sourceBounds.x)
-                    + Double(content.sourceBounds.width) / 2
-                anchorBottom = Double(
-                    content.sourceBounds.y + content.sourceBounds.height
-                )
-            } else {
-                scale = commonScale
-                anchorX = Double(canvasSize.width) / 2
-                anchorBottom = Double(canvasSize.height) * 0.9
-            }
+            let imageFrame = ImageCropResultPreviewGeometry.centeredContentFrame(
+                pixelSize: PixelSize(width: image.width, height: image.height),
+                canvasSize: canvasSize,
+                canvasFrame: canvasFrame
+            )
+            let anchorX = Double(imageFrame.minX)
+                + Double(content.sourceBounds.x)
+                + Double(content.sourceBounds.width) / 2
+            let anchorBottom = Double(imageFrame.minY)
+                + Double(content.sourceBounds.y + content.sourceBounds.height)
             return UserPetAnimationFrameDraft(
                 source: item.source,
                 durationMilliseconds: item.durationMilliseconds,
                 image: image,
                 canvasSize: canvasSize,
-                baseScale: scale,
+                baseScale: 1,
                 anchorX: anchorX,
                 anchorBottom: anchorBottom
             )
@@ -5207,7 +5275,6 @@ private enum EditableAnimationPreviewMode: String, CaseIterable, Identifiable {
 
 private struct EditableAnimationPreviewPanel: View {
     @Binding var frames: [UserPetAnimationFrameDraft]
-    let loops: Bool
     let selectedFrameID: UUID?
 
     @State private var previewMode: EditableAnimationPreviewMode = .selectedFrame
@@ -5227,7 +5294,6 @@ private struct EditableAnimationPreviewPanel: View {
 
             EditableAnimationPreviewView(
                 frames: frames,
-                loops: loops,
                 selectedFrameID: selectedFrameID,
                 previewMode: previewMode,
                 isPlaying: $isPlaying,
@@ -5437,7 +5503,6 @@ private struct FramePlacementEditorOverlay: View {
 
 private struct EditableAnimationPreviewView: View {
     let frames: [UserPetAnimationFrameDraft]
-    let loops: Bool
     let selectedFrameID: UUID?
     let previewMode: EditableAnimationPreviewMode
     @Binding var isPlaying: Bool
@@ -5498,9 +5563,6 @@ private struct EditableAnimationPreviewView: View {
             if !frames.indices.contains(frameIndex) {
                 frameIndex = 0
             }
-            if !loops, frameIndex == frames.index(before: frames.endIndex) {
-                frameIndex = 0
-            }
             while !Task.isCancelled {
                 let delay = min(
                     60_000,
@@ -5512,11 +5574,8 @@ private struct EditableAnimationPreviewView: View {
                 }
                 if frameIndex + 1 < frames.count {
                     frameIndex += 1
-                } else if loops {
-                    frameIndex = 0
                 } else {
-                    isPlaying = false
-                    return
+                    frameIndex = 0
                 }
             }
         }
@@ -5544,7 +5603,7 @@ private struct EditableAnimationPreviewView: View {
     private var playbackIdentity: String {
         frames.map { "\($0.id.uuidString):\($0.durationMilliseconds)" }
             .joined(separator: "|")
-            + ":\(loops):\(previewMode.rawValue):\(isPlaying)"
+            + ":\(previewMode.rawValue):\(isPlaying)"
     }
 }
 

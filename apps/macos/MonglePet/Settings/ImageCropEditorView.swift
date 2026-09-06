@@ -2,16 +2,13 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-struct PNGFrameCropPresentation: Identifiable {
-    let id = UUID()
-    let images: [UserPetSourceImage]
-}
-
 struct PNGFrameCropEditorView: View {
     @Environment(\.dismiss) private var dismiss
 
     let images: [UserPetSourceImage]
     let onImport: ([UserPetSourceImage]) -> Void
+    let onDismiss: (() -> Void)?
+    @ObservedObject private var closeRequests: ImageEditorWindowCloseRequests
 
     @State private var drafts: [PNGFrameCropDraft]
     @State private var selectedIDs: Set<UUID>
@@ -19,15 +16,21 @@ struct PNGFrameCropEditorView: View {
     @State private var errorMessage: String?
     @State private var zoomScale = 1.0
     @State private var isProcessing = false
+    @State private var processingRevision = 0
+    @State private var processingTask: Task<Void, Never>?
     @State private var hasEdits = false
     @State private var showsDiscardConfirmation = false
 
     init(
         images: [UserPetSourceImage],
-        onImport: @escaping ([UserPetSourceImage]) -> Void
+        onImport: @escaping ([UserPetSourceImage]) -> Void,
+        onDismiss: (() -> Void)? = nil,
+        closeRequests: ImageEditorWindowCloseRequests = .init()
     ) {
         self.images = images
         self.onImport = onImport
+        self.onDismiss = onDismiss
+        self.closeRequests = closeRequests
         let drafts = images.map(PNGFrameCropDraft.init)
         _drafts = State(initialValue: drafts)
         _selectedIDs = State(initialValue: Set(drafts.first.map { [$0.id] } ?? []))
@@ -49,7 +52,10 @@ struct PNGFrameCropEditorView: View {
                     spacing: PNGFrameCropEditorLayout.columnSpacing
                 ) {
                     cropEditor(canvasHeight: canvasHeight)
-                        .frame(minWidth: 440, maxWidth: .infinity)
+                        .frame(
+                            minWidth: PNGFrameCropEditorLayout.minimumCanvasWidth,
+                            maxWidth: .infinity
+                        )
 
                     VStack(alignment: .leading, spacing: 12) {
                         pinnedResultPreview
@@ -91,7 +97,12 @@ struct PNGFrameCropEditorView: View {
             Divider()
             footer
         }
-        .frame(minWidth: 860, idealWidth: 1_000, minHeight: 680, idealHeight: 780)
+        .frame(
+            minWidth: PNGFrameCropEditorLayout.minimumWindowWidth,
+            idealWidth: PNGFrameCropEditorLayout.idealWindowWidth,
+            minHeight: PNGFrameCropEditorLayout.minimumWindowHeight,
+            idealHeight: PNGFrameCropEditorLayout.idealWindowHeight
+        )
         .onChange(of: selectedIDs) { oldValue, newValue in
             updateFocusedSelection(from: oldValue, to: newValue)
         }
@@ -101,11 +112,17 @@ struct PNGFrameCropEditorView: View {
             isPresented: $showsDiscardConfirmation
         ) {
             Button("변경사항 버리기", role: .destructive) {
-                dismiss()
+                finishDismissal()
             }
             Button("계속 편집", role: .cancel) {}
         } message: {
             Text("자르기 범위와 포함 여부 변경은 아직 애니메이션에 추가되지 않았습니다.")
+        }
+        .onChange(of: closeRequests.revision) {
+            requestDismissal()
+        }
+        .onDisappear {
+            cancelProcessing()
         }
     }
 
@@ -632,34 +649,52 @@ struct PNGFrameCropEditorView: View {
     private func importCroppedImages() {
         let requests = includedDrafts
         guard !requests.isEmpty else { return }
+        processingTask?.cancel()
+        processingRevision += 1
+        let revision = processingRevision
         isProcessing = true
         errorMessage = nil
-        Task {
+        let worker = Task.detached {
+            try requests.map { draft in
+                try Task.checkCancellation()
+                guard let image = ImageCropProcessor().cropAndTransform(
+                    draft.source.image,
+                    to: draft.cropRect,
+                    flipsHorizontally: draft.flipsHorizontally,
+                    flipsVertically: draft.flipsVertically
+                ) else {
+                    throw PNGFrameCropError.cannotCrop(
+                        draft.source.displayName
+                    )
+                }
+                return UserPetSourceImage(
+                    id: draft.source.id,
+                    displayName: draft.source.displayName,
+                    image: image
+                )
+            }
+        }
+        processingTask = Task {
             do {
-                let cropped = try await Task.detached {
-                    try requests.map { draft in
-                        guard let image = ImageCropProcessor().cropAndTransform(
-                            draft.source.image,
-                            to: draft.cropRect,
-                            flipsHorizontally: draft.flipsHorizontally,
-                            flipsVertically: draft.flipsVertically
-                        ) else {
-                            throw PNGFrameCropError.cannotCrop(
-                                draft.source.displayName
-                            )
-                        }
-                        return UserPetSourceImage(
-                            id: draft.source.id,
-                            displayName: draft.source.displayName,
-                            image: image
-                        )
-                    }
-                }.value
+                let cropped = try await withTaskCancellationHandler {
+                    try await worker.value
+                } onCancel: {
+                    worker.cancel()
+                }
+                try Task.checkCancellation()
+                guard revision == processingRevision else { return }
                 isProcessing = false
+                processingTask = nil
                 onImport(cropped)
-                dismiss()
-            } catch {
+                finishDismissal()
+            } catch is CancellationError {
+                guard revision == processingRevision else { return }
                 isProcessing = false
+                processingTask = nil
+            } catch {
+                guard revision == processingRevision else { return }
+                isProcessing = false
+                processingTask = nil
                 errorMessage = error.localizedDescription
             }
         }
@@ -682,17 +717,40 @@ struct PNGFrameCropEditorView: View {
     }
 
     private func requestDismissal() {
+        cancelProcessing()
         if hasEdits {
             showsDiscardConfirmation = true
+        } else {
+            finishDismissal()
+        }
+    }
+
+    private func finishDismissal() {
+        cancelProcessing()
+        if let onDismiss {
+            onDismiss()
         } else {
             dismiss()
         }
     }
+
+    private func cancelProcessing() {
+        processingRevision += 1
+        processingTask?.cancel()
+        processingTask = nil
+        isProcessing = false
+    }
 }
 
 struct PNGFrameCropEditorLayout {
+    static let minimumWindowWidth: CGFloat = 720
+    static let idealWindowWidth: CGFloat = 1_000
+    static let minimumWindowHeight: CGFloat = 560
+    static let idealWindowHeight: CGFloat = 780
+    static let minimumCanvasWidth: CGFloat = 360
     static let sidebarWidth: CGFloat = 300
     static let columnSpacing: CGFloat = 16
+    static let horizontalPadding: CGFloat = 40
     static let verticalPadding: CGFloat = 40
     static let editorChromeHeight: CGFloat = 82
     static let minimumCanvasHeight: CGFloat = 260
@@ -965,28 +1023,26 @@ struct CroppedImagePreview: View {
     }
 
     private func croppedImageContent(in cropFrame: CGRect) -> some View {
-        let scaleX = cropFrame.width / CGFloat(max(1, cropRect.width))
-        let scaleY = cropFrame.height / CGFloat(max(1, cropRect.height))
-        return ZStack(alignment: .topLeading) {
-            Image(decorative: image, scale: 1)
-                .resizable()
-                .interpolation(.none)
-                .frame(
-                    width: CGFloat(image.width) * scaleX,
-                    height: CGFloat(image.height) * scaleY
-                )
-                .offset(
-                    x: -CGFloat(cropRect.x) * scaleX,
-                    y: -CGFloat(cropRect.y) * scaleY
-                )
-        }
-        .frame(width: cropFrame.width, height: cropFrame.height)
-        .clipped()
-        .scaleEffect(
-            x: flipsHorizontally ? -1 : 1,
-            y: flipsVertically ? -1 : 1
+        let sourceImageFrame = ImageCropDisplayGeometry.sourceImageFrame(
+            imageSize: PixelSize(width: image.width, height: image.height),
+            cropRect: cropRect,
+            cropFrame: cropFrame
         )
-        .position(x: cropFrame.midX, y: cropFrame.midY)
+        return Canvas { context, _ in
+            context.clip(to: Path(cropFrame))
+            if flipsHorizontally || flipsVertically {
+                context.translateBy(x: cropFrame.midX, y: cropFrame.midY)
+                context.scaleBy(
+                    x: flipsHorizontally ? -1 : 1,
+                    y: flipsVertically ? -1 : 1
+                )
+                context.translateBy(x: -cropFrame.midX, y: -cropFrame.midY)
+            }
+            context.draw(
+                Image(decorative: image, scale: 1),
+                in: sourceImageFrame
+            )
+        }
     }
 }
 
@@ -1338,11 +1394,38 @@ enum ImageCropDisplayGeometry {
         let fittedCropHeight = CGFloat(cropRect.height) * scale
         let cropOriginX = (previewSize.width - fittedCropWidth) / 2
         let cropOriginY = (previewSize.height - fittedCropHeight) / 2
+        return sourceImageFrame(
+            imageSize: imageSize,
+            cropRect: cropRect,
+            cropFrame: CGRect(
+                x: cropOriginX,
+                y: cropOriginY,
+                width: fittedCropWidth,
+                height: fittedCropHeight
+            )
+        )
+    }
+
+    static func sourceImageFrame(
+        imageSize: PixelSize,
+        cropRect: PixelRect,
+        cropFrame: CGRect
+    ) -> CGRect {
+        guard imageSize.width > 0,
+              imageSize.height > 0,
+              cropRect.width > 0,
+              cropRect.height > 0,
+              cropFrame.width > 0,
+              cropFrame.height > 0 else {
+            return .zero
+        }
+        let scaleX = cropFrame.width / CGFloat(cropRect.width)
+        let scaleY = cropFrame.height / CGFloat(cropRect.height)
         return CGRect(
-            x: cropOriginX - CGFloat(cropRect.x) * scale,
-            y: cropOriginY - CGFloat(cropRect.y) * scale,
-            width: CGFloat(imageSize.width) * scale,
-            height: CGFloat(imageSize.height) * scale
+            x: cropFrame.minX - CGFloat(cropRect.x) * scaleX,
+            y: cropFrame.minY - CGFloat(cropRect.y) * scaleY,
+            width: CGFloat(imageSize.width) * scaleX,
+            height: CGFloat(imageSize.height) * scaleY
         )
     }
 

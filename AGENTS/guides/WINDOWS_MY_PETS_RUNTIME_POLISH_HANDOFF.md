@@ -96,6 +96,7 @@ macOS에서 확정한 D-111~D-113과 Windows 실제 QA에서 보정한 D-115의 
 - 편집 dialog를 열거나 취소한 것만으로 installation, instance 또는 profile을 만들지 않는다.
 - `펫 사본 만들기`는 자동 copy-on-write와 다른 명시적 작업이다. 새 installation UUID, 새 instance UUID와 새 profile UUID를 만들고 원본의 모든 휴대 설정을 독립 복사한 뒤 새 사본을 선택한다.
 - 내보내기에는 로컬 editor marker를 포함하지 않는다. 내보낸 패키지를 다시 가져오면 일반 가져오기처럼 새 installation·instance·profile을 만든다.
+- 새 펫 만들기와 애니메이션 추가·수정·복제는 D-126에 따라 독립 리사이즈 창으로 제공한다. 프레임 선택·PNG·스프라이트 보조 창은 해당 편집 창의 자식이며 부모가 닫히면 함께 종료한다. 펫 정보·사본 만들기처럼 짧은 form은 고정 modal을 유지한다.
 
 ### 기존 보관 데이터 복구
 
@@ -231,6 +232,7 @@ installation 제거도 실패하면 조용히 성공 처리하지 말고 `펫 �
 36. 음수 좌표 화면과 혼합 DPI clamp
 37. horizontal clamp의 tail anchor 보정
 38. 연속 이동 동안 XAML content 재생성 없음
+39. 말풍선 모양·위치 편집을 최소 `680×620` effective pixel의 독립 리사이즈 창으로 열고 위치·크기 복원과 부모 입력 차단
 
 ## 7. 실제 Windows QA
 
@@ -248,6 +250,7 @@ installation 제거도 실패하면 조용히 성공 처리하지 말고 `펫 �
 - 구버전 비활성 installation fixture가 잠든 펫으로 한 번만 복구되는지 확인
 - 가져오기 도중 settings 저장 실패를 주입해 orphan folder, 반쪽 profile, runtime overlay가 남지 않는지 확인
 - 투명 여백이 큰 펫, 위아래 크기가 다른 프레임, 긴 문장과 짧은 문장에서 말풍선 거리 확인
+- 말풍선 모양·위치 편집 창을 최소 크기와 큰 크기로 조절하고 다시 열어 위치·크기 복원, 하단 적용 버튼 노출, 부모 설정 입력 차단과 부모 종료 시 연쇄 닫기를 확인
 - 펫을 화면 위·아래·좌우와 음수 좌표 보조 화면으로 이동해 방향 안정성·tail·clamp 확인
 - 100%/125%/150%/200% DPI, 다크·라이트, 키보드, Narrator 확인
 - packaged Debug와 Release 모두 확인하고 최근 AppCrash 이벤트와 settings 임시 파일을 점검

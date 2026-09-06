@@ -184,14 +184,22 @@ final class MonglePetAppDelegate: NSObject, NSApplicationDelegate {
             onImport: { _ in }
         )
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 860, height: 680),
+            contentRect: NSRect(
+                x: 0,
+                y: 0,
+                width: PNGFrameCropEditorLayout.idealWindowWidth,
+                height: PNGFrameCropEditorLayout.idealWindowHeight
+            ),
             styleMask: [.titled, .closable, .resizable],
             backing: .buffered,
             defer: false
         )
         window.title = "PNG 프레임 자르기"
         window.contentViewController = NSHostingController(rootView: editor)
-        window.minSize = NSSize(width: 860, height: 680)
+        window.minSize = NSSize(
+            width: PNGFrameCropEditorLayout.minimumWindowWidth,
+            height: PNGFrameCropEditorLayout.minimumWindowHeight
+        )
         window.center()
         window.makeKeyAndOrderFront(nil)
         NSApplication.shared.activate(ignoringOtherApps: true)
@@ -265,14 +273,22 @@ final class MonglePetAppDelegate: NSObject, NSApplicationDelegate {
         )
         let editor = SpriteSheetImportView(document: document) { _ in }
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 780, height: 590),
+            contentRect: NSRect(
+                x: 0,
+                y: 0,
+                width: SpriteSheetEditorLayout.idealWindowWidth,
+                height: SpriteSheetEditorLayout.idealWindowHeight
+            ),
             styleMask: [.titled, .closable, .resizable],
             backing: .buffered,
             defer: false
         )
         window.title = "스프라이트 시트 가져오기"
         window.contentViewController = NSHostingController(rootView: editor)
-        window.minSize = NSSize(width: 780, height: 590)
+        window.minSize = NSSize(
+            width: SpriteSheetEditorLayout.minimumWindowWidth,
+            height: SpriteSheetEditorLayout.minimumWindowHeight
+        )
         window.center()
         window.makeKeyAndOrderFront(nil)
         NSApplication.shared.activate(ignoringOtherApps: true)

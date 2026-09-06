@@ -7,7 +7,7 @@ struct SpeechBubbleSettingsView: View {
     let petDisplayName: String
 
     @State private var editorContext: SpeechPhraseEditorContext?
-    @State private var isEditingTheme = false
+    @StateObject private var editorWindowPresenter = EditorWindowPresenter()
 
     var body: some View {
         Form {
@@ -171,7 +171,7 @@ struct SpeechBubbleSettingsView: View {
                     Spacer()
 
                     Button("모양과 위치 편집") {
-                        isEditingTheme = true
+                        presentThemeEditor()
                     }
                     .accessibilityIdentifier(
                         "monglepet.settings.speech.editTheme"
@@ -189,22 +189,11 @@ struct SpeechBubbleSettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .disabled(!settingsSession.isWritingEnabled)
+        .disabled(
+            !settingsSession.isWritingEnabled
+                || editorWindowPresenter.isPresenting
+        )
         .accessibilityIdentifier("monglepet.settings.speech.root")
-        .sheet(isPresented: $isEditingTheme) {
-            SpeechBubbleThemeEditorView(
-                theme: speechSettings.theme,
-                placement: speechSettings.placement,
-                petItem: petItem,
-                onCancel: {
-                    isEditingTheme = false
-                },
-                onSave: { theme, placement in
-                    updateSpeech(theme: theme, placement: placement)
-                    isEditingTheme = false
-                }
-            )
-        }
         .sheet(item: $editorContext) { context in
             SpeechPhraseEditorView(
                 phrase: context.phrase,
@@ -219,6 +208,30 @@ struct SpeechBubbleSettingsView: View {
                 }
             )
         }
+        .onDisappear {
+            editorWindowPresenter.close()
+        }
+    }
+
+    private func presentThemeEditor() {
+        editorWindowPresenter.presentEditor(
+            SpeechBubbleThemeEditorView(
+                theme: speechSettings.theme,
+                placement: speechSettings.placement,
+                petItem: petItem,
+                onCancel: {
+                    editorWindowPresenter.close()
+                },
+                onSave: { theme, placement in
+                    updateSpeech(theme: theme, placement: placement)
+                    editorWindowPresenter.close()
+                }
+            ),
+            title: "말풍선 모양과 위치 편집",
+            autosaveName: "MonglePet.SpeechBubbleThemeEditorWindow",
+            idealSize: NSSize(width: 820, height: 820),
+            minimumSize: NSSize(width: 680, height: 620)
+        )
     }
 
     private var speechSettings: PetSpeechSettings {
@@ -736,7 +749,14 @@ private struct SpeechBubbleThemeEditorView: View {
             }
             .padding(18)
         }
-        .frame(width: 720, height: 780)
+        .frame(
+            minWidth: 680,
+            idealWidth: 820,
+            maxWidth: .infinity,
+            minHeight: 620,
+            idealHeight: 820,
+            maxHeight: .infinity
+        )
     }
 
     private var placementPreview: some View {

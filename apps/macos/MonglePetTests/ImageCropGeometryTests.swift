@@ -127,6 +127,18 @@ final class ImageCropGeometryTests: XCTestCase {
     }
 
     @MainActor
+    func testCropPreviewMapsAsymmetricRegionIntoOffsetCanvasFrame() {
+        XCTAssertEqual(
+            ImageCropDisplayGeometry.sourceImageFrame(
+                imageSize: PixelSize(width: 400, height: 240),
+                cropRect: PixelRect(x: 130, y: 70, width: 90, height: 50),
+                cropFrame: CGRect(x: 42, y: 18, width: 180, height: 100)
+            ),
+            CGRect(x: -218, y: -122, width: 800, height: 480)
+        )
+    }
+
+    @MainActor
     func testResultPreviewKeepsFrameBoundaryInsideCanvas() {
         XCTAssertEqual(
             ImageCropResultPreviewGeometry.fittedFrame(
@@ -184,6 +196,30 @@ final class ImageCropGeometryTests: XCTestCase {
     }
 
     @MainActor
+    func testNewAnimationDraftsPreserveDifferentlySizedCropPlacement() throws {
+        let wideImage = try makeOpaqueImage(width: 100, height: 50)
+        let tallImage = try makeOpaqueImage(width: 50, height: 100)
+
+        let drafts = UserPetAnimationDraftFactory.new(
+            images: [
+                UserPetSourceImage(displayName: "wide", image: wideImage),
+                UserPetSourceImage(displayName: "tall", image: tallImage)
+            ],
+            durationMilliseconds: 450
+        )
+
+        XCTAssertEqual(drafts.count, 2)
+        XCTAssertEqual(drafts[0].canvasSize, PixelSize(width: 100, height: 100))
+        XCTAssertEqual(drafts[0].baseScale, 1)
+        XCTAssertEqual(drafts[0].placement.x, 0, accuracy: 0.001)
+        XCTAssertEqual(drafts[0].placement.y, 25, accuracy: 0.001)
+        XCTAssertEqual(drafts[1].canvasSize, PixelSize(width: 100, height: 100))
+        XCTAssertEqual(drafts[1].baseScale, 1)
+        XCTAssertEqual(drafts[1].placement.x, 25, accuracy: 0.001)
+        XCTAssertEqual(drafts[1].placement.y, 0, accuracy: 0.001)
+    }
+
+    @MainActor
     func testEditorOnlyOwnsPanWhenImageIsZoomed() {
         XCTAssertFalse(ImageEditorViewportPolicy.usesInternalPan(at: 1))
         XCTAssertTrue(ImageEditorViewportPolicy.usesInternalPan(at: 1.5))
@@ -203,6 +239,21 @@ final class ImageCropGeometryTests: XCTestCase {
     }
 
     @MainActor
+    func testPNGEditorMinimumWindowWidthKeepsBothColumnsVisible() {
+        XCTAssertGreaterThanOrEqual(
+            PNGFrameCropEditorLayout.minimumWindowWidth,
+            PNGFrameCropEditorLayout.minimumCanvasWidth
+                + PNGFrameCropEditorLayout.sidebarWidth
+                + PNGFrameCropEditorLayout.columnSpacing
+                + PNGFrameCropEditorLayout.horizontalPadding
+        )
+        XCTAssertLessThan(
+            PNGFrameCropEditorLayout.minimumWindowWidth,
+            PNGFrameCropEditorLayout.idealWindowWidth
+        )
+    }
+
+    @MainActor
     func testCropResultPreviewProducesVisualQAReference() throws {
         let context = try XCTUnwrap(
             CGContext(
@@ -215,11 +266,14 @@ final class ImageCropGeometryTests: XCTestCase {
                 bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
             )
         )
-        context.clear(CGRect(x: 0, y: 0, width: 160, height: 120))
+        context.setFillColor(NSColor.systemRed.cgColor)
+        context.fill(CGRect(x: 0, y: 0, width: 160, height: 120))
         context.setFillColor(NSColor.systemTeal.cgColor)
-        context.fill(CGRect(x: 35, y: 25, width: 90, height: 70))
+        context.fill(CGRect(x: 40, y: 10, width: 40, height: 100))
+        context.setFillColor(NSColor.systemOrange.cgColor)
+        context.fill(CGRect(x: 80, y: 10, width: 40, height: 100))
         let image = try XCTUnwrap(context.makeImage())
-        let cropRect = PixelRect(x: 10, y: 10, width: 140, height: 100)
+        let cropRect = PixelRect(x: 40, y: 10, width: 80, height: 100)
         let reference = HStack(spacing: 16) {
             CroppedImagePreview(image: image, cropRect: cropRect)
                 .frame(width: 280, height: 220)
@@ -242,6 +296,23 @@ final class ImageCropGeometryTests: XCTestCase {
         attachment.name = "crop-result-preview-boundaries"
         attachment.lifetime = .keepAlways
         add(attachment)
+    }
+
+    private func makeOpaqueImage(width: Int, height: Int) throws -> CGImage {
+        let context = try XCTUnwrap(
+            CGContext(
+                data: nil,
+                width: width,
+                height: height,
+                bitsPerComponent: 8,
+                bytesPerRow: 0,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            )
+        )
+        context.setFillColor(NSColor.systemTeal.cgColor)
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        return try XCTUnwrap(context.makeImage())
     }
 
 }

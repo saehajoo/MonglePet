@@ -58,6 +58,21 @@ final class SpriteSheetFrameExtractorTests: XCTestCase {
         )
     }
 
+    @MainActor
+    func testEditorMinimumWindowWidthKeepsBothColumnsVisible() {
+        XCTAssertGreaterThanOrEqual(
+            SpriteSheetEditorLayout.minimumWindowWidth,
+            SpriteSheetEditorLayout.minimumCanvasWidth
+                + SpriteSheetEditorLayout.sidebarWidth
+                + SpriteSheetEditorLayout.columnSpacing
+                + SpriteSheetEditorLayout.horizontalPadding
+        )
+        XCTAssertLessThan(
+            SpriteSheetEditorLayout.minimumWindowWidth,
+            SpriteSheetEditorLayout.idealWindowWidth
+        )
+    }
+
     func testBuildsUniformGridInReadingOrder() throws {
         let regions = try SpriteSheetFrameExtractor().uniformGridRegions(
             pixelSize: PixelSize(width: 100, height: 60),
