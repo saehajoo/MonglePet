@@ -76,7 +76,7 @@
                     <Grid ColumnSpacing="12" RowSpacing="10">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="220" />
+                            <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
@@ -89,14 +89,13 @@
                             VerticalAlignment="Top"
                             Header="이름"
                             PlaceholderText="기본" />
-                        <ToggleSwitch
-                            x:Name="LoopsToggle"
+                        <TextBlock
+                            x:Name="FrameCountText"
                             Grid.Column="1"
-                            Margin="0,24,0,0"
-                            Header="재생"
-                            IsOn="True"
-                            OffContent="한 번 재생"
-                            OnContent="반복 재생" />
+                            Margin="0,28,0,0"
+                            VerticalAlignment="Top"
+                            Style="{StaticResource SettingsCaptionStyle}"
+                            Text="0개 프레임" />
                         <Grid Grid.Row="1" Grid.ColumnSpan="2" ColumnSpacing="12">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="180" />
@@ -159,18 +158,33 @@
 
                     <Grid x:Name="FrameEditorGrid" Visibility="Collapsed" ColumnSpacing="16">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="280" />
+                            <ColumnDefinition Width="340" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <StackPanel Spacing="10">
-                            <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="편집 미리보기" />
+                            <StackPanel Spacing="6">
+                                <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="편집 미리보기" />
+                                <StackPanel Orientation="Horizontal" Spacing="12">
+                                    <RadioButton
+                                        x:Name="AnimationPreviewRadio"
+                                        GroupName="AnimationPreviewMode"
+                                        Content="전체 재생"
+                                        Checked="PreviewModeRadio_Checked" />
+                                    <RadioButton
+                                        x:Name="SelectedFramePreviewRadio"
+                                        GroupName="AnimationPreviewMode"
+                                        Content="선택 프레임"
+                                        IsChecked="True"
+                                        Checked="PreviewModeRadio_Checked" />
+                                </StackPanel>
+                            </StackPanel>
                             <Border
                                 HorizontalAlignment="Left"
                                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                                 BorderThickness="1"
                                 CornerRadius="8">
                                 <ScrollViewer
-                                    Width="260"
+                                    Width="320"
                                     Height="220"
                                     HorizontalScrollBarVisibility="Auto"
                                     HorizontalScrollMode="Enabled"
@@ -179,25 +193,47 @@
                                     ZoomMode="Disabled">
                                     <Canvas
                                         x:Name="FramePlacementCanvas"
-                                        Width="260"
+                                        Width="320"
                                         Height="220"
                                         PointerPressed="FramePlacementCanvas_PointerPressed"
                                         PointerMoved="FramePlacementCanvas_PointerMoved"
                                         PointerReleased="FramePlacementCanvas_PointerReleased"
                                         PointerCanceled="FramePlacementCanvas_PointerReleased">
-                                        <Image x:Name="FrameCheckerImage" Width="260" Height="220" Stretch="Fill" />
+                                        <Image x:Name="FrameCheckerImage" Width="320" Height="220" Stretch="Fill" />
                                         <Image x:Name="FirstFrameReferenceImage" Opacity="0.35" Stretch="Fill" Visibility="Collapsed" />
                                         <Image x:Name="SelectedFramePlacementImage" Stretch="Fill" />
-                                        <Border x:Name="SelectedFramePlacementBorder" BorderBrush="#FF1877F2" BorderThickness="2" />
+                                        <Border
+                                            x:Name="FrameCanvasBoundaryBorder"
+                                            BorderBrush="{ThemeResource MongleControlAccentBrush}"
+                                            BorderThickness="2"
+                                            IsHitTestVisible="False" />
+                                        <Border
+                                            x:Name="SelectedFramePlacementBorder"
+                                            BorderBrush="{ThemeResource TextFillColorSecondaryBrush}"
+                                            BorderThickness="1"
+                                            IsHitTestVisible="False" />
                                     </Canvas>
                                 </ScrollViewer>
                             </Border>
+                            <Grid x:Name="AnimationPlaybackPanel" Visibility="Collapsed">
+                                <Button
+                                    x:Name="AnimationPlaybackButton"
+                                    HorizontalAlignment="Left"
+                                    Click="AnimationPlaybackButton_Click"
+                                    Content="일시정지" />
+                                <TextBlock
+                                    x:Name="AnimationPreviewCaptionText"
+                                    HorizontalAlignment="Right"
+                                    VerticalAlignment="Center"
+                                    Style="{StaticResource SettingsCaptionStyle}"
+                                    Text="총 0개 프레임" />
+                            </Grid>
                             <CheckBox
                                 x:Name="CompareFirstFrameCheckBox"
                                 Content="첫 프레임 반투명 비교"
                                 Checked="CompareFirstFrameCheckBox_Changed"
                                 Unchecked="CompareFirstFrameCheckBox_Changed" />
-                            <StackPanel Spacing="4">
+                            <StackPanel x:Name="PlacementScalePanel" Spacing="4">
                                 <Grid>
                                     <TextBlock Style="{StaticResource SettingsCaptionStyle}" Text="펫 크기" />
                                     <TextBlock
@@ -218,7 +254,7 @@
                                     Style="{StaticResource SettingsCaptionStyle}"
                                     Text="캔버스 크기는 유지하고 선택한 펫만 확대·축소합니다. 펫은 캔버스 밖으로 이동할 수 있습니다." />
                             </StackPanel>
-                            <Expander Header="선택 프레임 위치와 크기" IsExpanded="False">
+                            <Expander x:Name="PlacementDetailsExpander" Header="선택 프레임 위치와 크기" IsExpanded="False">
                                 <StackPanel Spacing="8" Padding="0,8,0,0">
                                     <Grid ColumnSpacing="8">
                                         <Grid.ColumnDefinitions>

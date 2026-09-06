@@ -71,6 +71,43 @@ public sealed class WindowsMacOS18UiContractTests
         Assert.Contains("Task.Run", code, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void CropPreviewsSeparateCommonCanvasFromCurrentCropWithoutOverflow()
+    {
+        string pngView = Fixture("PngFrameImportControl.xaml");
+        string pngCode = Fixture("PngFrameImportControl.xaml.cs");
+        string spriteView = Fixture("SpriteSheetImportControl.xaml");
+        string spriteCode = Fixture("SpriteSheetImportControl.xaml.cs");
+
+        Assert.Contains("ResultCropBorder", pngView, StringComparison.Ordinal);
+        Assert.Contains("maximumPreviewWidth = 260", pngCode, StringComparison.Ordinal);
+        Assert.Contains("maximumPreviewHeight = 130", pngCode, StringComparison.Ordinal);
+        Assert.Contains("PreviewCropBorder", spriteView, StringComparison.Ordinal);
+        Assert.Contains("maximumPreviewWidth = 260", spriteCode, StringComparison.Ordinal);
+        Assert.Contains("maximumPreviewHeight = 130", spriteCode, StringComparison.Ordinal);
+        Assert.Contains("MongleControlAccentBrush", spriteView, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AnimationEditorOffersWholePlaybackAndPreservesLoopHintSilently()
+    {
+        string view = Fixture("PetAnimationEditorControl.xaml");
+        string code = Fixture("PetAnimationEditorControl.xaml.cs");
+
+        Assert.Contains("Content=\"전체 재생\"", view, StringComparison.Ordinal);
+        Assert.Contains("Content=\"선택 프레임\"", view, StringComparison.Ordinal);
+        Assert.Contains("AnimationPreviewTimer_Tick", code, StringComparison.Ordinal);
+        Assert.Contains("frame.DurationMilliseconds", code, StringComparison.Ordinal);
+        Assert.Contains("CreateBakedFramePlacements", code, StringComparison.Ordinal);
+        Assert.Contains("FrameCanvasBoundaryBorder", view, StringComparison.Ordinal);
+        Assert.Contains("MongleControlAccentBrush", view, StringComparison.Ordinal);
+        Assert.Contains("ComposedPreviewSourceAsync(frame)", code, StringComparison.Ordinal);
+        Assert.Contains("PlacementFillsCanvas", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("LoopsToggle", view, StringComparison.Ordinal);
+        Assert.DoesNotContain("LoopsToggle", code, StringComparison.Ordinal);
+        Assert.Contains("_preservedLoop = motion.Loop", code, StringComparison.Ordinal);
+    }
+
     private static string Fixture(string name) => File.ReadAllText(Path.Combine(
         AppContext.BaseDirectory,
         "Fixtures",

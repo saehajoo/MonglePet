@@ -1332,8 +1332,7 @@ public sealed partial class MainPage : Page
             if (motion is not null)
             {
                 CurrentPetMotionText.Text =
-                    $"선택한 애니메이션: {motion.Id} · {motion.Frames.Count}프레임 · " +
-                    (motion.Loop ? "반복 재생" : "한 번 재생");
+                    $"선택한 애니메이션: {motion.Id} · {motion.Frames.Count}프레임";
             }
             StartPetAnimationPreview(package, selected.Id);
         }
@@ -1562,7 +1561,7 @@ public sealed partial class MainPage : Page
             string description = package is null
                 ? "펫 정보와 첫 애니메이션을 설정하고 PNG 또는 스프라이트 프레임을 추가합니다."
                 : motion is null
-                    ? "애니메이션 이름과 재생 방식을 정한 뒤 사용할 프레임을 추가합니다."
+                    ? "애니메이션 이름을 정한 뒤 사용할 프레임을 추가합니다."
                     : "애니메이션 미리보기와 프레임 순서, 위치 및 재생 간격을 편집합니다.";
             var window = new EditorWindowHost(
                 title,
@@ -1570,7 +1569,7 @@ public sealed partial class MainPage : Page
                 editor,
                 primaryButtonText,
                 "프레임은 16~60000ms 간격을 사용하며 취소하면 기존 펫은 변경되지 않습니다.",
-                width: 900,
+                width: 1_040,
                 height: 760,
                 validation: () => editor.ValidationError(package is null));
             editor.OwnerWindowHandle = window.WindowHandle;
@@ -2426,7 +2425,7 @@ public sealed partial class MainPage : Page
                     _petAnimations.Add(new PetAnimationItem(
                         motion.Id,
                         motion.Id,
-                        $"{motion.Frames.Count}프레임 · {(motion.Loop ? "반복 재생" : "한 번 재생")}",
+                        $"{motion.Frames.Count}프레임",
                         motion.Id == activePackage.DefaultMotionId ? "기본" : string.Empty));
                 }
             }

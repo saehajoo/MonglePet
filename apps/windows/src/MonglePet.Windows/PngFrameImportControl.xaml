@@ -52,7 +52,7 @@
                         PointerReleased="SourceCanvas_PointerReleased"
                         PointerCanceled="SourceCanvas_PointerReleased">
                         <Image x:Name="SourceImage" Stretch="Fill" />
-                        <Border x:Name="CropBorder" BorderBrush="#FF1877F2" BorderThickness="2" Background="#101877F2" />
+                        <Border x:Name="CropBorder" BorderBrush="{ThemeResource MongleControlAccentBrush}" BorderThickness="2" Background="{ThemeResource MongleControlAccentSubtleBrush}" />
                     </Canvas>
                 </ScrollViewer>
             </Border>
@@ -92,9 +92,14 @@
                         </Button>
                     </Grid>
                     <Grid Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center">
-                        <Border x:Name="ResultOuterBorder" BorderBrush="#FF1877F2" BorderThickness="2" Background="Transparent">
+                        <Border x:Name="ResultOuterBorder" BorderBrush="{ThemeResource MongleControlAccentBrush}" BorderThickness="2" Background="Transparent">
                             <Canvas x:Name="ResultCanvas">
                                 <Image x:Name="ResultImage" Stretch="Fill" />
+                                <Border
+                                    x:Name="ResultCropBorder"
+                                    BorderBrush="{ThemeResource TextFillColorSecondaryBrush}"
+                                    BorderThickness="1"
+                                    IsHitTestVisible="False" />
                             </Canvas>
                         </Border>
                     </Grid>

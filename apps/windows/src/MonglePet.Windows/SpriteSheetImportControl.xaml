@@ -61,9 +61,14 @@
             </Grid>
             <Border Grid.Row="1" Style="{StaticResource SettingsSubcardStyle}" Padding="12">
                 <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <Border x:Name="PreviewOuterBorder" BorderBrush="#FF1877F2" BorderThickness="2" Background="Transparent">
+                    <Border x:Name="PreviewOuterBorder" BorderBrush="{ThemeResource MongleControlAccentBrush}" BorderThickness="2" Background="Transparent">
                         <Canvas x:Name="PreviewCanvas">
                             <Image x:Name="PreviewImage" Stretch="Fill" />
+                            <Border
+                                x:Name="PreviewCropBorder"
+                                BorderBrush="{ThemeResource TextFillColorSecondaryBrush}"
+                                BorderThickness="1"
+                                IsHitTestVisible="False" />
                         </Canvas>
                     </Border>
                 </Grid>

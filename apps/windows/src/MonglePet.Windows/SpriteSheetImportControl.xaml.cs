@@ -340,6 +340,7 @@ public sealed partial class SpriteSheetImportControl : UserControl
         if (final.Count == 0)
         {
             PreviewImage.Source = null;
+            PreviewCropBorder.Visibility = Visibility.Collapsed;
             PreviewPositionText.Text = "선택 없음";
             return;
         }
@@ -373,7 +374,11 @@ public sealed partial class SpriteSheetImportControl : UserControl
                 commonHeight));
         PreviewImage.Source = await WindowsImagePreviewFactory
             .CreateCheckerboardAsync(commonPreview);
-        double scale = Math.Min(300d / commonWidth, 180d / commonHeight);
+        const double maximumPreviewWidth = 260;
+        const double maximumPreviewHeight = 130;
+        double scale = Math.Min(
+            maximumPreviewWidth / commonWidth,
+            maximumPreviewHeight / commonHeight);
         scale = Math.Min(scale, 1);
         PreviewOuterBorder.Width = Math.Max(1, commonWidth * scale + 4);
         PreviewOuterBorder.Height = Math.Max(1, commonHeight * scale + 4);
@@ -383,6 +388,13 @@ public sealed partial class SpriteSheetImportControl : UserControl
         PreviewImage.Height = Math.Max(1, commonHeight * scale);
         Canvas.SetLeft(PreviewImage, 0);
         Canvas.SetTop(PreviewImage, 0);
+        PreviewCropBorder.Width = Math.Max(1, frame.Rect.Width * scale);
+        PreviewCropBorder.Height = Math.Max(1, frame.Rect.Height * scale);
+        Canvas.SetLeft(PreviewCropBorder, (commonWidth - frame.Rect.Width) * scale / 2);
+        Canvas.SetTop(PreviewCropBorder, (commonHeight - frame.Rect.Height) * scale / 2);
+        PreviewCropBorder.Visibility = frame.Rect.Width == commonWidth && frame.Rect.Height == commonHeight
+            ? Visibility.Collapsed
+            : Visibility.Visible;
         PreviewPositionText.Text = $"{final.IndexOf(frame) + 1} / {final.Count}";
     }
 

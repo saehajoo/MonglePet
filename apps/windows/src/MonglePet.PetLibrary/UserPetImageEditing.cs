@@ -206,6 +206,18 @@ public static class UserPetImageEditingGeometry
             frame.Width,
             frame.Height)).ToArray();
     }
+
+    public static IReadOnlyList<UserPetCanvasPlacement> CreateBakedFramePlacements(
+        IReadOnlyList<PetPackageFrame> atlasFrames)
+    {
+        ArgumentNullException.ThrowIfNull(atlasFrames);
+        return CreateCommonCanvasPlacements(atlasFrames
+            .Select(frame => new UserPetVisibleFrameGeometry(
+                frame.Width,
+                frame.Height,
+                new UserPetPixelRect(0, 0, frame.Width, frame.Height)))
+            .ToArray());
+    }
 }
 
 public static class UserPetPixelProcessor

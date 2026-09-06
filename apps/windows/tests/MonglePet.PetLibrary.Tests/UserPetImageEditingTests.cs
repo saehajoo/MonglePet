@@ -82,6 +82,62 @@ public sealed class UserPetImageEditingTests
     }
 
     [Fact]
+    public void BakedAtlasFramesKeepTheirSavedBoundsWithoutAlphaMarginExpansion()
+    {
+        IReadOnlyList<UserPetCanvasPlacement> result =
+            UserPetImageEditingGeometry.CreateBakedFramePlacements(
+            [
+                new PetPackageFrame(48, 20, 64, 80, 450),
+                new PetPackageFrame(140, 8, 64, 80, 450),
+            ]);
+
+        Assert.Equal(
+            new[]
+            {
+                new UserPetCanvasPlacement(64, 80, 0, 0, 64, 80),
+                new UserPetCanvasPlacement(64, 80, 0, 0, 64, 80),
+            },
+            result);
+    }
+
+    [Fact]
+    public void BakedAtlasEditReadsOnlyTheStoredFrameRectangleAtOriginalScale()
+    {
+        byte[] atlas = Pixels(
+            1, 2, 3, 4,
+            5, 6, 7, 8,
+            9, 10, 11, 12);
+        var frame = new PetPackageFrame(1, 1, 2, 2, 450);
+        UserPetCanvasPlacement placement =
+            UserPetImageEditingGeometry.CreateBakedFramePlacements([frame])[0];
+
+        UserPetProcessedFrame result = UserPetPixelProcessor.Process(
+            atlas,
+            4,
+            3,
+            frame,
+            placement: placement);
+
+        Assert.Equal(2, result.Width);
+        Assert.Equal(2, result.Height);
+        Assert.Equal(new byte[] { 6, 7, 10, 11 }, PixelIds(result.BgraPixels));
+    }
+
+    [Fact]
+    public void DifferentlySizedBakedAtlasFramesAreCenteredWithoutResampling()
+    {
+        IReadOnlyList<UserPetCanvasPlacement> result =
+            UserPetImageEditingGeometry.CreateBakedFramePlacements(
+            [
+                new PetPackageFrame(0, 0, 40, 60, 450),
+                new PetPackageFrame(40, 0, 80, 30, 450),
+            ]);
+
+        Assert.Equal(new UserPetCanvasPlacement(80, 60, 20, 0, 40, 60), result[0]);
+        Assert.Equal(new UserPetCanvasPlacement(80, 60, 0, 15, 80, 30), result[1]);
+    }
+
+    [Fact]
     public void CommonCanvasFallsBackToSafeSourceBoundsWhenAlphaAlignmentWouldExceedLimit()
     {
         IReadOnlyList<UserPetCanvasPlacement> result =

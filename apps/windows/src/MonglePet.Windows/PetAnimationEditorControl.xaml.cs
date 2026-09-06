@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
@@ -27,6 +28,13 @@ public sealed partial class PetAnimationEditorControl : UserControl
     private double _placementDisplayY;
     private bool _isReady;
     private LoadedPetPackage? _sourcePackage;
+    private readonly DispatcherQueueTimer _animationPreviewTimer;
+    private bool _animationPreviewIsPlaying = true;
+    private int _animationPreviewFrameIndex;
+    private long _animationPreviewGeneration;
+    private bool _preservedLoop = true;
+    private int _checkerCanvasWidth;
+    private int _checkerCanvasHeight;
 
     public PetAnimationEditorControl()
     {
@@ -37,6 +45,10 @@ public sealed partial class PetAnimationEditorControl : UserControl
         DescriptionTextBox.Text = "MonglePet에서 사용자가 만든 펫입니다.";
         AnimationNameTextBox.Text = "기본";
         BehaviorConnectionModeComboBox.SelectedIndex = 0;
+        _animationPreviewTimer = DispatcherQueue.CreateTimer();
+        _animationPreviewTimer.IsRepeating = false;
+        _animationPreviewTimer.Tick += AnimationPreviewTimer_Tick;
+        Unloaded += (_, _) => _animationPreviewTimer.Stop();
         _isReady = true;
         RefreshFrameEditorVisibility();
     }
@@ -161,24 +173,28 @@ public sealed partial class PetAnimationEditorControl : UserControl
         PetInformationCard.Visibility = Visibility.Collapsed;
         if (motion is null)
         {
+            _preservedLoop = true;
             AnimationNameTextBox.Text = string.Empty;
             RefreshFrameEditorVisibility();
             return;
         }
 
         AnimationNameTextBox.Text = motion.Id;
-        LoopsToggle.IsOn = motion.Loop;
+        _preservedLoop = motion.Loop;
         LoadedPetAtlas atlas = package.Atlases[motion.Atlas];
-        foreach (PetPackageFrame frame in motion.Frames)
+        IReadOnlyList<UserPetCanvasPlacement> placements =
+            UserPetImageEditingGeometry.CreateBakedFramePlacements(motion.Frames);
+        for (int index = 0; index < motion.Frames.Count; index++)
         {
+            PetPackageFrame frame = motion.Frames[index];
             _frames.Add(new FrameItem(
                 atlas.FilePath,
                 frame.DurationMs,
                 frame,
-                "기존 atlas 프레임"));
+                "기존 atlas 프레임",
+                canvasPlacement: placements[index]));
         }
         RefreshIndexes();
-        await InitializeUnplacedFramePlacementsAsync();
         await RefreshFrameThumbnailsAsync(_frames);
         if (_frames.Count > 0)
         {
@@ -189,7 +205,7 @@ public sealed partial class PetAnimationEditorControl : UserControl
     public UserPetCreationRequest CreatePetRequest() => new(
         PetNameTextBox.Text,
         AnimationNameTextBox.Text,
-        LoopsToggle.IsOn,
+        _preservedLoop,
         FrameRequests(),
         VersionTextBox.Text,
         AuthorTextBox.Text,
@@ -197,7 +213,7 @@ public sealed partial class PetAnimationEditorControl : UserControl
 
     public UserPetAnimationRequest CreateAnimationRequest() => new(
         AnimationNameTextBox.Text,
-        LoopsToggle.IsOn,
+        _preservedLoop,
         FrameRequests());
 
     public void SetAnimationName(string value) => AnimationNameTextBox.Text = value;
@@ -205,7 +221,7 @@ public sealed partial class PetAnimationEditorControl : UserControl
     public UserPetAnimationUpdateRequest CreateAnimationUpdateRequest(string animationId) => new(
         animationId,
         AnimationNameTextBox.Text,
-        LoopsToggle.IsOn,
+        _preservedLoop,
         FrameRequests());
 
     private IReadOnlyList<UserPetFrameSourceRequest> FrameRequests()
@@ -538,6 +554,88 @@ public sealed partial class PetAnimationEditorControl : UserControl
         EmptyFrameState.Visibility = hasFrames ? Visibility.Collapsed : Visibility.Visible;
         FrameEditorGrid.Visibility = hasFrames ? Visibility.Visible : Visibility.Collapsed;
         FrameImportButton.Content = hasFrames ? "프레임 추가" : "프레임 선택";
+        FrameCountText.Text = $"{_frames.Count}개 프레임";
+        if (!hasFrames)
+        {
+            _animationPreviewTimer.Stop();
+            _animationPreviewFrameIndex = 0;
+        }
+    }
+
+    private bool IsAnimationPreview => AnimationPreviewRadio?.IsChecked == true;
+
+    private async void PreviewModeRadio_Checked(object sender, RoutedEventArgs e)
+    {
+        if (!_isReady)
+        {
+            return;
+        }
+        _animationPreviewTimer.Stop();
+        Interlocked.Increment(ref _animationPreviewGeneration);
+        AnimationPlaybackPanel.Visibility = IsAnimationPreview
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        CompareFirstFrameCheckBox.Visibility = IsAnimationPreview
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+        PlacementScalePanel.Visibility = IsAnimationPreview
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+        PlacementDetailsExpander.Visibility = IsAnimationPreview
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+        if (IsAnimationPreview)
+        {
+            _animationPreviewFrameIndex = 0;
+        }
+        try
+        {
+            await RefreshPlacementEditorAsync();
+        }
+        catch (Exception exception)
+        {
+            ShowEditorError("애니메이션 미리보기를 전환하지 못했습니다", exception);
+        }
+    }
+
+    private async void AnimationPlaybackButton_Click(object sender, RoutedEventArgs e)
+    {
+        _animationPreviewIsPlaying = !_animationPreviewIsPlaying;
+        AnimationPlaybackButton.Content = _animationPreviewIsPlaying ? "일시정지" : "재생";
+        _animationPreviewTimer.Stop();
+        if (_animationPreviewIsPlaying)
+        {
+            try
+            {
+                await RefreshPlacementEditorAsync();
+            }
+            catch (Exception exception)
+            {
+                _animationPreviewIsPlaying = false;
+                AnimationPlaybackButton.Content = "재생";
+                ShowEditorError("전체 애니메이션 미리보기를 재생하지 못했습니다", exception);
+            }
+        }
+    }
+
+    private async void AnimationPreviewTimer_Tick(
+        DispatcherQueueTimer sender,
+        object args)
+    {
+        sender.Stop();
+        if (!IsAnimationPreview || !_animationPreviewIsPlaying || _frames.Count == 0)
+        {
+            return;
+        }
+        _animationPreviewFrameIndex = (_animationPreviewFrameIndex + 1) % _frames.Count;
+        try
+        {
+            await RefreshAnimationPreviewAsync();
+        }
+        catch (Exception exception)
+        {
+            ShowEditorError("전체 애니메이션 미리보기를 표시하지 못했습니다", exception);
+        }
     }
 
     private async void FramesList_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -554,10 +652,17 @@ public sealed partial class PetAnimationEditorControl : UserControl
 
     private async Task RefreshPlacementEditorAsync()
     {
+        if (IsAnimationPreview && _frames.Count > 0)
+        {
+            await RefreshAnimationPreviewAsync();
+            return;
+        }
+        _animationPreviewTimer.Stop();
         if (FramesList.SelectedItem is not FrameItem selected)
         {
             SelectedFramePlacementImage.Source = null;
             FirstFrameReferenceImage.Source = null;
+            FrameCanvasBoundaryBorder.Visibility = Visibility.Collapsed;
             SelectedFramePlacementBorder.Visibility = Visibility.Collapsed;
             return;
         }
@@ -582,11 +687,7 @@ public sealed partial class PetAnimationEditorControl : UserControl
         }
 
         ConfigurePlacementViewport(placement.CanvasWidth, placement.CanvasHeight);
-        var checker = new UserPetProcessedFrame(
-            placement.CanvasWidth,
-            placement.CanvasHeight,
-            new byte[checked(placement.CanvasWidth * placement.CanvasHeight * 4)]);
-        FrameCheckerImage.Source = await WindowsImagePreviewFactory.CreateCheckerboardAsync(checker);
+        await PrepareCheckerCanvasAsync(placement.CanvasWidth, placement.CanvasHeight);
 
         WindowsDecodedImage decoded = await _imageCache.GetAsync(selected.ImagePath);
         if (FramesList.SelectedItem != selected)
@@ -603,11 +704,58 @@ public sealed partial class PetAnimationEditorControl : UserControl
                 selected.FlipsVertically,
                 backgroundRemoval: selected.BackgroundRemoval));
         selected.Thumbnail = await WindowsImagePreviewFactory.CreateCheckerboardAsync(cropped);
-        SelectedFramePlacementImage.Source = await WindowsImagePreviewFactory.CreateTransparentAsync(cropped);
+        SelectedFramePlacementImage.Source =
+            await WindowsImagePreviewFactory.CreateTransparentAsync(cropped);
         LayoutPlacementElement(SelectedFramePlacementImage, placement);
         LayoutPlacementElement(SelectedFramePlacementBorder, placement);
-        SelectedFramePlacementBorder.Visibility = Visibility.Visible;
+        SelectedFramePlacementBorder.Visibility = PlacementFillsCanvas(placement)
+            ? Visibility.Collapsed
+            : Visibility.Visible;
         await RefreshFirstFrameReferenceAsync(selected);
+    }
+
+    private async Task RefreshAnimationPreviewAsync()
+    {
+        _animationPreviewTimer.Stop();
+        if (_frames.Count == 0)
+        {
+            return;
+        }
+        NormalizeCommonCanvas();
+        _animationPreviewFrameIndex = Math.Clamp(
+            _animationPreviewFrameIndex,
+            0,
+            _frames.Count - 1);
+        FrameItem frame = _frames[_animationPreviewFrameIndex];
+        UserPetCanvasPlacement placement = frame.CanvasPlacement!;
+        long generation = Interlocked.Increment(ref _animationPreviewGeneration);
+
+        ConfigurePlacementViewport(placement.CanvasWidth, placement.CanvasHeight);
+        await PrepareCheckerCanvasAsync(placement.CanvasWidth, placement.CanvasHeight);
+
+        Microsoft.UI.Xaml.Media.ImageSource composedPreview =
+            await ComposedPreviewSourceAsync(frame);
+        if (generation != Volatile.Read(ref _animationPreviewGeneration) ||
+            !IsAnimationPreview || _frames.Count == 0)
+        {
+            return;
+        }
+
+        SelectedFramePlacementImage.Source = composedPreview;
+        LayoutCanvasElement(
+            SelectedFramePlacementImage,
+            placement.CanvasWidth,
+            placement.CanvasHeight);
+        SelectedFramePlacementBorder.Visibility = Visibility.Collapsed;
+        FirstFrameReferenceImage.Visibility = Visibility.Collapsed;
+        AnimationPreviewCaptionText.Text =
+            $"총 {_frames.Count}개 프레임 · {_animationPreviewFrameIndex + 1}/{_frames.Count}";
+        if (_animationPreviewIsPlaying)
+        {
+            _animationPreviewTimer.Interval = TimeSpan.FromMilliseconds(
+                Math.Clamp(frame.DurationMilliseconds, 16, 60_000));
+            _animationPreviewTimer.Start();
+        }
     }
 
     private async Task RefreshFrameThumbnailsAsync(IEnumerable<FrameItem> frames)
@@ -648,14 +796,45 @@ public sealed partial class PetAnimationEditorControl : UserControl
                 first.FlipsHorizontally,
                 first.FlipsVertically,
                 backgroundRemoval: first.BackgroundRemoval));
-        FirstFrameReferenceImage.Source = await WindowsImagePreviewFactory.CreateTransparentAsync(cropped);
+        FirstFrameReferenceImage.Source =
+            await WindowsImagePreviewFactory.CreateTransparentAsync(cropped);
         LayoutPlacementElement(FirstFrameReferenceImage, first.CanvasPlacement!);
         FirstFrameReferenceImage.Visibility = Visibility.Visible;
     }
 
+    private async Task<Microsoft.UI.Xaml.Media.ImageSource> ComposedPreviewSourceAsync(
+        FrameItem frame)
+    {
+        string previewSignature = frame.ComposedPreviewSignature();
+        if (frame.ComposedPreviewSource is not null &&
+            string.Equals(frame.ComposedPreviewCacheKey, previewSignature, StringComparison.Ordinal))
+        {
+            return frame.ComposedPreviewSource;
+        }
+
+        UserPetCanvasPlacement placement = frame.CanvasPlacement
+            ?? throw new InvalidOperationException("프레임의 공통 캔버스 배치가 없습니다.");
+        WindowsDecodedImage decoded = await _imageCache.GetAsync(frame.ImagePath);
+        UserPetProcessedFrame composed = await Task.Run(() =>
+            UserPetPixelProcessor.Process(
+                decoded.BgraPixels,
+                decoded.Width,
+                decoded.Height,
+                frame.SourceFrame,
+                frame.FlipsHorizontally,
+                frame.FlipsVertically,
+                placement,
+                frame.BackgroundRemoval));
+        Microsoft.UI.Xaml.Media.ImageSource source =
+            await WindowsImagePreviewFactory.CreateTransparentAsync(composed);
+        frame.ComposedPreviewSource = source;
+        frame.ComposedPreviewCacheKey = previewSignature;
+        return source;
+    }
+
     private void ConfigurePlacementViewport(int canvasWidth, int canvasHeight)
     {
-        const double availableWidth = 260;
+        const double availableWidth = 320;
         const double availableHeight = 220;
         double fitScale = Math.Min(availableWidth / canvasWidth, availableHeight / canvasHeight);
         FramePlacementCanvas.Width = availableWidth;
@@ -667,6 +846,25 @@ public sealed partial class PetAnimationEditorControl : UserControl
         FrameCheckerImage.Height = canvasHeight * _placementDisplayScale;
         Canvas.SetLeft(FrameCheckerImage, _placementDisplayX);
         Canvas.SetTop(FrameCheckerImage, _placementDisplayY);
+        LayoutCanvasElement(FrameCanvasBoundaryBorder, canvasWidth, canvasHeight);
+        FrameCanvasBoundaryBorder.Visibility = Visibility.Visible;
+    }
+
+    private async Task PrepareCheckerCanvasAsync(int canvasWidth, int canvasHeight)
+    {
+        if (_checkerCanvasWidth == canvasWidth &&
+            _checkerCanvasHeight == canvasHeight &&
+            FrameCheckerImage.Source is not null)
+        {
+            return;
+        }
+        var checker = new UserPetProcessedFrame(
+            canvasWidth,
+            canvasHeight,
+            new byte[checked(canvasWidth * canvasHeight * 4)]);
+        FrameCheckerImage.Source = await WindowsImagePreviewFactory.CreateCheckerboardAsync(checker);
+        _checkerCanvasWidth = canvasWidth;
+        _checkerCanvasHeight = canvasHeight;
     }
 
     private void LayoutPlacementElement(FrameworkElement element, UserPetCanvasPlacement placement)
@@ -676,6 +874,20 @@ public sealed partial class PetAnimationEditorControl : UserControl
         Canvas.SetLeft(element, _placementDisplayX + (placement.X * _placementDisplayScale));
         Canvas.SetTop(element, _placementDisplayY + (placement.Y * _placementDisplayScale));
     }
+
+    private void LayoutCanvasElement(FrameworkElement element, int canvasWidth, int canvasHeight)
+    {
+        element.Width = canvasWidth * _placementDisplayScale;
+        element.Height = canvasHeight * _placementDisplayScale;
+        Canvas.SetLeft(element, _placementDisplayX);
+        Canvas.SetTop(element, _placementDisplayY);
+    }
+
+    private static bool PlacementFillsCanvas(UserPetCanvasPlacement placement) =>
+        placement.X == 0 &&
+        placement.Y == 0 &&
+        placement.Width == placement.CanvasWidth &&
+        placement.Height == placement.CanvasHeight;
 
     private void NormalizeCommonCanvas()
     {
@@ -821,7 +1033,7 @@ public sealed partial class PetAnimationEditorControl : UserControl
 
     private void FramePlacementCanvas_PointerPressed(object sender, PointerRoutedEventArgs e)
     {
-        if (FramesList.SelectedItem is not FrameItem selected)
+        if (IsAnimationPreview || FramesList.SelectedItem is not FrameItem selected)
         {
             return;
         }
@@ -893,6 +1105,9 @@ public sealed partial class PetAnimationEditorControl : UserControl
         }
         LayoutPlacementElement(SelectedFramePlacementImage, selected.CanvasPlacement);
         LayoutPlacementElement(SelectedFramePlacementBorder, selected.CanvasPlacement);
+        SelectedFramePlacementBorder.Visibility = PlacementFillsCanvas(selected.CanvasPlacement)
+            ? Visibility.Collapsed
+            : Visibility.Visible;
         UpdatePlacementNumbers(selected.CanvasPlacement);
         e.Handled = true;
     }
@@ -1015,6 +1230,8 @@ public sealed partial class PetAnimationEditorControl : UserControl
         public double ScalePercent { get; set; } = 100;
         public Guid FrameId { get; }
         public UserPetBackgroundRemoval? BackgroundRemoval { get; }
+        public Microsoft.UI.Xaml.Media.ImageSource? ComposedPreviewSource { get; set; }
+        public string? ComposedPreviewCacheKey { get; set; }
 
         public Microsoft.UI.Xaml.Media.ImageSource? Thumbnail
         {
@@ -1025,6 +1242,18 @@ public sealed partial class PetAnimationEditorControl : UserControl
         public int IntrinsicWidth => SourceFrame?.Width ?? CanvasPlacement?.Width ?? 1;
 
         public int IntrinsicHeight => SourceFrame?.Height ?? CanvasPlacement?.Height ?? 1;
+
+        public string ComposedPreviewSignature()
+        {
+            PetPackageFrame? source = SourceFrame;
+            UserPetCanvasPlacement? placement = CanvasPlacement;
+            UserPetBackgroundRemoval? background = BackgroundRemoval;
+            return $"{ImagePath}|{source?.X}|{source?.Y}|{source?.Width}|{source?.Height}|" +
+                $"{FlipsHorizontally}|{FlipsVertically}|{placement?.CanvasWidth}|" +
+                $"{placement?.CanvasHeight}|{placement?.X}|{placement?.Y}|{placement?.Width}|" +
+                $"{placement?.Height}|{background?.Red}|{background?.Green}|" +
+                $"{background?.Blue}|{background?.Tolerance}";
+        }
 
         public void EnsureScaleBaseline()
         {

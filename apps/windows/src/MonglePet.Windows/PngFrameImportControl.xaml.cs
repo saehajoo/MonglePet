@@ -239,7 +239,11 @@ public sealed partial class PngFrameImportControl : UserControl
                     commonHeight));
             ResultImage.Source = await WindowsImagePreviewFactory
                 .CreateCheckerboardAsync(commonPreview);
-            double scale = Math.Min(300d / commonWidth, 190d / commonHeight);
+            const double maximumPreviewWidth = 260;
+            const double maximumPreviewHeight = 130;
+            double scale = Math.Min(
+                maximumPreviewWidth / commonWidth,
+                maximumPreviewHeight / commonHeight);
             scale = Math.Min(scale, 1);
             ResultOuterBorder.Width = Math.Max(1, commonWidth * scale + 4);
             ResultOuterBorder.Height = Math.Max(1, commonHeight * scale + 4);
@@ -249,6 +253,13 @@ public sealed partial class PngFrameImportControl : UserControl
             ResultImage.Height = Math.Max(1, commonHeight * scale);
             Canvas.SetLeft(ResultImage, 0);
             Canvas.SetTop(ResultImage, 0);
+            ResultCropBorder.Width = Math.Max(1, item.Crop.Width * scale);
+            ResultCropBorder.Height = Math.Max(1, item.Crop.Height * scale);
+            Canvas.SetLeft(ResultCropBorder, (commonWidth - item.Crop.Width) * scale / 2);
+            Canvas.SetTop(ResultCropBorder, (commonHeight - item.Crop.Height) * scale / 2);
+            ResultCropBorder.Visibility = item.Crop.Width == commonWidth && item.Crop.Height == commonHeight
+                ? Visibility.Collapsed
+                : Visibility.Visible;
         }
     }
 
