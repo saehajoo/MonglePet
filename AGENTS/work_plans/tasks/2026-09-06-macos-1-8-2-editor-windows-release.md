@@ -2,7 +2,7 @@
 
 ## 상태
 
-- 상태: in_progress
+- 상태: completed
 - 생성일: 2026-09-06
 - 마지막 갱신: 2026-09-06
 
@@ -47,11 +47,11 @@
 - [x] 부모 기준 창 배치 구현과 관련 회귀 테스트를 완료한다.
 - [x] 앱 버전과 버전 테스트를 `1.8.2 (18)`로 올린다.
 - [x] 전체 단위 테스트와 코드 서명 없는 Debug 빌드를 통과한다.
-- [ ] 기능·문서·버전을 커밋하고 `origin/main`에 푸시한다.
-- [ ] 깨끗한 소스 커밋에서 Universal Preview ZIP·체크섬·manifest를 생성한다.
-- [ ] 압축 해제본의 버전·빌드·Bundle ID·Universal 아키텍처·앱 아이콘과 격리 실행을 확인한다.
-- [ ] GitHub Pre-release를 게시하고 태그 대상과 원격 자산을 재검증한다.
-- [ ] 배포·다운로드 문서에 최종 커밋·크기·SHA-256을 기록하고 푸시한다.
+- [x] 기능·문서·버전을 커밋하고 `origin/main`에 푸시한다.
+- [x] 깨끗한 소스 커밋에서 Universal Preview ZIP·체크섬·manifest를 생성한다.
+- [x] 압축 해제본의 버전·빌드·Bundle ID·Universal 아키텍처·앱 아이콘과 격리 실행을 확인한다.
+- [x] GitHub Pre-release를 게시하고 태그 대상과 원격 자산을 재검증한다.
+- [x] 배포·다운로드 문서에 최종 커밋·크기·SHA-256을 기록하고 푸시한다.
 
 ### Windows
 
@@ -74,10 +74,17 @@
 - 2026-09-06: 사용자가 독립 편집 창과 부모 창 기준 배치 결과를 확인한 뒤 커밋·푸시와 릴리스를 요청했다.
 - 2026-09-06: 최신 macOS 공개본 `1.8.1 (17)`, 태그 `macos-v1.8.1-preview.1`과 원격 `main` 상태를 확인하고 schema 비변경 patch `1.8.2 (18)`로 확정했다.
 - 2026-09-06: 전체 macOS 단위 테스트 562개 중 561개 성공·선택형 WebP fixture 1개 건너뜀·실패 0개와 코드 서명 없는 Debug 빌드, `git diff --check`를 통과했다.
+- 2026-09-06: 릴리스 기준 커밋 `b2cad6ffe8ba8a7f065296e0644460154faa9905`를 `origin/main`에 푸시하고 깨끗한 커밋에서 Universal Release 산출물을 생성했다.
+- 2026-09-06: 압축 해제본의 `1.8.2 (18)`, Bundle ID, arm64·x86_64, AppIcon과 격리된 3초 실행을 확인했다.
+- 2026-09-06: 태그 `macos-v1.8.2-preview.1`과 GitHub Pre-release를 게시하고 원격 세 자산을 다시 내려받아 로컬 최종본과 바이트 단위 일치 및 태그 대상을 확인했다.
 
 ## 완료 결과
 
-- 진행 중이다.
+- GitHub Pre-release: `https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.8.2-preview.1`
+- 소스 커밋: `b2cad6ffe8ba8a7f065296e0644460154faa9905`
+- ZIP: `MonglePet-1.8.2-build.18-preview.zip`, 11,352,823 bytes
+- SHA-256: `134a09811ac38873c0e99966dad43df160dccde87b147c015d1e0a4933d417ad`
+- manifest의 버전·빌드·커밋과 annotated tag 대상이 소스 커밋에 일치한다.
 
 ## 남은 위험 / 후속 작업
 

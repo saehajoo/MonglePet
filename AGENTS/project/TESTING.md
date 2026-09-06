@@ -1049,6 +1049,15 @@ UI 테스트는 앱 실행과 접근성 자동화가 가능한 macOS 세션에�
 - annotated tag `macos-v1.8.1-preview.1`과 GitHub Pre-release를 게시한 뒤 ZIP·SHA-256·manifest를 다시 내려받아 로컬 최종본과 바이트 단위 일치, 원격 태그 대상을 확인했다.
 - 전용 XCUITest Runner는 앱 assertion 전에 멈춰 중단했다. 실제 PNG·스프라이트 편집기, 이용 가이드의 좁은 창·키보드·VoiceOver 시각 QA와 Windows 네이티브 구현·교차 왕복은 남겼다.
 
+### macOS 1.8.2 큰 제작 편집기 Preview 검증
+
+- 앱 버전 `1.8.2 (18)`과 settings schema-v16·제작자 설정 v12·package format 비변경을 확인했다.
+- 부모 기준 창 배치 4개를 포함한 전체 `MonglePetTests` 562개 중 561개가 통과했고 실패 0개였다. 외부 로컬 WebP fixture가 있을 때만 실행하는 선택형 테스트 1개는 건너뛰었다.
+- 코드 서명 없는 Debug 빌드와 `generic/platform=macOS` Universal Release 빌드가 통과했다. 압축 해제본의 `CFBundleShortVersionString=1.8.2`, `CFBundleVersion=18`, Bundle ID `kr.mapleroom.MonglePet`, 실행 파일 `arm64`·`x86_64`와 AppIcon 리소스를 확인했다.
+- 깨끗한 원격 커밋 `b2cad6ffe8ba8a7f065296e0644460154faa9905`에서 11,352,823 bytes `MonglePet-1.8.2-build.18-preview.zip`을 생성했다. SHA-256은 `134a09811ac38873c0e99966dad43df160dccde87b147c015d1e0a4933d417ad`이며 압축 해제본의 격리된 3초 실행이 정상 유지됐다.
+- annotated tag `macos-v1.8.2-preview.1`과 GitHub Pre-release를 게시한 뒤 ZIP·SHA-256·manifest를 다시 내려받아 로컬 최종본과 바이트 단위 일치, 원격 태그 대상을 확인했다.
+- 사용자가 현재 창 동작을 확인한 뒤 게시를 요청했다. 실제 다중 모니터·키보드·VoiceOver와 Windows 네이티브 후속 구현·교차 확인은 남겼다.
+
 ## 변경 유형별 최소 검증
 
 ### 후속 단계 필수 검증

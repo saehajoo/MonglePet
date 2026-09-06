@@ -23,7 +23,7 @@ Apple 공증과 티켓 부착이 모두 필요합니다.
 - 두 값이 바뀌면 `MonglePetVersionTests`의 기대값도 같은 커밋에서 갱신합니다.
 - `.monglepet` 패키지 스키마 버전은 앱 마케팅 버전과 별도로 관리합니다.
 
-현재 배포 후보는 큰 제작 편집기의 독립 리사이즈 창, 행동 연결 우선 편집과
+현재 Preview는 큰 제작 편집기의 독립 리사이즈 창, 행동 연결 우선 편집과
 부모 창 기준 안전 배치를 포함한 `1.8.2 (18)`입니다.
 코드나 설정이 다시 바뀌면 빌드 번호와
 `MonglePetVersionTests` 기대값을 함께 올립니다.
@@ -42,7 +42,7 @@ Apple 공증과 티켓 부착이 모두 필요합니다.
 `macos-v1.8.0-preview.1`로 구분해 게시했습니다.
 애니메이션 프레임 가져오기 안정화와 앱 내 간단 이용 가이드는 patch 후보
 `macos-v1.8.1-preview.1`로 게시했습니다. 큰 제작 편집기 창과 애니메이션
-반복 힌트 비노출은 후속 patch `macos-v1.8.2-preview.1`로 구분합니다.
+반복 힌트 비노출은 후속 patch `macos-v1.8.2-preview.1`로 게시했습니다.
 
 ## 현재 배포 상태
 
@@ -57,8 +57,8 @@ Apple 공증과 티켓 부착이 모두 필요합니다.
 - macOS `1.6.0 (14)` 제작자 설정 자동 적용·행동 편집 탐색 순서 보정 Preview는 태그 [`macos-v1.6.0-preview.3`](https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.6.0-preview.3)로 보존합니다.
 - macOS `1.7.0 (15)` 행동 완료 후 이동 Preview는 태그 [`macos-v1.7.0-preview.1`](https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.7.0-preview.1)로 보존합니다.
 - macOS `1.8.0 (16)` 가져오기 호환성·설정 UI Preview는 태그 [`macos-v1.8.0-preview.1`](https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.8.0-preview.1)로 보존합니다.
-- 최신 macOS `1.8.1 (17)` 애니메이션 프레임 가져오기·앱 내 이용 가이드 Preview는 태그 [`macos-v1.8.1-preview.1`](https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.8.1-preview.1)로 게시했으며 Universal ZIP·SHA-256·manifest의 원격 바이트 일치와 태그 대상을 확인했습니다.
-- macOS `1.8.2 (18)` 큰 제작 편집기·부모 창 기준 배치 Preview는 태그 `macos-v1.8.2-preview.1` 게시 후보입니다.
+- macOS `1.8.1 (17)` 애니메이션 프레임 가져오기·앱 내 이용 가이드 Preview는 태그 [`macos-v1.8.1-preview.1`](https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.8.1-preview.1)로 보존합니다.
+- 최신 macOS `1.8.2 (18)` 큰 제작 편집기·부모 창 기준 배치 Preview는 태그 [`macos-v1.8.2-preview.1`](https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.8.2-preview.1)로 게시했으며 Universal ZIP·SHA-256·manifest의 원격 바이트 일치와 태그 대상을 확인했습니다.
 - 자체 웹사이트의 Windows·macOS 다운로드 화면 반영에는 `../../AGENTS/guides/PREVIEW_DOWNLOAD_HANDOFF.md`의 버전 고정 링크와 사용자 안내를 사용합니다.
 - 회사 Mac에서는 소스·문서·자동 검증까지만 완료합니다.
 - 실제 Preview ZIP 또는 Developer ID DMG 생성과 최종 설치 검증은 개인
