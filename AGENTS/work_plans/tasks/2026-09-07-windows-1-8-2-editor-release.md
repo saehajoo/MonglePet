@@ -2,7 +2,7 @@
 
 ## 상태
 
-- 상태: in_progress
+- 상태: completed
 - 생성일: 2026-09-07
 - 마지막 갱신: 2026-09-07
 
@@ -41,11 +41,11 @@
 - [x] Debug·Release 각 342개 테스트와 경고·오류 없는 빌드를 통과한다.
 - [x] 앱·파일·MSIX 버전을 `1.8.2.21`로 올린다.
 - [x] 버전 포함 전체 Debug·Release 빌드와 테스트를 재검증한다.
-- [ ] 소스 커밋을 `origin/main`에 푸시한다.
-- [ ] 미서명 x64 설치기와 체크섬을 생성한다.
-- [ ] 설치기 버전·digest와 실행 결과를 확인한다.
-- [ ] GitHub Pre-release를 게시하고 원격 자산·태그를 재검증한다.
-- [ ] 배포 문서를 최종 결과로 갱신하고 푸시한다.
+- [x] 소스 커밋을 `origin/main`에 푸시한다.
+- [x] 미서명 x64 설치기와 체크섬을 생성한다.
+- [x] 설치기 버전·digest와 실행 결과를 확인한다.
+- [x] GitHub Pre-release를 게시하고 원격 자산·태그를 재검증한다.
+- [x] 배포 문서를 최종 결과로 갱신하고 푸시한다.
 
 ### 플랫폼 동등성
 
@@ -63,10 +63,16 @@
 - 2026-09-07: 최신 원격 `main`과 macOS `1.8.2 (18)` Preview 릴리스를 확인하고 Windows 후속을 `1.8.2.21`로 확정했다.
 - 2026-09-07: Windows 기능 커밋을 최신 원격 main 위로 재배치했다. 버전 전 기준 Debug·Release 각 342개 테스트와 경고·오류 없는 전체 빌드, `git diff --check`가 통과했다.
 - 2026-09-07: `1.8.2.21` 버전 계약 테스트 9개와 Debug·Release 각각 Activity 27개·Core 69개·Packages 28개·PetLibrary 94개·Settings 95개·Shell 29개, 총 342개 테스트 및 경고·오류 없는 두 구성 전체 빌드를 재검증했다.
+- 2026-09-07: 소스 커밋 `d19232ce1422c607c84e6960bb72d513992a12c1`을 `origin/main`에 푸시하고 65,300,492 bytes 미서명 x64 설치기를 생성했다. SHA-256은 `8FC06EB74EAE1ADE1D8073C4A97D89E04C5C79B23BBB5555E8328CE240020A6E`다.
+- 2026-09-07: 기존 `1.8.1.20` 위 설치 종료 코드 0, 사용자 데이터 89개·11,411,858 bytes와 inventory digest `E46B1CFC202804682BC525C0A2CED47CC7018F64F57E81BD7721F675FBF61FFB` 보존, 설치 EXE·DLL과 publish 결과 일치 및 설치본 실행 응답을 확인했다.
+- 2026-09-07: `windows-v1.8.2-preview.1` GitHub Pre-release를 게시하고 원격 설치기와 107 bytes 체크섬을 다시 내려받아 로컬과 바이트 단위 일치 및 태그 대상을 확인했다.
 
 ## 완료 결과
 
-- 릴리스 게시 뒤 기록한다.
+- GitHub Pre-release: `https://github.com/saehajoo/MonglePet/releases/tag/windows-v1.8.2-preview.1`
+- 소스 커밋: `d19232ce1422c607c84e6960bb72d513992a12c1`
+- 설치기: `MonglePet-Windows-1.8.2.21-x64-Setup.exe`, 65,300,492 bytes
+- SHA-256: `8FC06EB74EAE1ADE1D8073C4A97D89E04C5C79B23BBB5555E8328CE240020A6E`
 
 ## 남은 위험 / 후속 작업
 
