@@ -32,7 +32,7 @@
 - 기존 펫의 아틀라스 행·열 재배치
 - 펫 프레임 해상도·색상·투명도·개수 변경
 - WebP 자동 변환
-- macOS 버전 증가, 커밋·푸시와 Release 게시
+- Windows 버전 증가, 커밋·푸시와 Release 게시
 
 ## 열린 질문
 
@@ -70,8 +70,8 @@
 - [x] 단계·파일 수·퍼센트 진행률과 0.3~0.5초 지연 표시를 구현한다.
 - [x] 진행률 단조 증가·성공 100%·실패 미완료 회귀 테스트를 추가한다.
 - [x] 앱·빌드 버전을 `1.9.0 (19)`로 올리고 버전 테스트를 갱신한다.
-- [ ] 깨끗한 커밋에서 Universal Preview ZIP·체크섬·manifest를 생성한다.
-- [ ] `macos-v1.9.0-preview.1` GitHub Pre-release와 세 자산을 게시·재검증한다.
+- [x] 깨끗한 커밋에서 Universal Preview ZIP·체크섬·manifest를 생성한다.
+- [x] `macos-v1.9.0-preview.1` GitHub Pre-release와 세 자산을 게시·재검증한다.
 
 ### Windows
 
@@ -101,6 +101,7 @@
 - 2026-09-07: macOS 전체 단위 테스트 565개 중 564개 성공·선택형 WebP fixture 1개 건너뜀·실패 0개, 코드 서명 없는 Debug 빌드와 `git diff --check`를 통과했다.
 - 2026-09-07: D-131로 선택 펫 현재 이미지 합계, 저장 위치 선선택, 목적지 직접 내보내기와 준비·이미지 최적화·압축·검증·저장 진행률을 구현했다. 0.4초 미만 작업은 진행 UI를 생략하고, 설정의 다른 항목으로 이동해도 작업과 완료 결과가 유지되도록 coordinator를 상위 수명주기에 뒀다. 실제 앱 sandbox에서는 선택 파일 옆에 앱이 직접 만든 임시 파일을 이동하는 방식이 거부될 수 있어, 최종 저장은 30 MiB 이하 archive의 `mappedIfSafe` 원자적 쓰기를 사용한다. SwiftUI `FileDocument`용 추가 전체 복제와 두 번째 저장은 재도입하지 않았다. `PetPackageExporterTests` 17개가 통과했고 전체 `MonglePetTests`는 570개 중 569개 성공·선택형 WebP fixture 1개 건너뜀·실패 0개였으며 Debug 빌드도 통과했다. 실제 저장 패널·큰 펫 진행 UI 재확인은 남겼다.
 - 2026-09-07: 사용자가 실제 sandbox 앱에서 바탕화면 `새아3.monglepet` 내보내기 성공을 확인했다. 결과는 20,309,545 bytes이며, 저장 패널 권한 안에서 최종 원자적 기록이 동작함을 확인했다. 큰 펫의 단계·퍼센트 표시와 설정 화면 이동 중 작업 유지에 대한 세부 UI QA는 남겼다.
+- 2026-09-07: 소스 커밋 `47d17b34276ee1039a15f1bcc16b8019f268630e`에서 `1.9.0 (19)` Universal Preview ZIP을 생성했다. 11,552,065 bytes ZIP의 SHA-256은 `da224de9563682b79d6565c021f312c4cb468f67d8c330f326df4b62a6bcc064`이며 압축 해제본의 버전·Bundle ID·arm64/x86_64·AppIcon과 격리된 3초 실행을 확인했다. 태그 `macos-v1.9.0-preview.1`의 GitHub Pre-release 세 자산을 다시 내려받아 로컬과 바이트 단위 일치 및 태그 대상을 검증했다.
 
 ## 완료 결과
 
@@ -111,10 +112,11 @@
 - 준비·30 MiB·저장 오류는 `내 펫` alert로 표시하고 저장 성공 시 최종 `.monglepet` 용량을 표시한다.
 - Windows 소스 구현·실제 양 플랫폼 QA가 남아 있어 전체 상태는 `in_progress`다.
 - 내보내기 산출물을 SwiftUI `FileDocument`에 전달해 다시 저장하던 경로를 제거하고, 사용자가 먼저 선택한 목적지에 exporter가 원자적으로 직접 기록하도록 바꿨다. macOS sandbox 호환을 위해 최종 archive는 `mappedIfSafe`로 읽되 30 MiB 상한으로 제한한다.
+- macOS `1.9.0 (19)` 미서명·미공증 Preview를 [`macos-v1.9.0-preview.1`](https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.9.0-preview.1)로 게시했다. macOS 단계는 완료했지만 Windows 구현과 교차 왕복이 남아 작업 전체 상태는 `in_progress`다.
 
 ## 남은 위험 / 후속 작업
 
-- 구버전 앱은 20 MiB 초과 파일을 거부한다. 30 MiB 지원 양 플랫폼 배포와 서버 상한 공개 전환·업데이트 안내를 함께 준비한다. 첫 지원 릴리스 번호는 아직 정하지 않았다.
+- 구버전 앱은 20 MiB 초과 파일을 거부한다. macOS 첫 지원 릴리스는 `1.9.0 (19)`이며 Windows 30 MiB 지원 배포와 서버 상한 공개 전환·업데이트 안내를 함께 준비한다.
 - 기존 8열 atlas를 자동 재배치하는 작업은 manifest frame 좌표를 바꾸므로 별도 단계에서 다룬다.
 - 런타임 atlas 지연 로딩은 첫 재생 끊김 방지와 성능 QA가 필요한 별도 작업이다.
 - 서버 결정에 따라 출력 패키지는 PNG 방식을 유지하며 WebP 자동 변환은 이 작업의 후속 범위로 진행하지 않는다.

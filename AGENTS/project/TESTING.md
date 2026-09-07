@@ -1058,6 +1058,15 @@ UI 테스트는 앱 실행과 접근성 자동화가 가능한 macOS 세션에�
 - annotated tag `macos-v1.8.2-preview.1`과 GitHub Pre-release를 게시한 뒤 ZIP·SHA-256·manifest를 다시 내려받아 로컬 최종본과 바이트 단위 일치, 원격 태그 대상을 확인했다.
 - 사용자가 현재 창 동작을 확인한 뒤 게시를 요청했다. 실제 다중 모니터·키보드·VoiceOver와 Windows 네이티브 후속 구현·교차 확인은 남겼다.
 
+### macOS 1.9.0 펫 내보내기 용량·진행률 Preview 검증
+
+- 앱 버전 `1.9.0 (19)`과 settings schema-v16·제작자 설정 v12·package format·PNG 자산 계약 비변경을 확인했다.
+- `PetPackageExporterTests` 17개와 전체 `MonglePetTests` 570개 중 569개가 통과했고 실패 0개였다. 외부 로컬 WebP fixture가 있을 때만 실행하는 선택형 테스트 1개는 건너뛰었다.
+- 코드 서명 없는 Debug 빌드와 `generic/platform=macOS` Universal Release 빌드가 통과했다. 압축 해제본의 `CFBundleShortVersionString=1.9.0`, `CFBundleVersion=19`, Bundle ID `kr.mapleroom.MonglePet`, 실행 파일 `arm64`·`x86_64`와 AppIcon 리소스를 확인했다.
+- 깨끗한 원격 커밋 `47d17b34276ee1039a15f1bcc16b8019f268630e`에서 11,552,065 bytes `MonglePet-1.9.0-build.19-preview.zip`을 생성했다. SHA-256은 `da224de9563682b79d6565c021f312c4cb468f67d8c330f326df4b62a6bcc064`이며 압축 해제본의 격리된 3초 실행이 종료 코드 0으로 완료됐다.
+- annotated tag `macos-v1.9.0-preview.1`과 GitHub Pre-release를 게시한 뒤 ZIP·SHA-256·manifest를 다시 내려받아 로컬 최종본과 바이트 단위 일치, 원격 태그 대상을 확인했다.
+- 사용자가 실제 sandbox 앱에서 20,309,545 bytes `새아3.monglepet` 내보내기 성공을 확인했다. 큰 펫의 진행률 세부 시각 QA와 Windows 구현·30 MiB 교차 왕복은 남겼다.
+
 ## 변경 유형별 최소 검증
 
 ### 후속 단계 필수 검증

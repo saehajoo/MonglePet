@@ -1044,4 +1044,4 @@
 - 날짜: 2026-09-07
 - 결정: D-129~D-131의 PNG 전용 무손실 내보내기, 30 MiB 상한, 선택 펫 이미지 용량, 저장 위치 선선택과 단계·파일 수·퍼센트 진행률을 macOS `1.9.0 (19)`, 태그 `macos-v1.9.0-preview.1`의 미서명·미공증 Preview로 게시한다.
 - 이유: 기존 `1.8.2`의 편집기 보정과 구분되는 사용자 기능이며 Windows 후속 구현이 같은 기준을 명확히 따라갈 수 있도록 새 minor 기능선으로 제공한다.
-- 비고: settings schema-v16, 제작자 설정 schema-v12, `.monglepet` formatVersion과 PNG 자산 계약은 변경하지 않는다. 실제 Windows 구현·QA 전에는 플랫폼 동등 완료로 표시하지 않는다.
+- 비고: 소스 커밋 `47d17b34276ee1039a15f1bcc16b8019f268630e`에서 11,552,065 bytes Universal ZIP을 생성했고 SHA-256은 `da224de9563682b79d6565c021f312c4cb468f67d8c330f326df4b62a6bcc064`이다. 원격 세 자산의 바이트 일치와 태그 대상을 확인했다. settings schema-v16, 제작자 설정 schema-v12, `.monglepet` formatVersion과 PNG 자산 계약은 변경하지 않는다. 실제 Windows 구현·QA 전에는 플랫폼 동등 완료로 표시하지 않는다.
