@@ -85,7 +85,7 @@
 - [x] 실제 설치본에서 새 펫 다운로드·가져오기, 큰 펫 내보내기와 cache 생성을 확인한다.
 - [ ] 연속 내보내기 체감·편집 후 cache 무효화와 Windows/macOS 왕복 QA를 완료한다.
 - [x] 앱 버전을 `1.9.0.22`로 올리고 미서명 x64 설치기·체크섬을 생성한다.
-- [ ] `windows-v1.9.0-preview.1` GitHub Pre-release와 원격 자산을 게시·재검증한다.
+- [x] `windows-v1.9.0-preview.1` GitHub Pre-release와 원격 자산을 게시·재검증한다.
 
 ### 플랫폼 동등성
 
@@ -114,6 +114,7 @@
 - 2026-09-07: Windows는 pure C# adaptive-filter PNG optimizer, 전체 scanline·색상/알파 chunk 동일성 검증, SHA-256·구현 버전 기반 256 MiB cache와 손상 cache 복구를 구현했다. archive·remote metadata·Content-Length·실제 수신·exporter 상한을 30 MiB로 통일하고 앱 수명 coordinator의 비동기 진행률, 검토 용량 상세, 완료 archive 크기와 `내 펫` 오류 표시를 연결했다. Debug·Release 각각 Activity 27개·Core 69개·Packages 30개·PetLibrary 107개·Settings 95개·Shell 32개, 총 360개 테스트와 경고·오류 없는 빌드, packaged 출력·unpackaged publish 생성을 확인했다. 네이티브 앱 자동 조작 표면을 사용할 수 없어 큰 실제 펫의 UI 응답성·연속 cache 체감과 macOS 왕복은 사용자 QA로 남겼다.
 - 2026-09-07: 사용자가 최신 Windows 설치본에서 새 펫 다운로드·가져오기와 내보내기 성공을 확인했다. `%LOCALAPPDATA%\MonglePet\Cache\PngExport`에 20개·19,780,492 bytes의 검증된 최적화 PNG가 생성됐다. 사용자 릴리스 승인에 따라 `1.9.0.22`, 태그 `windows-v1.9.0-preview.1`로 게시 준비를 시작했다.
 - 2026-09-07: 최종 버전 계약 테스트를 포함해 Debug·Release 각각 총 360개 테스트와 경고·오류 없는 전체 빌드, x64 unpackaged publish를 재검증했다. 65,313,039 bytes 미서명 설치기의 SHA-256은 `352CDBCB7D33256ADE8F576F169479493EF5AC1CF87F726AAEB5AC0C6F9A832A`다. 동일 설치기를 다시 적용해 사용자 데이터 126개·48,630,992 bytes와 inventory digest `0F16C93E027D778D7BD89A180ED3273F722D9B27070722FFAB57BE61321AA7BA`가 보존되고 설치 EXE·DLL이 publish와 일치하며 실행 응답·최근 Application 오류 0건임을 확인했다.
+- 2026-09-07: 소스 커밋 `ded7b4bd30b5a58e8a6d662de25d54bebf38d5e0`과 annotated tag `windows-v1.9.0-preview.1`을 푸시하고 GitHub Pre-release를 게시했다. 원격 설치기와 107 bytes `SHA256SUMS.txt`를 다시 내려받아 크기·SHA-256·체크섬 내용이 로컬과 같고 태그가 위 소스 커밋을 가리키는지 확인했다.
 
 ## 완료 결과
 
@@ -125,6 +126,7 @@
 - Windows `1.9.0.22` 소스·자동 검증·큰 펫 다운로드·가져오기·내보내기와 cache 생성 QA는 완료했지만 연속 cache 체감·편집 후 무효화와 양 플랫폼 왕복 QA가 남아 있어 전체 상태는 `in_progress`다.
 - 내보내기 산출물을 SwiftUI `FileDocument`에 전달해 다시 저장하던 경로를 제거하고, 사용자가 먼저 선택한 목적지에 exporter가 원자적으로 직접 기록하도록 바꿨다. macOS sandbox 호환을 위해 최종 archive는 `mappedIfSafe`로 읽되 30 MiB 상한으로 제한한다.
 - macOS `1.9.0 (19)` 미서명·미공증 Preview를 [`macos-v1.9.0-preview.1`](https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.9.0-preview.1)로 게시했다. macOS 단계는 완료했지만 Windows 구현과 교차 왕복이 남아 작업 전체 상태는 `in_progress`다.
+- Windows `1.9.0.22` 미서명 x64 Preview를 [`windows-v1.9.0-preview.1`](https://github.com/saehajoo/MonglePet/releases/tag/windows-v1.9.0-preview.1)로 게시하고 원격 자산과 태그 대상을 재검증했다. 양 플랫폼 실제 왕복과 서버 공개 상향이 남아 작업 전체 상태는 `in_progress`다.
 
 ## 남은 위험 / 후속 작업
 

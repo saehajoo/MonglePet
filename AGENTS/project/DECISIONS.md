@@ -1052,4 +1052,4 @@
 - 날짜: 2026-09-07
 - 결정: D-129~D-131의 PNG 전용 무손실 내보내기, 30 MiB 상한, 선택 펫 이미지 용량과 앱 수명 비동기 진행률을 Windows `1.9.0.22`, 태그 `windows-v1.9.0-preview.1`의 미서명 x64 Preview로 게시한다.
 - 이유: 기존 `1.8.2.21`의 편집기 보정과 구분되는 사용자 기능이며, macOS `1.9.0`과 같은 패키지 상한·내보내기 결과를 기존 Windows 릴리스 자산을 덮어쓰지 않고 제공해야 한다.
-- 비고: 사용자가 설치본에서 새 펫 다운로드·가져오기와 내보내기 성공을 확인했고 20개·19,780,492 bytes의 최적화 cache 생성을 확인했다. settings schema-v16, 제작자 설정 schema-v12, `.monglepet` formatVersion, Inno Setup AppId와 `%LOCALAPPDATA%\MonglePet` 데이터 위치는 유지한다. Windows→macOS 실제 왕복과 서버 공개 상향 전에는 플랫폼 동등 완료로 표시하지 않는다.
+- 비고: 소스 커밋 `ded7b4bd30b5a58e8a6d662de25d54bebf38d5e0`에서 65,313,039 bytes 설치기를 생성했고 SHA-256은 `352CDBCB7D33256ADE8F576F169479493EF5AC1CF87F726AAEB5AC0C6F9A832A`다. 사용자가 설치본에서 새 펫 다운로드·가져오기와 내보내기 성공을 확인했고 20개·19,780,492 bytes의 최적화 cache 생성을 확인했다. settings schema-v16, 제작자 설정 schema-v12, `.monglepet` formatVersion, Inno Setup AppId와 `%LOCALAPPDATA%\MonglePet` 데이터 위치는 유지한다. Windows→macOS 실제 왕복과 서버 공개 상향 전에는 플랫폼 동등 완료로 표시하지 않는다.

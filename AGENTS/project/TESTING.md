@@ -1077,6 +1077,7 @@ UI 테스트는 앱 실행과 접근성 자동화가 가능한 macOS 세션에�
 - Debug·Release 각각 Activity 27개·Core 69개·Packages 30개·PetLibrary 107개·Settings 95개·Shell 32개, 총 360개 xUnit 테스트와 전체 빌드가 경고·오류 없이 통과했다. packaged 출력과 x64 unpackaged self-contained publish를 생성했다.
 - 사용자가 설치된 후보에서 새 펫 다운로드·가져오기와 내보내기 성공을 확인했고, 20개·19,780,492 bytes의 PNG cache 생성을 확인했다. 65,313,039 bytes `MonglePet-Windows-1.9.0.22-x64-Setup.exe`의 SHA-256은 `352CDBCB7D33256ADE8F576F169479493EF5AC1CF87F726AAEB5AC0C6F9A832A`다.
 - 최종 설치기를 동일 사용자 데이터 위에 다시 적용해 126개·48,630,992 bytes와 inventory digest `0F16C93E027D778D7BD89A180ED3273F722D9B27070722FFAB57BE61321AA7BA` 보존, 설치 EXE·DLL과 publish 일치, 실행 응답과 최근 Application 오류 0건을 확인했다.
+- 소스 커밋 `ded7b4bd30b5a58e8a6d662de25d54bebf38d5e0`에 annotated tag `windows-v1.9.0-preview.1`을 게시했다. 원격 설치기 65,313,039 bytes의 SHA-256과 107 bytes 체크섬 파일이 로컬과 일치하고 tag dereference 대상이 위 소스 커밋임을 확인했다.
 - 네이티브 앱 자동 조작 표면을 사용할 수 없어 400ms 지연 진행 UI·탭 이동 중 유지·연속 cache 체감과 Windows→macOS 왕복은 후속 실제 QA로 남겼다.
 
 ## 변경 유형별 최소 검증
