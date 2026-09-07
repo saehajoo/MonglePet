@@ -64,4 +64,23 @@ public sealed class WindowsPetImportUiContractTests
         Assert.True(behaviorEditor > petContent);
         Assert.True(display > behaviorEditor);
     }
+
+    [Fact]
+    public void PetExportShowsAssetSizesAndAppOwnedProgress()
+    {
+        string fixtures = Path.Combine(AppContext.BaseDirectory, "Fixtures");
+        string app = File.ReadAllText(Path.Combine(fixtures, "App.xaml.cs"));
+        string page = File.ReadAllText(Path.Combine(fixtures, "MainPage.xaml"));
+        string pageCode = File.ReadAllText(Path.Combine(fixtures, "MainPage.xaml.cs"));
+
+        Assert.Contains("PetExportCoordinator", app, StringComparison.Ordinal);
+        Assert.Contains("PetExportProgressPanel", page, StringComparison.Ordinal);
+        Assert.Contains("공유 파일 준비 중", page, StringComparison.Ordinal);
+        Assert.Contains("AnalyzeActivePackageAssets", pageCode, StringComparison.Ordinal);
+        Assert.Contains("애니메이션별 용량 자세히 보기", pageCode, StringComparison.Ordinal);
+        Assert.Contains("내보내기 임시 사본만 무손실 최적화", pageCode, StringComparison.Ordinal);
+        Assert.Contains("await app.PetExportCoordinator.RunAsync", pageCode, StringComparison.Ordinal);
+        Assert.Contains("FormatIecBytes(state.Result.ArchiveBytes)", pageCode, StringComparison.Ordinal);
+        Assert.Contains("TimeSpan.FromMilliseconds(400)", pageCode, StringComparison.Ordinal);
+    }
 }

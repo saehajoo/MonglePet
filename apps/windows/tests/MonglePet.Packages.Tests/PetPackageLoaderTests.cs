@@ -7,6 +7,40 @@ public sealed class PetPackageLoaderTests
     private readonly PetPackageLoader _loader = new();
 
     [Fact]
+    public void StandardArchiveLimitIsThirtyMiBInclusive()
+    {
+        Assert.Equal(31_457_280, PetPackageArchiveLimits.Standard.MaximumArchiveBytes);
+    }
+
+    [Fact]
+    public void ArchiveLimitIncludesExactBoundaryAndRejectsOneByteMore()
+    {
+        using var workspace = new TemporaryDirectory();
+        string boundary = Path.Combine(workspace.Path, "boundary.monglepet");
+        using (FileStream stream = File.Create(boundary))
+        {
+            stream.SetLength(PetPackageArchiveLimits.Standard.MaximumArchiveBytes);
+        }
+        string above = Path.Combine(workspace.Path, "above.monglepet");
+        using (FileStream stream = File.Create(above))
+        {
+            stream.SetLength(PetPackageArchiveLimits.Standard.MaximumArchiveBytes + 1);
+        }
+
+        PetPackageArchiveException boundaryError = Assert.Throws<PetPackageArchiveException>(
+            () => new PetPackageArchiveExtractor().Extract(
+                boundary,
+                Path.Combine(workspace.Path, "boundary-extract")));
+        PetPackageArchiveException aboveError = Assert.Throws<PetPackageArchiveException>(
+            () => new PetPackageArchiveExtractor().Extract(
+                above,
+                Path.Combine(workspace.Path, "above-extract")));
+
+        Assert.Equal(PetPackageArchiveError.InvalidArchive, boundaryError.Error);
+        Assert.Equal(PetPackageArchiveError.ArchiveTooLarge, aboveError.Error);
+    }
+
+    [Fact]
     public void LoadsSharedPackageAndResolvesAtlas()
     {
         string fixture = FixturePath();

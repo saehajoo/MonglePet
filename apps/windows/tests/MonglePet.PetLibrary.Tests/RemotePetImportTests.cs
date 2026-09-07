@@ -123,6 +123,12 @@ public sealed class RemotePetImportSourceTests
 
 public sealed class RemotePetImportServiceTests
 {
+    [Fact]
+    public void RemotePackageLimitMatchesThirtyMiBContract()
+    {
+        Assert.Equal(31_457_280, RemotePetImportService.MaximumPackageBytes);
+    }
+
     private static readonly RemotePetSemanticVersion CurrentVersion = new(1, 1, 0);
 
     [Fact]

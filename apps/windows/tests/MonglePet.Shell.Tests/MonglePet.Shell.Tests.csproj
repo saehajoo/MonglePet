@@ -19,7 +19,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\MonglePet.PetLibrary\MonglePet.PetLibrary.csproj" />
     <ProjectReference Include="..\..\src\MonglePet.Shell\MonglePet.Shell.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\src\MonglePet.Windows\PetPackageExportCoordinator.cs"
+             Link="Fixtures\PetPackageExportCoordinator.cs" />
   </ItemGroup>
 
   <ItemGroup>

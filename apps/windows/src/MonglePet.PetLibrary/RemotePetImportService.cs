@@ -61,7 +61,7 @@ public sealed class RemotePetPreparedPackage : IDisposable
 
 public sealed class RemotePetImportService : IDisposable
 {
-    public const long MaximumPackageBytes = 20L * 1_024 * 1_024;
+    public const long MaximumPackageBytes = 30L * 1_024 * 1_024;
     private const int MaximumJsonBytes = 1 * 1_024 * 1_024;
     private const int MaximumRedirects = 5;
     private static readonly Regex Sha256Pattern = new(

@@ -301,6 +301,32 @@
                             </Grid>
                         </StackPanel>
                     </Border>
+                    <Border
+                        x:Name="PetExportProgressPanel"
+                        Padding="14"
+                        Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
+                        CornerRadius="10"
+                        Visibility="Collapsed">
+                        <StackPanel Spacing="8">
+                            <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="공유 파일 준비 중" />
+                            <TextBlock
+                                x:Name="PetExportProgressText"
+                                AutomationProperties.LiveSetting="Polite"
+                                Style="{StaticResource SettingsCaptionStyle}"
+                                Text="파일을 확인하고 있습니다." />
+                            <ProgressBar
+                                x:Name="PetExportProgressBar"
+                                AutomationProperties.Name="펫 공유 파일 준비 진행률"
+                                IsIndeterminate="True"
+                                Maximum="100" />
+                        </StackPanel>
+                    </Border>
+                    <InfoBar
+                        x:Name="PetExportResultInfoBar"
+                        AutomationProperties.Name="펫 내보내기 결과"
+                        CloseButtonClick="PetExportResultInfoBar_CloseButtonClick"
+                        IsClosable="True"
+                        IsOpen="False" />
                     <ListView
                         x:Name="ActivePetsList"
                         Background="Transparent"

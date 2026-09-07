@@ -58,6 +58,7 @@ public partial class App : Application
         PetImporter = new PetPackageImporter(PetLibrary);
         PetExporter = new PetPackageExporter(
             appVersion: CurrentAppSemanticVersion().ToString());
+        PetExportCoordinator = new PetPackageExportCoordinator();
         PetEditor = new UserPetPackageEditor(PetLibrary, new WindowsUserPetAtlasBuilder());
         SettingsStore = new AppSettingsStore(
             AppSettingsPaths.FromAppLocalDataRoot(appLocalDataRoot),
@@ -77,6 +78,8 @@ public partial class App : Application
     public PetPackageImporter PetImporter { get; }
 
     public PetPackageExporter PetExporter { get; }
+
+    public PetPackageExportCoordinator PetExportCoordinator { get; }
 
     public UserPetPackageEditor PetEditor { get; }
 
@@ -414,6 +417,76 @@ public partial class App : Application
         bool includesSpeech,
         bool includesDisplay)
     {
+        (InstalledPetPackage installed, BehaviorProfile? profile, OverlaySettings overlay) =
+            PrepareActivePackageExport(
+                includesRecommendedProfile,
+                includesApplicationRules,
+                includesBehavior,
+                includesMovement,
+                includesPetting,
+                includesSpeech,
+                includesDisplay);
+        return PetExporter.Export(
+            installed,
+            destinationPath,
+            profile,
+            includesApplicationRules,
+            overlay);
+    }
+
+    public Task<PetPackageExportResult> ExportActivePackageAsync(
+        string destinationPath,
+        bool includesRecommendedProfile,
+        bool includesApplicationRules,
+        bool includesBehavior,
+        bool includesMovement,
+        bool includesPetting,
+        bool includesSpeech,
+        bool includesDisplay,
+        IProgress<PetPackageExportProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        (InstalledPetPackage installed, BehaviorProfile? profile, OverlaySettings overlay) =
+            PrepareActivePackageExport(
+                includesRecommendedProfile,
+                includesApplicationRules,
+                includesBehavior,
+                includesMovement,
+                includesPetting,
+                includesSpeech,
+                includesDisplay);
+        return PetExporter.ExportAsync(
+            installed,
+            destinationPath,
+            profile,
+            includesApplicationRules,
+            overlay,
+            progress,
+            cancellationToken);
+    }
+
+    public PetPackageAssetSizeReport AnalyzeActivePackageAssets()
+    {
+        LoadedPetPackage activePackage = ActivePackage
+            ?? throw new PetPackageExportException(
+                PetPackageExportError.InvalidDestination,
+                "내보낼 내 펫을 찾을 수 없습니다.");
+        InstalledPetPackage installed = ActiveInstallationId is Guid installationId
+            ? PetLibrary.GetInstallation(installationId)
+            : new InstalledPetPackage(Guid.Empty, activePackage.PackageRootPath, activePackage);
+        return PetExporter.AnalyzeAssets(installed);
+    }
+
+    private (InstalledPetPackage Installed, BehaviorProfile? Profile, OverlaySettings Overlay)
+        PrepareActivePackageExport(
+            bool includesRecommendedProfile,
+            bool includesApplicationRules,
+            bool includesBehavior,
+            bool includesMovement,
+            bool includesPetting,
+            bool includesSpeech,
+            bool includesDisplay)
+    {
         LoadedPetPackage activePackage = ActivePackage
             ?? throw new PetPackageExportException(
                 PetPackageExportError.InvalidDestination,
@@ -454,14 +527,10 @@ public partial class App : Application
             };
             profile = portable;
         }
-        return PetExporter.Export(
-            installed,
-            destinationPath,
-            profile,
-            includesApplicationRules,
-            includesRecommendedProfile && includesDisplay
-                ? CurrentSettings.Overlay
-                : OverlaySettings.Default);
+        OverlaySettings overlay = includesRecommendedProfile && includesDisplay
+            ? CurrentSettings.Overlay
+            : OverlaySettings.Default;
+        return (installed, profile, overlay);
     }
 
     public InstalledPetPackage ActivateInstallation(Guid installationId)

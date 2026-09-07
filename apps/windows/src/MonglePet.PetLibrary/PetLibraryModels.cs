@@ -110,6 +110,34 @@ public enum PetPackageExportError
     FileOperationFailed,
 }
 
+public enum PetPackageExportStage
+{
+    Preparing,
+    OptimizingImages,
+    CreatingArchive,
+    ValidatingArchive,
+    Saving,
+    Completed,
+}
+
+public sealed record PetPackageExportProgress(
+    PetPackageExportStage Stage,
+    double Fraction,
+    int CurrentImage,
+    int TotalImages);
+
+public sealed record PetPackageExportResult(
+    string DestinationPath,
+    long ArchiveBytes);
+
+public sealed record PetPackageAssetSizeDetail(
+    string Label,
+    long Bytes);
+
+public sealed record PetPackageAssetSizeReport(
+    long TotalImageBytes,
+    IReadOnlyList<PetPackageAssetSizeDetail> Details);
+
 public sealed class PetPackageExportException(
     PetPackageExportError error,
     string detail,

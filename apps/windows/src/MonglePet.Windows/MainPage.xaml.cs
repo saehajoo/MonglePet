@@ -41,6 +41,7 @@ public sealed partial class MainPage : Page
     private readonly RemotePetImportService _remotePetImportService = new(
         CurrentAppSemanticVersion());
     private readonly CancellationTokenSource _remotePetImportCancellation = new();
+    private CancellationTokenSource? _petExportProgressDelayCancellation;
     private RemotePetImportInteractionState _remotePetImportState =
         RemotePetImportInteractionState.Initial;
     private bool _isLoaded;
@@ -113,6 +114,7 @@ public sealed partial class MainPage : Page
                 app.InitializationCompleted += App_InitializationCompleted;
                 app.SettingsStateChanged += App_SettingsStateChanged;
                 app.SelectedPetInstanceChanged += App_SelectedPetInstanceChanged;
+                app.PetExportCoordinator.StateChanged += PetExportCoordinator_StateChanged;
             }
             RefreshOverlayState();
             RefreshActivePetsState();
@@ -120,6 +122,7 @@ public sealed partial class MainPage : Page
             RefreshBehaviorState();
             _ = RefreshLoginLaunchAsync();
             DispatcherQueue.TryEnqueue(RefreshOverlayState);
+            RenderPetExportState();
         };
         Unloaded += (_, _) =>
         {
@@ -149,7 +152,11 @@ public sealed partial class MainPage : Page
             app.InitializationCompleted -= App_InitializationCompleted;
             app.SettingsStateChanged -= App_SettingsStateChanged;
             app.SelectedPetInstanceChanged -= App_SelectedPetInstanceChanged;
+            app.PetExportCoordinator.StateChanged -= PetExportCoordinator_StateChanged;
         }
+        _petExportProgressDelayCancellation?.Cancel();
+        _petExportProgressDelayCancellation?.Dispose();
+        _petExportProgressDelayCancellation = null;
     }
 
     internal void OpenRemotePetImport(string? canonicalUrl, string? errorMessage)
@@ -977,7 +984,23 @@ public sealed partial class MainPage : Page
             return;
         }
 
-        ExportReviewOptions? options = await ShowExportReview(app.ActiveBehaviorProfile);
+        PetPackageAssetSizeReport assetSizes;
+        try
+        {
+            assetSizes = await Task.Run(app.AnalyzeActivePackageAssets);
+        }
+        catch (Exception exception)
+        {
+            PetExportResultInfoBar.Severity = InfoBarSeverity.Error;
+            PetExportResultInfoBar.Title = "내보내기 준비 실패";
+            PetExportResultInfoBar.Message = exception.Message;
+            PetExportResultInfoBar.IsOpen = true;
+            return;
+        }
+
+        ExportReviewOptions? options = await ShowExportReview(
+            app.ActiveBehaviorProfile,
+            assetSizes);
         if (options is null)
         {
             return;
@@ -999,27 +1022,31 @@ public sealed partial class MainPage : Page
 
         try
         {
-            app.ExportActivePackage(
-                file.Path,
-                options.Value.IncludesRecommendedProfile,
-                options.Value.IncludesApplicationRules,
-                options.Value.IncludesBehavior,
-                options.Value.IncludesMovement,
-                options.Value.IncludesPetting,
-                options.Value.IncludesSpeech,
-                options.Value.IncludesDisplay);
-            ShowLibraryMessage(
-                InfoBarSeverity.Success,
-                "내보내기 완료",
-                $"'{file.Name}' 파일을 만들었습니다.");
+            await app.PetExportCoordinator.RunAsync(
+                (progress, cancellationToken) => app.ExportActivePackageAsync(
+                    file.Path,
+                    options.Value.IncludesRecommendedProfile,
+                    options.Value.IncludesApplicationRules,
+                    options.Value.IncludesBehavior,
+                    options.Value.IncludesMovement,
+                    options.Value.IncludesPetting,
+                    options.Value.IncludesSpeech,
+                    options.Value.IncludesDisplay,
+                    progress,
+                    cancellationToken));
         }
-        catch (Exception exception)
+        catch (OperationCanceledException)
         {
-            ShowLibraryMessage(InfoBarSeverity.Error, "내보내기 실패", exception.Message);
+        }
+        catch (Exception)
+        {
+            // The app-owned coordinator keeps the failure in the My Pets context.
         }
     }
 
-    private async Task<ExportReviewOptions?> ShowExportReview(BehaviorProfile profile)
+    private async Task<ExportReviewOptions?> ShowExportReview(
+        BehaviorProfile profile,
+        PetPackageAssetSizeReport assetSizes)
     {
         bool hasApplicationRules = profile.AutomaticRules.Any(
             rule => rule.Condition is RuleCondition.Application);
@@ -1089,6 +1116,55 @@ public sealed partial class MainPage : Page
             Text = "평상시 행동, 조건 규칙 순서, 각 이동 방식, 쓰다듬기, 말풍선과 휴대 가능한 표시 설정을 함께 저장합니다. 화면 위치·모니터·활성 인스턴스 같은 기기 전용 값은 제외됩니다.",
             TextWrapping = TextWrapping.Wrap,
         });
+        content.Children.Add(new TextBlock
+        {
+            Text = "공유 파일 용량",
+            Style = (Style)Application.Current.Resources["BodyStrongTextBlockStyle"],
+            Margin = new Thickness(0, 4, 0, 0),
+        });
+        content.Children.Add(new TextBlock
+        {
+            Text = $"현재 이미지  {FormatIecBytes(assetSizes.TotalImageBytes)}",
+            TextWrapping = TextWrapping.Wrap,
+        });
+        content.Children.Add(new TextBlock
+        {
+            Text = "내보낸 파일 크기는 임시 사본의 무손실 최적화와 압축 후 달라질 수 있습니다. 설치된 펫 이미지는 변경하지 않습니다.",
+            TextWrapping = TextWrapping.Wrap,
+            Style = (Style)Application.Current.Resources["SettingsCaptionStyle"],
+        });
+        if (assetSizes.TotalImageBytes > PetPackageArchiveLimits.Standard.MaximumArchiveBytes)
+        {
+            content.Children.Add(new InfoBar
+            {
+                IsClosable = false,
+                IsOpen = true,
+                Severity = InfoBarSeverity.Informational,
+                Message = "저장할 때 설치된 펫은 그대로 두고 내보내기 임시 사본만 무손실 최적화합니다.",
+            });
+        }
+        var sizeDetails = new StackPanel { Spacing = 6 };
+        foreach (PetPackageAssetSizeDetail detail in assetSizes.Details)
+        {
+            var row = new Grid { ColumnSpacing = 12 };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            var label = new TextBlock { Text = detail.Label, TextWrapping = TextWrapping.Wrap };
+            var size = new TextBlock
+            {
+                Text = FormatIecBytes(detail.Bytes),
+                VerticalAlignment = VerticalAlignment.Top,
+            };
+            Grid.SetColumn(size, 1);
+            row.Children.Add(label);
+            row.Children.Add(size);
+            sizeDetails.Children.Add(row);
+        }
+        content.Children.Add(new Expander
+        {
+            Header = "애니메이션별 용량 자세히 보기",
+            Content = sizeDetails,
+        });
         content.Children.Add(includeApplicationRules);
         content.Children.Add(new TextBlock
         {
@@ -1120,6 +1196,126 @@ public sealed partial class MainPage : Page
             includeProfile.IsChecked == true && includePetting.IsChecked == true,
             includeProfile.IsChecked == true && includeSpeech.IsChecked == true,
             includeProfile.IsChecked == true && includeDisplay.IsChecked == true);
+    }
+
+    private void PetExportCoordinator_StateChanged(object? sender, EventArgs e)
+    {
+        if (DispatcherQueue.HasThreadAccess)
+        {
+            RenderPetExportState();
+        }
+        else
+        {
+            DispatcherQueue.TryEnqueue(RenderPetExportState);
+        }
+    }
+
+    private void RenderPetExportState()
+    {
+        if (Application.Current is not App app) return;
+        PetPackageExportCoordinatorState state = app.PetExportCoordinator.State;
+        bool running = state.Status == PetPackageExportCoordinatorStatus.Running;
+        ExportPackageButton.IsEnabled = !running && app.ActivePackage is not null;
+        ActivePetsList.IsEnabled = !running;
+
+        if (running)
+        {
+            PetExportResultInfoBar.IsOpen = false;
+            UpdatePetExportProgress(state.Progress);
+            if (_petExportProgressDelayCancellation is null)
+            {
+                _petExportProgressDelayCancellation = new CancellationTokenSource();
+                _ = ShowPetExportProgressAfterDelayAsync(
+                    _petExportProgressDelayCancellation.Token);
+            }
+            return;
+        }
+
+        _petExportProgressDelayCancellation?.Cancel();
+        _petExportProgressDelayCancellation?.Dispose();
+        _petExportProgressDelayCancellation = null;
+        PetExportProgressPanel.Visibility = Visibility.Collapsed;
+        if (state.Status == PetPackageExportCoordinatorStatus.Succeeded && state.Result is not null)
+        {
+            PetExportResultInfoBar.Severity = InfoBarSeverity.Success;
+            PetExportResultInfoBar.Title = "내보내기 완료";
+            PetExportResultInfoBar.Message =
+                $"'{Path.GetFileName(state.Result.DestinationPath)}' 파일을 만들었습니다. ({FormatIecBytes(state.Result.ArchiveBytes)})";
+            PetExportResultInfoBar.IsOpen = true;
+        }
+        else if (state.Status == PetPackageExportCoordinatorStatus.Failed)
+        {
+            PetExportResultInfoBar.Severity = InfoBarSeverity.Error;
+            PetExportResultInfoBar.Title = "내보내기 실패";
+            PetExportResultInfoBar.Message = state.ErrorMessage ?? "공유 파일을 만들지 못했습니다.";
+            PetExportResultInfoBar.IsOpen = true;
+        }
+    }
+
+    private async Task ShowPetExportProgressAfterDelayAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(400), cancellationToken);
+            if (Application.Current is App app &&
+                app.PetExportCoordinator.State.Status == PetPackageExportCoordinatorStatus.Running)
+            {
+                PetExportProgressPanel.Visibility = Visibility.Visible;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private void UpdatePetExportProgress(PetPackageExportProgress? progress)
+    {
+        if (progress is null)
+        {
+            PetExportProgressBar.IsIndeterminate = true;
+            PetExportProgressText.Text = "파일을 확인하고 있습니다.";
+            return;
+        }
+
+        PetExportProgressBar.IsIndeterminate = false;
+        PetExportProgressBar.Value = Math.Round(progress.Fraction * 100);
+        string stage = progress.Stage switch
+        {
+            PetPackageExportStage.Preparing => "파일 확인 중",
+            PetPackageExportStage.OptimizingImages => "이미지 최적화 중",
+            PetPackageExportStage.CreatingArchive => "패키지 압축 중",
+            PetPackageExportStage.ValidatingArchive => "패키지 검증 중",
+            PetPackageExportStage.Saving => "파일 저장 중",
+            PetPackageExportStage.Completed => "완료",
+            _ => "준비 중",
+        };
+        string fileCount = progress.TotalImages > 0 &&
+            progress.Stage == PetPackageExportStage.OptimizingImages
+            ? $" · {progress.CurrentImage}/{progress.TotalImages}"
+            : string.Empty;
+        PetExportProgressText.Text =
+            $"{stage}{fileCount} · {(int)Math.Round(progress.Fraction * 100)}%";
+    }
+
+    private void PetExportResultInfoBar_CloseButtonClick(InfoBar sender, object args)
+    {
+        if (Application.Current is App app)
+        {
+            app.PetExportCoordinator.DismissResult();
+        }
+    }
+
+    private static string FormatIecBytes(long bytes)
+    {
+        if (bytes >= 1_048_576)
+        {
+            return $"{bytes / 1_048_576d:0.##} MiB";
+        }
+        if (bytes >= 1_024)
+        {
+            return $"{bytes / 1_024d:0.##} KiB";
+        }
+        return $"{bytes} bytes";
     }
 
     private static string RecommendedProfileSummary(BehaviorProfile profile)

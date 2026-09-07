@@ -89,7 +89,7 @@ Start-Process explorer.exe -ArgumentList 'shell:AppsFolder\4B7E245F-A59A-4E0F-84
 로컬 `.monglepet` 선택과 현재 펫 내보내기를 독립된 세로 섹션으로 제공한다.
 Debug의 웹 버튼은 개발 목록, Release는 운영 목록을 연다. 주소 가져오기는
 `dev.mapleroom.kr`과 `mapleroom.kr`의 정확한 상세 URL만 허용하고 API envelope,
-앱 호환 버전, 상세·다운로드 metadata, same-origin HTTPS redirect, 20MiB 상한과
+앱 호환 버전, 상세·다운로드 metadata, same-origin HTTPS redirect, 30MiB 상한과
 실제 크기·SHA-256을 검증한다. 검증된 임시 파일은 기존 가져오기 검토·중복 흐름이
 끝날 때까지만 유지하며 다운로드·검토·취소만으로 선택 인스턴스를 변경하지 않는다.
 현재 앱보다 높은 최소 버전은 설치를 막지 않고 기능 차이 안내와 공식 다운로드 페이지
@@ -141,6 +141,8 @@ SDK는 루트 `global.json`의 .NET 10.0.302로 고정한다. .NET 10이 제공�
 2026-09-06 Windows `1.8.1.20`은 D-121 가져오기 차단·재검사와 상세 접기, 설정 화면·이동 정보 구조, PNG·스프라이트 공통 crop 캔버스와 비동기 이미지 처리, 앱 내 이용 가이드, `내 펫` primary action·선택 강조 정리를 반영했다. Debug·Release 각각 Activity 27개·Core 69개·Packages 28개·PetLibrary 91개·Settings 95개·Shell 27개로 총 337개 테스트와 경고·오류 없는 전체 빌드를 통과했다. 기존 `1.7.0.19` 위 업데이트에서 사용자 데이터 84개·8,453,674 bytes와 inventory digest `ED26BE94D844DA1FA0A709061366DEE4A186A8CABCCC3274136B8DE949D16061`를 보존하고 설치 DLL·publish DLL 일치와 설치본 실행 응답을 확인했다. 소스 커밋 `9d6d4e60a8877e30d467c756ac7b1caf47b928e3`을 태그 `windows-v1.8.1-preview.1`로 게시했으며 원격 설치기 65,300,153 bytes, SHA-256 `AB2C1FE31835BCD2B928D1D22CD26F08DD1E75D8F269490BBF459B41EE9EE1E2`와 107 bytes 체크섬 파일을 다시 내려받아 일치를 확인했다. 실제 혼합 DPI·키보드·Narrator·대용량 이미지 반복 drag와 macOS 교차 왕복은 후속 QA로 남아 있다.
 
 2026-09-07 Windows `1.8.2.21`은 PNG·스프라이트 결과의 공통 캔버스와 crop 경계, 애니메이션 전체 재생·선택 프레임 미리보기와 기존 atlas frame의 저장 crop 보존을 반영했다. Debug·Release 각각 Activity 27개·Core 69개·Packages 28개·PetLibrary 94개·Settings 95개·Shell 29개로 총 342개 테스트와 경고·오류 없는 전체 빌드를 통과했다. 기존 `1.8.1.20` 위 설치에서 사용자 데이터 89개·11,411,858 bytes와 inventory digest `E46B1CFC202804682BC525C0A2CED47CC7018F64F57E81BD7721F675FBF61FFB`를 보존하고 설치 EXE·DLL 일치와 실행 응답을 확인했다. 소스 커밋 `d19232ce1422c607c84e6960bb72d513992a12c1`을 태그 `windows-v1.8.2-preview.1`로 게시했으며 원격 설치기 65,300,492 bytes, SHA-256 `8FC06EB74EAE1ADE1D8073C4A97D89E04C5C79B23BBB5555E8328CE240020A6E`와 107 bytes 체크섬 파일을 다시 내려받아 일치를 확인했다.
+
+2026-09-07 D-129~D-131 Windows 후속은 설치 원본을 유지한 채 내보내기 staging PNG만 무손실 최적화하고 검증된 작은 결과만 채택한다. 반복 작업은 SHA-256·optimizer 버전 기반 256 MiB cache를 사용하며, 내보내기 검토의 현재 이미지·애니메이션별 용량과 앱 수명 비동기 진행률·완료 파일 크기·문맥 오류를 제공한다. 로컬·웹 가져오기와 내보내기 압축 상한은 30 MiB로 통일했다. Windows `1.9.0.22` 후보는 Debug·Release 각각 Activity 27개·Core 69개·Packages 30개·PetLibrary 107개·Settings 95개·Shell 32개로 총 360개 테스트와 경고·오류 없는 빌드, packaged 출력과 unpackaged publish를 통과했다. 사용자가 실제 새 펫 다운로드·가져오기·내보내기와 20개 PNG cache 생성을 확인했고, 65,313,039 bytes 미서명 설치기의 SHA-256은 `352CDBCB7D33256ADE8F576F169479493EF5AC1CF87F726AAEB5AC0C6F9A832A`다. 설치 데이터 보존과 실행을 확인했으며 macOS 왕복은 후속이다.
 
 Windows 기반부터 로컬 공유까지의 완료 기록은 `../../AGENTS/work_plans/INDEX.md`에서 확인한다. 이번 가져오기 검토·권장 설정·내보내기 구현은 `../../AGENTS/work_plans/tasks/2026-08-09-windows-local-sharing.md`에 정리했다. 다음 구현을 시작하기 전 이 디렉터리의 `AGENTS.md`와 새 작업 계획을 함께 확인한다.
 

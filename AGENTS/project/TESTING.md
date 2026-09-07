@@ -1067,6 +1067,18 @@ UI 테스트는 앱 실행과 접근성 자동화가 가능한 macOS 세션에�
 - annotated tag `macos-v1.9.0-preview.1`과 GitHub Pre-release를 게시한 뒤 ZIP·SHA-256·manifest를 다시 내려받아 로컬 최종본과 바이트 단위 일치, 원격 태그 대상을 확인했다.
 - 사용자가 실제 sandbox 앱에서 20,309,545 bytes `새아3.monglepet` 내보내기 성공을 확인했다. 큰 펫의 진행률 세부 시각 QA와 Windows 구현·30 MiB 교차 왕복은 남겼다.
 
+### Windows D-129~D-131 펫 내보내기 최적화 검증
+
+- non-interlaced 8-bit PNG의 adaptive filter 최적화 전후 전체 pixel sample과 비-IDAT 색상·알파 chunk 동일성, 더 작은 결과만 채택, 손상·미지원·결과 증가 원본 fallback을 확인했다.
+- SHA-256·optimizer 버전 cache miss/hit, 원본 변경·버전 변경 무효화, 손상 cache 재생성, 256 MiB 정리 실패 비차단과 반복 내보내기 진행률 단조 증가를 확인했다.
+- export 전후 설치 preview·atlas의 SHA-256과 수정 시각이 유지되고 실패 시 기존 목적지와 임시 파일이 보존·정리되는지 확인했다.
+- archive와 remote download 상한이 정확히 31,457,280 bytes이며 경계는 archive 크기 검사에 통과하고 1 byte 초과는 크기 오류로 즉시 거부되는지 확인했다.
+- exporter의 준비·이미지 최적화·ZIP·검증·저장 진행률, 파일 수, 성공만 100%, UI 실행 흐름 반환과 앱 수명 coordinator의 성공·실패·중복 실행 상태를 확인했다.
+- Debug·Release 각각 Activity 27개·Core 69개·Packages 30개·PetLibrary 107개·Settings 95개·Shell 32개, 총 360개 xUnit 테스트와 전체 빌드가 경고·오류 없이 통과했다. packaged 출력과 x64 unpackaged self-contained publish를 생성했다.
+- 사용자가 설치된 후보에서 새 펫 다운로드·가져오기와 내보내기 성공을 확인했고, 20개·19,780,492 bytes의 PNG cache 생성을 확인했다. 65,313,039 bytes `MonglePet-Windows-1.9.0.22-x64-Setup.exe`의 SHA-256은 `352CDBCB7D33256ADE8F576F169479493EF5AC1CF87F726AAEB5AC0C6F9A832A`다.
+- 최종 설치기를 동일 사용자 데이터 위에 다시 적용해 126개·48,630,992 bytes와 inventory digest `0F16C93E027D778D7BD89A180ED3273F722D9B27070722FFAB57BE61321AA7BA` 보존, 설치 EXE·DLL과 publish 일치, 실행 응답과 최근 Application 오류 0건을 확인했다.
+- 네이티브 앱 자동 조작 표면을 사용할 수 없어 400ms 지연 진행 UI·탭 이동 중 유지·연속 cache 체감과 Windows→macOS 왕복은 후속 실제 QA로 남겼다.
+
 ## 변경 유형별 최소 검증
 
 ### 후속 단계 필수 검증
@@ -1094,4 +1106,4 @@ UI 테스트는 앱 실행과 접근성 자동화가 가능한 macOS 세션에�
 ---
 
 문서 상태: active
-마지막 갱신: 2026-09-05
+마지막 갱신: 2026-09-07

@@ -9,7 +9,7 @@ public sealed record PetPackageArchiveLimits(
     int MaximumCompressionRatio)
 {
     public static PetPackageArchiveLimits Standard { get; } = new(
-        20L * 1024 * 1024,
+        30L * 1024 * 1024,
         100L * 1024 * 1024,
         2_000,
         100);

@@ -32,7 +32,7 @@
 - 기존 펫의 아틀라스 행·열 재배치
 - 펫 프레임 해상도·색상·투명도·개수 변경
 - WebP 자동 변환
-- Windows 버전 증가, 커밋·푸시와 Release 게시
+- 자동 업데이트와 서버 배포 설정 변경
 
 ## 열린 질문
 
@@ -76,7 +76,16 @@
 ### Windows
 
 - [x] macOS에서 확정된 결과와 네이티브 PNG 최적화 구현 요구를 인계 문서로 작성한다.
-- [ ] Windows 소스 구현·실제 QA는 Windows 환경에서 진행한다.
+- [x] archive extractor·웹 metadata·Content-Length·실제 수신·exporter의 압축 상한을 30 MiB로 통일한다.
+- [x] 원본 불변·RGBA 픽셀 동일성·작아진 결과만 채택하는 Windows PNG optimizer를 구현한다.
+- [x] 원본 SHA-256과 optimizer 버전 기반 256 MiB 삭제 가능 cache를 구현한다.
+- [x] exporter를 비동기 진행 경계로 분리하고 staging·ZIP·재검증·원자적 목적지 교체를 유지한다.
+- [x] 공유 검토에 현재 이미지 합계·애니메이션별 상세를 표시하고 `내 펫`에 단계·파일 수·퍼센트·완료 용량·오류를 연결한다.
+- [x] optimizer·cache·30 MiB 경계·진행률·원본/목적지 보존 회귀 테스트와 Debug·Release 빌드를 완료한다.
+- [x] 실제 설치본에서 새 펫 다운로드·가져오기, 큰 펫 내보내기와 cache 생성을 확인한다.
+- [ ] 연속 내보내기 체감·편집 후 cache 무효화와 Windows/macOS 왕복 QA를 완료한다.
+- [x] 앱 버전을 `1.9.0.22`로 올리고 미서명 x64 설치기·체크섬을 생성한다.
+- [ ] `windows-v1.9.0-preview.1` GitHub Pre-release와 원격 자산을 게시·재검증한다.
 
 ### 플랫폼 동등성
 
@@ -102,6 +111,9 @@
 - 2026-09-07: D-131로 선택 펫 현재 이미지 합계, 저장 위치 선선택, 목적지 직접 내보내기와 준비·이미지 최적화·압축·검증·저장 진행률을 구현했다. 0.4초 미만 작업은 진행 UI를 생략하고, 설정의 다른 항목으로 이동해도 작업과 완료 결과가 유지되도록 coordinator를 상위 수명주기에 뒀다. 실제 앱 sandbox에서는 선택 파일 옆에 앱이 직접 만든 임시 파일을 이동하는 방식이 거부될 수 있어, 최종 저장은 30 MiB 이하 archive의 `mappedIfSafe` 원자적 쓰기를 사용한다. SwiftUI `FileDocument`용 추가 전체 복제와 두 번째 저장은 재도입하지 않았다. `PetPackageExporterTests` 17개가 통과했고 전체 `MonglePetTests`는 570개 중 569개 성공·선택형 WebP fixture 1개 건너뜀·실패 0개였으며 Debug 빌드도 통과했다. 실제 저장 패널·큰 펫 진행 UI 재확인은 남겼다.
 - 2026-09-07: 사용자가 실제 sandbox 앱에서 바탕화면 `새아3.monglepet` 내보내기 성공을 확인했다. 결과는 20,309,545 bytes이며, 저장 패널 권한 안에서 최종 원자적 기록이 동작함을 확인했다. 큰 펫의 단계·퍼센트 표시와 설정 화면 이동 중 작업 유지에 대한 세부 UI QA는 남겼다.
 - 2026-09-07: 소스 커밋 `47d17b34276ee1039a15f1bcc16b8019f268630e`에서 `1.9.0 (19)` Universal Preview ZIP을 생성했다. 11,552,065 bytes ZIP의 SHA-256은 `da224de9563682b79d6565c021f312c4cb468f67d8c330f326df4b62a6bcc064`이며 압축 해제본의 버전·Bundle ID·arm64/x86_64·AppIcon과 격리된 3초 실행을 확인했다. 태그 `macos-v1.9.0-preview.1`의 GitHub Pre-release 세 자산을 다시 내려받아 로컬과 바이트 단위 일치 및 태그 대상을 검증했다.
+- 2026-09-07: Windows는 pure C# adaptive-filter PNG optimizer, 전체 scanline·색상/알파 chunk 동일성 검증, SHA-256·구현 버전 기반 256 MiB cache와 손상 cache 복구를 구현했다. archive·remote metadata·Content-Length·실제 수신·exporter 상한을 30 MiB로 통일하고 앱 수명 coordinator의 비동기 진행률, 검토 용량 상세, 완료 archive 크기와 `내 펫` 오류 표시를 연결했다. Debug·Release 각각 Activity 27개·Core 69개·Packages 30개·PetLibrary 107개·Settings 95개·Shell 32개, 총 360개 테스트와 경고·오류 없는 빌드, packaged 출력·unpackaged publish 생성을 확인했다. 네이티브 앱 자동 조작 표면을 사용할 수 없어 큰 실제 펫의 UI 응답성·연속 cache 체감과 macOS 왕복은 사용자 QA로 남겼다.
+- 2026-09-07: 사용자가 최신 Windows 설치본에서 새 펫 다운로드·가져오기와 내보내기 성공을 확인했다. `%LOCALAPPDATA%\MonglePet\Cache\PngExport`에 20개·19,780,492 bytes의 검증된 최적화 PNG가 생성됐다. 사용자 릴리스 승인에 따라 `1.9.0.22`, 태그 `windows-v1.9.0-preview.1`로 게시 준비를 시작했다.
+- 2026-09-07: 최종 버전 계약 테스트를 포함해 Debug·Release 각각 총 360개 테스트와 경고·오류 없는 전체 빌드, x64 unpackaged publish를 재검증했다. 65,313,039 bytes 미서명 설치기의 SHA-256은 `352CDBCB7D33256ADE8F576F169479493EF5AC1CF87F726AAEB5AC0C6F9A832A`다. 동일 설치기를 다시 적용해 사용자 데이터 126개·48,630,992 bytes와 inventory digest `0F16C93E027D778D7BD89A180ED3273F722D9B27070722FFAB57BE61321AA7BA`가 보존되고 설치 EXE·DLL이 publish와 일치하며 실행 응답·최근 Application 오류 0건임을 확인했다.
 
 ## 완료 결과
 
@@ -110,7 +122,7 @@
 - 픽셀 동일성과 더 작은 결과를 모두 만족할 때만 채택하며 실패 시 원본으로 복구한다. 설치 펫과 편집 저장은 재인코딩하지 않는다.
 - 반복 내보내기는 원본 SHA-256·최적화기 버전 캐시를 사용하고 손상·구버전 캐시는 재사용하지 않는다.
 - 준비·30 MiB·저장 오류는 `내 펫` alert로 표시하고 저장 성공 시 최종 `.monglepet` 용량을 표시한다.
-- Windows 소스 구현·실제 양 플랫폼 QA가 남아 있어 전체 상태는 `in_progress`다.
+- Windows `1.9.0.22` 소스·자동 검증·큰 펫 다운로드·가져오기·내보내기와 cache 생성 QA는 완료했지만 연속 cache 체감·편집 후 무효화와 양 플랫폼 왕복 QA가 남아 있어 전체 상태는 `in_progress`다.
 - 내보내기 산출물을 SwiftUI `FileDocument`에 전달해 다시 저장하던 경로를 제거하고, 사용자가 먼저 선택한 목적지에 exporter가 원자적으로 직접 기록하도록 바꿨다. macOS sandbox 호환을 위해 최종 archive는 `mappedIfSafe`로 읽되 30 MiB 상한으로 제한한다.
 - macOS `1.9.0 (19)` 미서명·미공증 Preview를 [`macos-v1.9.0-preview.1`](https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.9.0-preview.1)로 게시했다. macOS 단계는 완료했지만 Windows 구현과 교차 왕복이 남아 작업 전체 상태는 `in_progress`다.
 
