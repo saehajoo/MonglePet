@@ -318,7 +318,21 @@ Windows PNG·스프라이트 가져오기 결과는 `260×130` 고정 영역 안
 
 macOS 공유 검토는 preview와 atlas PNG를 중복 없이 합산하고 애니메이션 이름별 자산 크기를 접힌 상세로 표시한다. 사용자가 저장을 확정하면 설치 폴더가 아닌 export staging의 PNG만 adaptive filter로 다시 구성하고 디코딩 픽셀이 원본과 정확히 같으며 더 작은 결과만 채택한다. 지원하지 않는 PNG·최적화 실패·결과 증가 시 원본 bytes를 사용한다. 원본 SHA-256과 최적화기 버전 기반의 삭제 가능한 256 MiB 캐시로 변경되지 않은 이미지는 재계산하지 않는다.
 
-준비 작업은 설정 UI와 분리하고 진행 상태와 오류는 `내 펫` 문맥에 표시한다. 사용자는 실제 `새아` 내보내기 성공을 확인했으며 바탕화면 패키지는 20,310,564 bytes다. D-130은 macOS 내보내기·로컬 가져오기·웹 다운로드 상한을 30 MiB(31,457,280 bytes)로 통일한다. 20~30 MiB와 정확한 경계 허용·1 byte 초과 거부·다운로드 실제 크기 검증을 포함한 관련 테스트 45개와 Debug 빌드를 통과했다. 원본·frame·schema는 변경하지 않는다. Windows와 운영 서버의 상향 적용, 30 MiB 실제 UI·교차 왕복은 남아 있어 동등 완료가 아니다. 서버 공개 상향은 양 플랫폼 지원 배포와 맞춘다. WebP 자동 출력은 encoder·색상·실기 검증 후속 작업이다. 인계는 `AGENTS/guides/WINDOWS_PET_EXPORT_SIZE_OPTIMIZATION_HANDOFF.md`와 `WEB_COMMUNITY_HANDOFF.md`의 D-130 절을 따른다.
+준비 작업은 설정 UI와 분리하고 진행 상태와 오류는 `내 펫` 문맥에 표시한다. 사용자는 실제 `새아` 내보내기 성공을 확인했으며 바탕화면 패키지는 20,310,564 bytes다. D-130은 macOS 내보내기·로컬 가져오기·웹 다운로드 상한을 30 MiB(31,457,280 bytes)로 통일한다. 20~30 MiB와 정확한 경계 허용·1 byte 초과 거부·다운로드 실제 크기 검증을 포함한 관련 테스트 45개와 Debug 빌드를 통과했다. 원본·frame·schema는 변경하지 않는다. Windows와 운영 서버의 상향 적용, 30 MiB 실제 UI·교차 왕복은 남아 있어 동등 완료가 아니다. 서버 공개 상향은 양 플랫폼 지원 배포와 맞춘다. 인계는 `AGENTS/guides/WINDOWS_PET_EXPORT_SIZE_OPTIMIZATION_HANDOFF.md`와 `WEB_COMMUNITY_HANDOFF.md`의 D-130·D-131 절을 따른다.
+
+### D-131 무손실 WebP 검증 경로
+
+macOS에 libwebp 1.6.0 고정 네이티브 encoder와 앱 내 라이선스 고지를 추가했다. staging의 atlas만 PNG/WebP 후보 비교·전체 straight RGBA·EXIF·ImageIO/sRGB 픽셀 검증 후 선택한다. PNG preview·frame·설정·원본은 유지하고 지원하지 않는 metadata/alpha·크기 증가·변환 실패는 PNG를 사용한다. WebP 128 MiB 캐시는 원본 해시·encoder 버전별로 재검증하며 PNG도 무이득 결과를 캐시한다.
+
+합성 입력의 가져오기→재편집→재내보내기와 경로 충돌·원본 불변을 자동 검증했다. `새아` 임시 복사본의 19개 atlas가 20,310,564 → 15,391,623 bytes(24.22% 감소)로 내보내졌고 모든 렌더 픽셀이 같았다. Debug 전체 577개 중 575개 성공·선택형 2개 건너뜀·실패 0개, 별도 로컬 audit 통과, Debug·arm64 Release 빌드와 라이선스 포함을 확인했다. 공통 fixture는 `shared/Fixtures/WebPExport`다.
+
+PNG 무이득 캐시 보완 후 testability를 켠 arm64 Release 구성의 명시적 WebP audit도 통과했다. 같은 Mac에서 첫 18.57초·반복 3.57초, 출력 15,391,623 bytes를 확인했다. 기존 PNG 캐시와 OS disk cache는 통제하지 않았으며 앱 UI 응답성/첫 재생/메모리 QA를 대신하지 않는다.
+
+사용자 실제 QA에서 Xcode Debug 앱이 내보낸 `새아2` 15,391,623 bytes의 19개 atlas가 모두 WebP임을 확인했고, macOS MonglePet 1.6에서 이미지 손상 없이 동작했다. preview는 계속 PNG이며 원본 `새아`는 20,310,564 bytes로 유지됐다. macOS 구버전 수신 호환은 확인했지만 Windows·웹 검증은 아직 남아 있다.
+
+실제 macOS UI/성능·Windows decoder/편집·웹 validator/미리보기·교차 왕복은 남아 있다. 사용자 직접 QA 기간에는 Xcode Debug가 WebP 후보를 사용하고 Release는 PNG를 유지하며, 플랫폼 동등 완료나 배포 기본 활성화로 표시하지 않는다. 버전·schema·30 MiB 상한은 유지한다.
+
+개발 웹 실제 업로드 `d92dae3c-b702-40b8-8529-b0072d9cfc59`은 서버의 PNG 전용 서비스 프로필 때문에 `monglepet_unsafe_archive`로 거부됐다. 14.7 MiB·제작자 설정 v12·PNG preview는 정상이고 19개 정적 WebP atlas가 미지원 항목으로 분류된 것이 원인이다. 서버는 별도 내부 프로필 버전으로 정적 WebP decoder·크기/픽셀/alpha/단일 프레임 검증, 모션/관리자 미리보기와 PNG 웹 파생물을 구현해야 한다. animated WebP와 위장·손상 이미지는 계속 거부하며 공통 package/profile schema는 변경하지 않는다. 실제 서버 재업로드 전 웹 호환 상태는 미완료다.
 
 ---
 

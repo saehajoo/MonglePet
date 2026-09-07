@@ -38,6 +38,8 @@ nonisolated struct PetPackageExporter {
     private let archiveLimits: PetPackageArchiveLimits
     private let securityScopedAccess: SecurityScopedResourceAccess
     private let imageOptimizer: PNGExportOptimizer
+    private let imagePolicy: PetExportImagePolicy
+    private let webPOptimizer: WebPExportOptimizer
     private let fileManager: FileManager
     private let temporaryDirectoryURL: URL
     private let currentAppVersion: SemanticVersion
@@ -47,6 +49,8 @@ nonisolated struct PetPackageExporter {
         archiveLimits: PetPackageArchiveLimits = .standard,
         securityScopedAccess: SecurityScopedResourceAccess = SecurityScopedResourceAccess(),
         imageOptimizer: PNGExportOptimizer = PNGExportOptimizer(),
+        imagePolicy: PetExportImagePolicy = .current,
+        webPOptimizer: WebPExportOptimizer = WebPExportOptimizer(),
         fileManager: FileManager = .default,
         temporaryDirectoryURL: URL? = nil,
         currentAppVersion: SemanticVersion = MonglePetAppVersion.current.semanticVersion
@@ -59,6 +63,8 @@ nonisolated struct PetPackageExporter {
         )
         self.securityScopedAccess = securityScopedAccess
         self.imageOptimizer = imageOptimizer
+        self.imagePolicy = imagePolicy
+        self.webPOptimizer = webPOptimizer
         self.fileManager = fileManager
         self.temporaryDirectoryURL = temporaryDirectoryURL
             ?? fileManager.temporaryDirectory
@@ -166,6 +172,37 @@ nonisolated struct PetPackageExporter {
             throw PetPackageExportError.sourcePackageChanged
         }
 
+        try copyFile(
+            at: sourcePackage.previewURL,
+            toRelativePath: manifest.previewPath,
+            in: destinationRootURL
+        )
+        let resourcesByID = Dictionary(uniqueKeysWithValues: sourcePackage.atlases.map { ($0.id, $0) })
+        let occupied = (manifest.atlases.map(\.path) + [manifest.previewPath]).map { $0.lowercased() }
+        var exportDirectory = "assets/_monglepet_webp"
+        var suffix = 0
+        while occupied.contains(where: { $0 == exportDirectory || $0.hasPrefix(exportDirectory + "/") }) {
+            suffix += 1
+            exportDirectory = "assets/_monglepet_webp_\(suffix)"
+        }
+        var outputAtlases: [PetPackageManifest.Atlas] = []
+        for (index, atlas) in manifest.atlases.enumerated() {
+            guard let resource = resourcesByID[atlas.id] else { throw PetPackageExportError.sourcePackageChanged }
+            var outputPath = atlas.path
+            if imagePolicy == .losslessWebP, resource.format == .png {
+                let sourceData = try Data(contentsOf: resource.fileURL)
+                let png = imageOptimizer.optimize(data: sourceData)
+                let selected = webPOptimizer.optimize(originalPNG: sourceData, optimizedPNG: png.data)
+                if selected.format == .webP { outputPath = "\(exportDirectory)/\(index).webp" }
+                let target = destinationRootURL.appendingPathComponent(outputPath)
+                try createDirectory(at: target.deletingLastPathComponent())
+                try write(selected.data, to: target)
+            } else {
+                try copyFile(at: resource.fileURL, toRelativePath: outputPath, in: destinationRootURL)
+            }
+            outputAtlases.append(.init(id: atlas.id, path: outputPath, pixelWidth: atlas.pixelWidth, pixelHeight: atlas.pixelHeight))
+        }
+
         let manifestData: Data
         do {
             let minimumAppVersion = PetPackageCompatibilityRequirements.minimumVersion(
@@ -178,7 +215,7 @@ nonisolated struct PetPackageExporter {
                 .withoutEscapingSlashes
             ]
             manifestData = try encoder.encode(
-                manifest.recordingCompatibility(
+                manifest.replacingAtlases(outputAtlases).recordingCompatibility(
                     createdWith: currentAppVersion,
                     minimumRequired: minimumAppVersion
                 )
@@ -190,26 +227,6 @@ nonisolated struct PetPackageExporter {
             manifestData,
             to: destinationRootURL.appendingPathComponent("pet.json")
         )
-        try copyFile(
-            at: sourcePackage.previewURL,
-            toRelativePath: manifest.previewPath,
-            in: destinationRootURL
-        )
-
-        let resourcesByID = Dictionary(
-            uniqueKeysWithValues: sourcePackage.atlases.map { ($0.id, $0) }
-        )
-        for atlas in manifest.atlases {
-            guard let resource = resourcesByID[atlas.id] else {
-                throw PetPackageExportError.sourcePackageChanged
-            }
-            try copyFile(
-                at: resource.fileURL,
-                toRelativePath: atlas.path,
-                in: destinationRootURL
-            )
-        }
-
         if let recommendedProfile {
             let profileData: Data
             do {

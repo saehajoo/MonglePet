@@ -75,6 +75,15 @@ nonisolated struct PetPackageManifest: Codable, Equatable, Sendable {
         )
     }
 
+    func replacingAtlases(_ newAtlases: [Atlas]) -> PetPackageManifest {
+        PetPackageManifest(
+            formatVersion: formatVersion, id: id, displayName: displayName,
+            version: version, author: author, description: description,
+            previewPath: previewPath, defaultMotion: defaultMotion,
+            atlases: newAtlases, motions: motions, compatibility: compatibility
+        )
+    }
+
     func recordingCompatibility(
         createdWith version: SemanticVersion,
         minimumRequired minimumVersion: SemanticVersion

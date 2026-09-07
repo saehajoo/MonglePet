@@ -76,6 +76,21 @@ final class PNGExportOptimizerTests: XCTestCase {
         XCTAssertNotEqual(changed.data, first.data)
     }
 
+    func testAlreadyOptimizedPNGIsCachedWithoutRepeatingCompression() throws {
+        let sourceURL = temporaryDirectoryURL.appendingPathComponent("source.png")
+        try writePatternedPNG(to: sourceURL, seed: 5)
+        let optimized = try PNGExportOptimizer(cacheDirectoryURL: nil).optimize(fileAt: sourceURL)
+        let optimizer = PNGExportOptimizer(cacheDirectoryURL: temporaryDirectoryURL.appendingPathComponent("cache"))
+        let first = optimizer.optimize(data: optimized.data)
+        let repeated = optimizer.optimize(data: optimized.data)
+        XCTAssertEqual(first.data, optimized.data)
+        XCTAssertFalse(first.usedOptimizedData)
+        XCTAssertFalse(first.cacheHit)
+        XCTAssertTrue(repeated.cacheHit)
+        XCTAssertFalse(repeated.usedOptimizedData)
+        XCTAssertEqual(repeated.data, optimized.data)
+    }
+
     func testUnreadablePNGReturnsOriginalBytesWithoutCaching() throws {
         let sourceURL = temporaryDirectoryURL.appendingPathComponent("broken.png")
         let original = Data("not a png".utf8)
