@@ -22,14 +22,13 @@
 - `내 펫` 내보내기 실패 alert 연결
 - 공통 패키지 명세와 Windows 후속 인계
 - D-130: 압축 패키지 상한 30 MiB(31,457,280 bytes)를 macOS 내보내기·로컬 가져오기·웹 다운로드에 공통 적용하고 서버·Windows 인계를 갱신한다.
-- D-131: 내장 lossless WebP encoder, 작은 후보 선택·픽셀/색상 검증과 Debug opt-in, 공통 합성 fixture를 추가한다.
 
 ## 제외 범위
 
 - 설치된 펫 자산의 재인코딩 또는 자동 수정
 - 기존 펫의 아틀라스 행·열 재배치
 - 펫 프레임 해상도·색상·투명도·개수 변경
-- Windows·웹 검증 전 Release의 WebP 기본 활성화
+- WebP 자동 변환
 - macOS 버전 증가, 커밋·푸시와 Release 게시
 
 ## 열린 질문
@@ -44,7 +43,6 @@
 - PNG를 안전하게 최적화할 수 없거나 결과가 커지면 원본 PNG를 사용한다.
 - package format과 `recommended-profile.json` schema는 변경하지 않는다.
 - 사용자 후속 승인에 따라 압축 상한만 30 MiB로 올린다. 해제 100 MiB·64 MiPixels·100:1·2,000 entries 등은 유지한다. WebP 출력은 별도 encoder 도입·색상·Windows 실기 검증 후 진행한다.
-- WebP 후속 구현은 libwebp 1.6.0을 고정한 macOS encoder, PNG/WebP 후보 비교와 원본 픽셀·색상 보존 검증으로 진행한다. 대표 preview는 PNG다. 사용자 직접 QA 기간에는 Xcode Debug에서 활성화하고 Release 기본은 PNG를 유지한다. 해석을 확실히 보존할 수 없는 PNG는 자동으로 PNG를 사용한다.
 
 ## 작업 순서
 
@@ -55,11 +53,6 @@
 
 ### macOS
 
-- [x] libwebp 고정 의존성과 라이선스 배포를 연결한다.
-- [x] WebP 무손실 encoder·픽셀/색상 검증·캐시·PNG fallback을 구현한다.
-- [x] 내보내기 atlas 경로만 재작성하고 definition·제작자 설정·원본 불변을 검증한다.
-- [x] ImageIO 렌더 픽셀·재편집·재내보내기 자동 왕복과 Debug 전체 단위 테스트를 수행한다.
-- [ ] 실제 UI에서 WebP 펫의 재생·편집과 첫 프레임 지연·메모리·긴 내보내기 중 UI 응답성을 확인한다.
 - [x] PNG 무손실 최적화와 픽셀 검증기를 구현한다.
 - [x] SHA-256·최적화기 버전 캐시를 구현하고 변경된 atlas만 다시 처리한다.
 - [x] 공유 검토에 원본 자산별 용량 분석과 최적화 안내를 연결하고 저장 성공 시 완성 용량을 표시한다.
@@ -70,7 +63,6 @@
 ### Windows
 
 - [x] macOS에서 확정된 결과와 네이티브 PNG 최적화 구현 요구를 인계 문서로 작성한다.
-- [x] D-131의 WebP 수신·편집·재내보내기·성능 확인과 encoder 라이선스, 합성 fixture를 인계한다.
 - [ ] Windows 소스 구현·실제 QA는 Windows 환경에서 진행한다.
 
 ### 플랫폼 동등성
@@ -89,14 +81,6 @@
 
 ## 진행 로그
 
-- 2026-09-07: 열려 있던 Xcode가 외부 scheme 환경 변수 변경을 다시 읽지 않아 실제 내보낸 `새아1`이 원본과 같은 20,310,564 bytes·PNG 19개였음을 확인했다. 사용자 직접 QA가 재현 가능하도록 Debug 이미지 정책을 WebP로 고정하고 단위 테스트를 추가했다. Release는 코드의 PNG 고정 정책을 유지하며 실제 사용자 QA 완료를 의미하지 않는다.
-- 2026-09-07 D-131: libwebp 1.6.0 고정 의존성·라이선스 앱 리소스, Debug opt-in WebP 출력과 색상/EXIF/alpha 보존 검증을 구현했다. 합성 왕복 중 생성 atlas가 assets 밖에 있으면 재편집기가 실패하는 문제를 발견해 충돌 없는 assets 하위 경로로 보정했다. 완전 불투명 WebP에서 alpha flag가 없어지는 경우에는 PNG로 복구한다.
-- 2026-09-07 D-131: `새아` 바탕화면 패키지의 임시 복사본은 20,310,564 → 15,391,623 bytes(19.37 → 14.68 MiB, 24.22% 감소), 19개 atlas가 WebP로 변환됐고 definition·렌더 픽셀·원본 바이트 보존을 통과했다. 바탕화면 원본 SHA-256은 전후 `837e3952db67dd0abb5e5ebdbe99c90eb1764e6c9ca6f93bcd7bb63ec8008ac3`다. 개인 자산은 shared fixture에 포함하지 않는다.
-- 2026-09-07 D-131: Debug 대용량 초기 측정은 첫 152.32초·반복 122.35초였다. PNG가 더 줄지 않을 때 캐시하지 않는 기존 경로가 반복 계산 원인이어서 검증된 무이득 PNG도 캐시하도록 보완하고 회귀 테스트를 추가했다. Debug 수치를 출시 성능으로 해석하지 않는다.
-- 2026-09-07 D-131: 최종 Debug 전체 577개 중 575개 성공·선택형 fixture 2개 건너뜀·실패 0개. 별도로 `새아` 선택형 audit와 WebP 전용 5개 테스트가 모두 통과했다. Debug·arm64 Release 빌드, Release 라이선스 리소스 일치·외부 codec 실행 파일 의존성 없음과 diff 검사를 확인했다. 실제 UI·Windows·웹 QA는 미완료다.
-- 2026-09-07 D-131: PNG 무이득 캐시 보완 후 arm64 Release 최적화 구성(`ENABLE_TESTABILITY=YES`, 테스트가 WebP 정책을 명시 주입)에서 대용량 audit 1개가 통과했다. 첫 18.57초·반복 3.57초, 동일 15,391,623 bytes와 픽셀 보존을 확인했다. WebP 캐시는 이 테스트 전용 빈 디렉터리이며 기존 PNG 캐시는 재사용될 수 있으므로 완전 cold-disk 벤치마크는 아니다. 첫 Release 테스트 시도는 기본 모듈이 testability 없이 빌드되어 실행 전 실패했고 명령 옵션만 보정했다. 처음 Desktop 직접 접근에서 대기한 테스트는 중단 후 승인된 임시 복사본으로 재실행했으며 원본이나 OS 권한은 변경하지 않았다.
-- 2026-09-07 D-131 실제 QA: 사용자가 Xcode Debug 앱에서 `새아2.monglepet`을 직접 내보내고 macOS MonglePet 1.6에서 이미지 손상 없이 동작함을 확인했다. 결과는 15,391,623 bytes이고 manifest의 19개 atlas가 모두 `assets/_monglepet_webp/*.webp`, preview는 PNG다. 원본 `새아.monglepet`은 20,310,564 bytes로 유지된다. 이는 macOS 구버전 수신 호환 확인이며 Windows·웹 QA를 대신하지 않는다.
-- 2026-09-07 D-131 개발 웹 QA: 업로드 `d92dae3c-b702-40b8-8529-b0072d9cfc59`은 `monglepet_unsafe_archive`로 실패했다. 파일 손상·용량·schema 문제가 아니라 서버의 기존 서비스 프로필이 `preview.png`와 `assets/*.png`만 허용하고 decoder·모션 미리보기도 PNG만 전제한 것이 원인이다. 서버는 새 내부 서비스 프로필에서 manifest가 참조하는 assets 하위 정적 PNG/WebP를 magic bytes로 확인하고 실제 크기·총 픽셀·alpha·단일 프레임을 검증해야 한다. animated WebP는 공통 계약대로 계속 거부하고 공개 미리보기는 PNG 파생물로 만든다. 이 서버 내부 프로필 변경은 package formatVersion 1·제작자 설정 v12를 올리지 않는다.
 - 2026-09-07: 사용자가 실제 앱에서 `새아` 내보내기 성공을 확인했다. 바탕화면 결과는 20,310,564 bytes였다. 읽기 전용 추가 실험에서 PNG 필터/압축 강화 18.20 MiB, 무손실 WebP 14.31 MiB를 측정했으나 이는 출시 구현이 아니다. 사용자 승인으로 상한 30 MiB 작업을 추가했다.
 - 2026-09-07: `새아` 설치본을 읽기 전용으로 분석했다. 19개 모션·218프레임, PNG 21.34 MiB이며 고압축 ZIP도 약 21.24 MiB로 20 MiB를 초과했다. 미참조 자산은 없고 8열 atlas의 빈 셀이 전체 픽셀의 19.1%였다.
 - 2026-09-07: 임시 사본 측정에서 PNG 무손실 최적화가 21.34 MiB에서 18.23 MiB로 감소했고 디코딩 RGBA 픽셀이 일치했다. 설치본과 임시 결과는 변경·보존하지 않았다.
@@ -105,7 +89,6 @@
 
 ## 완료 결과
 
-- D-131: `shared/Fixtures/WebPExport`에 개인 정보 없는 PNG 원본·WebP 결과와 기대 좌표/시간/설정을 추가했다. Windows와 서버 프롬프트·인계 문서, 패키지 명세·결정을 갱신했다. Release WebP 기본 활성화·버전 증가·릴리스·이번 변경의 커밋/푸시는 하지 않는다.
 - D-130: macOS archive/export와 remote download의 표준 상한을 31,457,280 bytes로 통일했다. 신규 3개 경계 테스트를 포함한 관련 테스트 45개가 모두 통과했고 Debug 빌드·diff 검사를 통과했다. 기존 전체 테스트 565개 결과는 D-129 시점이며 이번에는 관련 suite만 다시 실행했다. 30 MiB 변경 후 실제 UI QA·운영 서버·Windows 적용은 남아 있다.
 - macOS는 공유 검토에서 원본 PNG 합계·애니메이션별 크기를 보여주고, 사용자가 확정하면 UI 밖에서 staging PNG만 무손실 최적화한다.
 - 픽셀 동일성과 더 작은 결과를 모두 만족할 때만 채택하며 실패 시 원본으로 복구한다. 설치 펫과 편집 저장은 재인코딩하지 않는다.
@@ -119,4 +102,3 @@
 - 기존 8열 atlas를 자동 재배치하는 작업은 manifest frame 좌표를 바꾸므로 별도 단계에서 다룬다.
 - 런타임 atlas 지연 로딩은 첫 재생 끊김 방지와 성능 QA가 필요한 별도 작업이다.
 - 무손실 WebP는 더 큰 절감 가능성이 있지만 Windows 실기 디코딩·교차 왕복을 마치기 전 기본 출력으로 사용하지 않는다.
-- 개발 서버가 아직 WebP를 `monglepet_unsafe_archive`로 거부한다. 서버 정적 WebP validator·미리보기 worker·구체적인 미지원 형식 안내와 회귀 테스트를 배포하고 실제 재업로드하기 전 Release WebP 출력을 활성화하지 않는다.

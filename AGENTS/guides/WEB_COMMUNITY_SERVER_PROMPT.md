@@ -18,12 +18,6 @@ MonglePet 펫 공유 커뮤니티의 서버와 웹 UI를 별도 Git 저장소에
 
 현재 데스크톱 계약은 로컬 설정 schema-v16, `recommended-profile.json` schema-v12다. 서버의 업로드 검사 JSON Schema와 validator가 v1~v12를 허용하고 v12의 자유 이동 `dwellMode: fixed | random | behaviorCompletion`을 검증하도록 갱신하세요. 이 변경은 PetVersion DB 컬럼을 요구하지 않으며 원본 패키지를 immutable object로 보존하는 기존 모델을 유지합니다. 서버가 제작자 설정을 검색용 구조로 별도 추출하고 있다면 그 파생 DTO·색인 schema만 함께 갱신하세요.
 
-## 무손실 WebP 내보내기 검증 후속 (D-131)
-
-macOS는 내보내기 임시 영역에서만 PNG atlas를 무손실 정적 WebP와 비교하는 실험을 구현했습니다. Release 기본 출력은 Windows·웹 QA 전까지 PNG입니다. `WEB_COMMUNITY_HANDOFF.md`의 D-131 절과 `shared/Fixtures/WebPExport/README.md`를 읽고 공통 합성 fixture로 업로드 검증, 프레임 좌표·알파·색상·시간, 미리보기 생성과 원본 다운로드 SHA-256을 확인하세요. 서버가 업로드 원본을 WebP로 다시 변환하거나 덮어쓰면 안 됩니다. schema/DB 변경은 필요하지 않으며 30 MiB 파일 상한과 기존 해제·픽셀·압축률 제한을 유지하세요. 실제 사용 중인 서버 decoder 라이브러리의 정적 WebP 지원과 보안 업데이트 상태도 확인하고, Windows·웹 왕복 성공 전까지 기본 활성화 완료로 보고하지 마세요.
-
-개발 서버 선행 분석에서 실제 14.7 MiB·schema-v12 패키지는 기존 PNG 전용 서비스 프로필이 19개 WebP atlas를 허용되지 않은 archive entry로 판정해 `monglepet_unsafe_archive`가 됐습니다. 새 서버 내부 서비스 프로필을 추가해 manifest 참조 `assets` 하위 정적 WebP를 지원하세요. package formatVersion과 제작자 설정 schema는 올리지 않습니다. 확장자 허용만 추가하지 말고 magic bytes·단일 프레임·alpha·manifest 크기·총 픽셀 검증, 모션/관리자 미리보기와 PNG 웹 파생물까지 함께 구현하세요. animated WebP는 공통 계약상 계속 거부합니다. 미지원 이미지 형식은 일반 보안 실패와 구분 가능한 안전한 오류 코드·사용자 문구를 제공하세요.
-
 ## 제품 범위
 
 - 비회원: 펫 목록, 검색, 상세, 버전 목록, 미리보기와 `.monglepet` 다운로드

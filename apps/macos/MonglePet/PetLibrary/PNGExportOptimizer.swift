@@ -30,10 +30,6 @@ nonisolated struct PNGExportOptimizer {
 
     func optimize(fileAt sourceURL: URL) throws -> PNGExportOptimization {
         let sourceData = try Data(contentsOf: sourceURL, options: .mappedIfSafe)
-        return optimize(data: sourceData)
-    }
-
-    func optimize(data sourceData: Data) -> PNGExportOptimization {
         guard let sourceImage = try? PNGImageData(data: sourceData) else {
             return originalResult(sourceData)
         }
@@ -41,32 +37,33 @@ nonisolated struct PNGExportOptimizer {
         let cacheURL = cachedFileURL(for: sourceData)
         if let cacheURL,
            let cachedData = try? Data(contentsOf: cacheURL, options: .mappedIfSafe),
-           cachedData.count <= sourceData.count,
+           cachedData.count < sourceData.count,
            let cachedImage = try? PNGImageData(data: cachedData),
            cachedImage.hasSamePixels(as: sourceImage) {
             return PNGExportOptimization(
                 data: cachedData,
                 originalByteCount: sourceData.count,
                 outputByteCount: cachedData.count,
-                usedOptimizedData: cachedData.count < sourceData.count,
+                usedOptimizedData: true,
                 cacheHit: true
             )
         }
 
         guard let optimizedData = try? sourceImage.optimizedPNGData(),
+              optimizedData.count < sourceData.count,
               let optimizedImage = try? PNGImageData(data: optimizedData),
               optimizedImage.hasSamePixels(as: sourceImage) else {
             return originalResult(sourceData)
         }
 
-        let selected = optimizedData.count < sourceData.count ? optimizedData : sourceData
-        // A verified no-gain result is reusable too; do not redo filters on every export.
-        if let cacheURL { storeCacheBestEffort(selected, at: cacheURL) }
+        if let cacheURL {
+            storeCacheBestEffort(optimizedData, at: cacheURL)
+        }
         return PNGExportOptimization(
-            data: selected,
+            data: optimizedData,
             originalByteCount: sourceData.count,
-            outputByteCount: selected.count,
-            usedOptimizedData: selected.count < sourceData.count,
+            outputByteCount: optimizedData.count,
+            usedOptimizedData: true,
             cacheHit: false
         )
     }
@@ -151,52 +148,6 @@ nonisolated struct PNGExportOptimizer {
             "MonglePet/SharedPNG/\(optimizerVersion)",
             isDirectory: true
         )
-    }
-}
-
-// Exact, unpremultiplied samples for the deliberately narrow WebP export path.
-// Unhandled color/metadata chunks keep their original PNG representation.
-nonisolated struct WebPSourcePixels: Sendable {
-    let width: Int
-    let height: Int
-    let rgba: [UInt8]
-    let exif: Data?
-
-    init(pngData: Data) throws {
-        let image = try PNGImageData(data: pngData)
-        guard image.bytesPerPixel == 4,
-              image.chunks.first?.data[9] == 6,
-              image.width <= 8_192, image.height <= 8_192 else {
-            throw PNGOptimizationError.unsupportedPNG
-        }
-        let allowed: Set<String> = ["IHDR", "IDAT", "IEND", "sRGB", "gAMA", "cHRM", "eXIf"]
-        guard image.chunks.allSatisfy({ allowed.contains($0.type) }) else {
-            throw PNGOptimizationError.unsupportedPNG
-        }
-        for name in ["IHDR", "IEND", "sRGB", "gAMA", "cHRM", "eXIf"] {
-            guard image.chunks.filter({ $0.type == name }).count <= 1 else {
-                throw PNGOptimizationError.unsupportedPNG
-            }
-        }
-        for chunk in image.chunks {
-            switch chunk.type {
-            case "sRGB":
-                guard chunk.data == Data([0]) else { throw PNGOptimizationError.unsupportedPNG }
-            case "gAMA":
-                guard chunk.data == Data([0, 0, 177, 143]) else { throw PNGOptimizationError.unsupportedPNG }
-            case "cHRM":
-                let values: [UInt32] = [31270, 32900, 64000, 33000, 30000, 60000, 15000, 6000]
-                let standard = Data(values.flatMap { value in
-                    [UInt8(value >> 24), UInt8((value >> 16) & 255), UInt8((value >> 8) & 255), UInt8(value & 255)]
-                })
-                guard chunk.data == standard else { throw PNGOptimizationError.unsupportedPNG }
-            default: break
-            }
-        }
-        width = image.width
-        height = image.height
-        rgba = image.rows
-        exif = image.chunks.first(where: { $0.type == "eXIf" })?.data
     }
 }
 

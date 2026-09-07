@@ -290,17 +290,6 @@ MonglePet 패키지 규격의 현재 초기 상한을 최소 기준으로 적용
 - 총 저장량은 버전별 원본·미리보기·임시 업로드·백업까지 집계한다. 계정별 quota와 이전 버전 보관 정책은 별도 운영 결정이며 기존 공개 버전을 임의 삭제하지 않는다.
 - 이 저장소 문서 갱신은 실제 운영 서버 배포를 의미하지 않는다.
 
-### D-131: 무손실 WebP 내보내기 호환 검증
-
-- `shared/Fixtures/WebPExport/lossless-webp.monglepet`의 정적 WebP atlas와 PNG preview를 업로드·검증·다운로드하고 sizeBytes·SHA-256·제작자 설정을 원본 그대로 유지한다. 서버는 원본을 재압축하거나 확장자만 바꾸지 않는다.
-- 썸네일과 애니메이션 미리보기 생성 worker가 PNG와 WebP의 같은 frame 좌표·알파·색상을 해석하는지 원본 PNG source와 비교한다. 패키지의 frame 간격 450/275ms를 사용하며 WebP 내부 애니메이션을 추정하지 않는다.
-- 잘못된 확장자/실제 형식, animated WebP, alpha 없는 atlas, 손상 이미지, 과대 픽셀·30 MiB+1 등 기존 거부 조건을 유지한다.
-- 일반적 lossless WebP+EXIF는 허용하되 특정 앱 인코더 버전에만 종속시키지 않는다. PNG fallback과 혼합 PNG/WebP atlas도 계속 허용한다.
-- worker·브라우저 미리보기·Windows/macOS 가져오기 결과가 확인된 뒤 앱의 WebP 기본 출력을 활성화한다. 기존 공개 object의 자동 변환·재게시나 package/profile schema 증가는 하지 않는다.
-- 2026-09-07 개발 서버 실제 확인에서 업로드 `d92dae3c-b702-40b8-8529-b0072d9cfc59`은 기존 PNG 전용 서비스 프로필이 `assets/_monglepet_webp/*.webp`를 허용되지 않은 항목으로 판정해 `monglepet_unsafe_archive`로 실패했다. 용량·schema·PNG preview와 WebP magic은 정상이었다. 기존 프로필을 조용히 완화하지 말고 서버 내부 프로필을 새 버전으로 추가하되 package formatVersion 1과 제작자 설정 v12는 그대로 둔다.
-- 새 서버 프로필은 manifest가 실제 참조하는 정규화된 `assets` 하위 PNG·WebP만 허용한다. 확장자뿐 아니라 magic bytes, 정적 단일 프레임, alpha, manifest 픽셀 크기, 총 픽셀과 기존 archive 보안 상한을 검증한다. animated WebP는 지원 대상으로 결정할 항목이 아니라 데스크톱 공통 계약에 따라 계속 거부한다.
-- 일반 `unsafe_archive`로만 표시하지 말고 공개 가능한 범위에서 `지원하지 않는 이미지 형식`을 구분한다. 내부 로그에는 실패 entry·검증 단계·안전한 오류 코드를 남기되 서버 경로나 stack trace는 노출하지 않는다.
-
 검증 실패는 외부 사용자에게 안전한 오류 코드와 필드 수준 설명만 제공한다. 서버 경로, stack trace와 내부 object key를 노출하지 않는다.
 
 ## 11. 콘텐츠 권리와 운영 정책

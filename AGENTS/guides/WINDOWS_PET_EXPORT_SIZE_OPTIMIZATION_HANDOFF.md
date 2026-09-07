@@ -93,7 +93,7 @@ macOS D-129에서 확정한 공유 패키지 용량 안내, 내보내기 전용 
 - settings schema-v16과 제작자 설정 schema-v12
 - expanded 100 MiB·64 MiPixels·2,000 entries·100:1 등 압축 파일 크기 이외의 보안 상한
 - PNG atlas 배치와 frame 좌표
-- 손실 압축 및 D-131 교차 검증 전 WebP 기본 활성화
+- WebP 자동 변환이나 손실 압축
 - Windows 앱 버전·빌드 번호와 Release
 
 ## 완료 보고
@@ -110,20 +110,3 @@ Windows 구현과 실제 QA가 끝나기 전에는 `PLATFORM_PARITY.md`를 동�
 ## 서버 인계
 
 서버 설정·검증·공개 순서는 `WEB_COMMUNITY_HANDOFF.md`의 D-130 절을 따른다. 문서 갱신만으로 실제 운영 서버나 Windows 구현이 반영된 것은 아니다.
-
-## D-131: WebP 후속 호환 검증·내보내기
-
-macOS 구현은 `WebPExportOptimizer.swift`와 exporter의 `imagePolicy`를 따른다. 사용자 직접 QA 기간에는 Xcode Debug가 WebP 후보를 사용하고 Release는 PNG다. 먼저 `shared/Fixtures/WebPExport`의 합성 패키지를 Windows와 웹에서 검증한 뒤 배포 기본 활성화를 결정한다.
-
-1. 정적 lossless WebP atlas를 로드·재생하고 PNG source와 각 frame의 크기·위치·픽셀·알파를 비교한다. WebP 자체가 animated image는 아니다.
-2. 설치 후 애니메이션 편집에서 기존 두 프레임을 읽어 저장하고, 새 PNG atlas가 같은 표시 결과·450/275ms를 보존하는지 확인한다. 내보내기·macOS 재가져오기와 제작자 설정 왕복도 확인한다.
-3. Windows 내보내기도 원본을 건드리지 않고 PNG 후보와 더 작은 lossless WebP 후보를 선택한다. 내장 인코더를 사용하며 사용자에게 추가 도구 설치를 요구하지 않는다. 라이브러리 버전·라이선스를 고정하고 배포물에 고지한다.
-4. `exact`를 사용해 alpha=0 RGB를 보존한다. 크기·RGBA·색상·EXIF 검증 실패, ICC/P3 등 지원하지 않는 metadata, alpha flag가 사라진 완전 불투명 결과는 PNG fallback한다. 손실/near-lossless는 사용하지 않는다.
-5. preview는 PNG, 변환 atlas path만 충돌 없는 assets 하위 경로로 바꾼다. ID·frame 좌표·순서·간격·옵션과 schema는 그대로다. 기존 WebP를 반복 재압축하지 않는다.
-6. 원본 SHA-256+encoder/정책 버전 cache hit도 검증한다. 작은 후보만 채택하며 큰 유효 후보를 캐시할 수 있다. PNG도 이미 최적화되어 줄지 않는 경우 원본을 성공 결과로 캐시해 압축 계산을 반복하지 않는다. WebP cache는 128 MiB 이하(기존 PNG cache 256 MiB와 별도)다.
-7. 손상 cache·인코더 실패·후보 증가·기존 경로 충돌·사용자 취소·저장 실패와 원본 보존 테스트를 추가한다.
-8. 실제 첫 재생 지연·메모리·설정 UI 응답성을 측정한다. 파일 압축률을 런타임 메모리 절감률로 보고하지 않는다.
-
-WebP 새 출력 활성화는 macOS·Windows·웹 QA 결과를 공유한 뒤에만 진행한다. Windows 소스 구현은 Windows 환경에서 수행한다.
-
-macOS 자동 검증 기준: 전체 577개 중 575개 성공·선택형 2개 건너뜀, 별도 실제 패키지 복사본 audit 성공. 19개 atlas 패키지는 19.37 → 14.68 MiB였고 최적화 구성 첫 18.57초·반복 3.57초였다(해당 Mac·기존 PNG 캐시 허용, 일반 성능 보장은 아님). Windows는 파일 용량뿐 아니라 첫 재생·메모리·UI 응답성과 동일 원본 보존을 별도로 확인한다.

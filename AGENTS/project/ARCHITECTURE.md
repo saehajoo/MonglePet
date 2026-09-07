@@ -18,12 +18,6 @@ macOS에서 `PetRuntimeContext`가 `PetWindowController`, playback·behavior·sp
 
 macOS는 여러 `NSPanel` context, Windows는 여러 최상위 Win32 `HWND`·Composition context를 사용한다. 플랫폼 UI 코드는 공유하지 않으며 schema-v11 DTO, 마이그레이션 fixture, 자원 상태와 복구 시나리오만 공통 계약으로 유지한다.
 
-## 공유 이미지 최적화 경계 (D-129~D-131)
-
-공유 내보내기는 설치·편집 원본과 분리한 staging에서 PNG 무손실 최적화를 수행한다. macOS의 실험적 WebP 경로는 SPM `SDWebImage/libwebp-Xcode` 1.6.0을 정확한 revision으로 고정해 네이티브 C encoder를 앱에 링크한다. 외부 실행 파일이나 Homebrew 설치를 요구하지 않는다. 라이선스는 루트 `THIRD_PARTY_NOTICES.md`와 앱 리소스 `ThirdPartyNotices.txt`에 포함한다.
-
-WebP 후보는 원본 straight RGBA(투명 픽셀 RGB 포함), 허용 metadata와 macOS ImageIO 렌더링의 동일성을 검증한 뒤 더 작은 경우에만 채택한다. atlas 경로 외의 프레임 정의·설정은 보존하고 preview는 PNG로 유지한다. 캐시는 원본 SHA-256·encoder 버전별 삭제 가능한 파생물이며 상한은 PNG 256 MiB, WebP 128 MiB다. 재편집은 기존 PNG 편집기를 사용하며 런타임 디코더·행동 스케줄러는 변경하지 않는다. 사용자 직접 QA 기간에는 Debug가 WebP 후보를 만들고 Windows·웹 QA 전까지 Release는 PNG를 유지한다.
-
 ## 저장소 구조
 
 ```text
