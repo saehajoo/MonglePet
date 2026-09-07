@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -10,6 +11,8 @@ struct SettingsView: View {
     @ObservedObject var remotePetImportRequestCenter: RemotePetImportRequestCenter
     let remotePetImportService: RemotePetImportService
     @State private var destination = SettingsDestination.myPets
+    @StateObject private var petPackageExportCoordinator =
+        PetPackageExportCoordinator()
 
     var body: some View {
         NavigationSplitView {
@@ -104,6 +107,25 @@ struct SettingsView: View {
                 .accessibilityIdentifier("monglepet.settings.openGuide")
             }
         }
+        .alert(
+            "펫 내보내기 완료",
+            isPresented: exportSuccessAlertBinding
+        ) {
+            Button("확인", role: .cancel) {}
+        } message: {
+            Text(exportSuccessMessage)
+        }
+        .alert(
+            "펫을 내보내지 못했습니다",
+            isPresented: exportErrorAlertBinding
+        ) {
+            Button("확인", role: .cancel) {}
+        } message: {
+            Text(
+                petPackageExportCoordinator.errorMessage
+                    ?? "펫 공유 파일을 준비하지 못했습니다."
+            )
+        }
         .onAppear(perform: synchronizeRemoteImportDestination)
         .onChange(of: remotePetImportRequestCenter.request?.id) {
             _, requestID in
@@ -126,6 +148,34 @@ struct SettingsView: View {
         }
     }
 
+    private var exportSuccessMessage: String {
+        let fileName = petPackageExportCoordinator.exportedFileName
+            ?? "펫 패키지"
+        guard let byteCount = petPackageExportCoordinator.exportedByteCount else {
+            return "\(fileName) 파일을 저장했습니다."
+        }
+        let mebibytes = Double(byteCount) / Double(1_024 * 1_024)
+        return String(
+            format: "%@ 파일을 저장했습니다. 최종 용량 %.2f MiB",
+            fileName,
+            mebibytes
+        )
+    }
+
+    private var exportSuccessAlertBinding: Binding<Bool> {
+        Binding(
+            get: { petPackageExportCoordinator.exportedFileName != nil },
+            set: { if !$0 { petPackageExportCoordinator.clearSuccess() } }
+        )
+    }
+
+    private var exportErrorAlertBinding: Binding<Bool> {
+        Binding(
+            get: { petPackageExportCoordinator.errorMessage != nil },
+            set: { if !$0 { petPackageExportCoordinator.clearError() } }
+        )
+    }
+
     @ViewBuilder
     private var detailView: some View {
         switch destination {
@@ -135,7 +185,8 @@ struct SettingsView: View {
                 petLibrarySession: petLibrarySession,
                 runtimeControlSession: runtimeControlSession,
                 remotePetImportRequestCenter: remotePetImportRequestCenter,
-                remotePetImportService: remotePetImportService
+                remotePetImportService: remotePetImportService,
+                exportCoordinator: petPackageExportCoordinator
             )
         case .general:
             GeneralSettingsView(
@@ -271,25 +322,112 @@ private enum SettingsDestination: Hashable {
     }
 }
 
+@MainActor
+private final class PetPackageExportCoordinator: ObservableObject {
+    @Published private(set) var value: PetPackageExportProgress?
+    @Published private(set) var isPreparing = false
+    @Published private(set) var showsProgress = false
+    @Published private(set) var exportingInstanceID: UUID?
+    @Published private(set) var errorMessage: String?
+    @Published private(set) var exportedFileName: String?
+    @Published private(set) var exportedByteCount: Int?
+    private var preparationTask: Task<Void, Never>?
+    private var progressDelayTask: Task<Void, Never>?
+    private var generation = UUID()
+
+    func start(
+        installedPackage: InstalledPetPackage,
+        review: PetPackageShareReview,
+        options: PetPackageShareOptions,
+        instanceID: UUID,
+        destinationURL: URL
+    ) {
+        preparationTask?.cancel()
+        progressDelayTask?.cancel()
+        let generation = UUID()
+        self.generation = generation
+        value = nil
+        isPreparing = true
+        showsProgress = false
+        exportingInstanceID = instanceID
+        errorMessage = nil
+        exportedFileName = nil
+        exportedByteCount = nil
+        progressDelayTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(400))
+            guard let self, self.generation == generation, self.isPreparing else {
+                return
+            }
+            self.showsProgress = true
+        }
+        preparationTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            let result = await PetPackageUIPreparer.prepare(
+                installedPackage: installedPackage,
+                review: review,
+                options: options,
+                destinationURL: destinationURL,
+                progress: { [weak self] progress in
+                    self?.report(progress, generation: generation)
+                }
+            )
+            guard self.generation == generation, !Task.isCancelled else {
+                return
+            }
+            self.isPreparing = false
+            self.showsProgress = false
+            self.exportingInstanceID = nil
+            self.preparationTask = nil
+            self.progressDelayTask?.cancel()
+            self.progressDelayTask = nil
+            switch result {
+            case let .success(fileName, byteCount):
+                self.exportedFileName = fileName
+                self.exportedByteCount = byteCount
+            case let .failure(message):
+                self.errorMessage = message
+            }
+        }
+    }
+
+    func fail(_ message: String) {
+        errorMessage = message
+    }
+
+    func clearSuccess() {
+        exportedFileName = nil
+        exportedByteCount = nil
+    }
+
+    func clearError() {
+        errorMessage = nil
+    }
+
+    nonisolated private func report(
+        _ value: PetPackageExportProgress,
+        generation: UUID
+    ) {
+        Task { @MainActor [weak self] in
+            guard let self, self.generation == generation else { return }
+            self.value = value
+        }
+    }
+}
+
 private struct MyPetsSettingsView: View {
     @ObservedObject var settingsSession: AppSettingsSession
     @ObservedObject var petLibrarySession: PetLibrarySession
     @ObservedObject var runtimeControlSession: PetRuntimeControlSession
     @ObservedObject var remotePetImportRequestCenter: RemotePetImportRequestCenter
     let remotePetImportService: RemotePetImportService
+    @ObservedObject var exportCoordinator: PetPackageExportCoordinator
     @State private var isImportingPet = false
     @State private var isCreatingPetCopy = false
     @State private var shareReview: PetPackageShareReview?
     @State private var shareReviewInstalledPackage: InstalledPetPackage?
+    @State private var shareReviewInstanceID: UUID?
     @State private var pendingSharingFollowUp: PetSharingFollowUp?
-    @State private var petPackageExportDocument: MonglePetPackageDocument?
-    @State private var petPackageExportFileName = "MonglePet.monglepet"
-    @State private var isPresentingPetPackageExporter = false
-    @State private var isPreparingPetPackageExport = false
-    @State private var petPackagePreparationTask: Task<Void, Never>?
-    @State private var petPackageExportErrorMessage: String?
-    @State private var exportedPackageFileName: String?
-    @State private var exportedPackageByteCount: Int?
+    @State private var selectedPetImageByteCount: Int64?
     @StateObject private var editorWindowPresenter = EditorWindowPresenter()
 
     var body: some View {
@@ -301,12 +439,14 @@ private struct MyPetsSettingsView: View {
             onImportPet: { isImportingPet = true },
             onCreateCopy: preparePetCopy,
             onExport: preparePetExport,
-            onDelete: deletePet
+            onDelete: deletePet,
+            selectedPetImageByteCount: selectedPetImageByteCount,
+            exportingInstanceID: exportCoordinator.exportingInstanceID,
+            exportProgress: exportCoordinator.showsProgress
+                ? exportCoordinator.value
+                : nil
         )
-        .disabled(
-            editorWindowPresenter.isPresenting
-                || isPreparingPetPackageExport
-        )
+        .disabled(editorWindowPresenter.isPresenting)
         .navigationTitle("내 펫")
         .sheet(isPresented: $isImportingPet) {
             PetImportSheetView(
@@ -334,29 +474,6 @@ private struct MyPetsSettingsView: View {
                 }
             )
         }
-        .fileExporter(
-            isPresented: $isPresentingPetPackageExporter,
-            document: petPackageExportDocument,
-            contentType: MonglePetPackageDocument.contentType,
-            defaultFilename: petPackageExportFileName,
-            onCompletion: handlePetPackageExportResult
-        )
-        .alert(
-            "펫 내보내기 완료",
-            isPresented: exportSuccessAlertBinding
-        ) {
-            Button("확인", role: .cancel) {}
-        } message: {
-            Text(exportSuccessMessage)
-        }
-        .alert(
-            "펫을 내보내지 못했습니다",
-            isPresented: exportErrorAlertBinding
-        ) {
-            Button("확인", role: .cancel) {}
-        } message: {
-            Text(petPackageExportErrorMessage ?? "펫 공유 파일을 준비하지 못했습니다.")
-        }
         .alert(
             "펫 추가 완료",
             isPresented: importNoticeAlertBinding
@@ -366,6 +483,9 @@ private struct MyPetsSettingsView: View {
             Text(petLibrarySession.importNoticeMessage ?? "")
         }
         .onAppear(perform: presentImportIfNeeded)
+        .task(id: settingsSession.settings.selectedPetInstanceID) {
+            await refreshSelectedPetImageByteCount()
+        }
         .onChange(of: remotePetImportRequestCenter.request?.id) {
             _, _ in presentImportIfNeeded()
         }
@@ -373,25 +493,7 @@ private struct MyPetsSettingsView: View {
             _, _ in presentImportIfNeeded()
         }
         .onDisappear {
-            petPackagePreparationTask?.cancel()
-            petPackagePreparationTask = nil
             editorWindowPresenter.close()
-        }
-        .overlay {
-            if isPreparingPetPackageExport {
-                VStack(spacing: 10) {
-                    ProgressView()
-                    Text("공유 이미지를 무손실 최적화하는 중…")
-                        .font(.callout.weight(.medium))
-                    Text("설치된 펫과 편집 중인 이미지는 변경하지 않습니다.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(20)
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
-                .shadow(radius: 8)
-                .accessibilityIdentifier("monglepet.share.preparing")
-            }
         }
         .accessibilityIdentifier("monglepet.settings.myPets")
     }
@@ -429,9 +531,12 @@ private struct MyPetsSettingsView: View {
             overlay: runtimeSettings.overlay
         )
         shareReviewInstalledPackage = shareReview == nil ? nil : installedPackage
+        shareReviewInstanceID = shareReview == nil ? nil : instanceID
         if shareReview == nil {
-            petPackageExportErrorMessage = petLibrarySession.consumeErrorMessage()
-                ?? "펫 공유 내용을 확인하지 못했습니다."
+            exportCoordinator.fail(
+                petLibrarySession.consumeErrorMessage()
+                    ?? "펫 공유 내용을 확인하지 못했습니다."
+            )
         }
     }
 
@@ -470,105 +575,86 @@ private struct MyPetsSettingsView: View {
     private func preparePetPackageExport(
         installedPackage: InstalledPetPackage,
         for review: PetPackageShareReview,
-        options: PetPackageShareOptions
+        options: PetPackageShareOptions,
+        instanceID: UUID,
+        destinationURL: URL
     ) {
-        petPackagePreparationTask?.cancel()
-        isPreparingPetPackageExport = true
-        petPackageExportErrorMessage = nil
-        exportedPackageByteCount = nil
-        petPackagePreparationTask = Task {
-            let result = await PetPackageUIPreparer.prepare(
-                installedPackage: installedPackage,
-                review: review,
-                options: options
-            )
-            guard !Task.isCancelled else {
-                isPreparingPetPackageExport = false
-                return
-            }
-            isPreparingPetPackageExport = false
-            petPackagePreparationTask = nil
-            switch result {
-            case let .success(data, fileName):
-                petPackageExportDocument = MonglePetPackageDocument(data: data)
-                petPackageExportFileName = fileName
-                exportedPackageByteCount = data.count
-                isPresentingPetPackageExporter = true
-            case let .failure(message):
-                petPackageExportDocument = nil
-                exportedPackageByteCount = nil
-                petPackageExportErrorMessage = message
-            }
-        }
+        exportCoordinator.start(
+            installedPackage: installedPackage,
+            review: review,
+            options: options,
+            instanceID: instanceID,
+            destinationURL: destinationURL
+        )
     }
 
     private func performPendingSharingFollowUp() {
         guard let followUp = pendingSharingFollowUp else {
             shareReviewInstalledPackage = nil
+            shareReviewInstanceID = nil
             return
         }
         pendingSharingFollowUp = nil
         switch followUp {
         case let .export(review, options):
-            guard let installedPackage = shareReviewInstalledPackage else {
-                petPackageExportErrorMessage = "내보낼 설치 펫을 찾지 못했습니다."
+            guard let installedPackage = shareReviewInstalledPackage,
+                  let instanceID = shareReviewInstanceID else {
+                exportCoordinator.fail("내보낼 설치 펫을 찾지 못했습니다.")
                 return
             }
             shareReviewInstalledPackage = nil
+            shareReviewInstanceID = nil
+            guard let destinationURL = choosePetPackageExportDestination(
+                suggestedFileName: review.suggestedFileName
+            ) else {
+                return
+            }
             preparePetPackageExport(
                 installedPackage: installedPackage,
                 for: review,
-                options: options
+                options: options,
+                instanceID: instanceID,
+                destinationURL: destinationURL
             )
         }
     }
 
-    private func handlePetPackageExportResult(
-        _ result: Result<URL, Error>
-    ) {
-        switch result {
-        case let .success(destinationURL):
-            petPackageExportErrorMessage = nil
-            exportedPackageFileName = destinationURL.lastPathComponent
-        case let .failure(error):
-            if (error as? CocoaError)?.code != .userCancelled {
-                exportedPackageByteCount = nil
-                petPackageExportErrorMessage = error.localizedDescription
-            }
+    private func choosePetPackageExportDestination(
+        suggestedFileName: String
+    ) -> URL? {
+        let panel = NSSavePanel()
+        panel.title = "MonglePet 패키지 내보내기"
+        panel.prompt = "내보내기"
+        panel.nameFieldStringValue = suggestedFileName
+        panel.canCreateDirectories = true
+        panel.isExtensionHidden = false
+        panel.allowedContentTypes = [MonglePetPackageDocument.contentType]
+        guard panel.runModal() == .OK else {
+            return nil
         }
+        return panel.url
     }
 
-    private var exportSuccessMessage: String {
-        let fileName = exportedPackageFileName ?? "펫 패키지"
-        guard let exportedPackageByteCount else {
-            return "\(fileName) 파일을 저장했습니다."
+    private func refreshSelectedPetImageByteCount() async {
+        selectedPetImageByteCount = nil
+        let selectedInstanceID = settingsSession.settings.selectedPetInstanceID
+        guard let instance = settingsSession.settings.activePetInstances
+                .first(where: { $0.instanceID == selectedInstanceID }),
+              let installedPackage = petLibrarySession.item(for: instance.petKey)?
+                .installedPackage else {
+            return
         }
-        let mebibytes = Double(exportedPackageByteCount)
-            / Double(1_024 * 1_024)
-        return String(
-            format: "%@ 파일을 저장했습니다. 최종 용량 %.2f MiB",
-            fileName,
-            mebibytes
-        )
-    }
-
-    private var exportSuccessAlertBinding: Binding<Bool> {
-        Binding(
-            get: { exportedPackageFileName != nil },
-            set: {
-                if !$0 {
-                    exportedPackageFileName = nil
-                    exportedPackageByteCount = nil
-                }
-            }
-        )
-    }
-
-    private var exportErrorAlertBinding: Binding<Bool> {
-        Binding(
-            get: { petPackageExportErrorMessage != nil },
-            set: { if !$0 { petPackageExportErrorMessage = nil } }
-        )
+        let byteCount = await Task.detached(priority: .utility) {
+            try? PetPackageSharingService()
+                .sizeSummary(installedPackage)
+                .imageByteCount
+        }.value
+        guard !Task.isCancelled,
+              settingsSession.settings.selectedPetInstanceID
+                == selectedInstanceID else {
+            return
+        }
+        selectedPetImageByteCount = byteCount
     }
 
     private var importNoticeAlertBinding: Binding<Bool> {
@@ -1909,7 +1995,7 @@ nonisolated struct MonglePetPackageDocument: FileDocument {
 }
 
 private nonisolated enum PetPackageUIPreparationResult: Sendable {
-    case success(data: Data, fileName: String)
+    case success(fileName: String, byteCount: Int)
     case failure(message: String)
 }
 
@@ -1917,37 +2003,27 @@ private nonisolated enum PetPackageUIPreparer {
     static func prepare(
         installedPackage: InstalledPetPackage,
         review: PetPackageShareReview,
-        options: PetPackageShareOptions
+        options: PetPackageShareOptions,
+        destinationURL: URL,
+        progress: @escaping PetPackageExportProgressHandler
     ) async -> PetPackageUIPreparationResult {
         await Task.detached(priority: .userInitiated) {
-            let fileManager = FileManager.default
-            let workspaceURL = fileManager.temporaryDirectory
-                .appendingPathComponent(
-                    "MonglePetShareUI-\(UUID().uuidString)",
-                    isDirectory: true
-                )
-            let archiveURL = workspaceURL.appendingPathComponent(
-                review.suggestedFileName,
-                isDirectory: false
-            )
             do {
                 try Task.checkCancellation()
-                try fileManager.createDirectory(
-                    at: workspaceURL,
-                    withIntermediateDirectories: false
-                )
-                defer { try? fileManager.removeItem(at: workspaceURL) }
                 try PetPackageSharingService().export(
                     installedPackage,
                     reviewed: review,
                     options: options,
                     isConfirmed: true,
-                    to: archiveURL
+                    to: destinationURL,
+                    progress: progress
                 )
-                try Task.checkCancellation()
+                let byteCount = try destinationURL.resourceValues(
+                    forKeys: [.fileSizeKey]
+                ).fileSize ?? 0
                 return .success(
-                    data: try Data(contentsOf: archiveURL),
-                    fileName: review.suggestedFileName
+                    fileName: destinationURL.lastPathComponent,
+                    byteCount: byteCount
                 )
             } catch is CancellationError {
                 return .failure(message: "펫 공유 파일 준비를 취소했습니다.")

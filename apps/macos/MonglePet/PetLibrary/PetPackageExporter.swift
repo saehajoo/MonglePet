@@ -1,6 +1,29 @@
 import Foundation
 import ZIPFoundation
 
+nonisolated struct PetPackageExportProgress: Equatable, Sendable {
+    nonisolated enum Phase: Equatable, Sendable {
+        case preparing
+        case optimizingImages(processed: Int, total: Int)
+        case packaging
+        case validating
+        case saving
+        case completed
+    }
+
+    let phase: Phase
+    let fractionCompleted: Double
+
+    init(phase: Phase, fractionCompleted: Double) {
+        self.phase = phase
+        self.fractionCompleted = min(max(fractionCompleted, 0), 1)
+    }
+}
+
+typealias PetPackageExportProgressHandler = @Sendable (
+    PetPackageExportProgress
+) -> Void
+
 nonisolated enum PetPackageExportError: Error, Equatable, Sendable {
     case invalidDestination
     case sourcePackageChanged
@@ -69,16 +92,29 @@ nonisolated struct PetPackageExporter {
     func export(
         _ installedPackage: InstalledPetPackage,
         recommendedProfile: RecommendedPetProfile? = nil,
-        to destinationURL: URL
+        to destinationURL: URL,
+        progress: PetPackageExportProgressHandler? = nil
     ) throws -> URL {
         try validateDestination(destinationURL)
 
         return try securityScopedAccess.withAccess(to: destinationURL) {
+            progress?(
+                PetPackageExportProgress(
+                    phase: .preparing,
+                    fractionCompleted: 0
+                )
+            )
             let workspaceURL = temporaryDirectoryURL.appendingPathComponent(
                 "MonglePetExport-\(UUID().uuidString)",
                 isDirectory: true
             )
             try createDirectory(at: workspaceURL)
+            progress?(
+                PetPackageExportProgress(
+                    phase: .preparing,
+                    fractionCompleted: 0.03
+                )
+            )
             defer {
                 try? fileManager.removeItem(at: workspaceURL)
             }
@@ -100,7 +136,8 @@ nonisolated struct PetPackageExporter {
             try createSanitizedPackage(
                 from: sourcePackage,
                 recommendedProfile: recommendedProfile,
-                at: payloadURL
+                at: payloadURL,
+                progress: progress
             )
 
             let sanitizedPackage = try loadPackage(at: payloadURL)
@@ -122,6 +159,12 @@ nonisolated struct PetPackageExporter {
                 "export.monglepet",
                 isDirectory: false
             )
+            progress?(
+                PetPackageExportProgress(
+                    phase: .packaging,
+                    fractionCompleted: 0.72
+                )
+            )
             do {
                 try fileManager.zipItem(
                     at: payloadURL,
@@ -132,16 +175,40 @@ nonisolated struct PetPackageExporter {
             } catch {
                 throw PetPackageExportError.fileOperationFailed
             }
+            progress?(
+                PetPackageExportProgress(
+                    phase: .packaging,
+                    fractionCompleted: 0.85
+                )
+            )
             try validateArchiveSize(at: archiveURL)
+            progress?(
+                PetPackageExportProgress(
+                    phase: .validating,
+                    fractionCompleted: 0.86
+                )
+            )
             try validateArchiveRoundTrip(
                 at: archiveURL,
                 expectedPackage: sanitizedPackage,
                 expectedRecommendedProfile: recommendedProfile,
                 workspaceURL: workspaceURL
             )
+            progress?(
+                PetPackageExportProgress(
+                    phase: .saving,
+                    fractionCompleted: 0.97
+                )
+            )
             try writeArchiveAtomically(
                 at: archiveURL,
                 to: destinationURL
+            )
+            progress?(
+                PetPackageExportProgress(
+                    phase: .completed,
+                    fractionCompleted: 1
+                )
             )
             return destinationURL
         }
@@ -150,7 +217,8 @@ nonisolated struct PetPackageExporter {
     private func createSanitizedPackage(
         from sourcePackage: LoadedPetPackage,
         recommendedProfile: RecommendedPetProfile?,
-        at destinationRootURL: URL
+        at destinationRootURL: URL,
+        progress: PetPackageExportProgressHandler?
     ) throws {
         let sourceManifestURL = sourcePackage.packageRootURL.appendingPathComponent(
             "pet.json",
@@ -190,23 +258,51 @@ nonisolated struct PetPackageExporter {
             manifestData,
             to: destinationRootURL.appendingPathComponent("pet.json")
         )
-        try copyFile(
-            at: sourcePackage.previewURL,
-            toRelativePath: manifest.previewPath,
-            in: destinationRootURL
-        )
 
         let resourcesByID = Dictionary(
             uniqueKeysWithValues: sourcePackage.atlases.map { ($0.id, $0) }
         )
+        var imageFiles: [(sourceURL: URL, relativePath: String)] = [
+            (sourcePackage.previewURL, manifest.previewPath)
+        ]
         for atlas in manifest.atlases {
             guard let resource = resourcesByID[atlas.id] else {
                 throw PetPackageExportError.sourcePackageChanged
             }
+            imageFiles.append((resource.fileURL, atlas.path))
+        }
+
+        let imageWeights = try imageFiles.map {
+            max(try fileByteCount(at: $0.sourceURL), 1)
+        }
+        let totalImageWeight = max(imageWeights.reduce(Int64.zero, +), 1)
+        var processedImageWeight: Int64 = 0
+        progress?(
+            PetPackageExportProgress(
+                phase: .optimizingImages(
+                    processed: 0,
+                    total: imageFiles.count
+                ),
+                fractionCompleted: 0.05
+            )
+        )
+        for (index, imageFile) in imageFiles.enumerated() {
             try copyFile(
-                at: resource.fileURL,
-                toRelativePath: atlas.path,
+                at: imageFile.sourceURL,
+                toRelativePath: imageFile.relativePath,
                 in: destinationRootURL
+            )
+            processedImageWeight += imageWeights[index]
+            let imageFraction = Double(processedImageWeight)
+                / Double(totalImageWeight)
+            progress?(
+                PetPackageExportProgress(
+                    phase: .optimizingImages(
+                        processed: index + 1,
+                        total: imageFiles.count
+                    ),
+                    fractionCompleted: 0.05 + (0.65 * imageFraction)
+                )
             )
         }
 
@@ -358,16 +454,32 @@ nonisolated struct PetPackageExporter {
         }
     }
 
+    private func fileByteCount(at fileURL: URL) throws -> Int64 {
+        do {
+            let fileSize = try fileURL.resourceValues(forKeys: [.fileSizeKey])
+                .fileSize
+            guard let fileSize, fileSize >= 0 else {
+                throw PetPackageExportError.fileOperationFailed
+            }
+            return Int64(fileSize)
+        } catch let error as PetPackageExportError {
+            throw error
+        } catch {
+            throw PetPackageExportError.fileOperationFailed
+        }
+    }
+
     private func writeArchiveAtomically(
         at archiveURL: URL,
         to destinationURL: URL
     ) throws {
         try validateDestination(destinationURL)
         do {
-            try Data(contentsOf: archiveURL).write(
-                to: destinationURL,
-                options: .atomic
+            let archiveData = try Data(
+                contentsOf: archiveURL,
+                options: .mappedIfSafe
             )
+            try archiveData.write(to: destinationURL, options: .atomic)
         } catch {
             throw PetPackageExportError.fileOperationFailed
         }

@@ -166,6 +166,12 @@ nonisolated struct PetPackageSharingService {
         )
     }
 
+    func sizeSummary(
+        _ installedPackage: InstalledPetPackage
+    ) throws -> PetPackageShareSizeSummary {
+        try shareSizeSummary(for: installedPackage.package)
+    }
+
     private func shareSizeSummary(
         for package: LoadedPetPackage
     ) throws -> PetPackageShareSizeSummary {
@@ -226,7 +232,8 @@ nonisolated struct PetPackageSharingService {
         reviewed review: PetPackageShareReview,
         options: PetPackageShareOptions = .standard,
         isConfirmed: Bool,
-        to destinationURL: URL
+        to destinationURL: URL,
+        progress: PetPackageExportProgressHandler? = nil
     ) throws -> URL {
         let currentPackage = try loadCurrentPackage(installedPackage)
         guard review.matches(currentPackage.metadata) else {
@@ -256,7 +263,8 @@ nonisolated struct PetPackageSharingService {
                 package: currentPackage
             ),
             recommendedProfile: recommendedProfile,
-            to: destinationURL
+            to: destinationURL,
+            progress: progress
         )
     }
 

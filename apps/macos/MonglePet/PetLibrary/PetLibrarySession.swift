@@ -176,7 +176,20 @@ final class PetLibrarySession: ObservableObject {
             animationUpdater: editor.updateAnimation,
             animationRemover: editor.removeAnimation,
             packageShareReviewer: sharingService.review,
-            packageShareExporter: sharingService.export
+            packageShareExporter: {
+                installedPackage,
+                review,
+                options,
+                isConfirmed,
+                destinationURL in
+                try sharingService.export(
+                    installedPackage,
+                    reviewed: review,
+                    options: options,
+                    isConfirmed: isConfirmed,
+                    to: destinationURL
+                )
+            }
         )
     }
 

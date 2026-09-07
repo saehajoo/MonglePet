@@ -9,6 +9,9 @@ struct ActivePetsSettingsView: View {
     let onCreateCopy: (UUID) -> Void
     let onExport: (UUID) -> Void
     let onDelete: (UUID) -> Void
+    let selectedPetImageByteCount: Int64?
+    let exportingInstanceID: UUID?
+    let exportProgress: PetPackageExportProgress?
     @State private var removingInstanceID: UUID?
 
     var body: some View {
@@ -39,6 +42,11 @@ struct ActivePetsSettingsView: View {
                 Divider()
             }
 
+            if let exportProgress {
+                exportProgressBanner(exportProgress)
+                Divider()
+            }
+
             ScrollView {
                 LazyVStack(spacing: 12) {
                     ForEach(orderedInstances) { instance in
@@ -54,13 +62,21 @@ struct ActivePetsSettingsView: View {
                             canRemove: orderedInstances.count > 1
                                 && (!item(for: instance).isBuiltIn
                                     || builtInInstanceCount > 1),
-                            canEdit: settingsSession.isWritingEnabled,
+                            canEdit: settingsSession.isWritingEnabled
+                                && exportingInstanceID == nil,
                             canMoveForward: instance.displayOrder > 0,
                             canMoveBackward: instance.displayOrder
                                 < orderedInstances.count - 1,
                             isRestored: runtimeControlSession
                                 .restoredInstanceIDs
                                 .contains(instance.instanceID),
+                            imageByteCount: instance.instanceID
+                                == settingsSession.settings
+                                    .selectedPetInstanceID
+                                ? selectedPetImageByteCount
+                                : nil,
+                            isExporting: exportingInstanceID
+                                == instance.instanceID,
                             onSelect: {
                                 settingsSession.selectPetInstance(
                                     instance.instanceID
@@ -156,13 +172,19 @@ struct ActivePetsSettingsView: View {
                     onCreatePet()
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(!settingsSession.isWritingEnabled)
+                .disabled(
+                    !settingsSession.isWritingEnabled
+                        || exportingInstanceID != nil
+                )
                 .accessibilityIdentifier("monglepet.settings.createUserPet")
 
                 Button("펫 가져오기", systemImage: "square.and.arrow.down") {
                     onImportPet()
                 }
-                .disabled(!settingsSession.isWritingEnabled)
+                .disabled(
+                    !settingsSession.isWritingEnabled
+                        || exportingInstanceID != nil
+                )
                 .accessibilityIdentifier("monglepet.settings.importPet")
 
                 Spacer()
@@ -267,6 +289,48 @@ struct ActivePetsSettingsView: View {
         .accessibilityIdentifier("monglepet.settings.resourceWarning")
     }
 
+    private func exportProgressBanner(
+        _ progress: PetPackageExportProgress
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Label(exportProgressTitle(progress), systemImage: "archivebox")
+                    .font(.headline)
+                Spacer()
+                Text("\(Int((progress.fractionCompleted * 100).rounded()))%")
+                    .font(.callout.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            ProgressView(value: progress.fractionCompleted, total: 1)
+            Text("설치된 펫과 편집 중인 이미지는 변경하지 않습니다.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 12)
+        .accessibilityIdentifier("monglepet.share.preparing")
+    }
+
+    private func exportProgressTitle(
+        _ progress: PetPackageExportProgress
+    ) -> String {
+        switch progress.phase {
+        case .preparing:
+            "공유 파일을 확인하는 중…"
+        case let .optimizingImages(processed, total):
+            "이미지 최적화 중 · \(processed)/\(total)"
+        case .packaging:
+            "공유 패키지를 압축하는 중…"
+        case .validating:
+            "공유 패키지를 검증하는 중…"
+        case .saving:
+            "선택한 위치에 저장하는 중…"
+        case .completed:
+            "내보내기를 마무리하는 중…"
+        }
+    }
+
     private func displayName(for instanceID: UUID) -> String {
         guard let instance = orderedInstances.first(where: {
             $0.instanceID == instanceID
@@ -326,6 +390,8 @@ private struct ActivePetCard: View {
     let canMoveForward: Bool
     let canMoveBackward: Bool
     let isRestored: Bool
+    let imageByteCount: Int64?
+    let isExporting: Bool
     let onSelect: () -> Void
     let onSetAwake: (Bool) -> Void
     let onRename: (String?) -> Void
@@ -347,6 +413,8 @@ private struct ActivePetCard: View {
         canMoveForward: Bool,
         canMoveBackward: Bool,
         isRestored: Bool,
+        imageByteCount: Int64?,
+        isExporting: Bool,
         onSelect: @escaping () -> Void,
         onSetAwake: @escaping (Bool) -> Void,
         onRename: @escaping (String?) -> Void,
@@ -366,6 +434,8 @@ private struct ActivePetCard: View {
         self.canMoveForward = canMoveForward
         self.canMoveBackward = canMoveBackward
         self.isRestored = isRestored
+        self.imageByteCount = imageByteCount
+        self.isExporting = isExporting
         self.onSelect = onSelect
         self.onSetAwake = onSetAwake
         self.onRename = onRename
@@ -431,6 +501,21 @@ private struct ActivePetCard: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
+                if let imageByteCount, !item.isBuiltIn {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Label(
+                            "현재 이미지 \(formattedImageSize(imageByteCount))",
+                            systemImage: "externaldrive"
+                        )
+                        Text("내보낸 파일 크기는 무손실 최적화 후 달라질 수 있습니다.")
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier(
+                        "monglepet.settings.activePetImageSize"
+                    )
+                }
+
                 HStack(spacing: 8) {
                     TextField("구분 이름 (선택)", text: $nickname)
                         .textFieldStyle(.roundedBorder)
@@ -450,7 +535,7 @@ private struct ActivePetCard: View {
                     Button("펫 사본 만들기", systemImage: "doc.on.doc") {
                         onCreateCopy()
                     }
-                    .disabled(!canEdit)
+                    .disabled(!canEdit || isExporting)
                     .accessibilityIdentifier(
                         "monglepet.settings.createPetCopy"
                     )
@@ -462,7 +547,7 @@ private struct ActivePetCard: View {
                         ) {
                             onExport()
                         }
-                        .disabled(!canEdit)
+                        .disabled(!canEdit || isExporting)
                         .accessibilityIdentifier(
                             "monglepet.settings.exportPackage"
                         )
@@ -508,7 +593,7 @@ private struct ActivePetCard: View {
                     Image(systemName: "trash")
                 }
                 .buttonStyle(.borderless)
-                .disabled(!canEdit || !canRemove)
+                .disabled(!canEdit || !canRemove || isExporting)
                 .help(canRemove ? "펫과 모든 설정 완전히 삭제" : "내장 펫 또는 마지막 펫은 삭제할 수 없습니다")
             }
         }
@@ -555,6 +640,9 @@ private struct ActivePetCard: View {
     }
 
     private var statusTitle: String {
+        if isExporting {
+            return "내보내는 중"
+        }
         if !isRestored {
             return "복원 대기"
         }
@@ -563,6 +651,14 @@ private struct ActivePetCard: View {
 
     private func saveNickname() {
         onRename(nickname.isEmpty ? nil : nickname)
+    }
+
+    private func formattedImageSize(_ byteCount: Int64) -> String {
+        let mebibytes = Double(byteCount) / Double(1_024 * 1_024)
+        if mebibytes >= 0.1 {
+            return String(format: "%.2f MiB", mebibytes)
+        }
+        return String(format: "%.1f KiB", Double(byteCount) / 1_024)
     }
 }
 

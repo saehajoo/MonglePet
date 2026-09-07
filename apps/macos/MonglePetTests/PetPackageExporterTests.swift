@@ -91,6 +91,26 @@ final class PetPackageExporterTests: XCTestCase {
         )
     }
 
+    func testSuccessfulExportAtomicallyReplacesExistingDestination() throws {
+        let installedPackage = try makeInstalledPackage()
+        let destinationURL = temporaryDirectoryURL.appendingPathComponent(
+            "Existing Export.monglepet"
+        )
+        try Data("old export".utf8).write(to: destinationURL)
+
+        try makeExporter().export(installedPackage, to: destinationURL)
+
+        XCTAssertNotEqual(
+            try Data(contentsOf: destinationURL),
+            Data("old export".utf8)
+        )
+        let extractedRootURL = try extract(destinationURL)
+        XCTAssertEqual(
+            try PetPackageLoader().loadPackage(at: extractedRootURL).metadata,
+            installedPackage.package.metadata
+        )
+    }
+
     func testExportOptionallyIncludesValidatedRecommendedProfile() throws {
         let installedPackage = try makeInstalledPackage()
         let destinationURL = temporaryDirectoryURL.appendingPathComponent(
@@ -257,6 +277,10 @@ final class PetPackageExporterTests: XCTestCase {
         XCTAssertEqual(
             sizeSummary.archiveLimitByteCount,
             Int64(PetPackageArchiveLimits.standard.maximumArchiveByteCount)
+        )
+        XCTAssertEqual(
+            try service.sizeSummary(installedPackage),
+            sizeSummary
         )
 
         let withoutAppRulesURL = temporaryDirectoryURL.appendingPathComponent(
@@ -613,6 +637,7 @@ final class PetPackageExporterTests: XCTestCase {
 
     func testRejectsArchiveLargerThanConfiguredLimit() throws {
         let installedPackage = try makeInstalledPackage()
+        let progressRecorder = PetPackageExportProgressRecorder()
         let destinationURL = temporaryDirectoryURL.appendingPathComponent(
             "Too Large.monglepet"
         )
@@ -629,11 +654,54 @@ final class PetPackageExporterTests: XCTestCase {
             try PetPackageExporter(
                 archiveLimits: limits,
                 temporaryDirectoryURL: temporaryDirectoryURL
-            ).export(installedPackage, to: destinationURL)
+            ).export(
+                installedPackage,
+                to: destinationURL,
+                progress: progressRecorder.record
+            )
         ) { error in
             XCTAssertEqual(error as? PetPackageExportError, .archiveTooLarge)
         }
         XCTAssertEqual(try Data(contentsOf: destinationURL), existingData)
+        XCTAssertFalse(
+            progressRecorder.values.contains(where: {
+                $0.phase == .completed || $0.fractionCompleted >= 1
+            })
+        )
+    }
+
+    func testExportReportsMonotonicWeightedProgressAndCompletes() throws {
+        let installedPackage = try makeInstalledPackage()
+        let progressRecorder = PetPackageExportProgressRecorder()
+        let destinationURL = temporaryDirectoryURL.appendingPathComponent(
+            "Progress.monglepet"
+        )
+
+        try makeExporter().export(
+            installedPackage,
+            to: destinationURL,
+            progress: progressRecorder.record
+        )
+
+        let values = progressRecorder.values
+        XCTAssertEqual(values.first?.phase, .preparing)
+        XCTAssertEqual(values.last?.phase, .completed)
+        XCTAssertEqual(values.last?.fractionCompleted, 1)
+        XCTAssertTrue(
+            zip(values, values.dropFirst()).allSatisfy {
+                $0.fractionCompleted <= $1.fractionCompleted
+            }
+        )
+        let imageProgress = values.compactMap { value -> (Int, Int)? in
+            guard case let .optimizingImages(processed, total) = value.phase else {
+                return nil
+            }
+            return (processed, total)
+        }
+        XCTAssertEqual(imageProgress.first?.0, 0)
+        XCTAssertEqual(imageProgress.first?.1, 2)
+        XCTAssertEqual(imageProgress.last?.0, 2)
+        XCTAssertEqual(imageProgress.last?.1, 2)
     }
 
     func testSharingPolicyCreatesReviewWithoutLicenseClassification() {
@@ -1082,5 +1150,20 @@ final class PetPackageExporterTests: XCTestCase {
         )
         CGImageDestinationAddImage(destination, image, nil)
         XCTAssertTrue(CGImageDestinationFinalize(destination))
+    }
+}
+
+private final class PetPackageExportProgressRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storedValues: [PetPackageExportProgress] = []
+
+    var values: [PetPackageExportProgress] {
+        lock.withLock { storedValues }
+    }
+
+    func record(_ value: PetPackageExportProgress) {
+        lock.withLock {
+            storedValues.append(value)
+        }
     }
 }
