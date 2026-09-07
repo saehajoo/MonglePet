@@ -3,7 +3,7 @@ import ZIPFoundation
 
 nonisolated struct PetPackageArchiveLimits: Equatable, Sendable {
     static let standard = PetPackageArchiveLimits(
-        maximumArchiveByteCount: 20 * 1_024 * 1_024,
+        maximumArchiveByteCount: 30 * 1_024 * 1_024,
         maximumExpandedByteCount: 100 * 1_024 * 1_024,
         maximumEntryCount: 2_000,
         maximumCompressionRatio: 100
@@ -13,6 +13,10 @@ nonisolated struct PetPackageArchiveLimits: Equatable, Sendable {
     let maximumExpandedByteCount: UInt64
     let maximumEntryCount: Int
     let maximumCompressionRatio: UInt64
+
+    static var standardArchiveSizeLabel: String {
+        "\(standard.maximumArchiveByteCount / (1_024 * 1_024)) MiB"
+    }
 }
 
 nonisolated enum PetPackageArchiveError: Error, Equatable, Sendable {
@@ -36,7 +40,7 @@ extension PetPackageArchiveError: LocalizedError {
         case .invalidSource:
             "선택한 파일이 `.monglepet` ZIP 패키지가 아닙니다."
         case .archiveTooLarge:
-            "압축 패키지가 20 MiB 제한을 초과합니다."
+            "압축 패키지가 \(PetPackageArchiveLimits.standardArchiveSizeLabel) 제한을 초과합니다."
         case .invalidArchive:
             "ZIP 패키지를 읽을 수 없거나 손상되었습니다."
         case let .invalidEntryPath(path):

@@ -418,6 +418,11 @@ final class PetLibrarySession: ObservableObject {
         importNoticeMessage = nil
     }
 
+    func consumeErrorMessage() -> String? {
+        defer { errorMessage = nil }
+        return errorMessage
+    }
+
     @discardableResult
     private func performPackageInstallation(
         from sourceURL: URL,

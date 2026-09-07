@@ -280,12 +280,16 @@ private struct MyPetsSettingsView: View {
     @State private var isImportingPet = false
     @State private var isCreatingPetCopy = false
     @State private var shareReview: PetPackageShareReview?
+    @State private var shareReviewInstalledPackage: InstalledPetPackage?
     @State private var pendingSharingFollowUp: PetSharingFollowUp?
     @State private var petPackageExportDocument: MonglePetPackageDocument?
     @State private var petPackageExportFileName = "MonglePet.monglepet"
     @State private var isPresentingPetPackageExporter = false
+    @State private var isPreparingPetPackageExport = false
+    @State private var petPackagePreparationTask: Task<Void, Never>?
     @State private var petPackageExportErrorMessage: String?
     @State private var exportedPackageFileName: String?
+    @State private var exportedPackageByteCount: Int?
     @StateObject private var editorWindowPresenter = EditorWindowPresenter()
 
     var body: some View {
@@ -299,7 +303,10 @@ private struct MyPetsSettingsView: View {
             onExport: preparePetExport,
             onDelete: deletePet
         )
-        .disabled(editorWindowPresenter.isPresenting)
+        .disabled(
+            editorWindowPresenter.isPresenting
+                || isPreparingPetPackageExport
+        )
         .navigationTitle("내 펫")
         .sheet(isPresented: $isImportingPet) {
             PetImportSheetView(
@@ -340,7 +347,7 @@ private struct MyPetsSettingsView: View {
         ) {
             Button("확인", role: .cancel) {}
         } message: {
-            Text("\(exportedPackageFileName ?? "펫 패키지") 파일을 저장했습니다.")
+            Text(exportSuccessMessage)
         }
         .alert(
             "펫을 내보내지 못했습니다",
@@ -366,7 +373,25 @@ private struct MyPetsSettingsView: View {
             _, _ in presentImportIfNeeded()
         }
         .onDisappear {
+            petPackagePreparationTask?.cancel()
+            petPackagePreparationTask = nil
             editorWindowPresenter.close()
+        }
+        .overlay {
+            if isPreparingPetPackageExport {
+                VStack(spacing: 10) {
+                    ProgressView()
+                    Text("공유 이미지를 무손실 최적화하는 중…")
+                        .font(.callout.weight(.medium))
+                    Text("설치된 펫과 편집 중인 이미지는 변경하지 않습니다.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(20)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+                .shadow(radius: 8)
+                .accessibilityIdentifier("monglepet.share.preparing")
+            }
         }
         .accessibilityIdentifier("monglepet.settings.myPets")
     }
@@ -393,6 +418,7 @@ private struct MyPetsSettingsView: View {
 
     private func preparePetExport(_ instanceID: UUID) {
         guard select(instanceID),
+              let installedPackage = petLibrarySession.selectedItem.installedPackage,
               let runtimeSettings = settingsSession.settings.runtimeSettings(
                   for: instanceID
               ) else {
@@ -402,6 +428,11 @@ private struct MyPetsSettingsView: View {
             behaviorProfile: runtimeSettings.activeBehaviorProfile,
             overlay: runtimeSettings.overlay
         )
+        shareReviewInstalledPackage = shareReview == nil ? nil : installedPackage
+        if shareReview == nil {
+            petPackageExportErrorMessage = petLibrarySession.consumeErrorMessage()
+                ?? "펫 공유 내용을 확인하지 못했습니다."
+        }
     }
 
     private func deletePet(_ instanceID: UUID) {
@@ -437,58 +468,58 @@ private struct MyPetsSettingsView: View {
     }
 
     private func preparePetPackageExport(
+        installedPackage: InstalledPetPackage,
         for review: PetPackageShareReview,
         options: PetPackageShareOptions
     ) {
-        let workspaceURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent(
-                "MonglePetShareUI-\(UUID().uuidString)",
-                isDirectory: true
+        petPackagePreparationTask?.cancel()
+        isPreparingPetPackageExport = true
+        petPackageExportErrorMessage = nil
+        exportedPackageByteCount = nil
+        petPackagePreparationTask = Task {
+            let result = await PetPackageUIPreparer.prepare(
+                installedPackage: installedPackage,
+                review: review,
+                options: options
             )
-        let archiveURL = workspaceURL.appendingPathComponent(
-            review.suggestedFileName,
-            isDirectory: false
-        )
-
-        do {
-            try FileManager.default.createDirectory(
-                at: workspaceURL,
-                withIntermediateDirectories: false
-            )
-        } catch {
-            petPackageExportErrorMessage = "펫 공유 파일을 준비하지 못했습니다."
-            return
-        }
-        defer { try? FileManager.default.removeItem(at: workspaceURL) }
-
-        guard petLibrarySession.exportSelectedPet(
-            reviewed: review,
-            options: options,
-            isConfirmed: true,
-            to: archiveURL
-        ) else {
-            return
-        }
-
-        do {
-            petPackageExportDocument = MonglePetPackageDocument(
-                data: try Data(contentsOf: archiveURL)
-            )
-            petPackageExportFileName = review.suggestedFileName
-            petPackageExportErrorMessage = nil
-            isPresentingPetPackageExporter = true
-        } catch {
-            petPackageExportDocument = nil
-            petPackageExportErrorMessage = "펫 공유 파일을 준비하지 못했습니다."
+            guard !Task.isCancelled else {
+                isPreparingPetPackageExport = false
+                return
+            }
+            isPreparingPetPackageExport = false
+            petPackagePreparationTask = nil
+            switch result {
+            case let .success(data, fileName):
+                petPackageExportDocument = MonglePetPackageDocument(data: data)
+                petPackageExportFileName = fileName
+                exportedPackageByteCount = data.count
+                isPresentingPetPackageExporter = true
+            case let .failure(message):
+                petPackageExportDocument = nil
+                exportedPackageByteCount = nil
+                petPackageExportErrorMessage = message
+            }
         }
     }
 
     private func performPendingSharingFollowUp() {
-        guard let followUp = pendingSharingFollowUp else { return }
+        guard let followUp = pendingSharingFollowUp else {
+            shareReviewInstalledPackage = nil
+            return
+        }
         pendingSharingFollowUp = nil
         switch followUp {
         case let .export(review, options):
-            preparePetPackageExport(for: review, options: options)
+            guard let installedPackage = shareReviewInstalledPackage else {
+                petPackageExportErrorMessage = "내보낼 설치 펫을 찾지 못했습니다."
+                return
+            }
+            shareReviewInstalledPackage = nil
+            preparePetPackageExport(
+                installedPackage: installedPackage,
+                for: review,
+                options: options
+            )
         }
     }
 
@@ -501,15 +532,35 @@ private struct MyPetsSettingsView: View {
             exportedPackageFileName = destinationURL.lastPathComponent
         case let .failure(error):
             if (error as? CocoaError)?.code != .userCancelled {
+                exportedPackageByteCount = nil
                 petPackageExportErrorMessage = error.localizedDescription
             }
         }
     }
 
+    private var exportSuccessMessage: String {
+        let fileName = exportedPackageFileName ?? "펫 패키지"
+        guard let exportedPackageByteCount else {
+            return "\(fileName) 파일을 저장했습니다."
+        }
+        let mebibytes = Double(exportedPackageByteCount)
+            / Double(1_024 * 1_024)
+        return String(
+            format: "%@ 파일을 저장했습니다. 최종 용량 %.2f MiB",
+            fileName,
+            mebibytes
+        )
+    }
+
     private var exportSuccessAlertBinding: Binding<Bool> {
         Binding(
             get: { exportedPackageFileName != nil },
-            set: { if !$0 { exportedPackageFileName = nil } }
+            set: {
+                if !$0 {
+                    exportedPackageFileName = nil
+                    exportedPackageByteCount = nil
+                }
+            }
         )
     }
 
@@ -1857,6 +1908,56 @@ nonisolated struct MonglePetPackageDocument: FileDocument {
     }
 }
 
+private nonisolated enum PetPackageUIPreparationResult: Sendable {
+    case success(data: Data, fileName: String)
+    case failure(message: String)
+}
+
+private nonisolated enum PetPackageUIPreparer {
+    static func prepare(
+        installedPackage: InstalledPetPackage,
+        review: PetPackageShareReview,
+        options: PetPackageShareOptions
+    ) async -> PetPackageUIPreparationResult {
+        await Task.detached(priority: .userInitiated) {
+            let fileManager = FileManager.default
+            let workspaceURL = fileManager.temporaryDirectory
+                .appendingPathComponent(
+                    "MonglePetShareUI-\(UUID().uuidString)",
+                    isDirectory: true
+                )
+            let archiveURL = workspaceURL.appendingPathComponent(
+                review.suggestedFileName,
+                isDirectory: false
+            )
+            do {
+                try Task.checkCancellation()
+                try fileManager.createDirectory(
+                    at: workspaceURL,
+                    withIntermediateDirectories: false
+                )
+                defer { try? fileManager.removeItem(at: workspaceURL) }
+                try PetPackageSharingService().export(
+                    installedPackage,
+                    reviewed: review,
+                    options: options,
+                    isConfirmed: true,
+                    to: archiveURL
+                )
+                try Task.checkCancellation()
+                return .success(
+                    data: try Data(contentsOf: archiveURL),
+                    fileName: review.suggestedFileName
+                )
+            } catch is CancellationError {
+                return .failure(message: "펫 공유 파일 준비를 취소했습니다.")
+            } catch {
+                return .failure(message: error.localizedDescription)
+            }
+        }.value
+    }
+}
+
 private enum PetSharingFollowUp {
     case export(PetPackageShareReview, PetPackageShareOptions)
 }
@@ -2176,6 +2277,8 @@ private struct PetPackageShareReviewView: View {
 
                     sharedContentOptions
 
+                    shareSizeInformation
+
                     Toggle(
                         "이 펫과 이미지 자산을 게시하거나 공유할 권한이 있음을 확인합니다.",
                         isOn: $isSharingRightsConfirmed
@@ -2261,6 +2364,68 @@ private struct PetPackageShareReviewView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, 4)
         }
+    }
+
+    @ViewBuilder
+    private var shareSizeInformation: some View {
+        if let summary = review.sizeSummary {
+            GroupBox("공유 파일 용량") {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Label(
+                            "현재 이미지",
+                            systemImage: "externaldrive"
+                        )
+                        Spacer()
+                        Text(binarySize(summary.imageByteCount))
+                            .monospacedDigit()
+                    }
+
+                    if summary.imageByteCount > summary.archiveLimitByteCount {
+                        Label(
+                            "현재 이미지는 \(binarySize(summary.archiveLimitByteCount))보다 큽니다. 저장할 때 설치된 펫은 그대로 두고 내보내기 임시 사본만 무손실 최적화합니다.",
+                            systemImage: "wand.and.stars"
+                        )
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                    } else {
+                        Text(
+                            "저장할 때 원본을 변경하지 않는 무손실 최적화를 적용하고 최종 패키지 용량을 다시 확인합니다."
+                        )
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    }
+
+                    DisclosureGroup("애니메이션별 용량 자세히 보기") {
+                        VStack(alignment: .leading, spacing: 8) {
+                            ForEach(summary.assets) { asset in
+                                HStack(alignment: .firstTextBaseline) {
+                                    Text(asset.label)
+                                        .lineLimit(2)
+                                    Spacer(minLength: 12)
+                                    Text(binarySize(asset.byteCount))
+                                        .foregroundStyle(.secondary)
+                                        .monospacedDigit()
+                                }
+                                .font(.caption)
+                            }
+                        }
+                        .padding(.top, 8)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 4)
+            }
+            .accessibilityIdentifier("monglepet.share.sizeSummary")
+        }
+    }
+
+    private func binarySize(_ byteCount: Int64) -> String {
+        let mebibytes = Double(byteCount) / Double(1_024 * 1_024)
+        if mebibytes >= 0.1 {
+            return String(format: "%.2f MiB", mebibytes)
+        }
+        return String(format: "%.1f KiB", Double(byteCount) / 1_024)
     }
 
     @ViewBuilder

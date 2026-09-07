@@ -1,5 +1,20 @@
 import Foundation
 
+nonisolated struct PetPackageShareAssetSize: Equatable, Identifiable, Sendable {
+    let id: String
+    let label: String
+    let byteCount: Int64
+}
+
+nonisolated struct PetPackageShareSizeSummary: Equatable, Sendable {
+    let assets: [PetPackageShareAssetSize]
+    let archiveLimitByteCount: Int64
+
+    var imageByteCount: Int64 {
+        assets.reduce(0) { $0 + $1.byteCount }
+    }
+}
+
 nonisolated struct PetPackageShareReview: Equatable, Identifiable, Sendable {
     let packageID: String
     let displayName: String
@@ -11,6 +26,7 @@ nonisolated struct PetPackageShareReview: Equatable, Identifiable, Sendable {
     let applicationRulesIssue: String?
     let applicationBundleIdentifiers: [String]
     let applicationRuleCount: Int
+    let sizeSummary: PetPackageShareSizeSummary?
 
     var id: String {
         packageID
@@ -42,7 +58,8 @@ nonisolated enum PetPackageSharingPolicy {
         recommendedProfileIssue: String? = nil,
         applicationRulesIssue: String? = nil,
         applicationBundleIdentifiers: [String] = [],
-        applicationRuleCount: Int = 0
+        applicationRuleCount: Int = 0,
+        sizeSummary: PetPackageShareSizeSummary? = nil
     ) -> PetPackageShareReview {
         PetPackageShareReview(
             packageID: metadata.id,
@@ -55,7 +72,8 @@ nonisolated enum PetPackageSharingPolicy {
             recommendedProfileIssue: recommendedProfileIssue,
             applicationRulesIssue: applicationRulesIssue,
             applicationBundleIdentifiers: applicationBundleIdentifiers,
-            applicationRuleCount: applicationRuleCount
+            applicationRuleCount: applicationRuleCount,
+            sizeSummary: sizeSummary
         )
     }
 
@@ -125,6 +143,7 @@ nonisolated struct PetPackageSharingService {
             }
             return true
         } ?? []
+        let sizeSummary = try shareSizeSummary(for: currentPackage)
         return PetPackageSharingPolicy.review(
             metadata: currentPackage.metadata,
             recommendedProfile: profiles.recommended,
@@ -142,8 +161,63 @@ nonisolated struct PetPackageSharingService {
                     }
                 )
             ).sorted(),
-            applicationRuleCount: applicationRules.count
+            applicationRuleCount: applicationRules.count,
+            sizeSummary: sizeSummary
         )
+    }
+
+    private func shareSizeSummary(
+        for package: LoadedPetPackage
+    ) throws -> PetPackageShareSizeSummary {
+        var assets: [PetPackageShareAssetSize] = [
+            PetPackageShareAssetSize(
+                id: "preview:\(package.previewURL.lastPathComponent)",
+                label: "대표 이미지",
+                byteCount: try fileByteCount(at: package.previewURL)
+            )
+        ]
+        for atlas in package.atlases {
+            let motionNames = package.definition.motions.compactMap { motion in
+                motion.frames.contains(where: { $0.atlasID == atlas.id })
+                    ? motion.id
+                    : nil
+            }
+            assets.append(
+                PetPackageShareAssetSize(
+                    id: "atlas:\(atlas.id)",
+                    label: motionNames.isEmpty
+                        ? "애니메이션 이미지"
+                        : motionNames.joined(separator: ", "),
+                    byteCount: try fileByteCount(at: atlas.fileURL)
+                )
+            )
+        }
+        return PetPackageShareSizeSummary(
+            assets: assets.sorted { lhs, rhs in
+                if lhs.byteCount != rhs.byteCount {
+                    return lhs.byteCount > rhs.byteCount
+                }
+                return lhs.label.localizedStandardCompare(rhs.label)
+                    == .orderedAscending
+            },
+            archiveLimitByteCount: Int64(
+                PetPackageArchiveLimits.standard.maximumArchiveByteCount
+            )
+        )
+    }
+
+    private func fileByteCount(at url: URL) throws -> Int64 {
+        do {
+            let values = try url.resourceValues(forKeys: [.fileSizeKey])
+            guard let fileSize = values.fileSize, fileSize >= 0 else {
+                throw PetPackageExportError.sourcePackageChanged
+            }
+            return Int64(fileSize)
+        } catch let error as PetPackageExportError {
+            throw error
+        } catch {
+            throw PetPackageExportError.fileOperationFailed
+        }
     }
 
     @discardableResult

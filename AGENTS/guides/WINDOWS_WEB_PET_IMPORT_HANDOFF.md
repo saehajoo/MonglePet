@@ -43,7 +43,7 @@ QA는 Windows 환경에서 진행한다.
   `status`, `code`, `message`, `data`를 판정한다.
 - 상세 응답의 대표 버전 UUID로 매번 새 download metadata를 조회한다.
 - 상세·download metadata의 `size_bytes`, 소문자 64자리 `sha256`이 일치해야
-  하며 최소 앱 버전과 20MiB 상한을 먼저 확인한다.
+  하며 최소 앱 버전과 30MiB 상한을 먼저 확인한다.
 - 다운로드는 같은 API origin의 `/media/monglepet/downloads/{opaque}` 한 경로만
   허용한다. HTTPS downgrade, 다른 origin redirect, cookie와 credential 저장을
   허용하지 않는다.
@@ -155,7 +155,7 @@ Enter는 값이 있을 때 `주소에서 가져오기`와 같은 동작을 수�
 | TLS·인증서 오류 | `MonglePet 서버와 안전하게 연결할 수 없어 가져오기를 중단했습니다.` |
 | 잘못된 API 응답 | `펫 서버의 응답을 확인할 수 없습니다. 잠시 뒤 다시 시도해 주세요.` |
 | metadata 불일치 | `펫 상세 정보와 다운로드 정보가 일치하지 않아 가져오기를 중단했습니다.` |
-| 20MiB 초과 | `패키지가 최대 허용 크기 20 MiB를 초과합니다.` |
+| 30MiB 초과 | `패키지가 최대 허용 크기 30 MiB를 초과합니다.` |
 | 실제 크기·SHA-256 불일치 | 게시된 정보와 일치하지 않음을 구체적으로 표시 |
 | 최소 버전 미달 | 필요한 버전과 현재 버전을 함께 표시 |
 
@@ -213,7 +213,7 @@ Enter는 값이 있을 때 `주소에서 가져오기`와 같은 동작을 수�
 2. 다른 scheme·host·port·userinfo·추가 path·잘못된 slug 거부
 3. 정확한 custom scheme query 한 개만 허용
 4. 성공·실패 envelope와 HTTP 오류 처리
-5. 상세·download metadata 불일치, 최소 버전 미달과 20MiB 초과 거부
+5. 상세·download metadata 불일치, 최소 버전 미달과 30MiB 초과 거부
 6. 다운로드 실제 크기·SHA-256 불일치 거부
 7. 다른 origin·HTTPS downgrade redirect 거부
 8. 정상 다운로드가 기존 `ReviewPackage`로 전달되고 설치 전에는 라이브러리를

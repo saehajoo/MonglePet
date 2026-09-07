@@ -235,7 +235,9 @@ private nonisolated final class RemotePetImportRedirectDelegate:
 }
 
 actor RemotePetImportService {
-    static let maximumPackageBytes: Int64 = 20 * 1_024 * 1_024
+    static let maximumPackageBytes = Int64(
+        PetPackageArchiveLimits.standard.maximumArchiveByteCount
+    )
 
     private let transport: any RemotePetImportTransport
     private let fileManager: FileManager

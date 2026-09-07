@@ -8,6 +8,7 @@
 
 | 상태 | 작업명 | 파일 | 마지막 갱신 |
 | --- | --- | --- | --- |
+| in_progress | 펫 내보내기 무손실 최적화·30 MiB 상한 | `tasks/2026-09-07-pet-export-size-optimization.md` | 2026-09-07 |
 | in_progress | 앱 내 간단 이용 가이드 | `tasks/2026-09-05-in-app-quick-guide.md` | 2026-09-05 |
 | in_progress | 애니메이션 프레임 가져오기 편집기 보정 | `tasks/2026-09-05-animation-import-editor-polish.md` | 2026-09-06 |
 | in_progress | 화면 표시·이동 설정 정보 구조 다듬기 | `tasks/2026-09-05-settings-display-movement-polish.md` | 2026-09-05 |

@@ -239,6 +239,25 @@ final class PetPackageExporterTests: XCTestCase {
         )
         XCTAssertNil(review.recommendedProfileIssue)
         XCTAssertNil(review.applicationRulesIssue)
+        let sizeSummary = try XCTUnwrap(review.sizeSummary)
+        XCTAssertEqual(sizeSummary.assets.count, 2)
+        XCTAssertEqual(
+            Set(sizeSummary.assets.map(\.label)),
+            Set(["대표 이미지", "idle"])
+        )
+        XCTAssertEqual(
+            sizeSummary.imageByteCount,
+            Int64(
+                try Data(contentsOf: installedPackage.package.previewURL).count
+                    + Data(
+                        contentsOf: installedPackage.package.atlases[0].fileURL
+                    ).count
+            )
+        )
+        XCTAssertEqual(
+            sizeSummary.archiveLimitByteCount,
+            Int64(PetPackageArchiveLimits.standard.maximumArchiveByteCount)
+        )
 
         let withoutAppRulesURL = temporaryDirectoryURL.appendingPathComponent(
             "Without App Rules.monglepet"
@@ -341,6 +360,12 @@ final class PetPackageExporterTests: XCTestCase {
 
     func testConfirmedSharedArchiveInstallsIntoFreshLibraryAsReadOnlyPackage() throws {
         let sourceInstallation = try makeInstalledPackage(legacyLicense: "CC-BY-4.0")
+        let sourcePreviewData = try Data(
+            contentsOf: sourceInstallation.package.previewURL
+        )
+        let sourceAtlasData = try Data(
+            contentsOf: sourceInstallation.package.atlases[0].fileURL
+        )
         let sharingService = PetPackageSharingService(exporter: makeExporter())
         let review = try sharingService.review(
             sourceInstallation,
@@ -398,12 +423,26 @@ final class PetPackageExporterTests: XCTestCase {
             ]
         )
         XCTAssertEqual(
-            try Data(contentsOf: importedInstallation.package.previewURL),
-            try Data(contentsOf: sourceInstallation.package.previewURL)
+            try decodedPixels(
+                from: Data(contentsOf: importedInstallation.package.previewURL)
+            ),
+            try decodedPixels(from: sourcePreviewData)
         )
         XCTAssertEqual(
-            try Data(contentsOf: importedInstallation.package.atlases[0].fileURL),
-            try Data(contentsOf: sourceInstallation.package.atlases[0].fileURL)
+            try decodedPixels(
+                from: Data(
+                    contentsOf: importedInstallation.package.atlases[0].fileURL
+                )
+            ),
+            try decodedPixels(from: sourceAtlasData)
+        )
+        XCTAssertEqual(
+            try Data(contentsOf: sourceInstallation.package.previewURL),
+            sourcePreviewData
+        )
+        XCTAssertEqual(
+            try Data(contentsOf: sourceInstallation.package.atlases[0].fileURL),
+            sourceAtlasData
         )
         XCTAssertFalse(
             UserPetPackageEditor(store: freshStore).isEditable(importedInstallation)
@@ -577,6 +616,8 @@ final class PetPackageExporterTests: XCTestCase {
         let destinationURL = temporaryDirectoryURL.appendingPathComponent(
             "Too Large.monglepet"
         )
+        let existingData = Data("previous valid export".utf8)
+        try existingData.write(to: destinationURL)
         let limits = PetPackageArchiveLimits(
             maximumArchiveByteCount: 1,
             maximumExpandedByteCount: 100 * 1_024 * 1_024,
@@ -592,7 +633,7 @@ final class PetPackageExporterTests: XCTestCase {
         ) { error in
             XCTAssertEqual(error as? PetPackageExportError, .archiveTooLarge)
         }
-        XCTAssertFalse(FileManager.default.fileExists(atPath: destinationURL.path))
+        XCTAssertEqual(try Data(contentsOf: destinationURL), existingData)
     }
 
     func testSharingPolicyCreatesReviewWithoutLicenseClassification() {
@@ -981,6 +1022,32 @@ final class PetPackageExporterTests: XCTestCase {
             }
             return String(fileURL.standardizedFileURL.path.dropFirst(rootPath.count))
         }.sorted()
+    }
+
+    private func decodedPixels(from data: Data) throws -> Data {
+        let source = try XCTUnwrap(
+            CGImageSourceCreateWithData(data as CFData, nil)
+        )
+        let image = try XCTUnwrap(CGImageSourceCreateImageAtIndex(source, 0, nil))
+        let bytesPerRow = image.width * 4
+        var pixels = [UInt8](repeating: 0, count: image.height * bytesPerRow)
+        let rendered = pixels.withUnsafeMutableBytes { buffer in
+            CGContext(
+                data: buffer.baseAddress,
+                width: image.width,
+                height: image.height,
+                bitsPerComponent: 8,
+                bytesPerRow: bytesPerRow,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            )
+        }
+        let context = try XCTUnwrap(rendered)
+        context.draw(
+            image,
+            in: CGRect(x: 0, y: 0, width: image.width, height: image.height)
+        )
+        return Data(pixels)
     }
 
     private func writePNG(to url: URL, width: Int, height: Int) throws {

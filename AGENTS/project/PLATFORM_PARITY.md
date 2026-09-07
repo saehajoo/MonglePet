@@ -27,7 +27,7 @@ macOS에서 개발을 시작했다는 이유만으로 AppKit 타입, Bundle Iden
 
 ## 현재 진행 현황
 
-기준일: 2026-09-05
+기준일: 2026-09-07
 
 | 영역 | macOS | Windows | 비고 |
 | --- | --- | --- | --- |
@@ -42,8 +42,8 @@ macOS에서 개발을 시작했다는 이유만으로 AppKit 타입, Bundle Iden
 | 앱 내 이용 가이드 | 진행 중 | 진행 중 | macOS와 Windows는 `지원 > 이용 가이드`와 상시 도움말 버튼, 5단계 작업 순서, 핵심 용어, 설정 바로가기와 Debug·Release 고정 웹 가이드 연결을 구현했다. 첫 실행 강제 표시·저장·WebView는 없고 schema·runtime을 바꾸지 않는다. Windows 가이드는 `문제 해결` 앞의 별도 WinUI 목적지와 compact 1열·wide 2열 용어 배치를 사용한다. 실제 macOS VoiceOver와 Windows DPI·테마·키보드·Narrator QA 전까지 진행 중이다. Windows 기준은 `AGENTS/guides/WINDOWS_IN_APP_QUICK_GUIDE_HANDOFF.md`다. |
 | 이동·다중 모니터 | 진행 중 | 진행 중 | macOS는 33ms 이동 cadence·속도를 유지하면서 이동 Timer 재사용, 화면·이동 범위 cache와 기능 수요 기반 30Hz 포인터 감시를 적용했다. 로컬 schema-v16과 제작자 설정 v12에서 자유 이동·도망가기 평상시 자유 이동마다 `fixed | random | behaviorCompletion` 시간 방식을 독립 저장하며, 행동 완료 event로 현재 고정 회차 또는 랜덤 한 건이 끝난 뒤 이동한다. 도망가기 포인터 접근은 대기를 취소하고 재생 불가 행동은 500ms fallback을 쓴다. 관련 macOS 단위 테스트·Debug 빌드와 사용자 동작 확인을 통과했다. Windows는 16ms 논리 소수점 위치 누적과 공유 포인터·화면 snapshot으로 저속 끊김과 모니터 경계 고착을 수정했고 D-120 schema-v16·제작자 설정 v12·행동 완료 event와 WinUI를 구현해 Debug·Release 자동 검증과 사용자 실제 기능 QA를 통과했다. 양 플랫폼 제작자 설정 v12 교차 왕복은 계속 확인한다. |
 | 쓰다듬기·말풍선 | 기준 구현 | 진행 중 | 실제 frame 알파 쓰다듬기와 행동 우선·주기 runtime, 행동/주기 대사 분리, draft·즉시 저장·위치 미리보기를 구현했다. macOS와 Windows 말풍선은 현재 프레임의 캐시된 불투명 경계를 anchor로 사용하고 표시 중 자동 위·아래 방향을 가능한 동안 고정한다. Windows는 mask 미준비 시 aspect-fit 콘텐츠와 HWND 순서로 fallback하고 이동 중 XAML tree를 재생성하지 않는다. 실제 이동·투명 여백 프레임의 장시간 시각 QA, 혼합 DPI와 성능 검증이 남았다. |
-| 로컬 가져오기·내보내기 | 진행 중 | 진행 중 | macOS와 Windows는 D-121에 따라 유효한 제작자 설정을 새 installation·instance·profile에 자동 적용하고 설정 파일이 없는 레거시 패키지만 명시적 안내 뒤 최소값으로 추가한다. package·게시 최소 앱 버전 부족과 미래 제작자 설정은 업데이트 필요, unreadable·손상 설정은 잘못된 파일로 transaction 전에 차단한다. 검토 화면은 핵심 상태를 먼저 표시하고 전체 설정·버전 상세를 접는다. 새 내보내기는 현재 앱을 제작 버전으로, package format만 포함하면 최소 `0.1.0`, 현재 v12 제작자 설정을 포함하면 최초 완전 지원 버전 `1.7.0`을 최소 앱 버전으로 기록한다. 관련 자동 테스트는 통과했으며 실제 로컬·웹 UI, 업데이트 링크와 v12 교차 왕복 QA가 남았다. |
-| 웹 URL 가져오기 | 진행 중 | 진행 중 | macOS URL 다운로드는 로컬 파일과 같은 D-121 호환성 차단을 사용하고 package·게시 metadata 최소 버전 중 높은 값을 요구한다. 핵심 적용 결과는 항상 표시하고 전체 설정은 접힌 `자세히 보기`에서 확인하며 업데이트 필요 상태의 primary 버튼은 고정 공식 다운로드 페이지를 연다. Windows의 allowlist·20MiB·크기·SHA-256·redirect·임시 수명 검증은 유지한 채 같은 차단·UI를 후속 적용해야 한다. 브라우저별 외부 앱 권한 안내와 교차 QA가 남았다. |
+| 로컬 가져오기·내보내기 | 진행 중 | 진행 중 | macOS와 Windows는 D-121에 따라 유효한 제작자 설정을 새 installation·instance·profile에 자동 적용하고 설정 파일이 없는 레거시 패키지만 명시적 안내 뒤 최소값으로 추가한다. package·게시 최소 앱 버전 부족과 미래 제작자 설정은 업데이트 필요, unreadable·손상 설정은 잘못된 파일로 transaction 전에 차단한다. 검토 화면은 핵심 상태를 먼저 표시하고 전체 설정·버전 상세를 접는다. 새 내보내기는 현재 앱을 제작 버전으로, package format만 포함하면 최소 `0.1.0`, 현재 v12 제작자 설정을 포함하면 최초 완전 지원 버전 `1.7.0`을 최소 앱 버전으로 기록한다. macOS는 D-129에 따라 검토 화면에서 PNG 합계·애니메이션별 크기를 보여주고 staging PNG만 픽셀 동일성 검증을 거쳐 무손실 최적화하며 SHA-256·최적화기 버전 캐시와 `내 펫` 진행·오류 안내를 사용한다. Windows의 같은 내보내기 UX·최적화 구현, 실제 macOS UI와 양 플랫폼 v12 교차 왕복 QA가 남았다. |
+| 웹 URL 가져오기 | 진행 중 | 진행 중 | macOS URL 다운로드는 로컬 파일과 같은 D-121 호환성 차단을 사용하고 package·게시 metadata 최소 버전 중 높은 값을 요구한다. 핵심 적용 결과는 항상 표시하고 전체 설정은 접힌 `자세히 보기`에서 확인하며 업데이트 필요 상태의 primary 버튼은 고정 공식 다운로드 페이지를 연다. D-130은 macOS의 공통 상한을 30 MiB로 올린다. Windows는 같은 30 MiB 상향과 기존 allowlist·크기·SHA-256·redirect·임시 수명 검증·차단 UI를 후속 적용해야 한다. 브라우저별 외부 앱 권한 안내와 교차 QA가 남았다. |
 | 배포·업데이트 | 진행 중 | 진행 중 | macOS 1.8.2 (18)와 Windows 1.8.2.21 GitHub Pre-release를 게시하고 원격 digest 검증을 통과했다. macOS ZIP은 Developer ID 미서명·Apple 미공증 제한 Preview이고 Windows 설치기는 미서명 x64 Preview다. 자동 업데이트는 계속 보류하며, D-121 가져오기 호환성 차단은 사용자가 누른 버튼으로 `https://mapleroom.kr/monglepet/download`를 기본 브라우저에서 여는 수동 업데이트 경로만 제공한다. |
 | 멀티펫 | 기준 구현 (`1.1.0`) | 진행 중 (`1.1.0`) | Windows 10~11단계 schema-v11 계약, `PetInstanceManager`, instance별 HWND/runtime, NavigationView 활성 펫·notification area·일시정지·자원 경고·안전 시작 완료; 실제 환경 QA는 12단계 |
 
@@ -314,7 +314,13 @@ Windows PNG·스프라이트 가져오기 결과는 `260×130` 고정 영역 안
 
 사용자 확인에 따라 이 Windows 후속을 `1.8.2.21`, 태그 `windows-v1.8.2-preview.1`의 미서명 x64 Preview로 게시했다. 소스 커밋 `d19232ce1422c607c84e6960bb72d513992a12c1`, 원격 설치기 65,300,492 bytes와 SHA-256 `8FC06EB74EAE1ADE1D8073C4A97D89E04C5C79B23BBB5555E8328CE240020A6E`를 재검증했다. 기존 `1.8.1.20` 위 설치에서 사용자 데이터 89개 파일·11,411,858 bytes의 inventory digest를 보존했고 설치 EXE·DLL과 publish 결과 일치 및 실행 응답을 확인했다. settings schema-v16·제작자 설정 schema-v12·package format은 변경하지 않는다.
 
+## 2026-09-07 macOS 공유 내보내기 용량·무손실 최적화
+
+macOS 공유 검토는 preview와 atlas PNG를 중복 없이 합산하고 애니메이션 이름별 자산 크기를 접힌 상세로 표시한다. 사용자가 저장을 확정하면 설치 폴더가 아닌 export staging의 PNG만 adaptive filter로 다시 구성하고 디코딩 픽셀이 원본과 정확히 같으며 더 작은 결과만 채택한다. 지원하지 않는 PNG·최적화 실패·결과 증가 시 원본 bytes를 사용한다. 원본 SHA-256과 최적화기 버전 기반의 삭제 가능한 256 MiB 캐시로 변경되지 않은 이미지는 재계산하지 않는다.
+
+준비 작업은 설정 UI와 분리하고 진행 상태와 오류는 `내 펫` 문맥에 표시한다. 사용자는 실제 `새아` 내보내기 성공을 확인했으며 바탕화면 패키지는 20,310,564 bytes다. D-130은 macOS 내보내기·로컬 가져오기·웹 다운로드 상한을 30 MiB(31,457,280 bytes)로 통일한다. 20~30 MiB와 정확한 경계 허용·1 byte 초과 거부·다운로드 실제 크기 검증을 포함한 관련 테스트 45개와 Debug 빌드를 통과했다. 원본·frame·schema는 변경하지 않는다. Windows와 운영 서버의 상향 적용, 30 MiB 실제 UI·교차 왕복은 남아 있어 동등 완료가 아니다. 서버 공개 상향은 양 플랫폼 지원 배포와 맞춘다. WebP 자동 출력은 encoder·색상·실기 검증 후속 작업이다. 인계는 `AGENTS/guides/WINDOWS_PET_EXPORT_SIZE_OPTIMIZATION_HANDOFF.md`와 `WEB_COMMUNITY_HANDOFF.md`의 D-130 절을 따른다.
+
 ---
 
 문서 상태: active
-마지막 갱신: 2026-09-06
+마지막 갱신: 2026-09-07

@@ -7,6 +7,37 @@ import ZIPFoundation
 @testable import MonglePet
 
 final class PetPackageInstallerTests: XCTestCase {
+    func testArchiveAcceptsThirtyMiBAndRejectsOneByteOverWithoutExtracting() throws {
+        let environment = try makeEnvironment()
+        // Stored entries isolate the archive-size limit from compression-ratio limits.
+        let baselineURL = environment.temporaryURL.appendingPathComponent("baseline.monglepet")
+        try makeCustomArchive(at: baselineURL, entries: [
+            ArchiveFixtureEntry(path: "pet.json", type: .file, data: Data("{}".utf8)),
+            ArchiveFixtureEntry(path: "assets/padding.png", type: .file, data: Data())
+        ])
+        let overhead = try XCTUnwrap(baselineURL.resourceValues(forKeys: [.fileSizeKey]).fileSize)
+        for byteCount in [20 * 1_024 * 1_024 + 1, 31_457_280, 31_457_281] {
+            let archiveURL = environment.temporaryURL.appendingPathComponent("\(byteCount).monglepet")
+            try makeCustomArchive(at: archiveURL, entries: [
+                ArchiveFixtureEntry(path: "pet.json", type: .file, data: Data("{}".utf8)),
+                ArchiveFixtureEntry(path: "assets/padding.png", type: .file,
+                                    data: Data(repeating: 0, count: byteCount - overhead))
+            ])
+            XCTAssertEqual(try archiveURL.resourceValues(forKeys: [.fileSizeKey]).fileSize, byteCount)
+            let workspace = environment.importsURL.appendingPathComponent("\(byteCount)")
+            try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: false)
+            if byteCount <= 31_457_280 {
+                let result = try PetPackageArchiveExtractor().extractArchive(at: archiveURL, into: workspace)
+                XCTAssertEqual(try Data(contentsOf: result.appendingPathComponent("pet.json")), Data("{}".utf8))
+            } else {
+                XCTAssertThrowsError(try PetPackageArchiveExtractor().extractArchive(at: archiveURL, into: workspace)) {
+                    XCTAssertEqual($0 as? PetPackageArchiveError, .archiveTooLarge)
+                }
+                XCTAssertTrue(try visibleChildren(of: workspace).isEmpty)
+            }
+        }
+    }
+
     func testReviewsAndInstallsAvailableRecommendedProfile() throws {
         let environment = try makeEnvironment()
         let packageURL = try makePackage(in: environment.temporaryURL)

@@ -25,7 +25,7 @@ extension PetPackageExportError: LocalizedError {
         case let .archiveValidationFailed(error):
             "만든 공유 패키지 검증에 실패했습니다: \(error.localizedDescription)"
         case .archiveTooLarge:
-            "만든 공유 패키지가 20 MiB 제한을 초과합니다."
+            "만든 공유 패키지가 \(PetPackageArchiveLimits.standardArchiveSizeLabel) 제한을 초과합니다."
         case .fileOperationFailed:
             "펫 공유 파일을 저장하지 못했습니다."
         }
@@ -37,6 +37,7 @@ nonisolated struct PetPackageExporter {
     private let archiveExtractor: PetPackageArchiveExtractor
     private let archiveLimits: PetPackageArchiveLimits
     private let securityScopedAccess: SecurityScopedResourceAccess
+    private let imageOptimizer: PNGExportOptimizer
     private let fileManager: FileManager
     private let temporaryDirectoryURL: URL
     private let currentAppVersion: SemanticVersion
@@ -45,6 +46,7 @@ nonisolated struct PetPackageExporter {
         loader: PetPackageLoader = PetPackageLoader(),
         archiveLimits: PetPackageArchiveLimits = .standard,
         securityScopedAccess: SecurityScopedResourceAccess = SecurityScopedResourceAccess(),
+        imageOptimizer: PNGExportOptimizer = PNGExportOptimizer(),
         fileManager: FileManager = .default,
         temporaryDirectoryURL: URL? = nil,
         currentAppVersion: SemanticVersion = MonglePetAppVersion.current.semanticVersion
@@ -56,6 +58,7 @@ nonisolated struct PetPackageExporter {
             fileManager: fileManager
         )
         self.securityScopedAccess = securityScopedAccess
+        self.imageOptimizer = imageOptimizer
         self.fileManager = fileManager
         self.temporaryDirectoryURL = temporaryDirectoryURL
             ?? fileManager.temporaryDirectory
@@ -381,7 +384,12 @@ nonisolated struct PetPackageExporter {
         )
         try createDirectory(at: destinationURL.deletingLastPathComponent())
         do {
-            try fileManager.copyItem(at: sourceURL, to: destinationURL)
+            if sourceURL.pathExtension.lowercased() == "png" {
+                let optimized = try imageOptimizer.optimize(fileAt: sourceURL)
+                try optimized.data.write(to: destinationURL, options: .atomic)
+            } else {
+                try fileManager.copyItem(at: sourceURL, to: destinationURL)
+            }
         } catch {
             throw PetPackageExportError.fileOperationFailed
         }

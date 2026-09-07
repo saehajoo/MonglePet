@@ -75,6 +75,57 @@ final class RemotePetImportSourceTests: XCTestCase {
 }
 
 final class RemotePetImportServiceTests: XCTestCase {
+    func testDownloadsPackagesBetweenOldLimitAndThirtyMiBBoundary() async throws {
+        XCTAssertEqual(RemotePetImportService.maximumPackageBytes, 31_457_280)
+        for byteCount in [20 * 1_024 * 1_024 + 1, 31_457_280] {
+            let rootURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString, isDirectory: true)
+            try FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: false)
+            defer { try? FileManager.default.removeItem(at: rootURL) }
+            let data = Data(repeating: 0x61, count: byteCount)
+            let downloadedURL = rootURL.appendingPathComponent("download.tmp")
+            try data.write(to: downloadedURL)
+            let transport = StubRemotePetImportTransport(
+                dataResponses: try makeAPIResponses(size: Int64(byteCount), checksum: sha256(data)),
+                downloadURL: downloadedURL,
+                downloadResponse: try httpResponse(
+                    url: URL(string: "https://dev-api.mapleroom.kr/media/monglepet/downloads/token")!,
+                    contentLength: Int64(byteCount)
+                )
+            )
+            let prepared = try await RemotePetImportService(
+                transport: transport,
+                temporaryDirectoryURL: rootURL
+            ).preparePackage(from: "https://dev.mapleroom.kr/monglepet/pets/monglepet-abc123")
+            XCTAssertEqual(try Data(contentsOf: prepared.packageURL), data)
+            let count = await transport.downloadRequestCount
+            XCTAssertEqual(count, 1)
+        }
+    }
+
+    func testRejectsActualDownloadOverThirtyMiBEvenWhenMetadataIsSmaller() async throws {
+        let rootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: false)
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+        let downloadedURL = rootURL.appendingPathComponent("download.tmp")
+        try Data(repeating: 0, count: 31_457_281).write(to: downloadedURL)
+        let transport = StubRemotePetImportTransport(
+            dataResponses: try makeAPIResponses(size: 31_457_280, checksum: String(repeating: "a", count: 64)),
+            downloadURL: downloadedURL,
+            downloadResponse: try httpResponse(
+                url: URL(string: "https://dev-api.mapleroom.kr/media/monglepet/downloads/token")!
+            )
+        )
+        await XCTAssertThrowsRemotePetImportError(.packageTooLarge(maximumBytes: 31_457_280)) {
+            _ = try await RemotePetImportService(
+                transport: transport,
+                temporaryDirectoryURL: rootURL
+            ).preparePackage(from: "https://dev.mapleroom.kr/monglepet/pets/monglepet-abc123")
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: downloadedURL.path))
+    }
+
     func testDownloadsAndVerifiesPublishedPackage() async throws {
         let rootURL = FileManager.default.temporaryDirectory.appendingPathComponent(
             "RemotePetImportTests-\(UUID().uuidString)",
