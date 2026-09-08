@@ -98,6 +98,7 @@ enum ExistingPetFrameLibrary {
 
 struct ExistingPetFramePickerView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var closeRequests: ImageEditorWindowCloseRequests
 
     let petName: String
     let groups: [ExistingPetFrameGroup]
@@ -234,8 +235,9 @@ struct ExistingPetFramePickerView: View {
             HStack {
                 Spacer()
                 Button("취소", role: .cancel) {
-                    dismissEditor()
+                    closeRequests.requestClose()
                 }
+                .accessibilityIdentifier("monglepet.editor.cancel")
                 Button("선택한 프레임 추가") {
                     onImport(selectedFrames.map { frame in
                         ExistingPetFrameSelection(
@@ -264,6 +266,11 @@ struct ExistingPetFramePickerView: View {
             minHeight: 620,
             idealHeight: 760,
             maxHeight: .infinity
+        )
+        .protectingEditorDraft(
+            selectionOrder,
+            message: "선택한 프레임과 순서는 아직 애니메이션에 추가되지 않았습니다.",
+            onDiscard: dismissEditor
         )
     }
 

@@ -67,8 +67,10 @@ MonglePet은 데스크톱 위에 반려 캐릭터를 표시하고 사용자의 �
 | 웹 URL 펫 가져오기 Windows 인계 | `AGENTS/guides/WINDOWS_WEB_PET_IMPORT_HANDOFF.md`, `AGENTS/specifications/PET_PACKAGE.md`와 `apps/windows/AGENTS.md` |
 | 펫 가져오기 제작자 설정 자동 적용 Windows 인계 | `AGENTS/guides/WINDOWS_PET_IMPORT_CREATOR_SETTINGS_HANDOFF.md`, `AGENTS/specifications/PET_PACKAGE.md`, `AGENTS/specifications/SETTINGS_SCHEMA.md`와 `apps/windows/AGENTS.md` |
 | 펫 내보내기 용량·무손실 최적화 Windows 인계 | `AGENTS/guides/WINDOWS_PET_EXPORT_SIZE_OPTIMIZATION_HANDOFF.md`, `AGENTS/specifications/PET_PACKAGE.md`와 `apps/windows/AGENTS.md` |
+| 편집 보호·행동 삭제·설정 저장 실패 Windows 인계 | `AGENTS/guides/WINDOWS_EDIT_SAFETY_HANDOFF.md`, `AGENTS/specifications/BEHAVIOR_MODEL.md`, `AGENTS/specifications/SETTINGS_SCHEMA.md`, `AGENTS/specifications/PET_PACKAGE.md`와 `apps/windows/AGENTS.md` |
 | macOS 1.3 편집기·호환성·내장 펫 Windows 인계 | `AGENTS/guides/WINDOWS_MACOS_1_3_HANDOFF.md`, `AGENTS/guides/WINDOWS_BUILTIN_MONGLE_HANDOFF.md`와 `apps/windows/AGENTS.md` |
 | 행동 중심 설정·런타임 Windows 인계 | `AGENTS/guides/WINDOWS_BEHAVIOR_CENTRIC_HANDOFF.md`, `AGENTS/specifications/BEHAVIOR_MODEL.md`, `AGENTS/specifications/SETTINGS_SCHEMA.md`와 `apps/windows/AGENTS.md` |
+| 조건 규칙 행동 연속 재생 Windows 인계 | `AGENTS/guides/WINDOWS_CONTINUOUS_RULE_PLAYBACK_HANDOFF.md`, `AGENTS/specifications/BEHAVIOR_MODEL.md`와 `apps/windows/AGENTS.md` |
 | 평상시 행동 완료 후 이동 Windows 인계 | `AGENTS/guides/WINDOWS_MOVE_AFTER_STATIONARY_BEHAVIOR_HANDOFF.md`, `AGENTS/specifications/BEHAVIOR_MODEL.md`, `AGENTS/specifications/SETTINGS_SCHEMA.md`와 `apps/windows/AGENTS.md` |
 | 내 펫 통합·행동 1회 재생·말풍선 보정 Windows 인계 | `AGENTS/guides/WINDOWS_MY_PETS_RUNTIME_POLISH_HANDOFF.md`, `AGENTS/specifications/BEHAVIOR_MODEL.md`, `AGENTS/specifications/PET_PACKAGE.md`와 `apps/windows/AGENTS.md` |
 | 데스크톱 펫·설치한 펫 UX Windows 인계 | `AGENTS/guides/WINDOWS_DESKTOP_PET_LIBRARY_HANDOFF.md`, `AGENTS/specifications/PET_PACKAGE.md`, `AGENTS/specifications/SETTINGS_SCHEMA.md`와 `apps/windows/AGENTS.md` |

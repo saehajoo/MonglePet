@@ -92,6 +92,11 @@ struct SettingsView: View {
         } detail: {
             detailView
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    if let message = settingsSession.saveErrorMessage {
+                        settingsSaveFailureBanner(message)
+                    }
+                }
         }
         .frame(minWidth: 840, minHeight: 620)
         .accessibilityIdentifier("monglepet.settings.root")
@@ -139,6 +144,39 @@ struct SettingsView: View {
                 destination = .myPets
             }
         }
+    }
+
+    private func settingsSaveFailureBanner(_ message: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("설정을 저장하지 못했습니다", systemImage: "exclamationmark.triangle.fill")
+                .font(.headline)
+                .foregroundStyle(.orange)
+
+            Text("앱을 종료하기 전에 현재 설정을 다시 저장해 주세요.")
+                .font(.callout)
+
+            HStack(alignment: .top, spacing: 12) {
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                Button("현재 설정 다시 저장") {
+                    settingsSession.persistCurrentSettings()
+                }
+                .disabled(!settingsSession.isWritingEnabled)
+                .help("현재 실행 중인 최신 설정을 파일에 다시 저장합니다.")
+                .accessibilityIdentifier("monglepet.settings.retrySave")
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(nsColor: .controlBackgroundColor))
+        .overlay(alignment: .bottom) { Divider() }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("monglepet.settings.saveFailureBanner")
     }
 
     private func synchronizeRemoteImportDestination() {
@@ -3329,8 +3367,22 @@ private struct AnimationBehaviorLinkSection: View {
     }
 }
 
+nonisolated struct AnimationEditorDraftSnapshot: Equatable {
+    var petName = ""
+    var version = ""
+    var author = ""
+    var petDescription = ""
+    var animationName: String
+    var newFrameDurationMilliseconds: Int
+    var frames: [UserPetAnimationFrameRequest]
+    var behaviorLinkMode = "none"
+    var newBehaviorName = ""
+    var existingBehaviorID = ""
+}
+
 private struct UserPetAnimationEditorView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var closeRequests: ImageEditorWindowCloseRequests
     let mode: UserPetEditorMode
     @ObservedObject var petLibrarySession: PetLibrarySession
     @ObservedObject var settingsSession: AppSettingsSession
@@ -3370,6 +3422,9 @@ private struct UserPetAnimationEditorView: View {
         self.onDismiss = onDismiss
         duplicationSourceAnimationID = motion?.id
         packageLoopHint = motion?.loops ?? true
+        if mode == .create {
+            _animationName = State(initialValue: "기본")
+        }
         if let motion {
             _animationName = State(initialValue: "\(motion.id) 사본")
             let sourceDrafts = UserPetAnimationDraftFactory.existing(
@@ -3429,8 +3484,9 @@ private struct UserPetAnimationEditorView: View {
             HStack {
                 Spacer()
                 Button("취소", role: .cancel) {
-                    dismissEditor()
+                    closeRequests.requestClose()
                 }
+                .accessibilityIdentifier("monglepet.editor.cancel")
                 Button(mode == .create ? "펫 만들기" : "추가") {
                     save()
                 }
@@ -3454,10 +3510,12 @@ private struct UserPetAnimationEditorView: View {
             maxHeight: .infinity
         )
         .disabled(imageEditorWindowPresenter.isPresenting)
+        .protectingEditorDraft(
+            draftSnapshot,
+            message: "아직 저장하지 않은 변경사항은 사라집니다. 저장 도중 일부만 적용된 경우 이미 저장된 내용은 유지됩니다.",
+            onDiscard: dismissEditor
+        )
         .onAppear {
-            if mode == .create {
-                animationName = "기본"
-            }
             selectFirstBehaviorIfNeeded()
         }
         .onDisappear {
@@ -3473,6 +3531,21 @@ private struct UserPetAnimationEditorView: View {
             return "애니메이션 복제"
         }
         return "펫 애니메이션 추가"
+    }
+
+    private var draftSnapshot: AnimationEditorDraftSnapshot {
+        AnimationEditorDraftSnapshot(
+            petName: mode == .create ? petName : "",
+            version: mode == .create ? version : "",
+            author: mode == .create ? author : "",
+            petDescription: mode == .create ? petDescription : "",
+            animationName: animationName,
+            newFrameDurationMilliseconds: frameDurationMilliseconds,
+            frames: frames.map(\.editSnapshot),
+            behaviorLinkMode: behaviorLinkMode.rawValue,
+            newBehaviorName: behaviorLinkMode == .newBehavior ? newBehaviorName : "",
+            existingBehaviorID: behaviorLinkMode == .existingBehavior ? existingBehaviorID : ""
+        )
     }
 
     private var petInformationSection: some View {
@@ -4313,6 +4386,7 @@ private struct UserPetDetailsEditorView: View {
 
 private struct UserPetAnimationDetailsEditorView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var closeRequests: ImageEditorWindowCloseRequests
     let motion: PetMotion
     @ObservedObject var petLibrarySession: PetLibrarySession
     @ObservedObject var settingsSession: AppSettingsSession
@@ -4523,8 +4597,9 @@ private struct UserPetAnimationDetailsEditorView: View {
             HStack {
                 Spacer()
                 Button("취소", role: .cancel) {
-                    dismissEditor()
+                    closeRequests.requestClose()
                 }
+                .accessibilityIdentifier("monglepet.editor.cancel")
                 Button(
                     duplicationSourceAnimationID == nil
                         ? "저장"
@@ -4551,6 +4626,11 @@ private struct UserPetAnimationDetailsEditorView: View {
             maxHeight: .infinity
         )
         .disabled(imageEditorWindowPresenter.isPresenting)
+        .protectingEditorDraft(
+            draftSnapshot,
+            message: "아직 저장하지 않은 변경사항은 사라집니다. 저장 도중 일부만 적용된 경우 이미 저장된 내용은 유지됩니다.",
+            onDiscard: dismissEditor
+        )
         .onAppear {
             selectFirstBehaviorIfNeeded()
         }
@@ -4907,6 +4987,17 @@ private struct UserPetAnimationDetailsEditorView: View {
         animationName.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    private var draftSnapshot: AnimationEditorDraftSnapshot {
+        AnimationEditorDraftSnapshot(
+            animationName: animationName,
+            newFrameDurationMilliseconds: frameDurationMilliseconds,
+            frames: frames.map(\.editSnapshot),
+            behaviorLinkMode: behaviorLinkMode.rawValue,
+            newBehaviorName: behaviorLinkMode == .newBehavior ? newBehaviorName : "",
+            existingBehaviorID: behaviorLinkMode == .existingBehavior ? existingBehaviorID : ""
+        )
+    }
+
     private var behaviorLinkValidationMessage: String? {
         animationBehaviorLinkValidationMessage(
             mode: behaviorLinkMode,
@@ -4964,6 +5055,16 @@ struct UserPetAnimationFrameDraft: Identifiable {
     var flipsVertically = false
     var transformedContentImage: CGImage
     var previewImage: CGImage?
+
+    var editSnapshot: UserPetAnimationFrameRequest {
+        UserPetAnimationFrameRequest(
+            source: source,
+            durationMilliseconds: durationMilliseconds,
+            placement: placement,
+            flipsHorizontally: flipsHorizontally,
+            flipsVertically: flipsVertically
+        )
+    }
 
     init?(
         source: UserPetAnimationFrameSource,

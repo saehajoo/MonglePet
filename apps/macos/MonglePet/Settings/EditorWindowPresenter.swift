@@ -66,6 +66,74 @@ final class ImageEditorWindowCloseRequests: ObservableObject {
     }
 }
 
+nonisolated struct EditorDraftCloseGate<Snapshot: Equatable> {
+    let initialSnapshot: Snapshot
+    private(set) var isConfirmingDiscard = false
+
+    mutating func requestClose(currentSnapshot: Snapshot) -> Bool {
+        isConfirmingDiscard = currentSnapshot != initialSnapshot
+        return !isConfirmingDiscard
+    }
+
+    mutating func continueEditing() {
+        isConfirmingDiscard = false
+    }
+}
+
+private struct EditorDraftProtection<Snapshot: Equatable>: ViewModifier {
+    @EnvironmentObject private var closeRequests: ImageEditorWindowCloseRequests
+    let snapshot: Snapshot
+    let message: String
+    let onDiscard: () -> Void
+    @State private var closeGate: EditorDraftCloseGate<Snapshot>
+
+    init(snapshot: Snapshot, message: String, onDiscard: @escaping () -> Void) {
+        self.snapshot = snapshot
+        self.message = message
+        self.onDiscard = onDiscard
+        _closeGate = State(initialValue: .init(initialSnapshot: snapshot))
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .confirmationDialog(
+                "편집 중인 변경사항을 버릴까요?",
+                isPresented: Binding(
+                    get: { closeGate.isConfirmingDiscard },
+                    set: { if !$0 { closeGate.continueEditing() } }
+                )
+            ) {
+                Button("변경사항 버리기", role: .destructive, action: onDiscard)
+                    .accessibilityIdentifier("monglepet.editor.discardChanges")
+                Button("계속 편집", role: .cancel) {
+                    closeGate.continueEditing()
+                }
+                .accessibilityIdentifier("monglepet.editor.continueEditing")
+            } message: {
+                Text(message)
+            }
+            .onChange(of: closeRequests.revision) {
+                if closeGate.requestClose(currentSnapshot: snapshot) {
+                    onDiscard()
+                }
+            }
+    }
+}
+
+extension View {
+    func protectingEditorDraft<Snapshot: Equatable>(
+        _ snapshot: Snapshot,
+        message: String,
+        onDiscard: @escaping () -> Void
+    ) -> some View {
+        modifier(EditorDraftProtection(
+            snapshot: snapshot,
+            message: message,
+            onDiscard: onDiscard
+        ))
+    }
+}
+
 @MainActor
 final class EditorWindowPresenter: ObservableObject {
     @Published private(set) var isPresenting = false
@@ -133,6 +201,7 @@ final class EditorWindowPresenter: ObservableObject {
         groups: [ExistingPetFrameGroup],
         onImport: @escaping ([ExistingPetFrameSelection]) -> Void
     ) {
+        let closeRequests = ImageEditorWindowCloseRequests()
         let editor = ExistingPetFramePickerView(
             petName: petName,
             groups: groups,
@@ -142,11 +211,11 @@ final class EditorWindowPresenter: ObservableObject {
             onImport: onImport
         )
         presentWindow(
-            editor,
+            editor.environmentObject(closeRequests),
             title: "현재 펫 프레임에서 추가",
             idealSize: NSSize(width: 1_080, height: 760),
             minimumSize: NSSize(width: 880, height: 620),
-            closeRequests: nil
+            closeRequests: closeRequests
         )
     }
 
@@ -156,12 +225,13 @@ final class EditorWindowPresenter: ObservableObject {
         idealSize: NSSize,
         minimumSize: NSSize
     ) {
+        let closeRequests = ImageEditorWindowCloseRequests()
         presentWindow(
-            content,
+            content.environmentObject(closeRequests),
             title: title,
             idealSize: idealSize,
             minimumSize: minimumSize,
-            closeRequests: nil
+            closeRequests: closeRequests
         )
     }
 

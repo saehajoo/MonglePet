@@ -956,7 +956,8 @@ final class AppSettingsSession: ObservableObject {
         settings = synchronizedSettings
     }
 
-    func persistCurrentSettings() {
+    @discardableResult
+    func persistCurrentSettings() -> Bool {
         persist(settings)
     }
 
@@ -1023,16 +1024,19 @@ final class AppSettingsSession: ObservableObject {
         }
     }
 
-    private func persist(_ settings: AppSettings) {
+    @discardableResult
+    private func persist(_ settings: AppSettings) -> Bool {
         guard isWritingEnabled else {
-            return
+            return false
         }
 
         do {
             try store.save(settings)
             saveErrorMessage = nil
+            return true
         } catch {
             saveErrorMessage = error.localizedDescription
+            return false
         }
     }
 

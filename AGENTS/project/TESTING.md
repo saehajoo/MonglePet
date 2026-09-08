@@ -1080,6 +1080,28 @@ UI 테스트는 앱 실행과 접근성 자동화가 가능한 macOS 세션에�
 - 소스 커밋 `ded7b4bd30b5a58e8a6d662de25d54bebf38d5e0`에 annotated tag `windows-v1.9.0-preview.1`을 게시했다. 원격 설치기 65,313,039 bytes의 SHA-256과 107 bytes 체크섬 파일이 로컬과 일치하고 tag dereference 대상이 위 소스 커밋임을 확인했다.
 - 네이티브 앱 자동 조작 표면을 사용할 수 없어 400ms 지연 진행 UI·탭 이동 중 유지·연속 cache 체감과 Windows→macOS 왕복은 후속 실제 QA로 남겼다.
 
+### 2026-09-08 D-134 macOS 편집 보호·독립 설정 보존 검증
+
+- `BehaviorSettingsEditorTests` 16개, `AppSettingsSessionTests` 43개, `EditorDraftProtectionTests` 7개로 관련 66개가 통과했다.
+- 독립 이동 모드별 서로 다른 값과 `behaviorCompletion`, 삭제 참조만 정리·다른 펫 보존, 비사용 모드·비활성 규칙의 삭제 영향, 랜덤 중 보관 고정 행동 보존을 검증했다.
+- 임시 저장 폴더 자리에 파일을 두어 저장 실패를 주입하고 기존 디스크 데이터 보존, 메모리 최신 값 유지, 재실패 후 오류 유지, 복구·재저장·재로드와 runtime 재게시 없음, 미래 schema 쓰기 차단을 확인했다. 사용자 설정이나 설치 펫은 사용하지 않았다.
+- 초기/변경/원복 초안, 이름·메타데이터·행동 연결, 프레임 순서·시간·배치·반전, 기존 프레임 선택, 말풍선 값과 미리보기 캐시 비변경을 단위 검증했다.
+- 전체 `MonglePetTests`는 xcresult 기준 584개 중 583개 성공·외부 로컬 WebP fixture 선택형 1개 건너뜀·실패 0개다. 최종 Debug 빌드와 `git diff --check`를 통과했다.
+- 추가 UI 테스트는 새 펫의 변경 취소/계속 편집/제목바 닫기/버리기/미변경 닫기, 행동 삭제 취소/확정을 포함한다. Runner가 앱 연결 전 `Early unexpected exit ... signal kill before establishing connection`으로 실패했으므로 UI 시나리오가 통과한 것은 아니다.
+- 최종 UI 테스트 코드를 포함한 `build-for-testing`은 통과했다. 실행하지 못한 UI assertion과 컴파일 성공은 별개로 기록한다.
+- 격리 Debug 앱의 `내 펫` 초기 화면과 임시 데이터 실행은 확인했지만 native 조작 도구가 `native pipe closed before response`로 종료되어 이후 편집창 동작은 확인하지 못했다. 해당 QA 앱만 종료했고 실제 사용자 데이터는 변경하지 않았다.
+- 남은 실제 QA는 각 편집기 취소·제목바 닫기·저장 성공/부분 실패, 삭제 영향·취소, 공통 저장 오류의 탭 이동·재시도, 좁은 창·키보드·VoiceOver다. 부모 화면/앱 종료에 따른 기존 강제 정리 보호는 별도 후속이며 Windows 구현·교차 왕복도 미완료다.
+- 앱 `1.9.0 (19)`, settings schema-v16, 제작자 설정 v12와 package format을 유지했다. 이번 작업으로 커밋·푸시·릴리스하지 않았다.
+
+### 2026-09-08 D-135 macOS 조건 규칙 연속 재생 검증
+
+- `PetBehaviorRuntimeTests`를 포함한 관련 runtime 테스트 53개가 통과했다. 입력 없음 규칙은 저장 `repeats=false/true` 모두 조건 유지 중 반복하고, 앱 사용 규칙은 대상 앱을 벗어나면 사이클 중간에도 즉시 기본 행동으로 전환하는지 확인했다.
+- 같은 조건 snapshot을 다시 받아도 현재 남은 시간이 초기화되지 않는지, 랜덤 후보가 비었거나 참조가 사라진 기본 행동 fallback은 계속 순환하는지 확인했다.
+- 이동 표시 동안 반복 규칙 scheduler가 멈추고 이동 종료 뒤 남은 위치를 복원하는지 검증했다. 기존 fixed 연속, random 항목별 1회, 쓰다듬기 1회와 이동 중 반복 회귀 테스트도 전체 모음에 유지한다.
+- 전체 `MonglePetTests`는 로그 기준 587개 중 586개 성공·외부 로컬 WebP fixture 선택형 1개 건너뜀·실패 0개다. 코드 서명 없는 Debug 빌드와 `git diff --check`가 통과했다.
+- 실제 전면 앱·입력 없음 조건을 각각 세 번 이상 순환하고 입력/앱 전환과 규칙·이동 우선순위를 오버레이에서 확인하는 QA는 남았다. Windows 구현·실제 QA와 교차 확인 전에는 플랫폼 동등 완료로 표시하지 않는다.
+- 앱 `1.9.0 (19)`, settings schema-v16, 제작자 설정 v12, package format과 저장 `repeats` 필드는 변경하지 않았다. 이번 작업으로 버전 증가·커밋·푸시·릴리스하지 않았다.
+
 ## 변경 유형별 최소 검증
 
 ### 후속 단계 필수 검증
@@ -1107,4 +1129,4 @@ UI 테스트는 앱 실행과 접근성 자동화가 가능한 macOS 세션에�
 ---
 
 문서 상태: active
-마지막 갱신: 2026-09-07
+마지막 갱신: 2026-09-08

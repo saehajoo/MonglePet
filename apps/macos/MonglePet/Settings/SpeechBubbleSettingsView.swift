@@ -499,7 +499,13 @@ struct SpeechBubbleSettingsView: View {
     }
 }
 
+nonisolated struct SpeechBubbleEditorDraftSnapshot: Equatable {
+    let theme: PetSpeechBubbleTheme
+    let placement: PetSpeechBubblePlacementSettings
+}
+
 private struct SpeechBubbleThemeEditorView: View {
+    @EnvironmentObject private var closeRequests: ImageEditorWindowCloseRequests
     let originalTheme: PetSpeechBubbleTheme
     let originalPlacement: PetSpeechBubblePlacementSettings
     let petItem: PetLibraryItem
@@ -736,7 +742,10 @@ private struct SpeechBubbleThemeEditorView: View {
 
             HStack {
                 Spacer()
-                Button("취소", role: .cancel, action: onCancel)
+                Button("취소", role: .cancel) {
+                    closeRequests.requestClose()
+                }
+                .accessibilityIdentifier("monglepet.editor.cancel")
                 Button("적용") {
                     onSave(draftTheme, draftPlacement)
                 }
@@ -755,6 +764,11 @@ private struct SpeechBubbleThemeEditorView: View {
             minHeight: 620,
             idealHeight: 820,
             maxHeight: .infinity
+        )
+        .protectingEditorDraft(
+            SpeechBubbleEditorDraftSnapshot(theme: draftTheme, placement: draftPlacement),
+            message: "말풍선 모양과 위치 변경은 아직 적용되지 않았습니다.",
+            onDiscard: onCancel
         )
     }
 

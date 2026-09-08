@@ -61,6 +61,53 @@ final class AppSettingsSessionTests: XCTestCase {
     }
 
     @MainActor
+    func testSaveFailureRetainsLatestEditsAndRetryPersistsWithoutRepublishing() throws {
+        let parentURL = temporaryDirectoryURL.appendingPathComponent(
+            "settings-directory", isDirectory: true
+        )
+        let savedParentURL = temporaryDirectoryURL.appendingPathComponent(
+            "original-settings-directory", isDirectory: true
+        )
+        let testSettingsURL = parentURL.appendingPathComponent("settings.json")
+        let store = AppSettingsStore(settingsURL: testSettingsURL)
+        let session = AppSettingsSession(store: store)
+        _ = session.load()
+        XCTAssertTrue(session.persistCurrentSettings())
+        let originalData = try Data(contentsOf: testSettingsURL)
+
+        // A file in place of the parent directory deterministically rejects writes.
+        // Keep the previously saved settings intact to test recovery from that point.
+        try FileManager.default.moveItem(at: parentURL, to: savedParentURL)
+        try Data("blocked".utf8).write(to: parentURL)
+        var published: [AppSettings] = []
+        session.onChange = { published.append($0) }
+
+        session.setOverlayWidth(250)
+        XCTAssertNotNil(session.saveErrorMessage)
+        session.setOverlayWidth(310)
+        session.setClickThrough(true)
+        XCTAssertEqual(session.settings.overlay.width, 310)
+        XCTAssertTrue(session.settings.overlay.clickThrough)
+        XCTAssertEqual(published.count, 3)
+        XCTAssertFalse(session.persistCurrentSettings())
+        XCTAssertNotNil(session.saveErrorMessage)
+        XCTAssertEqual(published.count, 3)
+        XCTAssertEqual(
+            try Data(contentsOf: savedParentURL.appendingPathComponent("settings.json")),
+            originalData
+        )
+
+        try FileManager.default.removeItem(at: parentURL)
+        try FileManager.default.moveItem(at: savedParentURL, to: parentURL)
+        XCTAssertTrue(session.persistCurrentSettings())
+        XCTAssertNil(session.saveErrorMessage)
+        XCTAssertEqual(published.count, 3, "Retry must not restart the runtime.")
+        let reloaded = AppSettingsSession(store: store)
+        XCTAssertEqual(reloaded.load().source, .file)
+        XCTAssertEqual(reloaded.settings, session.settings)
+    }
+
+    @MainActor
     func testNewInstallationTransactionPersistsIndependentCopyBeforePublishing() throws {
         let store = AppSettingsStore(settingsURL: settingsURL)
         let session = AppSettingsSession(store: store)
@@ -1881,6 +1928,7 @@ final class AppSettingsSessionTests: XCTestCase {
 
         XCTAssertEqual(result.source, .newerSchema(17))
         XCTAssertFalse(session.isWritingEnabled)
+        XCTAssertFalse(session.persistCurrentSettings())
         XCTAssertNotNil(session.loadNotice)
         XCTAssertEqual(session.settings.lastUserPresentation, .tuckedAway)
         XCTAssertEqual(try Data(contentsOf: settingsURL), originalData)

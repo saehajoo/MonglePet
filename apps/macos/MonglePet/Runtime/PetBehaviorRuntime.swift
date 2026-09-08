@@ -298,8 +298,9 @@ final class PetBehaviorRuntime {
             isDecisionPaused = false
             motionScheduler.resume()
             // Runtime context, not the legacy stored repeat flag, owns looping.
-            // Only fixed stationary playback repeats here. Random selections and
-            // rule or interaction playback complete after one full sequence.
+            // Fixed stationary playback and a matching rule repeat while their
+            // runtime contexts remain requested. Random selections and
+            // interaction playback complete after one full sequence.
             let scheduledSequence = BehaviorSequence(
                 id: sequence.id,
                 displayName: sequence.displayName,
@@ -394,11 +395,9 @@ final class PetBehaviorRuntime {
         for source: BehaviorSource
     ) -> Bool {
         switch source {
-        case .manual:
+        case .manual, .defaultBehavior, .automaticRule:
             return true
-        case .defaultBehavior:
-            return latestConfiguration?.stationaryBehaviorMode == .fixed
-        case .random, .automaticRule, .interaction:
+        case .random, .interaction:
             return false
         }
     }

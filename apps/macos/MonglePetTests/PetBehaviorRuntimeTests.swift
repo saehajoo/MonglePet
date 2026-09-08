@@ -272,7 +272,17 @@ final class PetBehaviorRuntimeTests: XCTestCase {
         XCTAssertEqual(tickScheduler.scheduledDelay, .milliseconds(100))
     }
 
-    func testAutomaticRuleCompletesOnceRegardlessOfLegacyRepeatFlag() {
+    func testIdleRuleRepeatsWhileConditionMatchesRegardlessOfLegacyRepeatFlag() {
+        for legacyRepeats in [false, true] {
+            assertRuleRepeatsWhileConditionMatches(
+                condition: .idleAtLeast(milliseconds: 1_000),
+                snapshot: snapshot(idle: .seconds(2)),
+                legacyRepeats: legacyRepeats
+            )
+        }
+    }
+
+    func testApplicationRuleRepeatsUntilFrontmostApplicationChanges() {
         let clock = ManualBehaviorRuntimeClock()
         let tickScheduler = ManualBehaviorTickScheduler()
         let runtime = PetBehaviorRuntime(
@@ -280,16 +290,18 @@ final class PetBehaviorRuntimeTests: XCTestCase {
             clock: clock,
             tickScheduler: tickScheduler
         ) { _ in }
-        let ruleID = UUID()
         let defaultSequence = BehaviorSequence(
             id: BuiltInBehaviorPresets.defaultSequenceID,
             steps: [BehaviorStep(motionID: "idle", repeatCount: 1)],
             repeats: false
         )
         let ruleSequence = BehaviorSequence(
-            id: "idle-rule",
-            steps: [BehaviorStep(motionID: "rest", repeatCount: 1)],
-            repeats: true
+            id: "application-rule",
+            steps: [
+                BehaviorStep(motionID: "focus", repeatCount: 1),
+                BehaviorStep(motionID: "rest", repeatCount: 1)
+            ],
+            repeats: false
         )
         let settings = AppSettings(
             selectedPetInstallationID: nil,
@@ -300,10 +312,12 @@ final class PetBehaviorRuntimeTests: XCTestCase {
             sequences: [defaultSequence, ruleSequence],
             automaticRules: [
                 AutomaticRule(
-                    id: ruleID,
+                    id: UUID(),
                     isEnabled: true,
                     priority: 10,
-                    condition: .idleAtLeast(milliseconds: 1_000),
+                    condition: .application(
+                        bundleIdentifier: "com.example.editor"
+                    ),
                     sequenceID: ruleSequence.id
                 )
             ]
@@ -311,18 +325,60 @@ final class PetBehaviorRuntimeTests: XCTestCase {
 
         runtime.update(
             settings: settings,
-            snapshot: snapshot(idle: .seconds(2))
+            snapshot: snapshot(
+                frontmostApplicationID: "com.example.editor"
+            )
         )
+        XCTAssertEqual(runtime.currentPlayback?.motion.id, "focus")
+        clock.advance(by: .milliseconds(100))
+        tickScheduler.fire()
+        XCTAssertEqual(runtime.currentPlayback?.motion.id, "rest")
+        clock.advance(by: .milliseconds(100))
+        tickScheduler.fire()
+        XCTAssertEqual(runtime.currentPlayback?.motion.id, "focus")
+        XCTAssertEqual(tickScheduler.scheduledDelay, .milliseconds(100))
+
+        clock.advance(by: .milliseconds(40))
+        runtime.update(
+            settings: settings,
+            snapshot: snapshot(
+                frontmostApplicationID: "com.example.browser"
+            )
+        )
+        XCTAssertEqual(runtime.currentPlayback?.motion.id, "idle")
+        XCTAssertEqual(tickScheduler.scheduledDelay, .milliseconds(100))
+    }
+
+    func testRandomModeWithoutCandidatesContinuouslyUsesDefaultBehavior() {
+        let clock = ManualBehaviorRuntimeClock()
+        let tickScheduler = ManualBehaviorTickScheduler()
+        let runtime = PetBehaviorRuntime(
+            petDefinition: makePet(),
+            clock: clock,
+            tickScheduler: tickScheduler
+        ) { _ in }
+        let defaultSequence = BehaviorSequence(
+            id: BuiltInBehaviorPresets.defaultSequenceID,
+            steps: [BehaviorStep(motionID: "idle", repeatCount: 1)],
+            repeats: false
+        )
+        let settings = AppSettings(
+            selectedPetInstallationID: nil,
+            lastUserPresentation: .awake,
+            behaviorMode: .random,
+            overlay: .default,
+            manualSequenceID: nil,
+            randomSequenceIDs: ["missing-behavior"],
+            sequences: [defaultSequence],
+            automaticRules: []
+        )
+
+        runtime.update(settings: settings, snapshot: snapshot())
         clock.advance(by: .milliseconds(100))
         tickScheduler.fire()
 
-        XCTAssertEqual(runtime.currentPlayback?.motion.id, "rest")
-        XCTAssertNil(tickScheduler.scheduledDelay)
-        runtime.update(
-            settings: settings,
-            snapshot: snapshot(idle: .seconds(2))
-        )
-        XCTAssertNil(tickScheduler.scheduledDelay)
+        XCTAssertEqual(runtime.currentPlayback?.motion.id, "idle")
+        XCTAssertEqual(tickScheduler.scheduledDelay, .milliseconds(100))
     }
 
     func testSuspensionCancelsTickAndPreservesRemainingStepTime() {
@@ -594,6 +650,36 @@ final class PetBehaviorRuntimeTests: XCTestCase {
         )
     }
 
+    func testMovementPriorityPausesAndResumesRepeatingRulePosition() throws {
+        let ruleSequence = BehaviorSequence(
+            id: "movement-paused-rule",
+            steps: [BehaviorStep(motionID: "rest", repeatCount: 2)],
+            repeats: false
+        )
+        let settings = AppSettings(
+            selectedPetInstallationID: nil,
+            lastUserPresentation: .awake,
+            behaviorMode: .manual,
+            overlay: .default,
+            manualSequenceID: BuiltInBehaviorPresets.defaultSequenceID,
+            sequences: BuiltInBehaviorPresets.legacySequences + [ruleSequence],
+            automaticRules: [
+                AutomaticRule(
+                    id: UUID(),
+                    isEnabled: true,
+                    priority: 10,
+                    condition: .idleAtLeast(milliseconds: 1_000),
+                    sequenceID: ruleSequence.id
+                )
+            ]
+        )
+
+        try assertMovementPreservesCyclePosition(
+            settings: settings,
+            snapshot: snapshot(idle: .seconds(2))
+        )
+    }
+
     func testReplacingPetDefinitionRestartsDecisionWithIdleFallback() {
         let clock = ManualBehaviorRuntimeClock()
         let tickScheduler = ManualBehaviorTickScheduler()
@@ -661,7 +747,8 @@ final class PetBehaviorRuntimeTests: XCTestCase {
     }
 
     private func assertMovementPreservesCyclePosition(
-        settings: AppSettings
+        settings: AppSettings,
+        snapshot activeSnapshot: ActivitySnapshot? = nil
     ) throws {
         let clock = ManualBehaviorRuntimeClock()
         let tickScheduler = ManualBehaviorTickScheduler()
@@ -671,7 +758,8 @@ final class PetBehaviorRuntimeTests: XCTestCase {
             tickScheduler: tickScheduler
         ) { _ in }
 
-        runtime.update(settings: settings, snapshot: snapshot())
+        let resolvedSnapshot = activeSnapshot ?? snapshot()
+        runtime.update(settings: settings, snapshot: resolvedSnapshot)
         let initialDelay = try XCTUnwrap(tickScheduler.scheduledDelay)
         let initialMotionID = try XCTUnwrap(runtime.currentPlayback?.motion.id)
         clock.advance(by: .milliseconds(40))
@@ -684,7 +772,7 @@ final class PetBehaviorRuntimeTests: XCTestCase {
         )
 
         clock.advance(by: .seconds(10))
-        runtime.update(settings: settings, snapshot: snapshot())
+        runtime.update(settings: settings, snapshot: resolvedSnapshot)
         XCTAssertEqual(runtime.currentPlayback?.motion.id, initialMotionID)
         XCTAssertEqual(
             runtime.currentPlayback?.cycleElapsedDuration,
@@ -697,6 +785,57 @@ final class PetBehaviorRuntimeTests: XCTestCase {
             tickScheduler.scheduledDelay,
             initialDelay - .milliseconds(40)
         )
+    }
+
+    private func assertRuleRepeatsWhileConditionMatches(
+        condition: RuleCondition,
+        snapshot matchingSnapshot: ActivitySnapshot,
+        legacyRepeats: Bool
+    ) {
+        let clock = ManualBehaviorRuntimeClock()
+        let tickScheduler = ManualBehaviorTickScheduler()
+        let runtime = PetBehaviorRuntime(
+            petDefinition: makePet(),
+            clock: clock,
+            tickScheduler: tickScheduler
+        ) { _ in }
+        let defaultSequence = BehaviorSequence(
+            id: BuiltInBehaviorPresets.defaultSequenceID,
+            steps: [BehaviorStep(motionID: "idle", repeatCount: 1)],
+            repeats: false
+        )
+        let ruleSequence = BehaviorSequence(
+            id: "matching-rule",
+            steps: [BehaviorStep(motionID: "rest", repeatCount: 1)],
+            repeats: legacyRepeats
+        )
+        let settings = AppSettings(
+            selectedPetInstallationID: nil,
+            lastUserPresentation: .awake,
+            behaviorMode: .manual,
+            overlay: .default,
+            manualSequenceID: defaultSequence.id,
+            sequences: [defaultSequence, ruleSequence],
+            automaticRules: [
+                AutomaticRule(
+                    id: UUID(),
+                    isEnabled: true,
+                    priority: 10,
+                    condition: condition,
+                    sequenceID: ruleSequence.id
+                )
+            ]
+        )
+
+        runtime.update(settings: settings, snapshot: matchingSnapshot)
+        clock.advance(by: .milliseconds(100))
+        tickScheduler.fire()
+
+        XCTAssertEqual(runtime.currentPlayback?.motion.id, "rest")
+        XCTAssertEqual(tickScheduler.scheduledDelay, .milliseconds(100))
+        clock.advance(by: .milliseconds(40))
+        runtime.update(settings: settings, snapshot: matchingSnapshot)
+        XCTAssertEqual(tickScheduler.scheduledDelay, .milliseconds(60))
     }
 
     private func makeSettings(
@@ -758,12 +897,13 @@ final class PetBehaviorRuntimeTests: XCTestCase {
 
     private func snapshot(
         idle: Duration = .zero,
+        frontmostApplicationID: String? = nil,
         isScreenLocked: Bool = false
     ) -> ActivitySnapshot {
         ActivitySnapshot(
             capturedAt: ContinuousClock().now,
             idleDuration: idle,
-            frontmostApplicationID: nil,
+            frontmostApplicationID: frontmostApplicationID,
             isScreenLocked: isScreenLocked,
             isSystemSleeping: false
         )

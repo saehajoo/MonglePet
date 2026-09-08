@@ -31,11 +31,13 @@
 | `guides/WINDOWS_WEB_PET_IMPORT_HANDOFF.md` | macOS 웹 펫 가져오기와 보관함 UI의 Windows 구현·QA 인계 | active |
 | `guides/WINDOWS_PET_IMPORT_CREATOR_SETTINGS_HANDOFF.md` | 단일 펫 추가와 제작자 설정 자동 적용의 Windows 구현·QA 인계 | active |
 | `guides/WINDOWS_PET_EXPORT_SIZE_OPTIMIZATION_HANDOFF.md` | 펫 내보내기 용량 안내·무손실 PNG 최적화와 오류 표시의 Windows 구현·QA 인계 | active |
+| `guides/WINDOWS_EDIT_SAFETY_HANDOFF.md` | 행동 삭제의 독립 설정 보존·삭제 영향·저장 실패 재시도·미저장 초안 보호 Windows 인계 | active |
 | `guides/WINDOWS_BUILTIN_MONGLE_HANDOFF.md` | 새 내장 몽글이 자산·기본 프로필의 Windows 구현·QA 인계 | active |
 | `guides/WINDOWS_BUILTIN_MONGLE_PROMPT.md` | Windows 작업 공간에 전달할 내장 몽글이 구현 프롬프트 | active |
 | `guides/WINDOWS_MACOS_1_3_HANDOFF.md` | macOS 1.3 펫 호환성·이미지 편집기·내장 펫 Windows 구현 인계 | active |
 | `guides/WINDOWS_MACOS_1_3_PROMPT.md` | Windows 작업 공간에 전달할 macOS 1.3 동등성 프롬프트 | active |
 | `guides/WINDOWS_BEHAVIOR_CENTRIC_HANDOFF.md` | 행동 중심 schema-v14·권장 프로필 v10·독립 이동·전체 옵션 공유·WinUI·런타임 Windows 구현 인계 | active |
+| `guides/WINDOWS_CONTINUOUS_RULE_PLAYBACK_HANDOFF.md` | 앱 사용·입력 없음 조건 유지 중 행동 연속 재생의 Windows 구현·QA 인계 | active |
 | `guides/MACOS_PET_EDITOR_FOLLOWUP.md` | Windows에서 먼저 확정한 제작 버전·새 활성 인스턴스 결과의 macOS 후속 인계 | pending |
 | `guides/WINDOWS_DESKTOP_PET_LIBRARY_HANDOFF.md` | 데스크톱 펫·설치한 펫 역할과 항상 새 설치 UX의 Windows 구현 인계 | active |
 | `guides/WINDOWS_MY_PETS_RUNTIME_POLISH_HANDOFF.md` | 내 펫 통합·행동 1회 재생·말풍선 배치의 Windows 구현·QA 인계 | active |

@@ -1,5 +1,7 @@
 # Windows 단일 내 펫·행동 재생·말풍선 보정 인계
 
+> D-135가 앱 사용·입력 없음 규칙의 1회 재생 부분을 대체한다. 두 규칙은 조건 유지 중 전체 행동을 반복하며 최신 구현은 `WINDOWS_CONTINUOUS_RULE_PLAYBACK_HANDOFF.md`를 따른다. 랜덤·쓰다듬기 1회와 이 문서의 나머지 계약은 유지한다.
+
 ## 목적
 
 macOS에서 확정한 D-111~D-113과 Windows 실제 QA에서 보정한 D-115의 최종 사용자 결과를 Windows WinUI 3·Win32 overlay 구조에 맞게 구현한다. 이 문서는 작업 중간의 분리형 화면과 보관 상태를 폐기하고 최종 구현 기준만 설명한다. SwiftUI/AppKit 코드를 번역하지 말고 공통 데이터 계약, 확정된 동작과 fixture를 기준으로 한다.
@@ -49,7 +51,7 @@ macOS에서 확정한 D-111~D-113과 Windows 실제 QA에서 보정한 D-115의 
 - 선택 항목이 하나뿐인 랜덤도 완료 뒤 같은 행동을 새 cursor로 첫 프레임부터 시작.
 - 쓰다듬기: 한 번 통과하고 기존 중단·복원 의미 유지.
 - 이동 행동: 실제 좌표 이동이 유지되는 동안에만 별도 movement scheduler에서 반복. 정지하면 즉시 중단.
-- 규칙처럼 한 번 완료되는 같은 sequence가 activity polling이나 UI 설정 알림으로 다시 resolve되어도 scheduler의 `Request`가 cursor를 다시 만들면 안 된다.
+- 같은 조건 규칙 sequence가 activity polling이나 UI 설정 알림으로 다시 resolve되어도 scheduler의 `Request`가 반복 중인 cursor를 다시 만들면 안 된다.
 - 같은 ID라도 단계·반복 횟수·애니메이션이 편집되어 값이 달라졌다면 첫 프레임부터 새로 시작한다.
 - D-106의 랜덤 이동 중단 의미와 D-107의 규칙 fallback 의미를 유지한다.
 
@@ -168,7 +170,7 @@ installation 제거도 실패하면 조용히 성공 처리하지 말고 `펫 �
 ## 5. 구현 단계
 
 1. 관련 작업 계획을 만들고 현재 branch/status를 기록한다.
-2. Domain scheduler 테스트부터 고정 연속 순환과 랜덤·규칙·상호작용 1회 재생 의미를 분리한다.
+2. Domain scheduler 테스트부터 고정·조건 규칙 연속 순환과 랜덤·상호작용 1회 재생 의미를 분리한다.
 3. 저장 mapper는 `repeats` 왕복을 유지하고 새 편집 기본값만 false로 바꾼다.
 4. movement scheduler와 interaction 회귀를 통과시킨다.
 5. 가져오기 application service에 installation+instance+profile transaction을 추가한다.
@@ -237,7 +239,7 @@ installation 제거도 실패하면 조용히 성공 처리하지 말고 `펫 �
 ## 7. 실제 Windows QA
 
 - 행동 편집에서 전체 반복 토글이 사라지고 단계 반복만 편집 가능한지 확인
-- 고정 행동은 여러 순환이 이어지고 앱·입력 없음 규칙은 한 번 완료 뒤 마지막 프레임을 유지하는지 확인
+- 고정 행동과 앱·입력 없음 규칙은 해당 문맥이 유지되는 동안 여러 순환이 이어지는지 확인
 - 랜덤 1개·여러 개에서 완료 시 중간 프레임 없이 첫 프레임 시작 확인
 - 세 이동 방식에서 이동 모션 연속성과 정지 후 평상시 결과 확인
 - 단일 `내 펫`에 보관 구분 없이 생성·가져오기·사본·내보내기 동선이 있는지 확인

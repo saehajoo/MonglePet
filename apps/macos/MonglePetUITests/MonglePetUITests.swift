@@ -13,6 +13,78 @@ final class MonglePetUITests: XCTestCase {
     }
 
     @MainActor
+    func testNewPetDraftRequiresExplicitDiscardOnCancelAndWindowClose() throws {
+        let app = XCUIApplication()
+        app.launchArguments.append("--ui-testing-open-settings")
+        app.launch()
+
+        selectSettingsDestination("monglepet.settings.navigation.activePets", in: app)
+        let createButton = app.buttons["펫 만들기"]
+        XCTAssertTrue(createButton.waitForExistence(timeout: 5))
+        createButton.click()
+
+        let editor = app.windows["새 펫 만들기"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 5))
+        let nameField = editor.textFields["monglepet.userPet.petName"]
+        nameField.click()
+        nameField.typeText("Discard test pet")
+        editor.buttons["monglepet.editor.cancel"].click()
+
+        let continueButton = app.buttons["monglepet.editor.continueEditing"]
+        XCTAssertTrue(continueButton.waitForExistence(timeout: 3))
+        continueButton.click()
+        XCTAssertTrue(editor.exists)
+        XCTAssertEqual(nameField.value as? String, "Discard test pet")
+
+        editor.buttons[XCUIIdentifierCloseWindow].click()
+        let discardButton = app.buttons["monglepet.editor.discardChanges"]
+        XCTAssertTrue(discardButton.waitForExistence(timeout: 3))
+        discardButton.click()
+        XCTAssertTrue(editor.waitForNonExistence(timeout: 3))
+        XCTAssertFalse(app.staticTexts["Discard test pet"].exists)
+
+        createButton.click()
+        XCTAssertTrue(editor.waitForExistence(timeout: 5))
+        XCTAssertEqual(editor.textFields["monglepet.userPet.petName"].value as? String, "")
+        editor.buttons["monglepet.editor.cancel"].click()
+        XCTAssertTrue(editor.waitForNonExistence(timeout: 3))
+        XCTAssertFalse(discardButton.exists)
+    }
+
+    @MainActor
+    func testBehaviorDeletionCanBeCancelledBeforeApplyingChanges() throws {
+        let app = XCUIApplication()
+        app.launchArguments.append("--ui-testing-open-settings")
+        app.launch()
+
+        selectSettingsDestination("monglepet.settings.navigation.behavior", in: app)
+        let addButton = app.buttons["monglepet.settings.addSequence"]
+        XCTAssertTrue(addButton.waitForExistence(timeout: 5))
+        addButton.click()
+        let nameField = app.textFields["monglepet.settings.newSequenceName"]
+        XCTAssertTrue(nameField.waitForExistence(timeout: 3))
+        nameField.click()
+        nameField.typeText("Deletion test behavior")
+        app.buttons["만들고 편집"].click()
+
+        let deleteButton = app.buttons["monglepet.settings.deleteSequence"]
+        XCTAssertTrue(deleteButton.waitForExistence(timeout: 3))
+        XCTAssertTrue(deleteButton.isEnabled)
+        deleteButton.click()
+        let cancelButton = app.buttons["monglepet.settings.cancelDeleteSequence"]
+        XCTAssertTrue(cancelButton.waitForExistence(timeout: 3))
+        cancelButton.click()
+        XCTAssertTrue(deleteButton.isEnabled)
+
+        deleteButton.click()
+        let confirmButton = app.buttons["monglepet.settings.confirmDeleteSequence"]
+        XCTAssertTrue(confirmButton.waitForExistence(timeout: 3))
+        confirmButton.click()
+        XCTAssertTrue(confirmButton.waitForNonExistence(timeout: 3))
+        XCTAssertFalse(app.staticTexts["Deletion test behavior"].exists)
+    }
+
+    @MainActor
     func testSettingsWindowOpens() throws {
         let app = XCUIApplication()
         app.launchArguments.append("--ui-testing-open-settings")

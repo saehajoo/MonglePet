@@ -126,10 +126,10 @@ final class MonglePetVersionTests: XCTestCase {
 
         XCTAssertEqual(
             version.semanticVersion,
-            try XCTUnwrap(SemanticVersion("1.9.0"))
+            try XCTUnwrap(SemanticVersion("1.9.1"))
         )
-        XCTAssertEqual(version.buildNumber, "19")
-        XCTAssertEqual(version.displayText, "MonglePet 1.9.0 (19)")
+        XCTAssertEqual(version.buildNumber, "20")
+        XCTAssertEqual(version.displayText, "MonglePet 1.9.1 (20)")
     }
 
     func testAppIconCatalogContainsEveryMacRendition() throws {

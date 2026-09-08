@@ -46,6 +46,30 @@ extension BehaviorSettingsEditError: LocalizedError {
     }
 }
 
+nonisolated struct BehaviorSequenceRemovalImpact: Equatable, Sendable {
+    let replacesStationarySelection: Bool
+    let removesRandomSelection: Bool
+    let applicationRuleCount: Int
+    let idleRuleCount: Int
+    let otherRuleCount: Int
+    let speechPhraseCount: Int
+    let removesPettingSelection: Bool
+    let movementReferences: [MovementReference]
+
+    struct MovementReference: Equatable, Sendable {
+        enum Context: Equatable, Sendable {
+            case cursorFollowing
+            case freeRoaming
+            case cursorAvoiding
+            case cursorAvoidingIdleFreeRoaming
+        }
+
+        let context: Context
+        let removesFallback: Bool
+        let directions: [MovementDirection]
+    }
+}
+
 nonisolated enum BehaviorSettingsEditor {
     static let protectedSequenceIDs: Set<String> = [
         BuiltInBehaviorPresets.defaultSequenceID
@@ -82,7 +106,7 @@ nonisolated enum BehaviorSettingsEditor {
         return replacing(
             settings,
             sequences: settings.sequences + [sequence],
-            manualSequenceID: settings.manualSequenceID ?? sequenceID,
+            manualSequenceID: settings.manualSequenceID,
             automaticRules: settings.automaticRules
         )
     }
@@ -168,40 +192,38 @@ nonisolated enum BehaviorSettingsEditor {
         let automaticRules = settings.automaticRules.filter {
             $0.sequenceID != sequenceID
         }
+        let previousMovement = settings.movementSettings
         let movement = PetMovementSettings(
-            mode: settings.movementSettings.mode,
-            speed: settings.movementSettings.speed,
-            cursorDistance: settings.movementSettings.cursorDistance,
-            stopRadius: settings.movementSettings.stopRadius,
-            freeRoamingDwellMilliseconds:
-                settings.movementSettings.freeRoamingDwellMilliseconds,
-            prefersFrontmostWindow:
-                settings.movementSettings.prefersFrontmostWindow,
-            cursorFollowingAnimation: replacingMotionReferences(
-                in: settings.movementSettings.cursorFollowingAnimation,
-                oldMotionID: sequenceID,
-                replacementMotionID: nil
+            mode: previousMovement.mode,
+            cursorFollowing: CursorFollowingMovementSettings(
+                speed: previousMovement.cursorFollowing.speed,
+                cursorDistance: previousMovement.cursorFollowing.cursorDistance,
+                stopRadius: previousMovement.cursorFollowing.stopRadius,
+                animation: replacingMotionReferences(
+                    in: previousMovement.cursorFollowing.animation,
+                    oldMotionID: sequenceID,
+                    replacementMotionID: nil
+                )
             ),
-            freeRoamingAnimation: replacingMotionReferences(
-                in: settings.movementSettings.freeRoamingAnimation,
-                oldMotionID: sequenceID,
-                replacementMotionID: nil
+            freeRoaming: removingSequenceReference(
+                sequenceID,
+                from: previousMovement.freeRoaming
             ),
-            cursorAvoidingIdleBehavior:
-                settings.movementSettings.cursorAvoidingIdleBehavior,
-            cursorAvoidingDetectionDistance:
-                settings.movementSettings.cursorAvoidingDetectionDistance,
-            cursorAvoidingSpeed:
-                settings.movementSettings.cursorAvoidingSpeed,
-            cursorAvoidingAnimation: replacingMotionReferences(
-                in: settings.movementSettings.cursorAvoidingAnimation,
-                oldMotionID: sequenceID,
-                replacementMotionID: nil
-            ),
-            randomizesFreeRoamingDwell:
-                settings.movementSettings.randomizesFreeRoamingDwell,
-            freeRoamingDwellMinimumMilliseconds:
-                settings.movementSettings.freeRoamingDwellMinimumMilliseconds
+            cursorAvoiding: CursorAvoidingMovementSettings(
+                idleBehavior: previousMovement.cursorAvoiding.idleBehavior,
+                detectionDistance: previousMovement.cursorAvoiding.detectionDistance,
+                speed: previousMovement.cursorAvoiding.speed,
+                stopRadius: previousMovement.cursorAvoiding.stopRadius,
+                animation: replacingMotionReferences(
+                    in: previousMovement.cursorAvoiding.animation,
+                    oldMotionID: sequenceID,
+                    replacementMotionID: nil
+                ),
+                idleFreeRoaming: removingSequenceReference(
+                    sequenceID,
+                    from: previousMovement.cursorAvoiding.idleFreeRoaming
+                )
+            )
         )
         let speech = PetSpeechSettings(
             isEnabled: settings.speechSettings.isEnabled,
@@ -231,6 +253,77 @@ nonisolated enum BehaviorSettingsEditor {
                 ? .replacing(nil)
                 : .preserving,
             speech: speech
+        )
+    }
+
+    static func removalImpact(
+        for sequenceID: String,
+        in settings: AppSettings
+    ) -> BehaviorSequenceRemovalImpact {
+        let rules = settings.automaticRules.filter { $0.sequenceID == sequenceID }
+        let movement = settings.movementSettings
+        let animations: [(
+            BehaviorSequenceRemovalImpact.MovementReference.Context,
+            MovementAnimationSettings
+        )] = [
+            (.cursorFollowing, movement.cursorFollowing.animation),
+            (.freeRoaming, movement.freeRoaming.animation),
+            (.cursorAvoiding, movement.cursorAvoiding.animation),
+            (.cursorAvoidingIdleFreeRoaming, movement.cursorAvoiding.idleFreeRoaming.animation)
+        ]
+        let movementReferences = animations.compactMap { context, animation
+            -> BehaviorSequenceRemovalImpact.MovementReference? in
+            let removesFallback = animation.fallbackMotionID == sequenceID
+            let directions = MovementDirection.allCases.filter {
+                animation.directionMotionIDs[$0] == sequenceID
+            }
+            guard removesFallback || !directions.isEmpty else { return nil }
+            return .init(
+                context: context,
+                removesFallback: removesFallback,
+                directions: directions
+            )
+        }
+        return BehaviorSequenceRemovalImpact(
+            replacesStationarySelection: settings.stationarySequenceID == sequenceID,
+            removesRandomSelection: settings.randomSequenceIDs.contains(sequenceID),
+            applicationRuleCount: rules.filter {
+                if case .application = $0.condition { return true }
+                return false
+            }.count,
+            idleRuleCount: rules.filter {
+                if case .idleAtLeast = $0.condition { return true }
+                return false
+            }.count,
+            otherRuleCount: rules.filter {
+                if case .unsupported = $0.condition { return true }
+                return false
+            }.count,
+            speechPhraseCount: settings.speechSettings.phrases.filter {
+                if case let .sequence(id) = $0.trigger { return id == sequenceID }
+                return false
+            }.count,
+            removesPettingSelection: settings.pettingBehaviorID == sequenceID,
+            movementReferences: movementReferences
+        )
+    }
+
+    private static func removingSequenceReference(
+        _ sequenceID: String,
+        from movement: FreeRoamingMovementSettings
+    ) -> FreeRoamingMovementSettings {
+        FreeRoamingMovementSettings(
+            speed: movement.speed,
+            stopRadius: movement.stopRadius,
+            dwellMilliseconds: movement.dwellMilliseconds,
+            dwellMinimumMilliseconds: movement.dwellMinimumMilliseconds,
+            prefersFrontmostWindow: movement.prefersFrontmostWindow,
+            animation: replacingMotionReferences(
+                in: movement.animation,
+                oldMotionID: sequenceID,
+                replacementMotionID: nil
+            ),
+            dwellMode: movement.dwellMode
         )
     }
 
@@ -790,8 +883,8 @@ nonisolated enum BehaviorSettingsEditor {
         return settings.replacingActiveBehaviorProfile(
             BehaviorProfile(
                 petKey: settings.selectedPetKey,
-                mode: settings.behaviorMode,
-                manualSequenceID: manualSequenceID,
+                stationaryBehaviorMode: settings.stationaryBehaviorMode,
+                stationarySequenceID: manualSequenceID,
                 randomSequenceIDs: settings.randomSequenceIDs.filter {
                     sequenceID in
                     sequences.contains(where: { $0.id == sequenceID })

@@ -384,6 +384,7 @@ struct BehaviorSequencesSettingsView: View {
     let petDisplayName: String
     @State private var selectedSequenceID = BuiltInBehaviorPresets.defaultSequenceID
     @State private var showsSequenceCreator = false
+    @State private var pendingRemoval: SequenceRemovalRequest?
 
     var body: some View {
         Form {
@@ -407,9 +408,7 @@ struct BehaviorSequencesSettingsView: View {
                     .accessibilityIdentifier("monglepet.settings.sequencePicker")
 
                     Button("삭제", role: .destructive) {
-                        if settingsSession.removeBehaviorSequence(id: selectedSequenceID) {
-                            selectAvailableSequence()
-                        }
+                        prepareSequenceRemoval()
                     }
                     .disabled(
                         BehaviorSettingsEditor.protectedSequenceIDs.contains(selectedSequenceID)
@@ -474,6 +473,33 @@ struct BehaviorSequencesSettingsView: View {
         .onChange(of: settingsSession.settings.sequences.map(\.id)) {
             selectAvailableSequence()
         }
+        .onChange(of: settingsSession.settings.selectedPetInstanceID) {
+            pendingRemoval = nil
+        }
+        .alert(
+            "행동을 삭제할까요?",
+            isPresented: Binding(
+                get: { pendingRemoval != nil },
+                set: { if !$0 { pendingRemoval = nil } }
+            ),
+            presenting: pendingRemoval
+        ) { request in
+            Button("취소", role: .cancel) {
+                pendingRemoval = nil
+            }
+            .accessibilityIdentifier("monglepet.settings.cancelDeleteSequence")
+            Button("행동 삭제", role: .destructive) {
+                guard settingsSession.settings.selectedPetInstanceID
+                    == request.instanceID else { return }
+                if settingsSession.removeBehaviorSequence(id: request.sequenceID) {
+                    selectAvailableSequence()
+                }
+                pendingRemoval = nil
+            }
+            .accessibilityIdentifier("monglepet.settings.confirmDeleteSequence")
+        } message: { request in
+            Text(request.message)
+        }
         .sheet(isPresented: $showsSequenceCreator) {
             NewBehaviorSequenceSheet(
                 motionIDs: BehaviorMotionCatalog.identifiers(
@@ -510,7 +536,20 @@ struct BehaviorSequencesSettingsView: View {
     }
 
     private var selectedSequenceDisplayName: String {
-        selectedSequence?.displayName ?? selectedSequenceID
+        selectedSequence?.displayName ?? "선택한 행동"
+    }
+
+    private func prepareSequenceRemoval() {
+        guard let sequence = selectedSequence else { return }
+        pendingRemoval = SequenceRemovalRequest(
+            instanceID: settingsSession.settings.selectedPetInstanceID,
+            sequenceID: sequence.id,
+            displayName: sequence.displayName,
+            impact: BehaviorSettingsEditor.removalImpact(
+                for: sequence.id,
+                in: settingsSession.settings
+            )
+        )
     }
 
     private func displayNameBinding(
@@ -541,6 +580,57 @@ struct BehaviorSequencesSettingsView: View {
             .first(where: { $0.id == BuiltInBehaviorPresets.defaultSequenceID })?.id
             ?? settingsSession.settings.sequences.first?.id
             ?? ""
+    }
+}
+
+private struct SequenceRemovalRequest {
+    let instanceID: UUID?
+    let sequenceID: String
+    let displayName: String
+    let impact: BehaviorSequenceRemovalImpact
+
+    var message: String {
+        var changes: [String] = []
+        if impact.replacesStationarySelection {
+            changes.append("평상시 하나 선택: 기본 행동으로 변경")
+        }
+        if impact.removesRandomSelection {
+            changes.append("평상시 랜덤: 선택 목록에서 제외")
+        }
+        if impact.applicationRuleCount > 0 {
+            changes.append("앱 사용 규칙 \(impact.applicationRuleCount)개 삭제")
+        }
+        if impact.idleRuleCount > 0 {
+            changes.append("입력 없음 규칙 \(impact.idleRuleCount)개 삭제")
+        }
+        if impact.otherRuleCount > 0 {
+            changes.append("기타 저장된 규칙 \(impact.otherRuleCount)개 삭제")
+        }
+        if impact.speechPhraseCount > 0 {
+            changes.append("행동 말풍선 \(impact.speechPhraseCount)개 삭제")
+        }
+        for reference in impact.movementReferences {
+            let title = switch reference.context {
+            case .cursorFollowing: "마우스 따라가기"
+            case .freeRoaming: "자유 이동"
+            case .cursorAvoiding: "마우스 도망가기"
+            case .cursorAvoidingIdleFreeRoaming: "도망가기의 평상시 자유 이동"
+            }
+            var connections: [String] = []
+            if reference.removesFallback { connections.append("공통 행동") }
+            if !reference.directions.isEmpty {
+                connections.append("방향별 행동 \(reference.directions.count)개")
+            }
+            changes.append("\(title): \(connections.joined(separator: "·")) 연결 해제")
+        }
+        if impact.removesPettingSelection {
+            changes.append("쓰다듬기 행동 연결 해제")
+        }
+        let details = changes.isEmpty
+            ? "이 행동에 연결된 설정은 없습니다."
+            : "다음 설정도 함께 바뀝니다. 사용하지 않는 모드에 보관된 연결도 포함합니다.\n\n"
+                + changes.map { "• \($0)" }.joined(separator: "\n")
+        return "‘\(displayName)’ 행동을 삭제합니다.\n\n\(details)\n\n애니메이션 원본은 유지됩니다."
     }
 }
 
@@ -792,6 +882,10 @@ struct AutomaticRulesSettingsView: View {
                 }
 
                 Text("위에 있는 항목부터 적용합니다. 규칙이 이동보다 앞에 있으면 펫이 현재 위치에서 멈추고 해당 규칙의 행동을 표시합니다.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Text("앱 사용 또는 입력 없음 조건이 유지되는 동안 선택한 행동 전체를 처음부터 반복합니다.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
