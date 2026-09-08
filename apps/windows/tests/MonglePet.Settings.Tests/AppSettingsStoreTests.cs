@@ -105,6 +105,69 @@ public sealed class AppSettingsStoreTests
     }
 
     [Fact]
+    public void SequenceRemovalPreservesIndependentMovementSettingsAfterReload()
+    {
+        using var workspace = new TemporaryDirectory();
+        var store = workspace.CreateStore();
+        AppSettings settings = store.Load().Settings!;
+        BehaviorProfile added = BehaviorProfileEditor.AddSequence(
+            settings.SelectedBehaviorProfile!,
+            "temporary");
+        string removedId = added.Sequences.Single(sequence =>
+            sequence.DisplayName == "temporary").Id;
+        var freeRoaming = new FreeRoamingMovementSettings(
+            219,
+            31,
+            17_000,
+            FreeRoamingDwellMode.BehaviorCompletion,
+            2_000,
+            false,
+            new MovementBehaviorSettings(
+                removedId,
+                true,
+                false,
+                new DirectionalBehaviorIds(Right: BehaviorMotionReferences.DefaultSequence)));
+        var idleFreeRoaming = freeRoaming with
+        {
+            Speed = 287,
+            DwellMilliseconds = 23_000,
+            DwellMinimumMilliseconds = 3_000,
+            PrefersFrontmostWindow = true,
+        };
+        BehaviorProfile profile = added with
+        {
+            Movement = added.Movement with
+            {
+                FreeRoamingSettings = freeRoaming,
+                CursorAvoidingSettings = added.Movement.CursorAvoiding with
+                {
+                    IdleFreeRoaming = idleFreeRoaming,
+                },
+            },
+        };
+
+        BehaviorProfile removed = BehaviorProfileEditor.RemoveSequence(profile, removedId);
+        store.Save(settings.WithSelectedBehaviorProfile(removed));
+        BehaviorProfile reloaded = workspace.CreateStore().Load().Settings!
+            .SelectedBehaviorProfile!;
+
+        Assert.Equal(FreeRoamingDwellMode.BehaviorCompletion, reloaded.Movement.FreeRoaming.DwellMode);
+        Assert.Equal(17_000, reloaded.Movement.FreeRoaming.DwellMilliseconds);
+        Assert.Equal(2_000, reloaded.Movement.FreeRoaming.DwellMinimumMilliseconds);
+        Assert.False(reloaded.Movement.FreeRoaming.PrefersFrontmostWindow);
+        Assert.Null(reloaded.Movement.FreeRoaming.Behavior.FallbackBehaviorId);
+        Assert.Equal(
+            BehaviorMotionReferences.DefaultSequence,
+            reloaded.Movement.FreeRoaming.Behavior.DirectionBehaviorIds.Right);
+        Assert.Equal(
+            FreeRoamingDwellMode.BehaviorCompletion,
+            reloaded.Movement.CursorAvoiding.IdleFreeRoaming.DwellMode);
+        Assert.Equal(287, reloaded.Movement.CursorAvoiding.IdleFreeRoaming.Speed);
+        Assert.Equal(23_000, reloaded.Movement.CursorAvoiding.IdleFreeRoaming.DwellMilliseconds);
+        Assert.True(reloaded.Movement.CursorAvoiding.IdleFreeRoaming.PrefersFrontmostWindow);
+    }
+
+    [Fact]
     public void SchemaV16KeepsIndependentDwellModesAndHiddenTimingValues()
     {
         using var workspace = new TemporaryDirectory();

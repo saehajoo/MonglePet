@@ -220,6 +220,53 @@ public sealed class RecommendedPetProfileCodecTests
     }
 
     [Fact]
+    public void VersionTwelveRoundTripPreservesIndependentMovementAfterUnrelatedBehaviorRemoval()
+    {
+        BehaviorProfile added = BehaviorProfileEditor.AddSequence(
+            BehaviorProfileDefaults.Create(TargetKey),
+            "unused");
+        string unusedId = added.Sequences.Single(sequence =>
+            sequence.DisplayName == "unused").Id;
+        BehaviorProfile configured = added with
+        {
+            Movement = added.Movement with
+            {
+                Speed = 317,
+                StopRadius = 73,
+                FreeRoamingSettings = added.Movement.FreeRoaming with
+                {
+                    DwellMode = FreeRoamingDwellMode.BehaviorCompletion,
+                    DwellMilliseconds = 17_000,
+                    DwellMinimumMilliseconds = 3_000,
+                    PrefersFrontmostWindow = true,
+                },
+                CursorAvoidingSettings = added.Movement.CursorAvoiding with
+                {
+                    DetectionDistance = 241,
+                    Speed = 509,
+                    IdleFreeRoaming = added.Movement.CursorAvoiding.IdleFreeRoaming with
+                    {
+                        DwellMode = FreeRoamingDwellMode.Fixed,
+                        DwellMilliseconds = 11_000,
+                        DwellMinimumMilliseconds = 2_000,
+                    },
+                },
+            },
+        };
+
+        BehaviorProfile removed = BehaviorProfileEditor.RemoveSequence(configured, unusedId);
+        BehaviorProfile decoded = RecommendedPetProfileCodec.Decode(
+            RecommendedPetProfileCodec.Encode(removed, ["idle"], true),
+            TargetKey,
+            ["idle"]);
+
+        Assert.Equal(removed.Movement.Mode, decoded.Movement.Mode);
+        Assert.Equal(removed.Movement.CursorFollowing, decoded.Movement.CursorFollowing);
+        Assert.Equal(removed.Movement.FreeRoaming, decoded.Movement.FreeRoaming);
+        Assert.Equal(removed.Movement.CursorAvoiding, decoded.Movement.CursorAvoiding);
+    }
+
+    [Fact]
     public void VersionTenManualSelectionMigratesAndDisablesDormantRules()
     {
         BehaviorProfile profile = BehaviorProfileDefaults.Create(TargetKey) with

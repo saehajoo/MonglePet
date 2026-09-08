@@ -120,6 +120,7 @@ public sealed partial class MainPage : Page
             RefreshActivePetsState();
             RefreshLibraryState();
             RefreshBehaviorState();
+            RefreshSettingsSaveFailureState();
             _ = RefreshLoginLaunchAsync();
             DispatcherQueue.TryEnqueue(RefreshOverlayState);
             RenderPetExportState();
@@ -138,7 +139,9 @@ public sealed partial class MainPage : Page
         }
 
         _isPreparedForShutdown = true;
+        FlushDisplaySave();
         FlushMovementSave();
+        FlushSpeechSave();
         _isLoaded = false;
         _remotePetImportCancellation.Cancel();
         _remotePetImportCancellation.Dispose();
@@ -203,6 +206,14 @@ public sealed partial class MainPage : Page
             section != "movement" && section != "interaction")
         {
             FlushMovementSave();
+        }
+        if (_currentSettingsSection == "display" && section != "display")
+        {
+            FlushDisplaySave();
+        }
+        if (_currentSettingsSection == "speech" && section != "speech")
+        {
+            FlushSpeechSave();
         }
         ShowSettingsSection(section);
         if (section == "general" && _isLoaded)
@@ -1541,20 +1552,25 @@ public sealed partial class MainPage : Page
             return;
         }
 
-        PetAnimationEditorControl? editor = await ShowPetAnimationEditorAsync(
+        string? message = await ShowPetAnimationEditorAsync(
             "새 펫 만들기",
-            "펫 만들기");
-        if (editor is null)
-        {
-            return;
-        }
-
-        await RunPetEditAsync("새 펫 만들기", async () =>
-        {
-            InstalledPetPackage installed = await app.PetEditor.CreatePetAsync(editor.CreatePetRequest());
-            app.AddInstallationAsNewInstance(installed.InstallationId);
-            return $"'{installed.Package.Manifest.DisplayName}' 펫을 새 활성 펫으로 추가했습니다.";
-        });
+            "펫 만들기",
+            acceptAction: async editor =>
+            {
+                InstalledPetPackage installed = await app.PetEditor.CreatePetAsync(
+                    editor.CreatePetRequest());
+                try
+                {
+                    app.AddInstallationAsNewInstance(installed.InstallationId);
+                }
+                catch
+                {
+                    app.PetLibrary.RemoveInstallation(installed.InstallationId);
+                    throw;
+                }
+                return $"'{installed.Package.Manifest.DisplayName}' 펫을 새 활성 펫으로 추가했습니다.";
+            });
+        CompletePetEditorOperation("새 펫 만들기", message);
     }
 
     private async void AddPetAnimationButton_Click(object sender, RoutedEventArgs e)
@@ -1564,40 +1580,36 @@ public sealed partial class MainPage : Page
             return;
         }
 
-        PetAnimationEditorControl? editor = await ShowPetAnimationEditorAsync(
+        string? message = await ShowPetAnimationEditorAsync(
             "펫 애니메이션 추가",
             "추가",
-            package);
-        if (editor is null)
-        {
-            return;
-        }
-        UserPetAnimationRequest animationRequest = editor.CreateAnimationRequest();
-        BehaviorProfile connectedProfile = ApplyAnimationBehaviorConnection(
-            app.ActiveBehaviorProfile,
-            editor.BehaviorConnectionRequest(),
-            animationRequest.AnimationName);
-
-        await RunPetEditAsync("애니메이션 추가", async () =>
-        {
-            InstalledPetPackage updated = await app.EditSelectedPetAsync(editable =>
-                app.PetEditor.AddAnimationAsync(editable, animationRequest));
-            try
+            package,
+            acceptAction: async editor =>
             {
-                BehaviorProfile target = app.ActiveBehaviorProfile;
-                app.SaveBehaviorProfile(connectedProfile with
+                UserPetAnimationRequest animationRequest = editor.CreateAnimationRequest();
+                BehaviorProfile connectedProfile = ApplyAnimationBehaviorConnection(
+                    app.ActiveBehaviorProfile,
+                    editor.BehaviorConnectionRequest(),
+                    animationRequest.AnimationName);
+                InstalledPetPackage updated = await app.EditSelectedPetAsync(editable =>
+                    app.PetEditor.AddAnimationAsync(editable, animationRequest));
+                try
                 {
-                    ProfileId = target.ProfileId,
-                    PetKey = target.PetKey,
-                });
-            }
-            catch
-            {
-                _ = app.PetEditor.RemoveAnimation(updated, animationRequest.AnimationName);
-                throw;
-            }
-            return $"'{updated.Package.Manifest.DisplayName}'에 애니메이션을 추가했습니다.";
-        });
+                    BehaviorProfile target = app.ActiveBehaviorProfile;
+                    app.SaveBehaviorProfileTransactionally(connectedProfile with
+                    {
+                        ProfileId = target.ProfileId,
+                        PetKey = target.PetKey,
+                    });
+                }
+                catch
+                {
+                    _ = app.PetEditor.RemoveAnimation(updated, animationRequest.AnimationName);
+                    throw;
+                }
+                return $"'{updated.Package.Manifest.DisplayName}'에 애니메이션을 추가했습니다.";
+            });
+        CompletePetEditorOperation("애니메이션 추가", message);
     }
 
     private async void EditPetAnimationButton_Click(object sender, RoutedEventArgs e)
@@ -1610,37 +1622,41 @@ public sealed partial class MainPage : Page
             return;
         }
 
-        PetAnimationEditorControl? editor = await ShowPetAnimationEditorAsync(
+        string editableMotionId = motion.Id;
+        string profileMotionId = motion.Id;
+        string? message = await ShowPetAnimationEditorAsync(
             "펫 애니메이션 수정",
             "저장",
             package,
-            motion);
-        if (editor is null)
-        {
-            return;
-        }
-
-        UserPetAnimationUpdateRequest request = editor.CreateAnimationUpdateRequest(motion.Id);
-        BehaviorProfile renamedProfile = BehaviorProfileMotionReferences.Replacing(
-            app.ActiveBehaviorProfile,
-            motion.Id,
-            request.AnimationName);
-        BehaviorProfile connectedProfile = ApplyAnimationBehaviorConnection(
-            renamedProfile,
-            editor.BehaviorConnectionRequest(),
-            request.AnimationName);
-        await RunPetEditAsync("애니메이션 수정", async () =>
-        {
-            _ = await app.EditSelectedPetAsync(editable =>
-                app.PetEditor.UpdateAnimationAsync(editable, request));
-            BehaviorProfile target = app.ActiveBehaviorProfile;
-            app.SaveBehaviorProfile(connectedProfile with
+            motion,
+            acceptAction: async editor =>
             {
-                ProfileId = target.ProfileId,
-                PetKey = target.PetKey,
+                UserPetAnimationUpdateRequest request =
+                    editor.CreateAnimationUpdateRequest(editableMotionId);
+                BehaviorProfile renamedProfile = BehaviorProfileMotionReferences.Replacing(
+                    app.ActiveBehaviorProfile,
+                    profileMotionId,
+                    request.AnimationName);
+                BehaviorProfile connectedProfile = ApplyAnimationBehaviorConnection(
+                    renamedProfile,
+                    editor.BehaviorConnectionRequest(),
+                    request.AnimationName);
+                _ = await app.EditSelectedPetAsync(editable =>
+                    app.PetEditor.UpdateAnimationAsync(editable, request));
+                // Package persistence happens before the settings/profile
+                // transaction. If the latter fails, the editor remains open
+                // and the next attempt must address the already-renamed motion
+                // while still replacing the original profile reference.
+                editableMotionId = request.AnimationName;
+                BehaviorProfile target = app.ActiveBehaviorProfile;
+                app.SaveBehaviorProfileTransactionally(connectedProfile with
+                {
+                    ProfileId = target.ProfileId,
+                    PetKey = target.PetKey,
+                });
+                return $"'{motion.Id}' 애니메이션을 수정했습니다.";
             });
-            return $"'{motion.Id}' 애니메이션을 수정했습니다.";
-        });
+        CompletePetEditorOperation("애니메이션 수정", message);
     }
 
     private async void DuplicatePetAnimationButton_Click(object sender, RoutedEventArgs e)
@@ -1653,41 +1669,38 @@ public sealed partial class MainPage : Page
             return;
         }
 
-        PetAnimationEditorControl? editor = await ShowPetAnimationEditorAsync(
+        string? message = await ShowPetAnimationEditorAsync(
             "애니메이션 복제",
             "복제본 저장",
             package,
             motion,
-            AvailableAnimationCopyName(package.Manifest, motion.Id));
-        if (editor is null)
-        {
-            return;
-        }
-        UserPetAnimationRequest animationRequest = editor.CreateAnimationRequest();
-        BehaviorProfile connectedProfile = ApplyAnimationBehaviorConnection(
-            app.ActiveBehaviorProfile,
-            editor.BehaviorConnectionRequest(),
-            animationRequest.AnimationName);
-        await RunPetEditAsync("애니메이션 복제", async () =>
-        {
-            InstalledPetPackage updated = await app.EditSelectedPetAsync(editable =>
-                app.PetEditor.AddAnimationAsync(editable, animationRequest));
-            try
+            AvailableAnimationCopyName(package.Manifest, motion.Id),
+            acceptAction: async editor =>
             {
-                BehaviorProfile target = app.ActiveBehaviorProfile;
-                app.SaveBehaviorProfile(connectedProfile with
+                UserPetAnimationRequest animationRequest = editor.CreateAnimationRequest();
+                BehaviorProfile connectedProfile = ApplyAnimationBehaviorConnection(
+                    app.ActiveBehaviorProfile,
+                    editor.BehaviorConnectionRequest(),
+                    animationRequest.AnimationName);
+                InstalledPetPackage updated = await app.EditSelectedPetAsync(editable =>
+                    app.PetEditor.AddAnimationAsync(editable, animationRequest));
+                try
                 {
-                    ProfileId = target.ProfileId,
-                    PetKey = target.PetKey,
-                });
-            }
-            catch
-            {
-                _ = app.PetEditor.RemoveAnimation(updated, animationRequest.AnimationName);
-                throw;
-            }
-            return $"'{motion.Id}' 애니메이션 복제본을 만들었습니다.";
-        });
+                    BehaviorProfile target = app.ActiveBehaviorProfile;
+                    app.SaveBehaviorProfileTransactionally(connectedProfile with
+                    {
+                        ProfileId = target.ProfileId,
+                        PetKey = target.PetKey,
+                    });
+                }
+                catch
+                {
+                    _ = app.PetEditor.RemoveAnimation(updated, animationRequest.AnimationName);
+                    throw;
+                }
+                return $"'{motion.Id}' 애니메이션 복제본을 만들었습니다.";
+            });
+        CompletePetEditorOperation("애니메이션 복제", message);
     }
 
     private static string AvailableAnimationCopyName(
@@ -1732,12 +1745,13 @@ public sealed partial class MainPage : Page
         _ => profile,
     };
 
-    private async Task<PetAnimationEditorControl?> ShowPetAnimationEditorAsync(
+    private async Task<string?> ShowPetAnimationEditorAsync(
         string title,
         string primaryButtonText,
         LoadedPetPackage? package = null,
         PetPackageMotion? motion = null,
-        string? suggestedAnimationName = null)
+        string? suggestedAnimationName = null,
+        Func<PetAnimationEditorControl, Task<string>>? acceptAction = null)
     {
         try
         {
@@ -1759,6 +1773,7 @@ public sealed partial class MainPage : Page
                 : motion is null
                     ? "애니메이션 이름을 정한 뒤 사용할 프레임을 추가합니다."
                     : "애니메이션 미리보기와 프레임 순서, 위치 및 재생 간격을 편집합니다.";
+            string? acceptedMessage = null;
             var window = new EditorWindowHost(
                 title,
                 description,
@@ -1767,13 +1782,17 @@ public sealed partial class MainPage : Page
                 "프레임은 16~60000ms 간격을 사용하며 취소하면 기존 펫은 변경되지 않습니다.",
                 width: 1_040,
                 height: 760,
-                validation: () => editor.ValidationError(package is null));
+                validation: () => editor.ValidationError(package is null),
+                draftFingerprint: editor.DraftFingerprint,
+                acceptAction: acceptAction is null
+                    ? null
+                    : async () => acceptedMessage = await acceptAction(editor));
             editor.OwnerWindowHandle = window.WindowHandle;
             nint ownerWindow = Application.Current is App currentApp
                 ? currentApp.MainWindowHandle
                 : nint.Zero;
             return await window.ShowAsync(ownerWindow)
-                ? editor
+                ? acceptedMessage ?? string.Empty
                 : null;
         }
         catch (Exception exception)
@@ -1784,6 +1803,18 @@ public sealed partial class MainPage : Page
                 exception.Message);
             return null;
         }
+    }
+
+    private void CompletePetEditorOperation(string title, string? message)
+    {
+        if (message is null)
+        {
+            return;
+        }
+        ShowLibraryMessage(InfoBarSeverity.Success, title, message);
+        RefreshLibraryState();
+        RefreshOverlayState();
+        RefreshBehaviorState();
     }
 
     private async void DeletePetAnimationButton_Click(object sender, RoutedEventArgs e)
@@ -2109,6 +2140,7 @@ public sealed partial class MainPage : Page
             {
                 return;
             }
+            RefreshSettingsSaveFailureState();
             if (preservesMovementEditor)
             {
                 // The controls already contain the values that were just
@@ -2127,6 +2159,34 @@ public sealed partial class MainPage : Page
             RefreshLibraryState();
             RefreshBehaviorState();
         });
+    }
+
+    private void RetrySettingsSaveButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (Application.Current is not App app)
+        {
+            return;
+        }
+
+        RetrySettingsSaveButton.IsEnabled = false;
+        try
+        {
+            _ = app.RetryCurrentSettingsSave();
+        }
+        finally
+        {
+            RetrySettingsSaveButton.IsEnabled = true;
+            RefreshSettingsSaveFailureState();
+        }
+    }
+
+    private void RefreshSettingsSaveFailureState()
+    {
+        string? message = (Application.Current as App)?.SettingsSaveFailureMessage;
+        SettingsSaveFailureInfoBar.Message = string.IsNullOrWhiteSpace(message)
+            ? string.Empty
+            : $"최신 설정은 앱에 적용되어 있습니다. {message}";
+        SettingsSaveFailureInfoBar.IsOpen = !string.IsNullOrWhiteSpace(message);
     }
 
     private void App_SelectedPetInstanceChanged(object? sender, EventArgs e) =>
@@ -4237,20 +4297,143 @@ public sealed partial class MainPage : Page
             : null;
     }
 
-    private void DeleteSequenceButton_Click(object sender, RoutedEventArgs e)
+    private async void DeleteSequenceButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_selectedRoutineId is not { } sequenceId)
+        if (_selectedRoutineId is not { } sequenceId ||
+            Application.Current is not App app)
         {
             return;
         }
+
+        BehaviorSequenceRemovalImpact impact;
+        try
+        {
+            impact = BehaviorProfileEditor.AnalyzeSequenceRemoval(
+                app.ActiveBehaviorProfile,
+                sequenceId);
+        }
+        catch (Exception exception)
+        {
+            ShowBehaviorError(exception);
+            return;
+        }
+
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = $"'{impact.DisplayName}' 행동을 삭제할까요?",
+            Content = new ScrollViewer
+            {
+                MaxHeight = 420,
+                Content = new TextBlock
+                {
+                    Text = SequenceRemovalImpactMessage(impact),
+                    TextWrapping = TextWrapping.Wrap,
+                },
+            },
+            PrimaryButtonText = "삭제",
+            CloseButtonText = "취소",
+            DefaultButton = ContentDialogButton.Close,
+        };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+        {
+            return;
+        }
+
         ApplyBehaviorProfileEdit(
-            profile => BehaviorProfileEditor.RemoveSequence(profile, sequenceId),
+            profile =>
+            {
+                // Re-resolve the stable ID against the latest profile instead of
+                // deleting whichever row happens to be selected after the dialog.
+                _ = BehaviorProfileEditor.AnalyzeSequenceRemoval(profile, impact.SequenceId);
+                return BehaviorProfileEditor.RemoveSequence(profile, impact.SequenceId);
+            },
             onSuccess: profile =>
             {
                 _selectedRoutineId = profile.Sequences.FirstOrDefault()?.Id;
                 _selectedRuleId = null;
             });
     }
+
+    private static string SequenceRemovalImpactMessage(
+        BehaviorSequenceRemovalImpact impact)
+    {
+        var lines = new List<string>
+        {
+            "이 행동과 아래 연결이 함께 정리됩니다.",
+        };
+        if (impact.ReplacesFixedStationarySelection)
+        {
+            lines.Add("• 평상시 '하나 선택' 연결을 기본 행동으로 바꿉니다.");
+        }
+        if (impact.RemovesRandomSelection)
+        {
+            lines.Add("• 평상시 '랜덤 선택' 후보에서 제거합니다.");
+        }
+        foreach (IGrouping<BehaviorMovementReferenceContext, BehaviorMovementReferenceImpact> group
+                 in impact.MovementReferences.GroupBy(reference => reference.Context))
+        {
+            string directions = string.Join(", ", group.Select(reference =>
+                MovementReferenceDirectionName(reference.Direction)));
+            lines.Add($"• {MovementReferenceContextName(group.Key)} 행동 연결 해제: {directions}");
+        }
+        if (impact.ClearsPettingBehavior)
+        {
+            lines.Add("• 쓰다듬기 행동 연결을 해제합니다.");
+        }
+        if (impact.RemovedRules.Count > 0)
+        {
+            lines.Add($"• 조건 규칙 {impact.RemovedRules.Count}개를 제거합니다:");
+            lines.AddRange(impact.RemovedRules.Select(rule =>
+                $"  - {RemovalRuleName(rule)}"));
+        }
+        if (impact.RemovedSpeechPhrases.Count > 0)
+        {
+            lines.Add($"• 행동 대사 {impact.RemovedSpeechPhrases.Count}개를 제거합니다:");
+            lines.AddRange(impact.RemovedSpeechPhrases.Select(phrase =>
+                $"  - “{phrase.Text}”"));
+        }
+        if (lines.Count == 1)
+        {
+            lines.Add("• 다른 설정 연결에는 영향이 없습니다.");
+        }
+        lines.Add(string.Empty);
+        lines.Add("나머지 행동, 이동 값, 주기 대사와 다른 펫 설정은 유지됩니다.");
+        return string.Join(Environment.NewLine, lines);
+    }
+
+    private static string MovementReferenceContextName(
+        BehaviorMovementReferenceContext context) => context switch
+    {
+        BehaviorMovementReferenceContext.CursorFollowing => "마우스 따라가기",
+        BehaviorMovementReferenceContext.FreeRoaming => "자유 이동",
+        BehaviorMovementReferenceContext.CursorAvoiding => "마우스 도망가기",
+        BehaviorMovementReferenceContext.CursorAvoidingIdleFreeRoaming => "도망가기 평상시 자유 이동",
+        _ => "이동",
+    };
+
+    private static string MovementReferenceDirectionName(
+        BehaviorMovementReferenceDirection direction) => direction switch
+    {
+        BehaviorMovementReferenceDirection.Common => "공통",
+        BehaviorMovementReferenceDirection.Left => "왼쪽",
+        BehaviorMovementReferenceDirection.Right => "오른쪽",
+        BehaviorMovementReferenceDirection.Up => "위",
+        BehaviorMovementReferenceDirection.Down => "아래",
+        BehaviorMovementReferenceDirection.UpLeft => "왼쪽 위",
+        BehaviorMovementReferenceDirection.UpRight => "오른쪽 위",
+        BehaviorMovementReferenceDirection.DownLeft => "왼쪽 아래",
+        BehaviorMovementReferenceDirection.DownRight => "오른쪽 아래",
+        _ => "방향",
+    };
+
+    private static string RemovalRuleName(AutomaticRule rule) => rule.Condition switch
+    {
+        RuleCondition.IdleAtLeast idle =>
+            $"입력 없음 {idle.Milliseconds / 1_000d:0.###}초 규칙",
+        RuleCondition.Application => "앱 사용 규칙",
+        _ => "조건 규칙",
+    };
 
     private void AddStepButton_Click(object sender, RoutedEventArgs e)
     {
@@ -5257,6 +5440,26 @@ public sealed partial class MainPage : Page
         }
         _movementSaveTimer.Stop();
         PersistMovementSettingsFromControls();
+    }
+
+    private void FlushDisplaySave()
+    {
+        if (_displaySaveTimer?.IsRunning != true)
+        {
+            return;
+        }
+        _displaySaveTimer.Stop();
+        PersistCurrentDisplayPreview();
+    }
+
+    private void FlushSpeechSave()
+    {
+        if (_speechSaveTimer?.IsRunning != true)
+        {
+            return;
+        }
+        _speechSaveTimer.Stop();
+        PersistSpeechSettingsFromControls(showConfirmation: false);
     }
 
     private DispatcherQueueTimer CreateDisplaySaveTimer()

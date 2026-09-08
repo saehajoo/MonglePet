@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using MonglePet.Shell;
 using Windows.Graphics;
 using Windows.System;
 
@@ -24,9 +25,14 @@ internal sealed class EditorWindowHost : Window
     private readonly TaskCompletionSource<bool> _completion = new(
         TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly Func<string?>? _validation;
+    private readonly Func<Task>? _acceptAction;
+    private readonly EditorDraftState? _draftState;
     private readonly InfoBar _validationInfoBar;
     private nint _ownerWindow;
     private bool _accepted;
+    private bool _isAccepting;
+    private bool _allowClose;
+    private bool _discardConfirmationIsOpen;
     private bool _isClosed;
 
     public EditorWindowHost(
@@ -37,13 +43,17 @@ internal sealed class EditorWindowHost : Window
         string footerText,
         int width,
         int height,
-        Func<string?>? validation = null)
+        Func<string?>? validation = null,
+        Func<string>? draftFingerprint = null,
+        Func<Task>? acceptAction = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(title);
         ArgumentNullException.ThrowIfNull(editor);
 
         Title = title;
         _validation = validation;
+        _acceptAction = acceptAction;
+        _draftState = draftFingerprint is null ? null : new EditorDraftState(draftFingerprint);
         SystemBackdrop = new MicaBackdrop();
 
         _validationInfoBar = new InfoBar
@@ -79,7 +89,7 @@ internal sealed class EditorWindowHost : Window
             Content = "취소",
             MinWidth = 88,
         };
-        cancelButton.Click += (_, _) => Close();
+        cancelButton.Click += (_, _) => RequestClose();
 
         var primaryButton = new Button
         {
@@ -87,7 +97,7 @@ internal sealed class EditorWindowHost : Window
             MinWidth = 112,
             Style = Application.Current.Resources["AccentButtonStyle"] as Style,
         };
-        primaryButton.Click += (_, _) => Accept();
+        primaryButton.Click += async (_, _) => await AcceptAsync();
 
         var footerButtons = new StackPanel
         {
@@ -136,22 +146,23 @@ internal sealed class EditorWindowHost : Window
         root.Children.Add(footer);
 
         var enterAccelerator = new KeyboardAccelerator { Key = VirtualKey.Enter };
-        enterAccelerator.Invoked += (_, args) =>
+        enterAccelerator.Invoked += async (_, args) =>
         {
-            Accept();
+            await AcceptAsync();
             args.Handled = true;
         };
         root.KeyboardAccelerators.Add(enterAccelerator);
         var escapeAccelerator = new KeyboardAccelerator { Key = VirtualKey.Escape };
         escapeAccelerator.Invoked += (_, args) =>
         {
-            Close();
+            RequestClose();
             args.Handled = true;
         };
         root.KeyboardAccelerators.Add(escapeAccelerator);
 
         Content = root;
         AppWindow.Resize(new SizeInt32(width, height));
+        AppWindow.Closing += AppWindow_Closing;
         Closed += EditorWindowHost_Closed;
     }
 
@@ -177,8 +188,12 @@ internal sealed class EditorWindowHost : Window
         _validationInfoBar.IsOpen = true;
     }
 
-    private void Accept()
+    private async Task AcceptAsync()
     {
+        if (_isAccepting)
+        {
+            return;
+        }
         string? error = _validation?.Invoke();
         if (!string.IsNullOrWhiteSpace(error))
         {
@@ -186,8 +201,88 @@ internal sealed class EditorWindowHost : Window
             return;
         }
         _validationInfoBar.IsOpen = false;
+        _isAccepting = true;
+        try
+        {
+            if (_acceptAction is not null)
+            {
+                await _acceptAction();
+            }
+        }
+        catch (Exception exception)
+        {
+            ShowValidationError(exception.Message);
+            return;
+        }
+        finally
+        {
+            _isAccepting = false;
+        }
         _accepted = true;
+        _allowClose = true;
         Close();
+    }
+
+    private void RequestClose()
+    {
+        if (_isAccepting)
+        {
+            return;
+        }
+        if (_allowClose || _accepted || !HasUnsavedChanges())
+        {
+            _allowClose = true;
+            Close();
+            return;
+        }
+        _ = ConfirmDiscardAsync();
+    }
+
+    private void AppWindow_Closing(AppWindow sender, AppWindowClosingEventArgs args)
+    {
+        if (_isAccepting)
+        {
+            args.Cancel = true;
+            return;
+        }
+        if (_allowClose || _accepted || !HasUnsavedChanges())
+        {
+            return;
+        }
+        args.Cancel = true;
+        _ = ConfirmDiscardAsync();
+    }
+
+    private bool HasUnsavedChanges() => _draftState?.HasChanges == true;
+
+    private async Task ConfirmDiscardAsync()
+    {
+        if (_discardConfirmationIsOpen || _allowClose || _accepted)
+        {
+            return;
+        }
+        _discardConfirmationIsOpen = true;
+        try
+        {
+            var dialog = new ContentDialog
+            {
+                XamlRoot = (Content as FrameworkElement)?.XamlRoot,
+                Title = "변경사항을 버릴까요?",
+                Content = "아직 저장하지 않은 변경사항은 사라집니다. 저장 도중 일부만 적용된 경우 이미 저장된 내용은 유지됩니다.",
+                PrimaryButtonText = "계속 편집",
+                SecondaryButtonText = "변경사항 버리기",
+                DefaultButton = ContentDialogButton.Primary,
+            };
+            if (await dialog.ShowAsync() == ContentDialogResult.Secondary)
+            {
+                _allowClose = true;
+                Close();
+            }
+        }
+        finally
+        {
+            _discardConfirmationIsOpen = false;
+        }
     }
 
     private void EditorWindowHost_Closed(object sender, WindowEventArgs args)
@@ -197,6 +292,7 @@ internal sealed class EditorWindowHost : Window
             return;
         }
         _isClosed = true;
+        AppWindow.Closing -= AppWindow_Closing;
         if (_ownerWindow != nint.Zero)
         {
             _ = EnableWindow(_ownerWindow, true);

@@ -218,6 +218,26 @@ public sealed partial class PetAnimationEditorControl : UserControl
 
     public void SetAnimationName(string value) => AnimationNameTextBox.Text = value;
 
+    public string DraftFingerprint()
+    {
+        NormalizeCommonCanvas();
+        AnimationBehaviorConnectionRequest connection = BehaviorConnectionRequest();
+        IEnumerable<string> frames = _frames.Select(frame =>
+            $"{frame.FrameId:D}|{frame.DurationMilliseconds}|{frame.ComposedPreviewSignature()}");
+        return string.Join("\n",
+        [
+            PetNameTextBox.Text,
+            VersionTextBox.Text,
+            AuthorTextBox.Text,
+            DescriptionTextBox.Text,
+            AnimationNameTextBox.Text,
+            connection.Mode.ToString(),
+            connection.NewBehaviorName ?? string.Empty,
+            connection.ExistingBehaviorId ?? string.Empty,
+            .. frames,
+        ]);
+    }
+
     public UserPetAnimationUpdateRequest CreateAnimationUpdateRequest(string animationId) => new(
         animationId,
         AnimationNameTextBox.Text,
@@ -259,7 +279,8 @@ public sealed partial class PetAnimationEditorControl : UserControl
                 "취소하면 현재 편집 중인 프레임 목록도 바뀌지 않습니다.",
                 width: 820,
                 height: 720,
-                validation: () => picker.HasSelection ? null : "추가할 프레임을 하나 이상 선택해 주세요.");
+                validation: () => picker.HasSelection ? null : "추가할 프레임을 하나 이상 선택해 주세요.",
+                draftFingerprint: picker.DraftFingerprint);
             if (!await window.ShowAsync(ownerWindow))
             {
                 return;
@@ -323,7 +344,8 @@ public sealed partial class PetAnimationEditorControl : UserControl
                 "체크한 PNG만 추가하며 행 선택은 현재 편집 및 일괄 편집 대상을 정합니다.",
                 width: 1_040,
                 height: 760,
-                validation: () => editor.HasFrames ? null : "추가할 PNG가 없습니다.");
+                validation: () => editor.HasFrames ? null : "추가할 PNG가 없습니다.",
+                draftFingerprint: editor.DraftFingerprint);
             editor.OwnerWindowHandle = window.WindowHandle;
             if (!await window.ShowAsync(ownerWindow))
             {
@@ -390,7 +412,8 @@ public sealed partial class PetAnimationEditorControl : UserControl
                 "정적 PNG·WebP만 지원하며 취소하면 원본과 기존 프레임은 변경되지 않습니다.",
                 width: 1_040,
                 height: 760,
-                validation: () => editor.HasSelectedFrames ? null : "가져올 프레임을 하나 이상 선택해 주세요.");
+                validation: () => editor.HasSelectedFrames ? null : "가져올 프레임을 하나 이상 선택해 주세요.",
+                draftFingerprint: editor.DraftFingerprint);
             if (!await window.ShowAsync(ownerWindow))
             {
                 return;

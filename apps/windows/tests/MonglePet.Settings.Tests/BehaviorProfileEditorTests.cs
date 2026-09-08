@@ -87,6 +87,120 @@ public sealed class BehaviorProfileEditorTests
     }
 
     [Fact]
+    public void RemovingUnreferencedSequencePreservesEveryIndependentMovementSetting()
+    {
+        BehaviorProfile added = BehaviorProfileEditor.AddSequence(Profile(), "unused");
+        string unusedId = added.Sequences.Single(sequence => sequence.DisplayName == "unused").Id;
+        PetMovementSettings movement = IndependentMovementSettings(
+            BehaviorMotionReferences.DefaultSequence,
+            "other");
+        BehaviorProfile profile = added with { Movement = movement };
+
+        BehaviorProfile result = BehaviorProfileEditor.RemoveSequence(profile, unusedId);
+
+        Assert.Equal(movement, result.Movement);
+        Assert.Equal(FreeRoamingDwellMode.BehaviorCompletion, result.Movement.FreeRoaming.DwellMode);
+        Assert.Equal(
+            FreeRoamingDwellMode.BehaviorCompletion,
+            result.Movement.CursorAvoiding.IdleFreeRoaming.DwellMode);
+    }
+
+    [Fact]
+    public void RemovingSequenceClearsLegacyPettingReference()
+    {
+        BehaviorProfile added = BehaviorProfileEditor.AddSequence(Profile(), "legacy petting");
+        string sequenceId = added.Sequences.Single(sequence =>
+            sequence.DisplayName == "legacy petting").Id;
+        BehaviorProfile profile = added with
+        {
+            PettingBehaviorId = null,
+            PettingMotionId = sequenceId,
+        };
+
+        BehaviorSequenceRemovalImpact impact =
+            BehaviorProfileEditor.AnalyzeSequenceRemoval(profile, sequenceId);
+        BehaviorProfile result = BehaviorProfileEditor.RemoveSequence(profile, sequenceId);
+
+        Assert.True(impact.ClearsPettingBehavior);
+        Assert.Null(result.PettingMotionId);
+        Assert.Null(result.EffectivePettingBehaviorId);
+    }
+
+    [Fact]
+    public void RemovalImpactAndCleanupOnlyContainMatchingReferences()
+    {
+        Guid ruleId = Guid.Parse("60000000-0000-0000-0000-000000000001");
+        Guid removedPhraseId = Guid.Parse("60000000-0000-0000-0000-000000000002");
+        Guid keptPhraseId = Guid.Parse("60000000-0000-0000-0000-000000000003");
+        BehaviorProfile added = BehaviorProfileEditor.AddSequence(Profile(), "focus");
+        string focusId = added.Sequences.Single(sequence => sequence.DisplayName == "focus").Id;
+        PetMovementSettings movement = IndependentMovementSettings(focusId, "keep");
+        BehaviorProfile profile = added with
+        {
+            StationaryBehaviorMode = StationaryBehaviorMode.Random,
+            StationarySequenceId = focusId,
+            RandomSequenceIds = [focusId, BehaviorMotionReferences.DefaultSequence],
+            Movement = movement,
+            PettingBehaviorId = focusId,
+            AutomaticRules =
+            [
+                new(ruleId, true, 0, new RuleCondition.IdleAtLeast(1_000), focusId),
+            ],
+            Speech = PetSpeechSettings.Default with
+            {
+                IsEnabled = true,
+                Phrases =
+                [
+                    new(removedPhraseId, "집중할게", 3_000, new PetSpeechTrigger.Sequence(focusId), PetSpeechDisplayMode.Timed),
+                    new(keptPhraseId, "안녕", 3_000, new PetSpeechTrigger.Periodic(), PetSpeechDisplayMode.Timed),
+                ],
+            },
+        };
+
+        BehaviorSequenceRemovalImpact impact =
+            BehaviorProfileEditor.AnalyzeSequenceRemoval(profile, focusId);
+        BehaviorProfile result = BehaviorProfileEditor.RemoveSequence(profile, focusId);
+
+        Assert.Equal("focus", impact.DisplayName);
+        Assert.True(impact.ReplacesFixedStationarySelection);
+        Assert.True(impact.RemovesRandomSelection);
+        Assert.True(impact.ClearsPettingBehavior);
+        Assert.Equal(ruleId, Assert.Single(impact.RemovedRules).Id);
+        Assert.Equal(removedPhraseId, Assert.Single(impact.RemovedSpeechPhrases).Id);
+        Assert.Equal(5, impact.MovementReferences.Count);
+        Assert.Contains(impact.MovementReferences, reference =>
+            reference == new BehaviorMovementReferenceImpact(
+                BehaviorMovementReferenceContext.CursorFollowing,
+                BehaviorMovementReferenceDirection.Common));
+        Assert.Contains(impact.MovementReferences, reference =>
+            reference.Context == BehaviorMovementReferenceContext.CursorAvoidingIdleFreeRoaming);
+
+        Assert.Null(result.StationarySequenceId);
+        Assert.Equal(
+            new[] { BehaviorMotionReferences.DefaultSequence },
+            result.RandomSequences);
+        Assert.Null(result.PettingBehaviorId);
+        Assert.Empty(result.AutomaticRules);
+        Assert.Equal(keptPhraseId, Assert.Single(result.Speech.Phrases).Id);
+        Assert.DoesNotContain(
+            result.Movement.CursorFollowing.Behavior.DirectionBehaviorIds.All,
+            id => id == focusId);
+        Assert.Contains("keep", result.Movement.CursorFollowing.Behavior.DirectionBehaviorIds.All);
+        Assert.Equal(movement.CursorFollowing.Speed, result.Movement.CursorFollowing.Speed);
+        Assert.Equal(movement.CursorFollowing.CursorDistance, result.Movement.CursorFollowing.CursorDistance);
+        Assert.Equal(movement.FreeRoaming.DwellMode, result.Movement.FreeRoaming.DwellMode);
+        Assert.Equal(
+            movement.CursorAvoiding.IdleFreeRoaming with
+            {
+                Behavior = movement.CursorAvoiding.IdleFreeRoaming.Behavior with
+                {
+                    FallbackBehaviorId = null,
+                },
+            },
+            result.Movement.CursorAvoiding.IdleFreeRoaming);
+    }
+
+    [Fact]
     public void AddsEditsMovesAndRemovesSteps()
     {
         BehaviorProfile profile = BehaviorProfileEditor.AddStep(
@@ -196,4 +310,61 @@ public sealed class BehaviorProfileEditorTests
     private static BehaviorProfile Profile() => BehaviorProfileDefaults.Create(
         new PetBehaviorKey.Installed(
             Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")));
+
+    private static PetMovementSettings IndependentMovementSettings(
+        string removedId,
+        string keptId)
+    {
+        static MovementBehaviorSettings Behavior(
+            string? common,
+            string? left,
+            string? right) => new(
+                common,
+                true,
+                true,
+                new DirectionalBehaviorIds(Left: left, Right: right));
+
+        var following = new CursorFollowingMovementSettings(
+            111,
+            222,
+            33,
+            Behavior(removedId, removedId, keptId));
+        var roaming = new FreeRoamingMovementSettings(
+            144,
+            25,
+            9_500,
+            FreeRoamingDwellMode.BehaviorCompletion,
+            1_750,
+            false,
+            Behavior(keptId, removedId, keptId));
+        var idleRoaming = new FreeRoamingMovementSettings(
+            177,
+            19,
+            12_500,
+            FreeRoamingDwellMode.BehaviorCompletion,
+            2_250,
+            true,
+            Behavior(removedId, keptId, keptId));
+        var avoiding = new CursorAvoidingMovementSettings(
+            CursorAvoidingIdleBehavior.FreeRoaming,
+            333,
+            444,
+            27,
+            Behavior(keptId, keptId, removedId),
+            idleRoaming);
+        return PetMovementSettings.Default with
+        {
+            Mode = PetMovementMode.CursorAvoiding,
+            Speed = 901,
+            CursorDistance = 402,
+            StopRadius = 71,
+            FreeRoamingDwellMilliseconds = 44_000,
+            PrefersFrontmostWindow = false,
+            CursorAvoidingDetectionDistance = 708,
+            CursorAvoidingSpeed = 812,
+            CursorFollowingSettings = following,
+            FreeRoamingSettings = roaming,
+            CursorAvoidingSettings = avoiding,
+        };
+    }
 }

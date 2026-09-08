@@ -136,14 +136,14 @@ public sealed class WindowsDistributionTests : IDisposable
         XDocument project = XDocument.Load(Path.Combine(fixtures, "MonglePet.Windows.csproj"));
         XDocument manifest = XDocument.Load(Path.Combine(fixtures, "Package.appxmanifest"));
 
-        Assert.Equal("1.9.0", ProjectProperty(project, "Version"));
-        Assert.Equal("1.9.0.22", ProjectProperty(project, "AssemblyVersion"));
-        Assert.Equal("1.9.0.22", ProjectProperty(project, "FileVersion"));
+        Assert.Equal("1.9.1", ProjectProperty(project, "Version"));
+        Assert.Equal("1.9.1.23", ProjectProperty(project, "AssemblyVersion"));
+        Assert.Equal("1.9.1.23", ProjectProperty(project, "FileVersion"));
 
         XNamespace packageNamespace =
             "http://schemas.microsoft.com/appx/manifest/foundation/windows10";
         Assert.Equal(
-            "1.9.0.22",
+            "1.9.1.23",
             (string?)manifest.Root?.Element(packageNamespace + "Identity")?.Attribute("Version"));
     }
 

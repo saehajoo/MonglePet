@@ -100,6 +100,25 @@ public sealed partial class SpriteSheetImportControl : UserControl
 
     public bool HasSelectedFrames => FinalFrames().Count > 0;
 
+    public string DraftFingerprint()
+    {
+        IEnumerable<string> frames = _frames.Select(frame =>
+            $"{frame.Rect.X}|{frame.Rect.Y}|{frame.Rect.Width}|" +
+            $"{frame.Rect.Height}|{frame.IsIncluded}|{frame.FlipsHorizontally}|" +
+            $"{frame.FlipsVertically}");
+        return string.Join("\n",
+        [
+            ClickOrderRadio.IsChecked == true ? "click" : "reading",
+            RemoveBackgroundToggle.IsOn.ToString(),
+            BackgroundColorTextBox.Text,
+            BackgroundToleranceNumberBox.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            string.Join(",", FinalFrames().Select(frame =>
+                $"{frame.Rect.X}:{frame.Rect.Y}:{frame.Rect.Width}:{frame.Rect.Height}:" +
+                $"{frame.FlipsHorizontally}:{frame.FlipsVertically}")),
+            .. frames,
+        ]);
+    }
+
     private async Task InitializeAsync()
     {
         _isRefreshing = true;

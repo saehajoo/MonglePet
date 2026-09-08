@@ -47,6 +47,13 @@ public sealed partial class PngFrameImportControl : UserControl
 
     public bool HasFrames => _items.Any(item => item.IsIncluded);
 
+    public string DraftFingerprint() => string.Join(
+        "\n",
+        _items.Select(item =>
+            $"{item.FrameId:D}|{item.Path}|{item.IsIncluded}|{item.DurationMilliseconds}|" +
+            $"{item.Crop.X}|{item.Crop.Y}|{item.Crop.Width}|{item.Crop.Height}|" +
+            $"{item.FlipsHorizontally}|{item.FlipsVertically}"));
+
     public async Task AddFilesAsync(IEnumerable<string> paths)
     {
         var addedItems = new List<PngDraftItem>();

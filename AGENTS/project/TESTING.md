@@ -1104,6 +1104,14 @@ UI 테스트는 앱 실행과 접근성 자동화가 가능한 macOS 세션에�
 - 사용자 릴리스 승인 뒤 D-134와 함께 앱을 `1.9.1 (20)`으로 올렸다. 소스 커밋 `8e9ce63dba4d71bcc2c5cf162303f389631fcbb9`의 Universal Release ZIP은 11,649,154 bytes, SHA-256 `ca4bfef03c9f362e8b9979511415bd177d8bbe34c26fd7450a8238fddf7a8f0a`이며 압축 무결성·버전·빌드·Bundle ID·arm64/x86_64·AppIcon과 격리된 3초 실행을 확인했다.
 - 태그 `macos-v1.9.1-preview.1`의 GitHub Pre-release 세 자산을 다시 내려받아 로컬과 바이트 단위 일치, 원격 digest와 annotated tag 대상을 검증했다. settings schema-v16, 제작자 설정 v12, package format과 저장 `repeats`는 유지한다.
 
+### 2026-09-08 D-134·D-135 Windows 1.9.1 후보 검증
+
+- 삭제 영향 Domain·WinUI 계약, 앱 수명 최신 설정 재시도, 의미 기반 편집 초안 보호와 조건 규칙 반복·이동 우선 pause/resume·랜덤 fallback 회귀 테스트를 추가했다.
+- Debug·Release 각각 Activity 27개·Core 75개·Packages 30개·PetLibrary 107개·Settings 102개·Shell 36개로 총 377개 테스트가 성공했다. 두 구성 전체 빌드는 경고·오류 0개이며 `git diff --check`를 통과했다.
+- `1.9.1.23` x64 self-contained publish와 65,319,909 bytes 미서명 설치기를 생성했다. SHA-256은 `EEA7E1B135863B0DFAEDC6B0EECAFD5DC9A0D723D9C82BB71490607A89F95645`이고 `SHA256SUMS.txt`는 107 bytes다.
+- 실행 중인 기존 `1.9.0.22` 위에 설치기를 적용했다. 사용자 데이터는 전후 126개·48,630,992 bytes, inventory digest `75A3DF2E2D0CD848BC1B42FCF28EDB9AB5E71CE881D7CE578026CDFB7802E8C1`로 같고 설치 DLL은 publish와 일치하며 설치본 `1.9.1.23`이 응답한다.
+- 실제 행동 삭제 dialog, 저장 실패 주입, 중첩 제작 창 닫기, 다크/라이트·DPI·키보드/Narrator와 조건 규칙·이동 전환의 장기 UI QA는 사용자가 계속 확인한다. macOS 제작자 설정 v12 왕복도 남아 있어 플랫폼 동등 완료로 표시하지 않는다.
+
 ## 변경 유형별 최소 검증
 
 ### 후속 단계 필수 검증

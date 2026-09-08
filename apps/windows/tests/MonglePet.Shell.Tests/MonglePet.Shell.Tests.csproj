@@ -68,6 +68,15 @@
     <None Include="..\..\src\MonglePet.Windows\PetAnimationEditorControl.xaml.cs"
           Link="Fixtures\PetAnimationEditorControl.xaml.cs"
           CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\MonglePet.Windows\CurrentPetFramePickerControl.xaml.cs"
+          Link="Fixtures\CurrentPetFramePickerControl.xaml.cs"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\MonglePet.Windows\EditorWindowHost.cs"
+          Link="Fixtures\EditorWindowHost.cs"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\MonglePet.Windows\Runtime\PetBehaviorRuntime.cs"
+          Link="Fixtures\PetBehaviorRuntime.cs"
+          CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\MonglePet.Shell\WindowsProtocolActivationMessage.cs"
           Link="Fixtures\WindowsProtocolActivationMessage.cs"
           CopyToOutputDirectory="PreserveNewest" />

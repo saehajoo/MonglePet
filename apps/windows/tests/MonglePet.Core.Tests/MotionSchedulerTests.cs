@@ -143,6 +143,52 @@ public sealed class MotionSchedulerTests
         Assert.IsType<MotionSchedulerStatus.Stopped>(scheduler.Status);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void RulePlaybackRepeatsWholeSequenceWithoutResettingEquivalentSnapshots(
+        bool storedRepeats)
+    {
+        var scheduler = Scheduler();
+        var rule = new BehaviorSequence(
+            "rule",
+            [new("idle", 2), new("focus", 1)],
+            storedRepeats);
+
+        Assert.True(scheduler.Request(
+            rule,
+            BehaviorPlaybackPolicy.ForAutomaticRule()));
+        scheduler.Advance(TimeSpan.FromMilliseconds(150));
+        Assert.False(scheduler.Request(
+            rule,
+            BehaviorPlaybackPolicy.ForAutomaticRule()));
+        Assert.Equal(TimeSpan.FromMilliseconds(50), scheduler.ActiveCycleRemainingDuration);
+
+        scheduler.Advance(TimeSpan.FromMilliseconds(350));
+        AssertPlaying(scheduler, "rule", 0, "idle");
+        Assert.Equal(1UL, scheduler.CompletedSequencePassCount);
+    }
+
+    [Fact]
+    public void HiddenRulePlaybackPausesAndChangedRuleStartsAtFirstCycle()
+    {
+        var scheduler = Scheduler();
+        var first = new BehaviorSequence("rule", [new("focus", 1)], false);
+        var changed = first with { Steps = [new("idle", 1)] };
+        scheduler.Request(first, BehaviorPlaybackPolicy.ForAutomaticRule());
+        scheduler.Advance(TimeSpan.FromMilliseconds(75));
+
+        scheduler.Pause();
+        Assert.False(scheduler.Request(first, BehaviorPlaybackPolicy.ForAutomaticRule()));
+        scheduler.Advance(TimeSpan.FromSeconds(3));
+        Assert.Equal(TimeSpan.FromMilliseconds(175), scheduler.ActiveCycleRemainingDuration);
+
+        Assert.True(scheduler.Request(changed, BehaviorPlaybackPolicy.ForAutomaticRule()));
+        scheduler.Resume();
+        AssertPlaying(scheduler, "rule", 0, "idle");
+        Assert.Equal(TimeSpan.FromMilliseconds(100), scheduler.ActiveCycleRemainingDuration);
+    }
+
     [Fact]
     public void ReportsElapsedTimeInsideCurrentMotionCycle()
     {

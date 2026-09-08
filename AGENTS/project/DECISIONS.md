@@ -1078,3 +1078,11 @@
 - 결정: D-134 편집 보호·독립 설정 보존과 D-135 조건 규칙 연속 재생을 macOS `1.9.1 (20)`, 태그 `macos-v1.9.1-preview.1`의 미서명·미공증 Preview로 게시한다.
 - 이유: `1.9.0`의 패키지 용량·내보내기 계약은 유지하면서 편집 손실 방지와 자동 규칙 정지처럼 보이던 런타임 문제를 보정하므로 patch 버전으로 분리한다.
 - 비고: 소스 커밋 `8e9ce63dba4d71bcc2c5cf162303f389631fcbb9`에서 11,649,154 bytes Universal ZIP을 생성했고 SHA-256은 `ca4bfef03c9f362e8b9979511415bd177d8bbe34c26fd7450a8238fddf7a8f0a`다. 원격 세 자산의 바이트 일치와 annotated tag 대상을 확인했다. settings schema-v16, 제작자 설정 schema-v12, `.monglepet` formatVersion, 저장 `repeats`와 30 MiB 상한은 변경하지 않는다. Windows 구현·실제 양 플랫폼 QA 전에는 기능 동등 완료로 표시하지 않는다.
+
+## D-137 Windows 1.9.1 편집 보호·조건 규칙 재생 Preview
+
+- 상태: accepted
+- 날짜: 2026-09-08
+- 결정: D-134 편집 보호·독립 설정 보존과 D-135 조건 규칙 연속 재생의 Windows 네이티브 구현을 Windows `1.9.1.23`, 태그 `windows-v1.9.1-preview.1`의 미서명 x64 Preview로 게시한다.
+- 이유: macOS `1.9.1`에서 확정한 편집 손실 방지와 조건 규칙 정지처럼 보이던 런타임 보정을 기존 Windows `1.9.0.22` 자산을 덮어쓰지 않고 같은 patch 기능선으로 제공해야 한다.
+- 비고: Debug·Release 각 377개 테스트와 경고·오류 없는 전체 빌드를 통과했다. 65,319,909 bytes 설치기의 SHA-256은 `EEA7E1B135863B0DFAEDC6B0EECAFD5DC9A0D723D9C82BB71490607A89F95645`이며 기존 설치 위 업데이트에서 사용자 데이터 126개·48,630,992 bytes와 inventory digest를 보존하고 설치 DLL 일치·실행 응답을 확인했다. settings schema-v16, 제작자 설정 schema-v12, `.monglepet` formatVersion, 저장 `repeats`, Inno Setup AppId와 데이터 위치는 유지한다. 실제 장기 UI QA와 macOS 교차 왕복 전에는 기능 동등 완료로 표시하지 않는다.

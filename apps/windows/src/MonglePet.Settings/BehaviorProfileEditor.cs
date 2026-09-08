@@ -25,6 +25,41 @@ public sealed class BehaviorProfileEditException(
     public BehaviorProfileEditError Error { get; } = error;
 }
 
+public enum BehaviorMovementReferenceContext
+{
+    CursorFollowing,
+    FreeRoaming,
+    CursorAvoiding,
+    CursorAvoidingIdleFreeRoaming,
+}
+
+public enum BehaviorMovementReferenceDirection
+{
+    Common,
+    Left,
+    Right,
+    Up,
+    Down,
+    UpLeft,
+    UpRight,
+    DownLeft,
+    DownRight,
+}
+
+public sealed record BehaviorMovementReferenceImpact(
+    BehaviorMovementReferenceContext Context,
+    BehaviorMovementReferenceDirection Direction);
+
+public sealed record BehaviorSequenceRemovalImpact(
+    string SequenceId,
+    string DisplayName,
+    bool ReplacesFixedStationarySelection,
+    bool RemovesRandomSelection,
+    IReadOnlyList<BehaviorMovementReferenceImpact> MovementReferences,
+    bool ClearsPettingBehavior,
+    IReadOnlyList<AutomaticRule> RemovedRules,
+    IReadOnlyList<PetSpeechPhrase> RemovedSpeechPhrases);
+
 public static class BehaviorProfileEditor
 {
     private static readonly BehaviorStep DefaultStep = new(
@@ -125,10 +160,12 @@ public static class BehaviorProfileEditor
         });
     }
 
-    public static BehaviorProfile RemoveSequence(BehaviorProfile profile, string sequenceId)
+    public static BehaviorSequenceRemovalImpact AnalyzeSequenceRemoval(
+        BehaviorProfile profile,
+        string sequenceId)
     {
         ArgumentNullException.ThrowIfNull(profile);
-        _ = RequiredSequence(profile, sequenceId);
+        BehaviorSequence sequence = RequiredSequence(profile, sequenceId);
         if (string.Equals(
             sequenceId,
             BehaviorMotionReferences.DefaultSequence,
@@ -136,6 +173,54 @@ public static class BehaviorProfileEditor
         {
             throw Error(BehaviorProfileEditError.ProtectedSequence, "기본 행동 루틴은 삭제할 수 없습니다.");
         }
+
+        var movementReferences = new List<BehaviorMovementReferenceImpact>();
+        AddMovementReferences(
+            movementReferences,
+            BehaviorMovementReferenceContext.CursorFollowing,
+            profile.Movement.CursorFollowing.Behavior,
+            sequenceId);
+        AddMovementReferences(
+            movementReferences,
+            BehaviorMovementReferenceContext.FreeRoaming,
+            profile.Movement.FreeRoaming.Behavior,
+            sequenceId);
+        AddMovementReferences(
+            movementReferences,
+            BehaviorMovementReferenceContext.CursorAvoiding,
+            profile.Movement.CursorAvoiding.Behavior,
+            sequenceId);
+        AddMovementReferences(
+            movementReferences,
+            BehaviorMovementReferenceContext.CursorAvoidingIdleFreeRoaming,
+            profile.Movement.CursorAvoiding.IdleFreeRoaming.Behavior,
+            sequenceId);
+
+        return new BehaviorSequenceRemovalImpact(
+            sequence.Id,
+            sequence.DisplayName,
+            string.Equals(profile.StationarySequenceId, sequenceId, StringComparison.Ordinal),
+            profile.RandomSequences.Any(id => string.Equals(
+                id,
+                sequenceId,
+                StringComparison.Ordinal)),
+            movementReferences,
+            string.Equals(
+                profile.EffectivePettingBehaviorId,
+                sequenceId,
+                StringComparison.Ordinal),
+            profile.AutomaticRules.Where(rule => string.Equals(
+                rule.SequenceId,
+                sequenceId,
+                StringComparison.Ordinal)).ToArray(),
+            profile.Speech.Phrases.Where(phrase =>
+                phrase.Trigger is PetSpeechTrigger.Sequence trigger &&
+                string.Equals(trigger.SequenceId, sequenceId, StringComparison.Ordinal)).ToArray());
+    }
+
+    public static BehaviorProfile RemoveSequence(BehaviorProfile profile, string sequenceId)
+    {
+        _ = AnalyzeSequenceRemoval(profile, sequenceId);
 
         IReadOnlyList<BehaviorSequence> sequences = profile.Sequences
             .Where(sequence => !string.Equals(sequence.Id, sequenceId, StringComparison.Ordinal))
@@ -169,8 +254,39 @@ public static class BehaviorProfileEditor
                 StringComparison.Ordinal)
                 ? null
                 : profile.PettingBehaviorId,
+            PettingMotionId = string.Equals(
+                profile.PettingMotionId,
+                sequenceId,
+                StringComparison.Ordinal)
+                ? null
+                : profile.PettingMotionId,
             Speech = speech,
         };
+    }
+
+    private static void AddMovementReferences(
+        ICollection<BehaviorMovementReferenceImpact> references,
+        BehaviorMovementReferenceContext context,
+        MovementBehaviorSettings behavior,
+        string sequenceId)
+    {
+        void AddIfMatches(string? candidate, BehaviorMovementReferenceDirection direction)
+        {
+            if (string.Equals(candidate, sequenceId, StringComparison.Ordinal))
+            {
+                references.Add(new BehaviorMovementReferenceImpact(context, direction));
+            }
+        }
+
+        AddIfMatches(behavior.FallbackBehaviorId, BehaviorMovementReferenceDirection.Common);
+        AddIfMatches(behavior.DirectionBehaviorIds.Left, BehaviorMovementReferenceDirection.Left);
+        AddIfMatches(behavior.DirectionBehaviorIds.Right, BehaviorMovementReferenceDirection.Right);
+        AddIfMatches(behavior.DirectionBehaviorIds.Up, BehaviorMovementReferenceDirection.Up);
+        AddIfMatches(behavior.DirectionBehaviorIds.Down, BehaviorMovementReferenceDirection.Down);
+        AddIfMatches(behavior.DirectionBehaviorIds.UpLeft, BehaviorMovementReferenceDirection.UpLeft);
+        AddIfMatches(behavior.DirectionBehaviorIds.UpRight, BehaviorMovementReferenceDirection.UpRight);
+        AddIfMatches(behavior.DirectionBehaviorIds.DownLeft, BehaviorMovementReferenceDirection.DownLeft);
+        AddIfMatches(behavior.DirectionBehaviorIds.DownRight, BehaviorMovementReferenceDirection.DownRight);
     }
 
     private static PetMovementSettings RemoveMovementReference(

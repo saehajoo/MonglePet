@@ -22,6 +22,12 @@ public sealed partial class CurrentPetFramePickerControl : UserControl
 
     public bool HasSelection => _selection.Count > 0;
 
+    public string DraftFingerprint() => string.Join(
+        "\n",
+        _selection.Select(item =>
+            $"{item.MotionName}|{item.AtlasPath}|{item.Frame.X}|{item.Frame.Y}|" +
+            $"{item.Frame.Width}|{item.Frame.Height}|{item.Frame.DurationMs}"));
+
     public async Task LoadAsync(LoadedPetPackage package)
     {
         ArgumentNullException.ThrowIfNull(package);

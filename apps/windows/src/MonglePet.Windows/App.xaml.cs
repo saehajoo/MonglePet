@@ -29,6 +29,7 @@ public partial class App : Application
     private WindowsNotificationAreaIcon? _notificationArea;
     private readonly HashSet<Guid> _sessionExcludedInstanceIds = [];
     private readonly Queue<AppActivationArguments> _pendingActivationArguments = [];
+    private readonly LatestSettingsPersistence _settingsPersistence;
     private Microsoft.UI.Dispatching.DispatcherQueueTimer? _selectionSaveTimer;
     private bool _isRuntimeInitialized;
     private bool _isQuitting;
@@ -66,6 +67,10 @@ public partial class App : Application
                 ResolveLegacyMotionCycleMilliseconds,
             legacyPetDefinitionAvailabilityResolver:
                 CanResolveLegacyPetDefinition);
+        _settingsPersistence = new LatestSettingsPersistence(
+            () => CurrentSettings,
+            SettingsStore.Save);
+        _settingsPersistence.FailureChanged += SettingsPersistence_FailureChanged;
         ApplicationCatalog = new WindowsApplicationCatalog();
     }
 
@@ -103,6 +108,8 @@ public partial class App : Application
     public string? OverlayInitializationError { get; private set; }
 
     public string? SettingsStatusMessage { get; private set; }
+
+    public string? SettingsSaveFailureMessage => _settingsPersistence.Failure?.Message;
 
     public string? NotificationAreaInitializationError { get; private set; }
 
@@ -707,28 +714,37 @@ public partial class App : Application
         ArgumentNullException.ThrowIfNull(settings);
         EnsureSettingsWritingEnabled();
         AppSettings next = CurrentSettings.WithSelectedOverlay(settings);
-        SettingsStore.Save(next);
         CurrentSettings = next;
         SynchronizePetInstances();
         RefreshNotificationArea();
         SettingsStateChanged?.Invoke(this, EventArgs.Empty);
+        _settingsPersistence.SaveLatest();
     }
 
     public void PersistCurrentSettings()
     {
         EnsureSettingsWritingEnabled();
-        SettingsStore.Save(CurrentSettings);
+        _settingsPersistence.SaveLatest();
+    }
+
+    public bool RetryCurrentSettingsSave()
+    {
+        if (!SettingsStore.IsWritingEnabled)
+        {
+            return false;
+        }
+        return _settingsPersistence.Retry();
     }
 
     public void SetUserPresentation(PetPresentation presentation)
     {
         EnsureSettingsWritingEnabled();
         AppSettings next = CurrentSettings.WithSelectedPresentation(presentation);
-        SettingsStore.Save(next);
         CurrentSettings = next;
         SynchronizePetInstances();
         RefreshNotificationArea();
         SettingsStateChanged?.Invoke(this, EventArgs.Empty);
+        _settingsPersistence.SaveLatest();
     }
 
     public void SelectPetInstance(Guid instanceId)
@@ -755,18 +771,18 @@ public partial class App : Application
         CurrentSettings = ActivePetSettingsEditor.AddSamePet(
             CurrentSettings,
             copiesSelectedSettings);
-        SettingsStore.Save(CurrentSettings);
         SynchronizePetInstances();
         SettingsStateChanged?.Invoke(this, EventArgs.Empty);
+        _settingsPersistence.SaveLatest();
     }
 
     public void RenamePetInstance(Guid instanceId, string? nickname)
     {
         EnsureSettingsWritingEnabled();
         CurrentSettings = ActivePetSettingsEditor.Rename(CurrentSettings, instanceId, nickname);
-        SettingsStore.Save(CurrentSettings);
         SynchronizePetInstances();
         SettingsStateChanged?.Invoke(this, EventArgs.Empty);
+        _settingsPersistence.SaveLatest();
     }
 
     public void DeletePetCompletely(Guid instanceId)
@@ -822,9 +838,9 @@ public partial class App : Application
     {
         EnsureSettingsWritingEnabled();
         CurrentSettings = ActivePetSettingsEditor.Move(CurrentSettings, instanceId, targetIndex);
-        SettingsStore.Save(CurrentSettings);
         SynchronizePetInstances();
         SettingsStateChanged?.Invoke(this, EventArgs.Empty);
+        _settingsPersistence.SaveLatest();
     }
 
     public void SetAllPetPresentations(PetPresentation presentation)
@@ -833,10 +849,10 @@ public partial class App : Application
         CurrentSettings = ActivePetSettingsEditor.SetAllPresentations(
             CurrentSettings,
             presentation);
-        SettingsStore.Save(CurrentSettings);
         SynchronizePetInstances();
         RefreshNotificationArea();
         SettingsStateChanged?.Invoke(this, EventArgs.Empty);
+        _settingsPersistence.SaveLatest();
     }
 
     public void ToggleAllPetsPaused()
@@ -897,9 +913,9 @@ public partial class App : Application
             _sessionExcludedInstanceIds.Remove(instanceId);
         }
         CurrentSettings = ActivePetSettingsEditor.Select(CurrentSettings, instanceId);
-        SettingsStore.Save(CurrentSettings);
         SynchronizePetInstances();
         SettingsStateChanged?.Invoke(this, EventArgs.Empty);
+        _settingsPersistence.SaveLatest();
     }
 
     public string PetDisplayName(PetBehaviorKey key) => key switch
@@ -935,10 +951,10 @@ public partial class App : Application
             CurrentSettings,
             instanceId,
             nextOverlay);
-        SettingsStore.Save(next);
         CurrentSettings = next;
         SynchronizePetInstances();
         SettingsStateChanged?.Invoke(this, EventArgs.Empty);
+        _settingsPersistence.SaveLatest();
     }
 
     public void QuitApplication()
@@ -1028,6 +1044,24 @@ public partial class App : Application
     }
 
     public void SaveBehaviorProfile(BehaviorProfile profile)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        EnsureSettingsWritingEnabled();
+        if (profile.PetKey != BehaviorProfileDefaults.KeyForInstallation(ActiveInstallationId))
+        {
+            throw new AppSettingsException(
+                AppSettingsError.InvalidSettings,
+                "현재 펫과 다른 행동 프로필은 편집할 수 없습니다.");
+        }
+
+        AppSettings next = CurrentSettings.WithSelectedBehaviorProfile(profile);
+        CurrentSettings = next;
+        SynchronizePetInstances();
+        SettingsStateChanged?.Invoke(this, EventArgs.Empty);
+        _settingsPersistence.SaveLatest();
+    }
+
+    public void SaveBehaviorProfileTransactionally(BehaviorProfile profile)
     {
         ArgumentNullException.ThrowIfNull(profile);
         EnsureSettingsWritingEnabled();
@@ -1239,9 +1273,9 @@ public partial class App : Application
                     presentationInstance.Presentation == PetPresentation.Awake
                         ? PetPresentation.TuckedAway
                         : PetPresentation.Awake);
-                SettingsStore.Save(CurrentSettings);
                 SynchronizePetInstances();
                 SettingsStateChanged?.Invoke(this, EventArgs.Empty);
+                _settingsPersistence.SaveLatest();
                 break;
             case NotificationAreaCommand.ToggleClickThrough:
                 Guid clickInstanceId = RequiredInstanceId(instanceId);
@@ -1254,9 +1288,9 @@ public partial class App : Application
                 {
                     ClickThrough = !clickInstance.Overlay.ClickThrough,
                 });
-                SettingsStore.Save(CurrentSettings);
                 SynchronizePetInstances();
                 SettingsStateChanged?.Invoke(this, EventArgs.Empty);
+                _settingsPersistence.SaveLatest();
                 break;
             case NotificationAreaCommand.BringPetToCurrentScreen:
                 Guid bringInstanceId = RequiredInstanceId(instanceId);
@@ -1266,8 +1300,8 @@ public partial class App : Application
                     CurrentSettings,
                     bringInstanceId,
                     overlay);
-                SettingsStore.Save(CurrentSettings);
                 SynchronizePetInstances();
+                _settingsPersistence.SaveLatest();
                 break;
             case NotificationAreaCommand.OpenSettings:
                 // TrackPopupMenu owns foreground activation until its native
@@ -1399,7 +1433,7 @@ public partial class App : Application
         sender.Stop();
         try
         {
-            SettingsStore.Save(CurrentSettings);
+            _settingsPersistence.SaveLatest();
         }
         catch (Exception exception)
         {
@@ -1418,7 +1452,7 @@ public partial class App : Application
         _selectionSaveTimer.Stop();
         try
         {
-            SettingsStore.Save(CurrentSettings);
+            _settingsPersistence.SaveLatest();
         }
         catch
         {
@@ -1463,7 +1497,7 @@ public partial class App : Application
                 CurrentSettings,
                 e.InstanceId,
                 e.Overlay);
-            SettingsStore.Save(CurrentSettings);
+            _settingsPersistence.SaveLatest();
         }
         catch (Exception exception)
         {
@@ -1476,6 +1510,9 @@ public partial class App : Application
     {
         RefreshNotificationArea();
     }
+
+    private void SettingsPersistence_FailureChanged(object? sender, EventArgs e) =>
+        SettingsStateChanged?.Invoke(this, EventArgs.Empty);
 
     private string BuiltInMonglePath => Path.Combine(
         AppContext.BaseDirectory,
