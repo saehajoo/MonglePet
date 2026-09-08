@@ -2,7 +2,7 @@
 
 ## 상태
 
-- 상태: in_progress
+- 상태: done
 - 생성일: 2026-09-09
 - 마지막 갱신: 2026-09-09
 
@@ -46,8 +46,8 @@
 - [x] 앱 버전을 `1.9.2.24`로 갱신
 - [x] Debug·Release 전체 빌드와 테스트 재검증
 - [x] 미서명 x64 설치기 생성과 업데이트 설치 검증
-- [ ] 기능 커밋·태그·GitHub Pre-release 게시
-- [ ] 원격 자산 digest와 태그 대상 검증
+- [x] 기능 커밋·태그·GitHub Pre-release 게시
+- [x] 원격 자산 digest와 태그 대상 검증
 
 ### 플랫폼 동등성
 
@@ -69,10 +69,12 @@
 - 2026-09-09: 첫 경유 구현에서 경계 진입 뒤 staging으로 되돌아가는 방향 떨림을 사용자 QA로 확인하고, 전환 segment 안에서는 bridge 방향을 유지하도록 보정했다.
 - 2026-09-09: 보정 후 Debug·Release 각 384개 테스트와 경고·오류 없는 전체 빌드가 통과했고 설치 DLL 일치·실행 응답과 사용자 실제 이동 확인을 마쳤다.
 - 2026-09-09: `1.9.2.24` 설치기는 65,320,218 bytes, SHA-256 `50FA9B1923D1191C7BF07CF8B3E66267A46AA3383EC953F9C7CEA746E22A1AE4`다. 기존 설치 위 업데이트에서 사용자 데이터 127개·50,013,147 bytes와 inventory digest를 그대로 보존하고 설치 DLL/publish DLL 일치와 실행 응답을 확인했다.
+- 2026-09-09: 기능 커밋 `babbae83138c3bff25b6de759b3fea8a0d740908`에 annotated tag `windows-v1.9.2-preview.1`을 푸시하고 GitHub Pre-release를 게시했다. 원격 두 자산은 로컬과 크기·SHA-256이 같고 tag dereference 대상도 기능 커밋과 일치한다.
 
 ## 완료 결과
 
-- 게시 완료 뒤 갱신한다.
+- Windows `1.9.2.24`와 태그 `windows-v1.9.2-preview.1`을 GitHub Pre-release로 게시했다.
+- atlas frame clip, 도망 목적지 완료와 혼합 해상도 공유 경계 이동을 자동 테스트·설치 업데이트·사용자 실제 QA로 확인했다.
 
 ## 남은 위험 / 후속 작업
 

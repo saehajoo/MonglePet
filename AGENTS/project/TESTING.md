@@ -1121,6 +1121,7 @@ UI 테스트는 앱 실행과 접근성 자동화가 가능한 macOS 세션에�
 - `1.9.2.24` x64 self-contained publish와 65,320,218 bytes 미서명 설치기를 생성했다. SHA-256은 `50FA9B1923D1191C7BF07CF8B3E66267A46AA3383EC953F9C7CEA746E22A1AE4`다.
 - 기존 설치 위 업데이트에서 사용자 데이터는 전후 127개·50,013,147 bytes, inventory digest `5BF0EFCD5D511662F7A96E392DCF2C7AB4E59837BB1DE757DA4AAC86D82B4DDD`로 같았다. 설치본 `1.9.2.24`의 DLL은 publish와 일치하고 앱이 응답하며 최근 Application 오류가 없다.
 - 사용자가 실제 혼합 해상도 듀얼 모니터 경계 이동의 방향 떨림 보정을 확인했다. 세로·3대 이상 모니터, 전체 혼합 DPI·키보드/Narrator와 Windows→macOS atlas 왕복은 후속 QA다.
+- 기능 소스 커밋 `babbae83138c3bff25b6de759b3fea8a0d740908`에 annotated tag `windows-v1.9.2-preview.1`을 게시했다. GitHub Pre-release에서 다시 받은 설치기 65,320,218 bytes와 `SHA256SUMS.txt`는 로컬과 일치하고 tag dereference 대상도 기능 커밋과 같다.
 
 ## 변경 유형별 최소 검증
 

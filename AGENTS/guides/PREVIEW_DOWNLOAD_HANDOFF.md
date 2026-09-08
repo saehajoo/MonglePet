@@ -20,21 +20,21 @@
 
 | 항목 | 값 |
 | --- | --- |
-| 제품 버전 | `1.9.1` |
-| Windows 파일 버전 | `1.9.1.23` |
-| 표시 이름 | `MonglePet Windows 1.9.1 Preview 1` |
-| Git 태그 | `windows-v1.9.1-preview.1` |
-| 기준 커밋 | `536b7508b5af07523f1e55b04af5805f82f480ca` |
-| 게시일 | 2026-09-08 |
-| 설치기 파일 | `MonglePet-Windows-1.9.1.23-x64-Setup.exe` |
-| 설치기 크기 | 65,319,909 bytes (약 62.29 MiB) |
-| 설치기 SHA-256 | `EEA7E1B135863B0DFAEDC6B0EECAFD5DC9A0D723D9C82BB71490607A89F95645` |
+| 제품 버전 | `1.9.2` |
+| Windows 파일 버전 | `1.9.2.24` |
+| 표시 이름 | `MonglePet Windows 1.9.2 Preview 1` |
+| Git 태그 | `windows-v1.9.2-preview.1` |
+| 기준 커밋 | `babbae83138c3bff25b6de759b3fea8a0d740908` |
+| 게시일 | 2026-09-09 |
+| 설치기 파일 | `MonglePet-Windows-1.9.2.24-x64-Setup.exe` |
+| 설치기 크기 | 65,320,218 bytes (약 62.29 MiB) |
+| 설치기 SHA-256 | `50FA9B1923D1191C7BF07CF8B3E66267A46AA3383EC953F9C7CEA746E22A1AE4` |
 | 서명 상태 | 미서명 Preview |
 | 업데이트 방식 | 새 설치기를 내려받아 기존 설치 위에 수동 설치 |
 
-- 릴리스 페이지: <https://github.com/saehajoo/MonglePet/releases/tag/windows-v1.9.1-preview.1>
-- 설치기 직접 다운로드: <https://github.com/saehajoo/MonglePet/releases/download/windows-v1.9.1-preview.1/MonglePet-Windows-1.9.1.23-x64-Setup.exe>
-- 체크섬 파일: <https://github.com/saehajoo/MonglePet/releases/download/windows-v1.9.1-preview.1/SHA256SUMS.txt>
+- 릴리스 페이지: <https://github.com/saehajoo/MonglePet/releases/tag/windows-v1.9.2-preview.1>
+- 설치기 직접 다운로드: <https://github.com/saehajoo/MonglePet/releases/download/windows-v1.9.2-preview.1/MonglePet-Windows-1.9.2.24-x64-Setup.exe>
+- 체크섬 파일: <https://github.com/saehajoo/MonglePet/releases/download/windows-v1.9.2-preview.1/SHA256SUMS.txt>
 
 웹사이트에서 GitHub 파일을 그대로 연결할 때는 위 버전 고정 URL을 사용한다. 자체 서버에 복제할 때는 파일명을 바꾸거나 다시 압축하지 말고, 업로드 후 공개 URL에서 내려받은 파일의 SHA-256을 다시 확인한다.
 
@@ -87,22 +87,22 @@ macOS ZIP도 GitHub의 버전 고정 URL을 원본으로 사용한다. 자체 �
 ## 복사 가능한 Markdown 안내
 
 ```markdown
-## MonglePet Windows 1.9.1 Preview 1
+## MonglePet Windows 1.9.2 Preview 1
 
-행동 삭제와 미저장 편집을 안전하게 보호하고, 설정 저장 실패 재시도와 조건 규칙의 연속 행동 재생을 추가한 Windows Preview입니다.
+애니메이션 atlas의 인접 프레임 노출을 막고, 마우스 도망가기 전환과 서로 다른 해상도의 다중 모니터 이동을 안정화한 Windows Preview입니다.
 
-[Windows용 설치기 다운로드](https://github.com/saehajoo/MonglePet/releases/download/windows-v1.9.1-preview.1/MonglePet-Windows-1.9.1.23-x64-Setup.exe)
+[Windows용 설치기 다운로드](https://github.com/saehajoo/MonglePet/releases/download/windows-v1.9.2-preview.1/MonglePet-Windows-1.9.2.24-x64-Setup.exe)
 
 - 지원 환경: Windows 11 25H2 build 26200 이상, x64
 - 파일 크기: 약 62.29 MiB
-- 버전: 1.9.1.23
-- SHA-256: `EEA7E1B135863B0DFAEDC6B0EECAFD5DC9A0D723D9C82BB71490607A89F95645`
+- 버전: 1.9.2.24
+- SHA-256: `50FA9B1923D1191C7BF07CF8B3E66267A46AA3383EC953F9C7CEA746E22A1AE4`
 
 현재 파일은 코드 서명되지 않은 Preview이므로 Windows SmartScreen 경고가 표시될 수 있습니다. 공식 GitHub Release에서 내려받았고 SHA-256이 위 값과 일치할 때만 실행 여부를 판단해 주세요. Smart App Control이나 조직 정책에서 차단되는 환경에서는 보안 설정을 끄지 말고 다음 서명 버전을 기다려 주세요.
 
 기존 MonglePet이 설치되어 있다면 새 설치기를 그대로 실행해 업데이트할 수 있습니다. 기존 설정과 펫 라이브러리는 유지됩니다. 현재 Preview는 자동 업데이트를 제공하지 않습니다.
 
-[릴리스 정보와 체크섬 보기](https://github.com/saehajoo/MonglePet/releases/tag/windows-v1.9.1-preview.1)
+[릴리스 정보와 체크섬 보기](https://github.com/saehajoo/MonglePet/releases/tag/windows-v1.9.2-preview.1)
 ```
 
 ```markdown
@@ -128,31 +128,31 @@ ZIP을 압축 해제하고 `MonglePet.app`을 응용 프로그램 폴더로 이�
 
 ```html
 <section aria-labelledby="monglepet-windows-preview-title">
-  <h2 id="monglepet-windows-preview-title">MonglePet Windows 1.9.1 Preview 1</h2>
+  <h2 id="monglepet-windows-preview-title">MonglePet Windows 1.9.2 Preview 1</h2>
   <p>
-    행동 삭제와 미저장 편집을 보호하고 설정 저장 실패 재시도와
-    조건 규칙의 연속 행동 재생을 추가한 Windows Preview입니다.
+    애니메이션 atlas의 인접 프레임 노출을 막고 마우스 도망가기 전환과
+    서로 다른 해상도의 다중 모니터 이동을 안정화한 Windows Preview입니다.
   </p>
   <p>
-    <a href="https://github.com/saehajoo/MonglePet/releases/download/windows-v1.9.1-preview.1/MonglePet-Windows-1.9.1.23-x64-Setup.exe">
+    <a href="https://github.com/saehajoo/MonglePet/releases/download/windows-v1.9.2-preview.1/MonglePet-Windows-1.9.2.24-x64-Setup.exe">
       Windows용 설치기 다운로드
     </a>
   </p>
   <ul>
     <li>Windows 11 25H2 build 26200 이상, x64</li>
-    <li>버전 1.9.1.23 · 약 62.29 MiB</li>
+    <li>버전 1.9.2.24 · 약 62.29 MiB</li>
     <li>미서명 Preview · 수동 업데이트</li>
   </ul>
   <p>
     SHA-256:
-    <code>EEA7E1B135863B0DFAEDC6B0EECAFD5DC9A0D723D9C82BB71490607A89F95645</code>
+    <code>50FA9B1923D1191C7BF07CF8B3E66267A46AA3383EC953F9C7CEA746E22A1AE4</code>
   </p>
   <p>
     코드 서명되지 않은 Preview이므로 SmartScreen 경고가 표시될 수 있습니다.
     공식 GitHub Release 파일과 SHA-256이 일치할 때만 실행 여부를 판단해 주세요.
   </p>
   <p>
-    <a href="https://github.com/saehajoo/MonglePet/releases/tag/windows-v1.9.1-preview.1">
+    <a href="https://github.com/saehajoo/MonglePet/releases/tag/windows-v1.9.2-preview.1">
       릴리스 정보와 체크섬 보기
     </a>
   </p>
@@ -193,14 +193,14 @@ ZIP을 압축 해제하고 `MonglePet.app`을 응용 프로그램 폴더로 이�
 
 ```powershell
 Get-FileHash `
-    "$env:USERPROFILE\Downloads\MonglePet-Windows-1.9.1.23-x64-Setup.exe" `
+    "$env:USERPROFILE\Downloads\MonglePet-Windows-1.9.2.24-x64-Setup.exe" `
     -Algorithm SHA256
 ```
 
 출력된 `Hash`가 아래 값과 정확히 같아야 한다.
 
 ```text
-EEA7E1B135863B0DFAEDC6B0EECAFD5DC9A0D723D9C82BB71490607A89F95645
+50FA9B1923D1191C7BF07CF8B3E66267A46AA3383EC953F9C7CEA746E22A1AE4
 ```
 
 ## macOS에서 SHA-256 확인
