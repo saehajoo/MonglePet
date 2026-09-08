@@ -2,9 +2,9 @@
 
 ## 현재 게시된 Preview
 
-Windows `1.9.0.22`는 Git 태그 `windows-v1.9.0-preview.1`과 GitHub Pre-release `MonglePet Windows 1.9.0 Preview 1`로 게시했다. 최종 설치기 크기는 65,313,039 bytes이고 SHA-256은 `352CDBCB7D33256ADE8F576F169479493EF5AC1CF87F726AAEB5AC0C6F9A832A`다.
+Windows `1.9.1.23`은 Git 태그 `windows-v1.9.1-preview.1`과 GitHub Pre-release `MonglePet Windows 1.9.1 Preview 1`로 게시했다. 최종 설치기 크기는 65,319,909 bytes이고 SHA-256은 `EEA7E1B135863B0DFAEDC6B0EECAFD5DC9A0D723D9C82BB71490607A89F95645`다.
 
-- 릴리스: <https://github.com/saehajoo/MonglePet/releases/tag/windows-v1.9.0-preview.1>
+- 릴리스: <https://github.com/saehajoo/MonglePet/releases/tag/windows-v1.9.1-preview.1>
 - Windows·macOS 통합 웹 다운로드 화면 전달 자료: [`PREVIEW_DOWNLOAD_HANDOFF.md`](../../../AGENTS/guides/PREVIEW_DOWNLOAD_HANDOFF.md)
 - 자체 웹사이트 반영과 운영 서버 배포는 별도 웹 저장소·서버 담당 범위이며 이 저장소에서 직접 수행하지 않는다.
 

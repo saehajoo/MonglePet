@@ -1111,6 +1111,7 @@ UI 테스트는 앱 실행과 접근성 자동화가 가능한 macOS 세션에�
 - `1.9.1.23` x64 self-contained publish와 65,319,909 bytes 미서명 설치기를 생성했다. SHA-256은 `EEA7E1B135863B0DFAEDC6B0EECAFD5DC9A0D723D9C82BB71490607A89F95645`이고 `SHA256SUMS.txt`는 107 bytes다.
 - 실행 중인 기존 `1.9.0.22` 위에 설치기를 적용했다. 사용자 데이터는 전후 126개·48,630,992 bytes, inventory digest `75A3DF2E2D0CD848BC1B42FCF28EDB9AB5E71CE881D7CE578026CDFB7802E8C1`로 같고 설치 DLL은 publish와 일치하며 설치본 `1.9.1.23`이 응답한다.
 - 실제 행동 삭제 dialog, 저장 실패 주입, 중첩 제작 창 닫기, 다크/라이트·DPI·키보드/Narrator와 조건 규칙·이동 전환의 장기 UI QA는 사용자가 계속 확인한다. macOS 제작자 설정 v12 왕복도 남아 있어 플랫폼 동등 완료로 표시하지 않는다.
+- 기능 소스 커밋 `536b7508b5af07523f1e55b04af5805f82f480ca`에 annotated tag `windows-v1.9.1-preview.1`을 게시했다. GitHub Pre-release에서 다시 받은 설치기 65,319,909 bytes와 107 bytes `SHA256SUMS.txt`의 SHA-256이 로컬 최종본과 같고 tag dereference 대상도 기능 커밋과 일치한다.
 
 ## 변경 유형별 최소 검증
 

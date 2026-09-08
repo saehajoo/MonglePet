@@ -84,6 +84,7 @@
 - 2026-09-08: WinUI 소유 제작 창의 취소·Escape·제목바 X를 의미 기반 fingerprint와 같은 폐기 확인에 연결했다. 새 펫·애니메이션 추가/수정/복제의 실제 저장은 승인 닫기 전에 수행하며, 애니메이션 패키지 이름 변경 뒤 설정 저장만 실패한 경우에도 현재 패키지 ID와 원래 프로필 참조 ID를 분리해 창 안에서 재시도할 수 있다. 말풍선은 별도 제작 창이 아닌 즉시/지연 저장 UI이므로 화면 이동·종료 때 pending 저장을 flush하고 공통 실패 재시도를 사용한다.
 - 2026-09-08: Windows Debug·Release 각각 Activity 27개, Core 75개, Packages 30개, PetLibrary 107개, Settings 102개, Shell 36개로 총 377개 테스트가 성공했다. 두 구성 전체 빌드는 경고·오류 0개다. 실제 다크/라이트·DPI·키보드/Narrator·저장 실패 주입·중첩 편집창 QA와 macOS 왕복은 남겼다.
 - 2026-09-08: 사용자 릴리스 승인에 따라 Windows 버전을 `1.9.1.23`으로 올렸다. 버전 계약을 포함해 Debug·Release 각 377개 테스트와 전체 빌드를 다시 통과하고 65,319,909 bytes 미서명 설치기·107 bytes 체크섬을 생성했다. 기존 `1.9.0.22` 위 업데이트에서 126개·48,630,992 bytes 사용자 데이터와 inventory digest가 보존되고 설치 DLL 일치·실행 응답을 확인했다. 태그 `windows-v1.9.1-preview.1` 게시 준비 상태다.
+- 2026-09-08: 기능 커밋 `536b7508b5af07523f1e55b04af5805f82f480ca`과 annotated tag `windows-v1.9.1-preview.1`을 푸시하고 GitHub Pre-release를 게시했다. 원격 설치기와 체크섬을 다시 내려받아 크기·SHA-256·체크섬 내용과 tag 대상을 확인했다. 실제 장기 UI QA와 교차 왕복은 계속 남긴다.
 - 2026-09-08: 깨끗한 `8246017`에서 `origin/main`의 Windows 1.9.0 내보내기·릴리스 2커밋을 fetch하고 `--ff-only`로 `e0c6588`까지 반영했다. macOS 소스 변경은 없었다.
 - 2026-09-08: 행동 삭제의 구형 공용 이동 생성자를 독립 모드 생성자로 교체했다. 같은 편집 helper의 구형 행동 생성자가 랜덤 모드에 보관한 고정 선택을 지우는 문제도 수정했다. 삭제 영향 계산과 확인, 전역 저장 오류·최신 설정 재시도, 큰 편집기 초안 비교를 추가했다.
 - 2026-09-08: 관련 단위 테스트 66개를 통과하고 전체 `MonglePetTests` 584개 중 583개 성공·1개 선택형 외부 WebP fixture 건너뜀·실패 0개를 확인했다. 최종 Debug 빌드와 `git diff --check`를 통과했다.
@@ -96,6 +97,7 @@
 - Windows 네이티브 구현과 자동 검증 완료, 실제 QA·교차 확인 대기: `../../guides/WINDOWS_EDIT_SAFETY_HANDOFF.md`.
 - settings schema-v16, 제작자 설정 v12와 package format은 유지하며 Windows 앱은 릴리스 후보 `1.9.1.23`이다.
 - 후속 D-136 릴리스 작업에서 조건 규칙 재생 보정과 함께 macOS `1.9.1 (20)`, 태그 `macos-v1.9.1-preview.1`로 게시했다. Windows 구현·실제 QA 전까지 이 계획의 전체 상태는 `in_progress`다.
+- Windows 구현은 `1.9.1.23`, 태그 `windows-v1.9.1-preview.1`의 미서명 x64 Pre-release로 게시했다. 실제 양 플랫폼 QA·왕복 전까지 전체 상태는 `in_progress`다.
 
 ## 남은 위험 / 후속 작업
 
