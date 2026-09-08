@@ -63,8 +63,8 @@ Apple 공증과 티켓 부착이 모두 필요합니다.
 - macOS `1.8.0 (16)` 가져오기 호환성·설정 UI Preview는 태그 [`macos-v1.8.0-preview.1`](https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.8.0-preview.1)로 보존합니다.
 - macOS `1.8.1 (17)` 애니메이션 프레임 가져오기·앱 내 이용 가이드 Preview는 태그 [`macos-v1.8.1-preview.1`](https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.8.1-preview.1)로 보존합니다.
 - macOS `1.8.2 (18)` 큰 제작 편집기·부모 창 기준 배치 Preview는 태그 [`macos-v1.8.2-preview.1`](https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.8.2-preview.1)로 보존합니다.
-- 최신 macOS `1.9.0 (19)` 선택 펫 이미지 용량·내보내기 진행률 Preview는 태그 [`macos-v1.9.0-preview.1`](https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.9.0-preview.1)로 게시했으며 11,552,065 bytes Universal ZIP의 SHA-256 `da224de9563682b79d6565c021f312c4cb468f67d8c330f326df4b62a6bcc064`, 원격 세 자산의 바이트 일치와 태그 대상을 확인했습니다.
-- macOS `1.9.1 (20)` 편집 보호·조건 규칙 연속 재생 Preview는 태그 `macos-v1.9.1-preview.1`로 게시 준비 중입니다.
+- macOS `1.9.0 (19)` 선택 펫 이미지 용량·내보내기 진행률 Preview는 태그 [`macos-v1.9.0-preview.1`](https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.9.0-preview.1)로 보존합니다.
+- 최신 macOS `1.9.1 (20)` 편집 보호·조건 규칙 연속 재생 Preview는 태그 [`macos-v1.9.1-preview.1`](https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.9.1-preview.1)로 게시했으며 11,649,154 bytes Universal ZIP의 SHA-256 `ca4bfef03c9f362e8b9979511415bd177d8bbe34c26fd7450a8238fddf7a8f0a`, 원격 세 자산의 바이트 일치와 태그 대상을 확인했습니다.
 - 자체 웹사이트의 Windows·macOS 다운로드 화면 반영에는 `../../AGENTS/guides/PREVIEW_DOWNLOAD_HANDOFF.md`의 버전 고정 링크와 사용자 안내를 사용합니다.
 - 회사 Mac에서는 소스·문서·자동 검증까지만 완료합니다.
 - 실제 Preview ZIP 또는 Developer ID DMG 생성과 최종 설치 검증은 개인

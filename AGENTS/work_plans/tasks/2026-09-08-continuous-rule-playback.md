@@ -73,6 +73,7 @@
 ## 완료 결과
 
 - macOS 자동 구현·검증과 Windows 인계를 완료했다. 실제 macOS·Windows QA와 Windows 네이티브 구현·검증이 남아 있어 전체 상태는 `in_progress`다.
+- 후속 D-136 릴리스 작업에서 편집 보호 보정과 함께 macOS `1.9.1 (20)`, 태그 `macos-v1.9.1-preview.1`로 게시했다.
 
 ## 남은 위험 / 후속 작업
 

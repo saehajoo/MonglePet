@@ -1077,4 +1077,4 @@
 - 날짜: 2026-09-08
 - 결정: D-134 편집 보호·독립 설정 보존과 D-135 조건 규칙 연속 재생을 macOS `1.9.1 (20)`, 태그 `macos-v1.9.1-preview.1`의 미서명·미공증 Preview로 게시한다.
 - 이유: `1.9.0`의 패키지 용량·내보내기 계약은 유지하면서 편집 손실 방지와 자동 규칙 정지처럼 보이던 런타임 문제를 보정하므로 patch 버전으로 분리한다.
-- 비고: settings schema-v16, 제작자 설정 schema-v12, `.monglepet` formatVersion, 저장 `repeats`와 30 MiB 상한은 변경하지 않는다. Windows 구현·실제 양 플랫폼 QA 전에는 기능 동등 완료로 표시하지 않는다.
+- 비고: 소스 커밋 `8e9ce63dba4d71bcc2c5cf162303f389631fcbb9`에서 11,649,154 bytes Universal ZIP을 생성했고 SHA-256은 `ca4bfef03c9f362e8b9979511415bd177d8bbe34c26fd7450a8238fddf7a8f0a`다. 원격 세 자산의 바이트 일치와 annotated tag 대상을 확인했다. settings schema-v16, 제작자 설정 schema-v12, `.monglepet` formatVersion, 저장 `repeats`와 30 MiB 상한은 변경하지 않는다. Windows 구현·실제 양 플랫폼 QA 전에는 기능 동등 완료로 표시하지 않는다.

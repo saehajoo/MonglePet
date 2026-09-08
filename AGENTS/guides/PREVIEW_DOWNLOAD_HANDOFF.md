@@ -20,21 +20,21 @@
 
 | 항목 | 값 |
 | --- | --- |
-| 제품 버전 | `1.8.2` |
-| Windows 파일 버전 | `1.8.2.21` |
-| 표시 이름 | `MonglePet Windows 1.8.2 Preview 1` |
-| Git 태그 | `windows-v1.8.2-preview.1` |
-| 기준 커밋 | `d19232ce1422c607c84e6960bb72d513992a12c1` |
+| 제품 버전 | `1.9.0` |
+| Windows 파일 버전 | `1.9.0.22` |
+| 표시 이름 | `MonglePet Windows 1.9.0 Preview 1` |
+| Git 태그 | `windows-v1.9.0-preview.1` |
+| 기준 커밋 | `ded7b4bd30b5a58e8a6d662de25d54bebf38d5e0` |
 | 게시일 | 2026-09-07 |
-| 설치기 파일 | `MonglePet-Windows-1.8.2.21-x64-Setup.exe` |
-| 설치기 크기 | 65,300,492 bytes (약 62.28 MiB) |
-| 설치기 SHA-256 | `8FC06EB74EAE1ADE1D8073C4A97D89E04C5C79B23BBB5555E8328CE240020A6E` |
+| 설치기 파일 | `MonglePet-Windows-1.9.0.22-x64-Setup.exe` |
+| 설치기 크기 | 65,313,039 bytes (약 62.29 MiB) |
+| 설치기 SHA-256 | `352CDBCB7D33256ADE8F576F169479493EF5AC1CF87F726AAEB5AC0C6F9A832A` |
 | 서명 상태 | 미서명 Preview |
 | 업데이트 방식 | 새 설치기를 내려받아 기존 설치 위에 수동 설치 |
 
-- 릴리스 페이지: <https://github.com/saehajoo/MonglePet/releases/tag/windows-v1.8.2-preview.1>
-- 설치기 직접 다운로드: <https://github.com/saehajoo/MonglePet/releases/download/windows-v1.8.2-preview.1/MonglePet-Windows-1.8.2.21-x64-Setup.exe>
-- 체크섬 파일: <https://github.com/saehajoo/MonglePet/releases/download/windows-v1.8.2-preview.1/SHA256SUMS.txt>
+- 릴리스 페이지: <https://github.com/saehajoo/MonglePet/releases/tag/windows-v1.9.0-preview.1>
+- 설치기 직접 다운로드: <https://github.com/saehajoo/MonglePet/releases/download/windows-v1.9.0-preview.1/MonglePet-Windows-1.9.0.22-x64-Setup.exe>
+- 체크섬 파일: <https://github.com/saehajoo/MonglePet/releases/download/windows-v1.9.0-preview.1/SHA256SUMS.txt>
 
 웹사이트에서 GitHub 파일을 그대로 연결할 때는 위 버전 고정 URL을 사용한다. 자체 서버에 복제할 때는 파일명을 바꾸거나 다시 압축하지 말고, 업로드 후 공개 URL에서 내려받은 파일의 SHA-256을 다시 확인한다.
 
@@ -42,22 +42,22 @@
 
 | 항목 | 값 |
 | --- | --- |
-| 제품 버전 | `1.9.0` |
-| macOS 빌드 번호 | `19` |
-| 표시 이름 | `MonglePet macOS 1.9.0 Preview 1` |
-| Git 태그 | `macos-v1.9.0-preview.1` |
-| 기준 커밋 | `47d17b34276ee1039a15f1bcc16b8019f268630e` |
-| 게시일 | 2026-09-07 |
-| ZIP 파일 | `MonglePet-1.9.0-build.19-preview.zip` |
-| ZIP 크기 | 11,552,065 bytes (약 11.02 MiB) |
-| ZIP SHA-256 | `DA224DE9563682B79D6565C021F312C4CB468F67D8C330F326DF4B62A6BCC064` |
+| 제품 버전 | `1.9.1` |
+| macOS 빌드 번호 | `20` |
+| 표시 이름 | `MonglePet macOS 1.9.1 Preview 1` |
+| Git 태그 | `macos-v1.9.1-preview.1` |
+| 기준 커밋 | `8e9ce63dba4d71bcc2c5cf162303f389631fcbb9` |
+| 게시일 | 2026-09-08 |
+| ZIP 파일 | `MonglePet-1.9.1-build.20-preview.zip` |
+| ZIP 크기 | 11,649,154 bytes (약 11.11 MiB) |
+| ZIP SHA-256 | `CA4BFEF03C9F362E8B9979511415BD177D8BBE34C26FD7450A8238FDDF7A8F0A` |
 | 서명·공증 상태 | Developer ID 미서명·Apple 미공증 Preview |
 | 제공 범위 | 제한된 테스터용 |
 
-- 릴리스 페이지: <https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.9.0-preview.1>
-- ZIP 직접 다운로드: <https://github.com/saehajoo/MonglePet/releases/download/macos-v1.9.0-preview.1/MonglePet-1.9.0-build.19-preview.zip>
-- 체크섬 파일: <https://github.com/saehajoo/MonglePet/releases/download/macos-v1.9.0-preview.1/MonglePet-1.9.0-build.19-preview.zip.sha256>
-- 빌드 manifest: <https://github.com/saehajoo/MonglePet/releases/download/macos-v1.9.0-preview.1/MonglePet-1.9.0-build.19-preview.manifest.txt>
+- 릴리스 페이지: <https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.9.1-preview.1>
+- ZIP 직접 다운로드: <https://github.com/saehajoo/MonglePet/releases/download/macos-v1.9.1-preview.1/MonglePet-1.9.1-build.20-preview.zip>
+- 체크섬 파일: <https://github.com/saehajoo/MonglePet/releases/download/macos-v1.9.1-preview.1/MonglePet-1.9.1-build.20-preview.zip.sha256>
+- 빌드 manifest: <https://github.com/saehajoo/MonglePet/releases/download/macos-v1.9.1-preview.1/MonglePet-1.9.1-build.20-preview.manifest.txt>
 
 macOS ZIP도 GitHub의 버전 고정 URL을 원본으로 사용한다. 자체 서버에 복제한다면 ZIP을 다시 만들지 않고 공개 URL에서 다시 받은 파일의 크기와 SHA-256을 확인한다.
 
@@ -87,39 +87,39 @@ macOS ZIP도 GitHub의 버전 고정 URL을 원본으로 사용한다. 자체 �
 ## 복사 가능한 Markdown 안내
 
 ```markdown
-## MonglePet Windows 1.8.2 Preview 1
+## MonglePet Windows 1.9.0 Preview 1
 
-PNG·스프라이트 결과 경계와 애니메이션 편집 미리보기를 다듬은 Windows Preview입니다. 기존 atlas 프레임을 다시 편집해도 투명 여백과 공통 캔버스가 반복 확장되지 않습니다.
+선택한 펫의 이미지 용량과 패키지 내보내기 진행률을 표시하고 PNG를 무손실 최적화하며 패키지 상한을 30 MiB로 높인 Windows Preview입니다.
 
-[Windows용 설치기 다운로드](https://github.com/saehajoo/MonglePet/releases/download/windows-v1.8.2-preview.1/MonglePet-Windows-1.8.2.21-x64-Setup.exe)
+[Windows용 설치기 다운로드](https://github.com/saehajoo/MonglePet/releases/download/windows-v1.9.0-preview.1/MonglePet-Windows-1.9.0.22-x64-Setup.exe)
 
 - 지원 환경: Windows 11 25H2 build 26200 이상, x64
-- 파일 크기: 약 62.28 MiB
-- 버전: 1.8.2.21
-- SHA-256: `8FC06EB74EAE1ADE1D8073C4A97D89E04C5C79B23BBB5555E8328CE240020A6E`
+- 파일 크기: 약 62.29 MiB
+- 버전: 1.9.0.22
+- SHA-256: `352CDBCB7D33256ADE8F576F169479493EF5AC1CF87F726AAEB5AC0C6F9A832A`
 
 현재 파일은 코드 서명되지 않은 Preview이므로 Windows SmartScreen 경고가 표시될 수 있습니다. 공식 GitHub Release에서 내려받았고 SHA-256이 위 값과 일치할 때만 실행 여부를 판단해 주세요. Smart App Control이나 조직 정책에서 차단되는 환경에서는 보안 설정을 끄지 말고 다음 서명 버전을 기다려 주세요.
 
 기존 MonglePet이 설치되어 있다면 새 설치기를 그대로 실행해 업데이트할 수 있습니다. 기존 설정과 펫 라이브러리는 유지됩니다. 현재 Preview는 자동 업데이트를 제공하지 않습니다.
 
-[릴리스 정보와 체크섬 보기](https://github.com/saehajoo/MonglePet/releases/tag/windows-v1.8.2-preview.1)
+[릴리스 정보와 체크섬 보기](https://github.com/saehajoo/MonglePet/releases/tag/windows-v1.9.0-preview.1)
 ```
 
 ```markdown
-## MonglePet macOS 1.9.0 Preview 1
+## MonglePet macOS 1.9.1 Preview 1
 
-선택한 펫의 현재 이미지 용량을 확인하고, 저장 위치를 먼저 정한 뒤 무손실 PNG 최적화·압축·검증·저장의 단계와 진행률을 볼 수 있는 MonglePet macOS `1.9.0 (19)` 미서명·미공증 Preview입니다. 패키지 상한은 30 MiB이며 기존 PNG 호환성을 유지합니다. 현재 파일은 제한된 테스터용으로 제공합니다.
+편집 중 변경 보호와 설정 저장 오류 복구를 보완하고, 앱 사용·입력 없음 규칙이 조건 유지 중 행동을 계속 재생하도록 수정한 MonglePet macOS `1.9.1 (20)` 미서명·미공증 Preview입니다. 패키지 상한은 30 MiB이며 기존 PNG·설정 호환성을 유지합니다. 현재 파일은 제한된 테스터용으로 제공합니다.
 
-[macOS용 Preview ZIP 다운로드](https://github.com/saehajoo/MonglePet/releases/download/macos-v1.9.0-preview.1/MonglePet-1.9.0-build.19-preview.zip)
+[macOS용 Preview ZIP 다운로드](https://github.com/saehajoo/MonglePet/releases/download/macos-v1.9.1-preview.1/MonglePet-1.9.1-build.20-preview.zip)
 
 - 지원 환경: macOS 14 이상, Apple Silicon 및 Intel Mac
-- 파일 크기: 약 11.02 MiB
-- 버전: 1.9.0 (19)
-- SHA-256: `DA224DE9563682B79D6565C021F312C4CB468F67D8C330F326DF4B62A6BCC064`
+- 파일 크기: 약 11.11 MiB
+- 버전: 1.9.1 (20)
+- SHA-256: `CA4BFEF03C9F362E8B9979511415BD177D8BBE34C26FD7450A8238FDDF7A8F0A`
 
 ZIP을 압축 해제하고 `MonglePet.app`을 응용 프로그램 폴더로 이동하세요. 이 빌드는 Developer ID로 서명되지 않았고 Apple 공증을 받지 않았으므로 최초 실행이 차단될 수 있습니다. 공식 GitHub Release에서 내려받았고 SHA-256이 위 값과 일치하는 경우에만 `시스템 설정 → 개인정보 보호 및 보안`에서 MonglePet의 개별 실행 허용 여부를 판단해 주세요. Gatekeeper를 끄거나 quarantine을 제거하지 마세요.
 
-[릴리스 정보·체크섬·빌드 manifest 보기](https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.9.0-preview.1)
+[릴리스 정보·체크섬·빌드 manifest 보기](https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.9.1-preview.1)
 ```
 
 ## 복사 가능한 HTML 예시
@@ -128,59 +128,59 @@ ZIP을 압축 해제하고 `MonglePet.app`을 응용 프로그램 폴더로 이�
 
 ```html
 <section aria-labelledby="monglepet-windows-preview-title">
-  <h2 id="monglepet-windows-preview-title">MonglePet Windows 1.8.2 Preview 1</h2>
+  <h2 id="monglepet-windows-preview-title">MonglePet Windows 1.9.0 Preview 1</h2>
   <p>
-    PNG·스프라이트 결과 경계와 애니메이션 편집 미리보기를 다듬고,
-    기존 atlas 프레임의 투명 여백 반복 확장을 막은 Windows Preview입니다.
+    선택한 펫의 이미지 용량과 내보내기 진행률을 표시하고,
+    PNG 무손실 최적화와 30 MiB 상한을 적용한 Windows Preview입니다.
   </p>
   <p>
-    <a href="https://github.com/saehajoo/MonglePet/releases/download/windows-v1.8.2-preview.1/MonglePet-Windows-1.8.2.21-x64-Setup.exe">
+    <a href="https://github.com/saehajoo/MonglePet/releases/download/windows-v1.9.0-preview.1/MonglePet-Windows-1.9.0.22-x64-Setup.exe">
       Windows용 설치기 다운로드
     </a>
   </p>
   <ul>
     <li>Windows 11 25H2 build 26200 이상, x64</li>
-    <li>버전 1.8.2.21 · 약 62.28 MiB</li>
+    <li>버전 1.9.0.22 · 약 62.29 MiB</li>
     <li>미서명 Preview · 수동 업데이트</li>
   </ul>
   <p>
     SHA-256:
-    <code>8FC06EB74EAE1ADE1D8073C4A97D89E04C5C79B23BBB5555E8328CE240020A6E</code>
+    <code>352CDBCB7D33256ADE8F576F169479493EF5AC1CF87F726AAEB5AC0C6F9A832A</code>
   </p>
   <p>
     코드 서명되지 않은 Preview이므로 SmartScreen 경고가 표시될 수 있습니다.
     공식 GitHub Release 파일과 SHA-256이 일치할 때만 실행 여부를 판단해 주세요.
   </p>
   <p>
-    <a href="https://github.com/saehajoo/MonglePet/releases/tag/windows-v1.8.2-preview.1">
+    <a href="https://github.com/saehajoo/MonglePet/releases/tag/windows-v1.9.0-preview.1">
       릴리스 정보와 체크섬 보기
     </a>
   </p>
 </section>
 
 <section aria-labelledby="monglepet-macos-preview-title">
-  <h2 id="monglepet-macos-preview-title">MonglePet macOS 1.9.0 Preview 1</h2>
-  <p>펫 내보내기 용량과 진행률을 개선한 미서명·미공증 제한 테스터용 Preview입니다.</p>
+  <h2 id="monglepet-macos-preview-title">MonglePet macOS 1.9.1 Preview 1</h2>
+  <p>편집 보호와 조건 규칙 재생을 보완한 미서명·미공증 제한 테스터용 Preview입니다.</p>
   <p>
-    <a href="https://github.com/saehajoo/MonglePet/releases/download/macos-v1.9.0-preview.1/MonglePet-1.9.0-build.19-preview.zip">
+    <a href="https://github.com/saehajoo/MonglePet/releases/download/macos-v1.9.1-preview.1/MonglePet-1.9.1-build.20-preview.zip">
       macOS용 Preview ZIP 다운로드
     </a>
   </p>
   <ul>
     <li>macOS 14 이상 · Apple Silicon 및 Intel Mac</li>
-    <li>버전 1.9.0 (19) · 약 11.02 MiB</li>
+    <li>버전 1.9.1 (20) · 약 11.11 MiB</li>
     <li>Developer ID 미서명 · Apple 미공증</li>
   </ul>
   <p>
     SHA-256:
-    <code>DA224DE9563682B79D6565C021F312C4CB468F67D8C330F326DF4B62A6BCC064</code>
+    <code>CA4BFEF03C9F362E8B9979511415BD177D8BBE34C26FD7450A8238FDDF7A8F0A</code>
   </p>
   <p>
     공식 GitHub Release 파일과 SHA-256이 일치할 때만 시스템 설정의
     개인정보 보호 및 보안에서 개별 실행 허용 여부를 판단해 주세요.
   </p>
   <p>
-    <a href="https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.9.0-preview.1">
+    <a href="https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.9.1-preview.1">
       릴리스 정보·체크섬·빌드 manifest 보기
     </a>
   </p>
@@ -193,14 +193,14 @@ ZIP을 압축 해제하고 `MonglePet.app`을 응용 프로그램 폴더로 이�
 
 ```powershell
 Get-FileHash `
-    "$env:USERPROFILE\Downloads\MonglePet-Windows-1.8.2.21-x64-Setup.exe" `
+    "$env:USERPROFILE\Downloads\MonglePet-Windows-1.9.0.22-x64-Setup.exe" `
     -Algorithm SHA256
 ```
 
 출력된 `Hash`가 아래 값과 정확히 같아야 한다.
 
 ```text
-8FC06EB74EAE1ADE1D8073C4A97D89E04C5C79B23BBB5555E8328CE240020A6E
+352CDBCB7D33256ADE8F576F169479493EF5AC1CF87F726AAEB5AC0C6F9A832A
 ```
 
 ## macOS에서 SHA-256 확인
@@ -209,13 +209,13 @@ Get-FileHash `
 
 ```sh
 shasum -a 256 \
-  "$HOME/Downloads/MonglePet-1.9.0-build.19-preview.zip"
+  "$HOME/Downloads/MonglePet-1.9.1-build.20-preview.zip"
 ```
 
 출력된 값이 아래 값과 정확히 같아야 한다.
 
 ```text
-DA224DE9563682B79D6565C021F312C4CB468F67D8C330F326DF4B62A6BCC064
+CA4BFEF03C9F362E8B9979511415BD177D8BBE34C26FD7450A8238FDDF7A8F0A
 ```
 
 ## 운영 반영 체크리스트
@@ -223,7 +223,7 @@ DA224DE9563682B79D6565C021F312C4CB468F67D8C330F326DF4B62A6BCC064
 1. Windows와 macOS 버튼이 각각 해당 플랫폼의 버전 고정 URL을 가리키는지 확인한다.
 2. 각 카드에 릴리스 정보와 체크섬 링크를 제공하고 macOS에는 빌드 manifest 링크도 제공한다.
 3. Windows 최소 버전·x64·미서명·수동 업데이트와 macOS 최소 버전·지원 아키텍처·제한된 테스터용·미서명·미공증 상태를 버튼 근처에 표시한다.
-4. 자체 서버에 파일을 복제한다면 공개 URL에서 다시 내려받아 Windows 65,300,492 bytes, macOS 11,552,065 bytes와 각 SHA-256을 확인한다.
+4. 자체 서버에 파일을 복제한다면 공개 URL에서 다시 내려받아 Windows 65,313,039 bytes, macOS 11,649,154 bytes와 각 SHA-256을 확인한다.
 5. 브라우저에서 실제 다운로드한 파일명이 원본 설치기 또는 ZIP 이름과 같은지 확인한다.
 6. Windows는 기존 `1.6.0.16` 위 업데이트와 데이터 보존을, macOS는 ZIP 해제·응용 프로그램 폴더 이동·시스템 설정의 개별 앱 승인 흐름을 표본 확인한다.
 7. 공식 GitHub 링크가 아닌 임의의 미러나 파일 공유 링크를 추가하지 않는다.

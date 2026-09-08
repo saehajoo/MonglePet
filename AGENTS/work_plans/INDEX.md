@@ -8,7 +8,7 @@
 
 | 상태 | 작업명 | 파일 | 마지막 갱신 |
 | --- | --- | --- | --- |
-| in_progress | macOS 1.9.1 편집 보호·조건 규칙 재생 Preview 릴리스 | `tasks/2026-09-08-macos-1-9-1-edit-rule-release.md` | 2026-09-08 |
+| completed | macOS 1.9.1 편집 보호·조건 규칙 재생 Preview 릴리스 | `tasks/2026-09-08-macos-1-9-1-edit-rule-release.md` | 2026-09-08 |
 | in_progress | 조건 규칙 행동 연속 재생 | `tasks/2026-09-08-continuous-rule-playback.md` | 2026-09-08 |
 | in_progress | 편집 보호와 독립 설정 보존 | `tasks/2026-09-08-edit-safety-and-settings-preservation.md` | 2026-09-08 |
 | in_progress | 펫 내보내기 무손실 최적화·30 MiB 상한 | `tasks/2026-09-07-pet-export-size-optimization.md` | 2026-09-07 |

@@ -84,6 +84,7 @@
 - macOS 구현과 자동 단위 검증 완료, 실제 UI QA 및 Windows 구현·교차 확인 대기이므로 전체 상태는 `in_progress`다.
 - Windows 인계: `../../guides/WINDOWS_EDIT_SAFETY_HANDOFF.md`.
 - settings schema-v16, 제작자 설정 v12, package format과 앱 `1.9.0 (19)` 유지. 커밋·푸시·릴리스 없음.
+- 후속 D-136 릴리스 작업에서 조건 규칙 재생 보정과 함께 macOS `1.9.1 (20)`, 태그 `macos-v1.9.1-preview.1`로 게시했다. Windows 구현·실제 QA 전까지 이 계획의 전체 상태는 `in_progress`다.
 
 ## 남은 위험 / 후속 작업
 

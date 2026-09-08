@@ -2,7 +2,7 @@
 
 ## 상태
 
-- 상태: in_progress
+- 상태: completed
 - 생성일: 2026-09-08
 - 마지막 갱신: 2026-09-08
 
@@ -50,11 +50,11 @@
 
 - [x] 앱 버전과 버전 테스트를 `1.9.1 (20)`으로 올린다.
 - [x] 전체 단위 테스트와 코드 서명 없는 Debug 빌드를 통과한다.
-- [ ] 기능·문서·버전을 커밋하고 `origin/main`에 푸시한다.
-- [ ] 깨끗한 소스 커밋에서 Universal Preview ZIP·체크섬·manifest를 생성한다.
-- [ ] 압축 해제본의 버전·빌드·Bundle ID·Universal 아키텍처·AppIcon과 격리 실행을 확인한다.
-- [ ] GitHub Pre-release를 게시하고 태그 대상과 원격 자산을 재검증한다.
-- [ ] 배포·다운로드 문서에 최종 커밋·크기·SHA-256을 기록하고 푸시한다.
+- [x] 기능·문서·버전을 커밋하고 `origin/main`에 푸시한다.
+- [x] 깨끗한 소스 커밋에서 Universal Preview ZIP·체크섬·manifest를 생성한다.
+- [x] 압축 해제본의 버전·빌드·Bundle ID·Universal 아키텍처·AppIcon과 격리 실행을 확인한다.
+- [x] GitHub Pre-release를 게시하고 태그 대상과 원격 자산을 재검증한다.
+- [x] 배포·다운로드 문서에 최종 커밋·크기·SHA-256을 기록하고 푸시한다.
 
 ### Windows
 
@@ -80,10 +80,17 @@
 - 2026-09-08: 사용자가 macOS 구현 결과를 Git에 올리고 새 Preview 릴리스를 게시하도록 요청했다.
 - 2026-09-08: schema 비변경 patch 범위에 맞춰 `1.9.1 (20)`과 `macos-v1.9.1-preview.1`로 확정했다.
 - 2026-09-08: 버전 변경 후 전체 `MonglePetTests` 587개 중 586개 성공·선택형 WebP fixture 1개 건너뜀·실패 0개와 코드 서명 없는 Debug 빌드를 통과했다.
+- 2026-09-08: 소스 커밋 `8e9ce63dba4d71bcc2c5cf162303f389631fcbb9`을 `origin/main`에 푸시하고 같은 깨끗한 커밋에서 11,649,154 bytes Universal Preview ZIP을 생성했다. SHA-256은 `ca4bfef03c9f362e8b9979511415bd177d8bbe34c26fd7450a8238fddf7a8f0a`다.
+- 2026-09-08: 압축 무결성, `1.9.1 (20)`, Bundle ID, arm64·x86_64, AppIcon과 격리된 3초 실행을 확인했다.
+- 2026-09-08: annotated tag `macos-v1.9.1-preview.1`과 GitHub Pre-release를 게시하고 원격 세 자산을 다시 내려받아 로컬과 바이트 단위 일치, 원격 digest와 태그 대상을 확인했다.
 
 ## 완료 결과
 
-- 게시 준비 중
+- GitHub Pre-release: `https://github.com/saehajoo/MonglePet/releases/tag/macos-v1.9.1-preview.1`
+- 소스 커밋: `8e9ce63dba4d71bcc2c5cf162303f389631fcbb9`
+- ZIP: `MonglePet-1.9.1-build.20-preview.zip`, 11,649,154 bytes
+- SHA-256: `ca4bfef03c9f362e8b9979511415bd177d8bbe34c26fd7450a8238fddf7a8f0a`
+- manifest의 버전·빌드·커밋과 annotated tag 대상이 소스 커밋에 일치한다.
 
 ## 남은 위험 / 후속 작업
 

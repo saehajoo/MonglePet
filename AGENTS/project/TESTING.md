@@ -1100,7 +1100,9 @@ UI 테스트는 앱 실행과 접근성 자동화가 가능한 macOS 세션에�
 - 이동 표시 동안 반복 규칙 scheduler가 멈추고 이동 종료 뒤 남은 위치를 복원하는지 검증했다. 기존 fixed 연속, random 항목별 1회, 쓰다듬기 1회와 이동 중 반복 회귀 테스트도 전체 모음에 유지한다.
 - 전체 `MonglePetTests`는 로그 기준 587개 중 586개 성공·외부 로컬 WebP fixture 선택형 1개 건너뜀·실패 0개다. 코드 서명 없는 Debug 빌드와 `git diff --check`가 통과했다.
 - 실제 전면 앱·입력 없음 조건을 각각 세 번 이상 순환하고 입력/앱 전환과 규칙·이동 우선순위를 오버레이에서 확인하는 QA는 남았다. Windows 구현·실제 QA와 교차 확인 전에는 플랫폼 동등 완료로 표시하지 않는다.
-- 앱 `1.9.0 (19)`, settings schema-v16, 제작자 설정 v12, package format과 저장 `repeats` 필드는 변경하지 않았다. 이번 작업으로 버전 증가·커밋·푸시·릴리스하지 않았다.
+- D-135 단독 구현 검증에서는 앱 `1.9.0 (19)`, settings schema-v16, 제작자 설정 v12, package format과 저장 `repeats` 필드를 변경하지 않았다.
+- 사용자 릴리스 승인 뒤 D-134와 함께 앱을 `1.9.1 (20)`으로 올렸다. 소스 커밋 `8e9ce63dba4d71bcc2c5cf162303f389631fcbb9`의 Universal Release ZIP은 11,649,154 bytes, SHA-256 `ca4bfef03c9f362e8b9979511415bd177d8bbe34c26fd7450a8238fddf7a8f0a`이며 압축 무결성·버전·빌드·Bundle ID·arm64/x86_64·AppIcon과 격리된 3초 실행을 확인했다.
+- 태그 `macos-v1.9.1-preview.1`의 GitHub Pre-release 세 자산을 다시 내려받아 로컬과 바이트 단위 일치, 원격 digest와 annotated tag 대상을 검증했다. settings schema-v16, 제작자 설정 v12, package format과 저장 `repeats`는 유지한다.
 
 ## 변경 유형별 최소 검증
 
