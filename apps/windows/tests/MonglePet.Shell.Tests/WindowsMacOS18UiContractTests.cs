@@ -102,10 +102,22 @@ public sealed class WindowsMacOS18UiContractTests
         Assert.Contains("FrameCanvasBoundaryBorder", view, StringComparison.Ordinal);
         Assert.Contains("MongleControlAccentBrush", view, StringComparison.Ordinal);
         Assert.Contains("ComposedPreviewSourceAsync(frame)", code, StringComparison.Ordinal);
+        Assert.Contains("FramePlacementCanvas.Clip", code, StringComparison.Ordinal);
         Assert.Contains("PlacementFillsCanvas", code, StringComparison.Ordinal);
         Assert.DoesNotContain("LoopsToggle", view, StringComparison.Ordinal);
         Assert.DoesNotContain("LoopsToggle", code, StringComparison.Ordinal);
         Assert.Contains("_preservedLoop = motion.Loop", code, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RuntimeClipsTheAtlasToTheCurrentFrameViewport()
+    {
+        string code = Fixture("PetFrameCompositionPlayer.cs");
+
+        Assert.Contains("_visual.Clip = _frameClip", code, StringComparison.Ordinal);
+        Assert.Contains("PetFrameViewportGeometry.AspectFit", code, StringComparison.Ordinal);
+        Assert.Contains("_frameClip.TopInset = top", code, StringComparison.Ordinal);
+        Assert.Contains("_frameClip.BottomInset", code, StringComparison.Ordinal);
     }
 
     private static string Fixture(string name) => File.ReadAllText(Path.Combine(

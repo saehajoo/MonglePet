@@ -68,6 +68,9 @@
     <None Include="..\..\src\MonglePet.Windows\PetAnimationEditorControl.xaml.cs"
           Link="Fixtures\PetAnimationEditorControl.xaml.cs"
           CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\MonglePet.Windows\Overlay\PetFrameCompositionPlayer.cs"
+          Link="Fixtures\PetFrameCompositionPlayer.cs"
+          CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\MonglePet.Windows\CurrentPetFramePickerControl.xaml.cs"
           Link="Fixtures\CurrentPetFramePickerControl.xaml.cs"
           CopyToOutputDirectory="PreserveNewest" />

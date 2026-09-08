@@ -1086,3 +1086,11 @@
 - 결정: D-134 편집 보호·독립 설정 보존과 D-135 조건 규칙 연속 재생의 Windows 네이티브 구현을 Windows `1.9.1.23`, 태그 `windows-v1.9.1-preview.1`의 미서명 x64 Preview로 게시한다.
 - 이유: macOS `1.9.1`에서 확정한 편집 손실 방지와 조건 규칙 정지처럼 보이던 런타임 보정을 기존 Windows `1.9.0.22` 자산을 덮어쓰지 않고 같은 patch 기능선으로 제공해야 한다.
 - 비고: 소스 커밋 `536b7508b5af07523f1e55b04af5805f82f480ca`에서 Debug·Release 각 377개 테스트와 경고·오류 없는 전체 빌드를 통과했다. 65,319,909 bytes 설치기의 SHA-256은 `EEA7E1B135863B0DFAEDC6B0EECAFD5DC9A0D723D9C82BB71490607A89F95645`이며 기존 설치 위 업데이트에서 사용자 데이터 126개·48,630,992 bytes와 inventory digest를 보존하고 설치 DLL 일치·실행 응답을 확인했다. 원격 Pre-release 자산과 annotated tag 대상을 재검증했다. settings schema-v16, 제작자 설정 schema-v12, `.monglepet` formatVersion, 저장 `repeats`, Inno Setup AppId와 데이터 위치는 유지한다. 실제 장기 UI QA와 macOS 교차 왕복 전에는 기능 동등 완료로 표시하지 않는다.
+
+## D-138 Windows 1.9.2 애니메이션·다중 모니터 보정 Preview
+
+- 상태: accepted
+- 날짜: 2026-09-09
+- 결정: atlas frame 저장 사각형의 runtime·편집 미리보기 clip, 마우스 도망 목적지 완료와 혼합 해상도 모니터 공유 경유 이동 보정을 Windows `1.9.2.24`, 태그 `windows-v1.9.2-preview.1`의 미서명 x64 Preview로 게시한다.
+- 이유: `1.9.1.23`의 schema와 패키지 계약을 유지하면서 다른 atlas frame 노출, 도망 중 조기 평상시 전환과 실제 화면이 없는 가상 좌표 통과를 고치는 patch 릴리스가 필요하다.
+- 비고: Debug·Release 각 384개 테스트와 경고·오류 없는 전체 빌드를 통과했다. 65,320,218 bytes 미서명 설치기의 SHA-256은 `50FA9B1923D1191C7BF07CF8B3E66267A46AA3383EC953F9C7CEA746E22A1AE4`다. 기존 설치 위 업데이트에서 사용자 데이터 127개·50,013,147 bytes와 inventory digest `5BF0EFCD5D511662F7A96E392DCF2C7AB4E59837BB1DE757DA4AAC86D82B4DDD`를 보존했고 설치 DLL 일치·실행 응답과 실제 혼합 해상도 듀얼 모니터의 경계 방향 떨림 보정을 사용자가 확인했다. settings schema-v16, 제작자 설정 schema-v12, `.monglepet` formatVersion, 30 MiB 상한, Inno Setup AppId와 사용자 데이터 위치는 유지한다. 실제 세로·3대 이상 모니터, 전체 혼합 DPI와 macOS atlas 왕복 전에는 플랫폼 동등 완료로 표시하지 않는다.

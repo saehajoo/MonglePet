@@ -68,6 +68,10 @@ public readonly record struct MovementAdvance(
     bool DidMove,
     bool HasArrived);
 
+public readonly record struct MovementTransitTarget(
+    MovementPoint Origin,
+    bool IsFinal);
+
 public readonly record struct MovementRandomSample(
     double Screen,
     double Horizontal,
@@ -195,6 +199,94 @@ public static class PetMovementGeometry
             (int)Math.Floor(Unit(sample.Screen) * valid.Length));
         MovementOriginBounds? bounds = SafeOriginBounds(valid[index].WorkArea, petSize, inset);
         return bounds?.Point(sample.Horizontal, sample.Vertical);
+    }
+
+    public static MovementTransitTarget? VisibleTransitTarget(
+        MovementPoint currentOrigin,
+        MovementPoint finalOrigin,
+        MovementSize petSize,
+        IReadOnlyList<MovementScreen> screens,
+        double inset = DefaultScreenInset)
+    {
+        if (!currentOrigin.IsFinite || !finalOrigin.IsFinite ||
+            !petSize.IsValid || !double.IsFinite(inset))
+        {
+            return null;
+        }
+
+        MovementScreen[] valid = screens
+            .Where(screen => screen.WorkArea.IsValid)
+            .ToArray();
+        if (valid.Length == 0)
+        {
+            return null;
+        }
+
+        var petRect = new MovementRect(
+            currentOrigin.X,
+            currentOrigin.Y,
+            petSize.Width,
+            petSize.Height);
+        MovementScreen? finalScreen = ScreenContainingOrNearest(
+            new MovementPoint(
+                finalOrigin.X + (petSize.Width / 2),
+                finalOrigin.Y + (petSize.Height / 2)),
+            valid);
+        if (finalScreen is null || IntersectionArea(finalScreen.WorkArea, petRect) > 0)
+        {
+            return new MovementTransitTarget(finalOrigin, IsFinal: true);
+        }
+
+        MovementScreen? currentScreen = valid
+            .Select((screen, index) => new
+            {
+                Screen = screen,
+                Index = index,
+                Area = IntersectionArea(screen.WorkArea, petRect),
+            })
+            .OrderByDescending(value => value.Area)
+            .ThenBy(value => value.Index)
+            .FirstOrDefault()?.Screen;
+        if (currentScreen is null ||
+            string.Equals(currentScreen.Identifier, finalScreen.Identifier, StringComparison.OrdinalIgnoreCase))
+        {
+            return new MovementTransitTarget(finalOrigin, IsFinal: true);
+        }
+
+        MovementScreen? nextScreen = NextConnectedScreen(
+            currentScreen,
+            finalScreen,
+            valid,
+            petSize,
+            inset);
+        if (nextScreen is null ||
+            !TryTransitionPoints(
+                currentScreen.WorkArea,
+                nextScreen.WorkArea,
+                petSize,
+                inset,
+                finalOrigin,
+                out MovementPoint staging,
+                out MovementPoint bridge))
+        {
+            return new MovementTransitTarget(finalOrigin, IsFinal: true);
+        }
+
+        const double reachedTolerance = 0.5;
+        if (SquaredDistance(currentOrigin, staging) <=
+                reachedTolerance * reachedTolerance ||
+            IsOnTransitionSegment(
+                currentOrigin,
+                staging,
+                bridge,
+                reachedTolerance))
+        {
+            return new MovementTransitTarget(bridge, IsFinal: false);
+        }
+        else
+        {
+            return new MovementTransitTarget(staging, IsFinal: false);
+        }
     }
 
     public static double? DistanceFromPointerToPet(
@@ -510,6 +602,173 @@ public static class PetMovementGeometry
         MovementScreen[] valid = screens.Where(screen => screen.WorkArea.IsValid).ToArray();
         return valid.FirstOrDefault(screen => screen.WorkArea.Contains(point))
             ?? valid.MinBy(screen => SquaredDistanceToRect(point, screen.WorkArea));
+    }
+
+    private static MovementScreen? NextConnectedScreen(
+        MovementScreen current,
+        MovementScreen destination,
+        IReadOnlyList<MovementScreen> screens,
+        MovementSize petSize,
+        double inset)
+    {
+        int currentIndex = IndexOfScreen(screens, current);
+        int destinationIndex = IndexOfScreen(screens, destination);
+        if (currentIndex < 0 || destinationIndex < 0)
+        {
+            return null;
+        }
+
+        var previous = Enumerable.Repeat(-1, screens.Count).ToArray();
+        var visited = new bool[screens.Count];
+        var queue = new Queue<int>();
+        queue.Enqueue(currentIndex);
+        visited[currentIndex] = true;
+        while (queue.Count > 0)
+        {
+            int index = queue.Dequeue();
+            if (index == destinationIndex)
+            {
+                break;
+            }
+            for (int candidate = 0; candidate < screens.Count; candidate++)
+            {
+                if (visited[candidate] ||
+                    !TryTransitionPoints(
+                        screens[index].WorkArea,
+                        screens[candidate].WorkArea,
+                        petSize,
+                        inset,
+                        new MovementPoint(
+                            screens[candidate].WorkArea.CenterX - (petSize.Width / 2),
+                            screens[candidate].WorkArea.CenterY - (petSize.Height / 2)),
+                        out _,
+                        out _))
+                {
+                    continue;
+                }
+                visited[candidate] = true;
+                previous[candidate] = index;
+                queue.Enqueue(candidate);
+            }
+        }
+        if (!visited[destinationIndex])
+        {
+            return null;
+        }
+
+        int step = destinationIndex;
+        while (previous[step] != currentIndex)
+        {
+            step = previous[step];
+            if (step < 0)
+            {
+                return null;
+            }
+        }
+        return screens[step];
+    }
+
+    private static int IndexOfScreen(
+        IReadOnlyList<MovementScreen> screens,
+        MovementScreen target)
+    {
+        for (int index = 0; index < screens.Count; index++)
+        {
+            if (screens[index] == target)
+            {
+                return index;
+            }
+        }
+        return -1;
+    }
+
+    private static bool TryTransitionPoints(
+        MovementRect current,
+        MovementRect next,
+        MovementSize petSize,
+        double inset,
+        MovementPoint finalOrigin,
+        out MovementPoint staging,
+        out MovementPoint bridge)
+    {
+        const double edgeTolerance = 1;
+        double safeInset = Math.Max(0, inset);
+        bool nextIsLeft = Math.Abs(current.Left - next.Right) <= edgeTolerance;
+        bool nextIsRight = Math.Abs(current.Right - next.Left) <= edgeTolerance;
+        if (nextIsLeft || nextIsRight)
+        {
+            double minimumY = Math.Max(current.Top, next.Top) + safeInset;
+            double maximumY = Math.Min(current.Bottom, next.Bottom) -
+                safeInset - petSize.Height;
+            if (minimumY > maximumY)
+            {
+                staging = default;
+                bridge = default;
+                return false;
+            }
+            double y = Math.Clamp(finalOrigin.Y, minimumY, maximumY);
+            double seam = nextIsLeft ? current.Left : current.Right;
+            double currentX = nextIsLeft
+                ? current.Left + safeInset
+                : current.Right - safeInset - petSize.Width;
+            double direction = nextIsLeft ? -1 : 1;
+            staging = new MovementPoint(currentX, y);
+            bridge = new MovementPoint(
+                seam - (petSize.Width / 2) + direction,
+                y);
+            return true;
+        }
+
+        bool nextIsAbove = Math.Abs(current.Top - next.Bottom) <= edgeTolerance;
+        bool nextIsBelow = Math.Abs(current.Bottom - next.Top) <= edgeTolerance;
+        if (nextIsAbove || nextIsBelow)
+        {
+            double minimumX = Math.Max(current.Left, next.Left) + safeInset;
+            double maximumX = Math.Min(current.Right, next.Right) -
+                safeInset - petSize.Width;
+            if (minimumX > maximumX)
+            {
+                staging = default;
+                bridge = default;
+                return false;
+            }
+            double x = Math.Clamp(finalOrigin.X, minimumX, maximumX);
+            double seam = nextIsAbove ? current.Top : current.Bottom;
+            double currentY = nextIsAbove
+                ? current.Top + safeInset
+                : current.Bottom - safeInset - petSize.Height;
+            double direction = nextIsAbove ? -1 : 1;
+            staging = new MovementPoint(x, currentY);
+            bridge = new MovementPoint(
+                x,
+                seam - (petSize.Height / 2) + direction);
+            return true;
+        }
+
+        staging = default;
+        bridge = default;
+        return false;
+    }
+
+    private static bool IsOnTransitionSegment(
+        MovementPoint point,
+        MovementPoint staging,
+        MovementPoint bridge,
+        double tolerance)
+    {
+        if (Math.Abs(staging.Y - bridge.Y) <= tolerance)
+        {
+            return Math.Abs(point.Y - staging.Y) <= tolerance &&
+                point.X >= Math.Min(staging.X, bridge.X) - tolerance &&
+                point.X <= Math.Max(staging.X, bridge.X) + tolerance;
+        }
+        if (Math.Abs(staging.X - bridge.X) <= tolerance)
+        {
+            return Math.Abs(point.X - staging.X) <= tolerance &&
+                point.Y >= Math.Min(staging.Y, bridge.Y) - tolerance &&
+                point.Y <= Math.Max(staging.Y, bridge.Y) + tolerance;
+        }
+        return false;
     }
 
     private static MovementOriginBounds? PreferredOriginBounds(

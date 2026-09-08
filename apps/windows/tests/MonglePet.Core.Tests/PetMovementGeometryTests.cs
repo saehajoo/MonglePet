@@ -244,6 +244,89 @@ public sealed class PetMovementGeometryTests
         }
     }
 
+    [Fact]
+    public void CursorAvoidingFinishesItsActiveTargetBeforeEnteringIdle()
+    {
+        var phase = new CursorAvoidingPhaseState();
+        phase.Update(shouldEscape: true);
+
+        Assert.True(phase.ShouldEscape(
+            distance: 900,
+            detectionDistance: 300,
+            releaseDistance: 400,
+            hasActiveEscapeTarget: true));
+        Assert.False(phase.ShouldEscape(
+            distance: 900,
+            detectionDistance: 300,
+            releaseDistance: 400,
+            hasActiveEscapeTarget: false));
+        Assert.True(phase.ShouldEscape(
+            distance: 350,
+            detectionDistance: 300,
+            releaseDistance: 400,
+            hasActiveEscapeTarget: false));
+    }
+
+    [Fact]
+    public void MixedResolutionDisplaysUseTheirSharedEdgeAsAVisibleRoute()
+    {
+        MovementScreen large = new(
+            "large",
+            new MovementRect(0, 0, 2560, 1392));
+        MovementScreen small = new(
+            "small",
+            new MovementRect(-1920, 670, 1920, 1032));
+        var size = new MovementSize(200, 200);
+        var final = new MovementPoint(-1700, 900);
+
+        MovementTransitTarget? staging = PetMovementGeometry.VisibleTransitTarget(
+            new MovementPoint(200, 100),
+            final,
+            size,
+            [large, small]);
+        MovementTransitTarget? bridge = PetMovementGeometry.VisibleTransitTarget(
+            staging!.Value.Origin,
+            final,
+            size,
+            [large, small]);
+        MovementTransitTarget? crossing = PetMovementGeometry.VisibleTransitTarget(
+            new MovementPoint(4, 900),
+            final,
+            size,
+            [large, small]);
+        MovementTransitTarget? destination = PetMovementGeometry.VisibleTransitTarget(
+            bridge!.Value.Origin,
+            final,
+            size,
+            [large, small]);
+
+        Assert.False(staging.Value.IsFinal);
+        Assert.Equal(new MovementPoint(8, 900), staging.Value.Origin);
+        Assert.False(bridge.Value.IsFinal);
+        Assert.Equal(new MovementPoint(-101, 900), bridge.Value.Origin);
+        Assert.False(crossing!.Value.IsFinal);
+        Assert.Equal(bridge.Value.Origin, crossing.Value.Origin);
+        Assert.True(destination!.Value.IsFinal);
+        Assert.Equal(final, destination.Value.Origin);
+    }
+
+    [Fact]
+    public void SameDisplayMovementKeepsTheOriginalTarget()
+    {
+        var screen = new MovementScreen(
+            "display",
+            new MovementRect(0, 0, 1920, 1040));
+        var final = new MovementPoint(1200, 600);
+
+        MovementTransitTarget? target = PetMovementGeometry.VisibleTransitTarget(
+            new MovementPoint(200, 100),
+            final,
+            new MovementSize(200, 200),
+            [screen]);
+
+        Assert.Equal(new MovementTransitTarget(final, IsFinal: true), target);
+    }
+
     [Theory]
     [InlineData(-10, 0, false, MovementDirection.Left)]
     [InlineData(10, 0, false, MovementDirection.Right)]

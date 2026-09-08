@@ -865,6 +865,14 @@ public sealed partial class PetAnimationEditorControl : UserControl
         _placementDisplayScale = fitScale;
         _placementDisplayX = (availableWidth - (canvasWidth * fitScale)) / 2;
         _placementDisplayY = (availableHeight - (canvasHeight * fitScale)) / 2;
+        FramePlacementCanvas.Clip = new Microsoft.UI.Xaml.Media.RectangleGeometry
+        {
+            Rect = new Rect(
+                _placementDisplayX,
+                _placementDisplayY,
+                canvasWidth * fitScale,
+                canvasHeight * fitScale),
+        };
         FrameCheckerImage.Width = canvasWidth * _placementDisplayScale;
         FrameCheckerImage.Height = canvasHeight * _placementDisplayScale;
         Canvas.SetLeft(FrameCheckerImage, _placementDisplayX);

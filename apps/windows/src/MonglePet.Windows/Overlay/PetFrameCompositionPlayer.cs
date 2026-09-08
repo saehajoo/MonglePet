@@ -5,6 +5,7 @@ using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml.Media;
 using MonglePet.Core.Behavior;
 using MonglePet.Core.Movement;
+using MonglePet.Core.Presentation;
 using MonglePet.Packages;
 
 namespace MonglePet.Windows.Overlay;
@@ -17,6 +18,7 @@ internal sealed class PetFrameCompositionPlayer : IDisposable
     private readonly LoadedPetPackage _package;
     private readonly SpriteVisual _visual;
     private readonly CompositionSurfaceBrush _brush;
+    private readonly InsetClip _frameClip;
     private readonly DispatcherQueueTimer _timer;
     private readonly PetFrameAlphaMaskLoader _alphaMaskLoader;
     private PetPackageMotion _motion;
@@ -46,6 +48,8 @@ internal sealed class PetFrameCompositionPlayer : IDisposable
         _visual = compositor.CreateSpriteVisual();
         _visual.Size = visualSize;
         _visual.Offset = visualOffset;
+        _frameClip = compositor.CreateInsetClip();
+        _visual.Clip = _frameClip;
 
         _brush = compositor.CreateSurfaceBrush();
         _brush.Stretch = CompositionStretch.None;
@@ -293,7 +297,9 @@ internal sealed class PetFrameCompositionPlayer : IDisposable
             _surface.StateChanged -= Surface_StateChanged;
         }
         _visual.Brush = null;
+        _visual.Clip = null;
         _brush.Dispose();
+        _frameClip.Dispose();
         if (_surface is not null && !ReferenceEquals(_surface, _displayedSurface))
         {
             _surface.Dispose();
@@ -389,32 +395,37 @@ internal sealed class PetFrameCompositionPlayer : IDisposable
     private void ApplyCurrentFrame()
     {
         PetPackageFrame frame = _state.CurrentFrame;
-        float scale = MathF.Min(
-            _visual.Size.X / frame.Width,
-            _visual.Size.Y / frame.Height);
-        float displayedWidth = frame.Width * scale;
-        float displayedHeight = frame.Height * scale;
-        float left = (_visual.Size.X - displayedWidth) / 2f;
-        float top = (_visual.Size.Y - displayedHeight) / 2f;
+        PetFrameViewport viewport = PetFrameViewportGeometry.AspectFit(
+            _visual.Size.X,
+            _visual.Size.Y,
+            frame.Width,
+            frame.Height);
+        float scale = (float)viewport.Scale;
+        float left = (float)viewport.Left;
+        float top = (float)viewport.Top;
 
         _brush.Scale = new Vector2(scale, scale);
         _brush.Offset = new Vector2(
             left - frame.X * scale,
             top - frame.Y * scale);
+        _frameClip.LeftInset = left;
+        _frameClip.TopInset = top;
+        _frameClip.RightInset = (float)viewport.RightInset;
+        _frameClip.BottomInset = (float)viewport.BottomInset;
     }
 
     private MovementRect CurrentContentBounds(PetPackageFrame frame)
     {
-        double scale = Math.Min(
-            _visual.Size.X / frame.Width,
-            _visual.Size.Y / frame.Height);
-        double width = frame.Width * scale;
-        double height = frame.Height * scale;
+        PetFrameViewport viewport = PetFrameViewportGeometry.AspectFit(
+            _visual.Size.X,
+            _visual.Size.Y,
+            frame.Width,
+            frame.Height);
         return new MovementRect(
-            (_visual.Size.X - width) / 2d,
-            (_visual.Size.Y - height) / 2d,
-            width,
-            height);
+            viewport.Left,
+            viewport.Top,
+            viewport.Width,
+            viewport.Height);
     }
 
     private void RefreshFrameAndSchedule()

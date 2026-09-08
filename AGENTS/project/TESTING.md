@@ -1113,6 +1113,15 @@ UI 테스트는 앱 실행과 접근성 자동화가 가능한 macOS 세션에�
 - 실제 행동 삭제 dialog, 저장 실패 주입, 중첩 제작 창 닫기, 다크/라이트·DPI·키보드/Narrator와 조건 규칙·이동 전환의 장기 UI QA는 사용자가 계속 확인한다. macOS 제작자 설정 v12 왕복도 남아 있어 플랫폼 동등 완료로 표시하지 않는다.
 - 기능 소스 커밋 `536b7508b5af07523f1e55b04af5805f82f480ca`에 annotated tag `windows-v1.9.1-preview.1`을 게시했다. GitHub Pre-release에서 다시 받은 설치기 65,319,909 bytes와 107 bytes `SHA256SUMS.txt`의 SHA-256이 로컬 최종본과 같고 tag dereference 대상도 기능 커밋과 일치한다.
 
+### 2026-09-09 Windows 1.9.2 atlas·혼합 해상도 이동 후보 검증
+
+- atlas frame aspect-fit viewport와 runtime `InsetClip`, 편집 미리보기 공통 캔버스 clip 및 WinUI source contract를 검증했다.
+- 마우스 도망가기는 활성 목적지를 도착까지 유지하고 해제 거리 밖 포인터로 목적지를 갱신하지 않는다. 혼합 해상도 화면은 실제 work area 공유 경계의 staging·bridge를 사용하며 경계 전환 segment 중 staging으로 되돌아가지 않는 회귀 테스트를 포함한다.
+- Debug·Release 각각 Activity 27개·Core 81개·Packages 30개·PetLibrary 107개·Settings 102개·Shell 37개로 총 384개 테스트가 성공했다. 두 구성 전체 빌드는 경고·오류 0개이며 `git diff --check`를 통과했다.
+- `1.9.2.24` x64 self-contained publish와 65,320,218 bytes 미서명 설치기를 생성했다. SHA-256은 `50FA9B1923D1191C7BF07CF8B3E66267A46AA3383EC953F9C7CEA746E22A1AE4`다.
+- 기존 설치 위 업데이트에서 사용자 데이터는 전후 127개·50,013,147 bytes, inventory digest `5BF0EFCD5D511662F7A96E392DCF2C7AB4E59837BB1DE757DA4AAC86D82B4DDD`로 같았다. 설치본 `1.9.2.24`의 DLL은 publish와 일치하고 앱이 응답하며 최근 Application 오류가 없다.
+- 사용자가 실제 혼합 해상도 듀얼 모니터 경계 이동의 방향 떨림 보정을 확인했다. 세로·3대 이상 모니터, 전체 혼합 DPI·키보드/Narrator와 Windows→macOS atlas 왕복은 후속 QA다.
+
 ## 변경 유형별 최소 검증
 
 ### 후속 단계 필수 검증
@@ -1140,4 +1149,4 @@ UI 테스트는 앱 실행과 접근성 자동화가 가능한 macOS 세션에�
 ---
 
 문서 상태: active
-마지막 갱신: 2026-09-08
+마지막 갱신: 2026-09-09

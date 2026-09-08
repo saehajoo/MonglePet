@@ -547,14 +547,19 @@ internal sealed class PetMovementRuntime : IDisposable
         CursorAvoidingMovementSettings avoiding = _settings.CursorAvoiding;
         double releaseDistance = avoiding.DetectionDistance +
             Math.Max(64, avoiding.StopRadius * 2);
-        bool shouldEscape = distance <= avoiding.DetectionDistance ||
-            (_cursorAvoidingPhase.IsEscaping && distance < releaseDistance);
+        bool shouldEscape = _cursorAvoidingPhase.ShouldEscape(
+            distance,
+            avoiding.DetectionDistance,
+            releaseDistance,
+            _target is not null);
         CursorAvoidingPhaseChange phaseChange =
             _cursorAvoidingPhase.Update(shouldEscape);
         if (shouldEscape)
         {
             CancelBehaviorCompletionWait();
-            if (PetMovementGeometry.ShouldRefreshCursorAvoidingTarget(
+            bool canRefreshTarget = _target is null || distance < releaseDistance;
+            if (canRefreshTarget &&
+                PetMovementGeometry.ShouldRefreshCursorAvoidingTarget(
                     pointer,
                     _cursorAvoidingPointerAnchor,
                     _target is not null))
@@ -575,7 +580,7 @@ internal sealed class PetMovementRuntime : IDisposable
                 avoiding.Behavior,
                 elapsedSeconds,
                 screens);
-            if (arrived && distance < releaseDistance)
+            if (arrived)
             {
                 _target = null;
                 _cursorAvoidingPointerAnchor = null;
@@ -633,24 +638,36 @@ internal sealed class PetMovementRuntime : IDisposable
             ReportMotion(null);
             return false;
         }
+        bool allowsInterDisplayTransit =
+            _boundary.Mode == MovementBoundaryMode.AllDisplays ||
+            string.IsNullOrWhiteSpace(_boundary.ScreenIdentifier);
+        MovementTransitTarget transit = allowsInterDisplayTransit
+            ? PetMovementGeometry.VisibleTransitTarget(
+                origin,
+                target,
+                size,
+                screens) ?? new MovementTransitTarget(target, IsFinal: true)
+            : new MovementTransitTarget(target, IsFinal: true);
         MovementAdvance advance = _positionAccumulator!.Advance(
-            target,
+            transit.Origin,
             speed,
             elapsedSeconds,
-            stopRadius);
+            transit.IsFinal ? stopRadius : 0);
         if (!advance.DidMove)
         {
+            if (advance.HasArrived && !transit.IsFinal)
+            {
+                ReportMoving(true);
+                return false;
+            }
             ReportMotion(null);
             if (advance.HasArrived)
             {
                 ReportMoving(false);
             }
-            return advance.HasArrived;
+            return transit.IsFinal && advance.HasArrived;
         }
 
-        bool allowsInterDisplayTransit =
-            _boundary.Mode == MovementBoundaryMode.AllDisplays ||
-            string.IsNullOrWhiteSpace(_boundary.ScreenIdentifier);
         MovementPoint applied = allowsInterDisplayTransit
             ? advance.Origin
             : PetMovementGeometry.ClampToNearestScreen(
@@ -664,7 +681,7 @@ internal sealed class PetMovementRuntime : IDisposable
         double actualDeltaY = applied.Y - origin.Y;
         ReportMotion(ResolveMovementBehavior(behavior, actualDeltaX, actualDeltaY));
         ReportMoving(!_isBehaviorPaused);
-        return advance.HasArrived;
+        return transit.IsFinal && advance.HasArrived;
     }
 
     private void ObserveHover(ScreenPoint pointer, long timestamp)
